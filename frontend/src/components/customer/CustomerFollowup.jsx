@@ -48,6 +48,8 @@ import {
   Heading,
   Divider,
   useColorModeValue,
+  Radio,
+  RadioGroup,
 } from "@chakra-ui/react";
 import { 
   ArrowBackIcon, 
@@ -1435,98 +1437,34 @@ const CustomerFollowup = () => {
                       >
                         <Thead bg={headerBg}>
                           <Tr>
-                            <CompactHeaderCell>Start Date</CompactHeaderCell>
-                            <CompactHeaderCell>Agent Name</CompactHeaderCell>
-                            <CompactHeaderCell>Customer Name</CompactHeaderCell>
-                            <CompactHeaderCell>Email</CompactHeaderCell>
-                            <CompactHeaderCell>Phone Number</CompactHeaderCell>
-                            <CompactHeaderCell>Field of Work</CompactHeaderCell>
-                            <CompactHeaderCell>Service Type</CompactHeaderCell>
-                            <CompactHeaderCell>Schedule & Shift</CompactHeaderCell>
-                            <CompactHeaderCell>Material Delivery Status</CompactHeaderCell>
-                            <CompactHeaderCell>Progress</CompactHeaderCell>
-                            <CompactHeaderCell>ID Info</CompactHeaderCell>
-                            <CompactHeaderCell>Package Status</CompactHeaderCell>
+                            <CompactHeaderCell>Type</CompactHeaderCell>
+                            <CompactHeaderCell>Package Type</CompactHeaderCell>
+                            <CompactHeaderCell>Company Name</CompactHeaderCell>
+                            <CompactHeaderCell>Positions Offered</CompactHeaderCell>
+                            <CompactHeaderCell>Salary Range</CompactHeaderCell>
+                            <CompactHeaderCell>Job Requirements</CompactHeaderCell>
+                            <CompactHeaderCell>Job Seeker Name</CompactHeaderCell>
+                            <CompactHeaderCell>Skills</CompactHeaderCell>
+                            <CompactHeaderCell>Experience</CompactHeaderCell>
+                            <CompactHeaderCell>Education</CompactHeaderCell>
+                            <CompactHeaderCell>Expected Salary</CompactHeaderCell>
                           </Tr>
                         </Thead>
                         <Tbody>
                           {ensraFollowups.length > 0 ? (
                             ensraFollowups.map((item) => (
                               <Tr key={item.id}>
-                                <CompactCell>
-                                  {item.startDate ? new Date(item.startDate).toLocaleDateString() : "-"}
-                                </CompactCell>
-                                <CompactCell>{item.agentName}</CompactCell>
-                                <CompactCell>{item.customerName}</CompactCell>
-                                <CompactCell>{item.email}</CompactCell>
-                                <CompactCell>{item.phoneNumber}</CompactCell>
-                                <CompactCell>{item.fieldOfWork}</CompactCell>
-                                <CompactCell>{item.serviceType}</CompactCell>
-                                <CompactCell>
-                                  <Tooltip label={item.scheduleShift || "Not set"} hasArrow>
-                                    <Input
-                                      as="select"
-                                      size="sm"
-                                      value={item.scheduleShift || ""}
-                                      onChange={(e) =>
-                                        handleInlineEnsraChange(
-                                          item.id,
-                                          "scheduleShift",
-                                          e.target.value
-                                        )
-                                      }
-                                    >
-                                      <option value="">Select schedule</option>
-                                      <option value="Regular">Regular</option>
-                                      <option value="Night">Night</option>
-                                      <option value="Weekend">Weekend</option>
-                                      <option value="Night/Weekend">Night/Weekend</option>
-                                    </Input>
-                                  </Tooltip>
-                                </CompactCell>
-                                <CompactCell>
-                                  <Tooltip label={item.materialStatus || "Not set"} hasArrow>
-                                    <Input
-                                      as="select"
-                                      size="sm"
-                                      value={item.materialStatus || ""}
-                                      onChange={(e) =>
-                                        handleInlineEnsraChange(
-                                          item.id,
-                                          "materialStatus",
-                                          e.target.value
-                                        )
-                                      }
-                                    >
-                                      <option value="">Select status</option>
-                                      <option value="Not Delivered">Not Delivered</option>
-                                      <option value="Delivered">Delivered</option>
-                                    </Input>
-                                  </Tooltip>
-                                </CompactCell>
-                                <CompactCell>
-                                  <Tooltip label={item.progress || "Not set"} hasArrow>
-                                    <Input
-                                      as="select"
-                                      size="sm"
-                                      value={item.progress || ""}
-                                      onChange={(e) =>
-                                        handleInlineEnsraChange(
-                                          item.id,
-                                          "progress",
-                                          e.target.value
-                                        )
-                                      }
-                                    >
-                                      <option value="">Select progress</option>
-                                      <option value="Not Started">Not Started</option>
-                                      <option value="Started">Started</option>
-                                      <option value="Dropped">Dropped</option>
-                                    </Input>
-                                  </Tooltip>
-                                </CompactCell>
-                                <CompactCell>{item.idInfo}</CompactCell>
-                                <CompactCell>{item.packageStatus}</CompactCell>
+                                <CompactCell>{item.type}</CompactCell>
+                                <CompactCell>{item.packageType}</CompactCell>
+                                <CompactCell>{item.companyName}</CompactCell>
+                                <CompactCell>{item.positionsOffered}</CompactCell>
+                                <CompactCell>{item.salaryRange}</CompactCell>
+                                <CompactCell>{item.jobRequirements}</CompactCell>
+                                <CompactCell>{item.jobSeekerName}</CompactCell>
+                                <CompactCell>{item.jobSeekerSkills}</CompactCell>
+                                <CompactCell>{item.jobSeekerExperience}</CompactCell>
+                                <CompactCell>{item.jobSeekerEducation}</CompactCell>
+                                <CompactCell>{item.jobSeekerExpectedSalary}</CompactCell>
                               </Tr>
                             ))
                           ) : (
@@ -1578,233 +1516,209 @@ const CustomerFollowup = () => {
                           <CardBody>
                             <Box as="form" onSubmit={handleEnsraSubmit}>
                               <VStack spacing={4} align="stretch">
-                                <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Agent Name
-                                    </Text>
-                                    <Input
-                                      value={ensraForm.agentName}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          agentName: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="Agent handling this ENSRA case"
-                                    />
-                                  </Box>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Customer Name
-                                    </Text>
-                                    <Input
-                                      value={ensraForm.customerName}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          customerName: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="Customer full name"
-                                    />
-                                  </Box>
-                                </Stack>
+                                <Box>
+                                  <Text mb={1} fontWeight="medium">
+                                    Registration Type
+                                  </Text>
+                                  <RadioGroup
+                                    value={ensraForm.type}
+                                    onChange={(value) =>
+                                      setEnsraForm((prev) => ({
+                                        ...prev,
+                                        type: value,
+                                      }))
+                                    }
+                                  >
+                                    <HStack spacing={4}>
+                                      <Radio value="company">Company - Looking to hire</Radio>
+                                      <Radio value="individual">Individual - Managing job seekers</Radio>
+                                    </HStack>
+                                  </RadioGroup>
+                                </Box>
 
-                                <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Email
-                                    </Text>
-                                    <Input
-                                      type="email"
-                                      value={ensraForm.email}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          email: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="Customer email"
-                                    />
-                                  </Box>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Phone Number
-                                    </Text>
-                                    <Input
-                                      value={ensraForm.phoneNumber}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          phoneNumber: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="Customer phone"
-                                    />
-                                  </Box>
-                                </Stack>
+                                {ensraForm.type === "company" && (
+                                  <>
+                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Package Type
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.packageType}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              packageType: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="e.g., 1, 2, 3"
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Company Name
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.companyName}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              companyName: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="Enter company name"
+                                        />
+                                      </Box>
+                                    </Stack>
 
-                                <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Start Date
-                                    </Text>
-                                    <Input
-                                      type="date"
-                                      value={ensraForm.startDate}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          startDate: e.target.value,
-                                        }))
-                                      }
-                                    />
-                                  </Box>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Field the Customer is Working In
-                                    </Text>
-                                    <Input
-                                      value={ensraForm.fieldOfWork}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          fieldOfWork: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="e.g., Finance, IT, Marketing"
-                                    />
-                                  </Box>
-                                </Stack>
+                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Positions Offered
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.positionsOffered}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              positionsOffered: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="Comma-separated positions"
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Salary Range
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.salaryRange}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              salaryRange: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="e.g., $50,000 - $80,000"
+                                        />
+                                      </Box>
+                                    </Stack>
 
-                                <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Service Type
-                                    </Text>
-                                    <Input
-                                      value={ensraForm.serviceType}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          serviceType: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="e.g., Recruitment, Matching, Other"
-                                    />
-                                  </Box>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Schedule and Shift
-                                    </Text>
-                                    <Input
-                                      as="select"
-                                      value={ensraForm.scheduleShift}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          scheduleShift: e.target.value,
-                                        }))
-                                      }
-                                    >
-                                      <option value="">Select schedule</option>
-                                      <option value="Regular">Regular</option>
-                                      <option value="Night">Night</option>
-                                      <option value="Weekend">Weekend</option>
-                                      <option value="Night/Weekend">Night/Weekend</option>
-                                    </Input>
-                                  </Box>
-                                </Stack>
+                                    <Box>
+                                      <Text mb={1} fontWeight="medium">
+                                        Job Requirements
+                                      </Text>
+                                      <Textarea
+                                        value={ensraForm.jobRequirements}
+                                        onChange={(e) =>
+                                          setEnsraForm((prev) => ({
+                                            ...prev,
+                                            jobRequirements: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Describe job requirements, qualifications, etc."
+                                        rows={4}
+                                      />
+                                    </Box>
+                                  </>
+                                )}
 
-                                <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Material Delivery Status
-                                    </Text>
-                                    <Input
-                                      as="select"
-                                      value={ensraForm.materialStatus}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          materialStatus: e.target.value,
-                                        }))
-                                      }
-                                    >
-                                      <option value="">Select status</option>
-                                      <option value="Not Delivered">Not Delivered</option>
-                                      <option value="Delivered">Delivered</option>
-                                    </Input>
-                                  </Box>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Progress
-                                    </Text>
-                                    <Input
-                                      as="select"
-                                      value={ensraForm.progress}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          progress: e.target.value,
-                                        }))
-                                      }
-                                    >
-                                      <option value="">Select progress</option>
-                                      <option value="Not Started">Not Started</option>
-                                      <option value="Started">Started</option>
-                                      <option value="Dropped">Dropped</option>
-                                    </Input>
-                                  </Box>
-                                </Stack>
+                                {ensraForm.type === "individual" && (
+                                  <>
+                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Job Seeker Name
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.jobSeekerName}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              jobSeekerName: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="Enter job seeker name"
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Skills
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.jobSeekerSkills}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              jobSeekerSkills: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="Comma-separated skills"
+                                        />
+                                      </Box>
+                                    </Stack>
 
-                                <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      ID Info
-                                    </Text>
-                                    <Input
-                                      value={ensraForm.idInfo}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          idInfo: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="ID number or reference"
-                                    />
-                                  </Box>
-                                  <Box flex={1}>
-                                    <Text mb={1} fontWeight="medium">
-                                      Package Status
-                                    </Text>
-                                    <Input
-                                      as="select"
-                                      value={ensraForm.packageStatus}
-                                      onChange={(e) =>
-                                        setEnsraForm((prev) => ({
-                                          ...prev,
-                                          packageStatus: e.target.value,
-                                        }))
-                                      }
-                                    >
-                                      <option value="">Select status</option>
-                                      <option value="Pending">Pending</option>
-                                      <option value="Active">Active</option>
-                                      <option value="Completed">Completed</option>
-                                      <option value="Cancelled">Cancelled</option>
-                                    </Input>
-                                  </Box>
-                                </Stack>
+                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Experience
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.jobSeekerExperience}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              jobSeekerExperience: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="e.g., 2 years"
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Education
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.jobSeekerEducation}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              jobSeekerEducation: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="e.g., Bachelor's Degree"
+                                        />
+                                      </Box>
+                                    </Stack>
+
+                                    <Box>
+                                      <Text mb={1} fontWeight="medium">
+                                        Expected Salary
+                                      </Text>
+                                      <Input
+                                        value={ensraForm.jobSeekerExpectedSalary}
+                                        onChange={(e) =>
+                                          setEnsraForm((prev) => ({
+                                            ...prev,
+                                            jobSeekerExpectedSalary: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="e.g., $60,000"
+                                      />
+                                    </Box>
+                                  </>
+                                )}
 
                                 <Button
                                   type="submit"
                                   colorScheme="teal"
                                   width="full"
-                                  isDisabled={!ensraForm.customerName || !ensraForm.agentName}
+                                  isDisabled={
+                                    (ensraForm.type === "company" && !ensraForm.companyName) ||
+                                    (ensraForm.type === "individual" && !ensraForm.jobSeekerName)
+                                  }
                                 >
-                                  Save ENSRA Customer
+                                  Register for ENSRA
                                 </Button>
                               </VStack>
                             </Box>
