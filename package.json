@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "formik": "^2.4.6",
+    "yup": "^1.7.1"
+  },
+  "devDependencies": {
+    "axios": "^1.12.2"
+  }
+}

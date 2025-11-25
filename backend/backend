@@ -1,0 +1,59 @@
+const axios = require('axios');
+
+async function testSavedMatches() {
+  try {
+    const savedBy = 'testuser@example.com';
+    
+    // Test saving a match
+    const matchToSave = {
+      buyerId: '68e8a5960ef3baade03c1f4d',
+      sellerId: '68e8a790d551784b1cbfece9',
+      buyerName: 'Tsion',
+      sellerName: 'Tradethiopia',
+      matchingProducts: ['coffee'],
+      matchingCriteria: ['Industry', 'Country', 'Products'],
+      matchReasons: [
+        'Both are in the E-commerce industry',
+        'Both are from Ethiopia',
+        'Buyer wants to buy \'coffee\' which seller offers'
+      ],
+      score: 85,
+      industryMatch: true,
+      countryMatch: true,
+      savedBy,
+      notes: 'High priority match for follow-up'
+    };
+
+    console.log('Saving a match...');
+    const saveResponse = await axios.post('http://localhost:5000/api/saved-matches', matchToSave);
+    console.log('Match saved:', saveResponse.data);
+
+    // Test getting saved matches
+    console.log('\nFetching saved matches...');
+    const getResponse = await axios.get('http://localhost:5000/api/saved-matches', {
+      params: { savedBy }
+    });
+    console.log(`Found ${getResponse.data.length} saved matches`);
+
+    // Test updating a saved match
+    if (getResponse.data.length > 0) {
+      const matchId = getResponse.data[0]._id;
+      console.log('\nUpdating saved match notes...');
+      const updateResponse = await axios.put(`http://localhost:5000/api/saved-matches/${matchId}`, {
+        notes: 'Updated notes: Contacted buyer, waiting for response'
+      });
+      console.log('Match updated:', updateResponse.data);
+    }
+
+    // Test deleting a saved match
+    console.log('\nDeleting saved match...');
+    const deleteResponse = await axios.delete(`http://localhost:5000/api/saved-matches/${saveResponse.data._id}`);
+    console.log('Match deleted:', deleteResponse.data);
+
+    console.log('\nAll saved matches tests passed!');
+  } catch (error) {
+    console.error('Test failed:', error.response ? error.response.data : error.message);
+  }
+}
+
+testSavedMatches();
