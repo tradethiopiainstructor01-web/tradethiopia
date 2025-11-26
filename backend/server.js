@@ -155,7 +155,7 @@ module.exports = app;
 
 // Connect to MongoDB and start the server only when running locally
 if (require.main === module) {
-    const PORT = process.env.PORT || 5001;
+    const PORT = process.env.PORT || 5000;
     
     // Connect to database and start server
     connectDB()

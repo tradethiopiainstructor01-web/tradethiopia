@@ -27,8 +27,4 @@ const trainingFollowupSchema = new Schema(
   }
 );
 
-trainingFollowupSchema.index({ customerName: 1 });
-trainingFollowupSchema.index({ progress: 1 });
-trainingFollowupSchema.index({ startDate: -1 });
-
 module.exports = model("TrainingFollowup", trainingFollowupSchema);

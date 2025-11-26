@@ -19,7 +19,4 @@ const ensraFollowupSchema = new Schema(
   }
 );
 
-ensraFollowupSchema.index({ companyName: 1 });
-ensraFollowupSchema.index({ jobSeekerName: 1 });
-
 module.exports = model("EnsraFollowup", ensraFollowupSchema);

@@ -63,6 +63,15 @@ import {
   AddIcon,
 } from "@chakra-ui/icons";
 import EditCustomerInfo from "./EditCustomerInfo";
+import {
+  fetchTrainingFollowups,
+  createTrainingFollowup,
+  updateTrainingFollowup,
+  deleteTrainingFollowup,
+  fetchEnsraFollowups,
+  createEnsraFollowup,
+  deleteEnsraFollowup,
+} from "../../services/api";
 
 const CustomerFollowup = () => {
   const [data, setData] = useState([]);
@@ -93,6 +102,10 @@ const CustomerFollowup = () => {
   const [ensraSearch, setEnsraSearch] = useState("");
   const [ensraTypeFilter, setEnsraTypeFilter] = useState("all");
   const [ensraSortAsc, setEnsraSortAsc] = useState(true);
+  const [isTrainingEditOpen, setIsTrainingEditOpen] = useState(false);
+  const [trainingEditData, setTrainingEditData] = useState(null);
+  const [isEnsraEditOpen, setIsEnsraEditOpen] = useState(false);
+  const [ensraEditData, setEnsraEditData] = useState(null);
   const toast = useToast();
   
   // Responsive breakpoints
@@ -259,7 +272,7 @@ const CustomerFollowup = () => {
   });
 
   const [ensraForm, setEnsraForm] = useState({
-    type: "company", // company or individual
+    type: "company", // company or jobSeeker
     packageType: "", // numeric/string package id if needed
     companyName: "",
     positionsOffered: "", // comma-separated list
@@ -304,50 +317,14 @@ const CustomerFollowup = () => {
     }));
   };
 
-  const handleTrainingSubmit = (e) => {
+  const handleEnsraSubmit = async (e) => {
     e.preventDefault();
-    const newEntry = {
-      id: Date.now(),
-      ...trainingForm,
-    };
-    setTrainingFollowups((prev) => [...prev, newEntry]);
-    toast({
-      title: "Training data captured",
-      description: "Training registration data has been recorded.",
-      status: "success",
-      duration: 4000,
-      isClosable: true,
-    });
-    setTrainingForm((prev) => ({
-      ...prev,
-      batch: "",
-      startDate: "",
-      duration: "",
-      paymentOption: "full",
-      paymentAmount: 0,
-      totalAmount: prev.totalAmount,
-      specialRequirements: "",
-      previousTraining: "",
-      agentName: "",
-      customerName: "",
-      email: "",
-      phoneNumber: "",
-      fieldOfWork: "",
-      scheduleShift: "",
-      materialStatus: "",
-      progress: "",
-      idInfo: "",
-      packageStatus: "",
-    }));
-  };
-
-  const handleEnsraSubmit = (e) => {
-    e.preventDefault();
-    const newEntry = {
-      id: Date.now(),
+    try {
+    await createEnsraFollowup({
       ...ensraForm,
-    };
-    setEnsraFollowups((prev) => [...prev, newEntry]);
+      type: ensraForm.type === "individual" ? "jobSeeker" : ensraForm.type, // legacy safety
+    });
+
     toast({
       title: "ENSRA customer added",
       description: "ENSRA follow-up record has been created.",
@@ -355,6 +332,7 @@ const CustomerFollowup = () => {
       duration: 4000,
       isClosable: true,
     });
+
     setEnsraForm({
       type: "company",
       packageType: "",
@@ -368,22 +346,239 @@ const CustomerFollowup = () => {
       jobSeekerEducation: "",
       jobSeekerExpectedSalary: "",
     });
+
     setShowEnsraFormCard(false);
-  };
+    await loadEnsraFollowups();
+  } catch (err) {
+    console.error("Failed to save ENSRA follow-up", err);
+    toast({
+      title: "Error",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  }
+};
 
-  const handleInlineTrainingChange = (id, field, value) => {
-    setTrainingFollowups((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              [field]: value,
-            }
-          : item
-      )
-    );
-  };
+const handleTrainingSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    await createTrainingFollowup(trainingForm);
 
+    // Show success toast
+    toast({
+      title: "Training data captured",
+      description: "Training registration data has been recorded.",
+      status: "success",
+      duration: 4000,
+      isClosable: true,
+    });
+
+    // Reset form
+    setTrainingForm({
+      trainingType: "",
+      batch: "",
+      startDate: "",
+      duration: "",
+      paymentOption: "full",
+      paymentAmount: 0,
+      totalAmount: 0,
+      specialRequirements: "",
+      previousTraining: "",
+      agentName: "",
+      customerName: "",
+      email: "",
+      phoneNumber: "",
+      fieldOfWork: "",
+      scheduleShift: "",
+      materialStatus: "",
+      progress: "",
+      idInfo: "",
+      packageStatus: "",
+    });
+
+    // Refresh the training follow-ups list
+    await loadTrainingFollowups();
+  } catch (err) {
+    console.error("Failed to save training follow-up", err);
+    toast({
+      title: "Error",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  }
+};
+  const handleInlineTrainingChange = async (id, field, value) => {
+  // optimistic update
+  setTrainingFollowups((prev) =>
+    prev.map((item) =>
+      item._id === id
+        ? { ...item, [field]: value }
+        : item
+    )
+  );
+
+  try {
+    await updateTrainingFollowup(id, { [field]: value });
+  } catch (err) {
+    console.error("Failed to update training follow-up", err);
+    toast({
+      title: "Error updating training",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+    loadTrainingFollowups();
+  }
+};
+
+const loadTrainingFollowups = async () => {
+  try {
+    const result = await fetchTrainingFollowups();
+    setTrainingFollowups(Array.isArray(result) ? result : []);
+  } catch (err) {
+    console.error("Failed to load training follow-ups", err);
+    setTrainingFollowups([]);
+  }
+};
+
+const loadEnsraFollowups = async () => {
+  try {
+    const result = await fetchEnsraFollowups();
+    const normalized = Array.isArray(result)
+      ? result.map((item) => ({
+          ...item,
+          type: item.type === "individual" ? "jobSeeker" : item.type,
+        }))
+      : [];
+    setEnsraFollowups(normalized);
+  } catch (err) {
+    console.error("Failed to load ENSRA follow-ups", err);
+    setEnsraFollowups([]);
+  }
+};
+
+const handleDeleteTrainingFollowup = async (id) => {
+  if (!window.confirm("Delete this training follow-up?")) return;
+  try {
+    await deleteTrainingFollowup(id);
+    toast({
+      title: "Training follow-up deleted",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+    await loadTrainingFollowups();
+  } catch (err) {
+    console.error("Failed to delete training follow-up", err);
+    toast({
+      title: "Error deleting training follow-up",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  }
+};
+
+const handleDeleteEnsraFollowup = async (id) => {
+  if (!window.confirm("Delete this ENSRA follow-up?")) return;
+  try {
+    await deleteEnsraFollowup(id);
+    toast({
+      title: "ENSRA follow-up deleted",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+    await loadEnsraFollowups();
+  } catch (err) {
+    console.error("Failed to delete ENSRA follow-up", err);
+    toast({
+      title: "Error deleting ENSRA follow-up",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  }
+};
+
+const openTrainingEdit = (item) => {
+  setTrainingEditData({ ...item });
+  setIsTrainingEditOpen(true);
+};
+
+const handleTrainingEditChange = (field, value) => {
+  setTrainingEditData((prev) => ({ ...prev, [field]: value }));
+};
+
+const saveTrainingEdit = async () => {
+  if (!trainingEditData?._id) return;
+  try {
+    await updateTrainingFollowup(trainingEditData._id, trainingEditData);
+    toast({
+      title: "Training follow-up updated",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+    setIsTrainingEditOpen(false);
+    setTrainingEditData(null);
+    await loadTrainingFollowups();
+  } catch (err) {
+    console.error("Failed to update training follow-up", err);
+    toast({
+      title: "Error updating training follow-up",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  }
+};
+
+const openEnsraEdit = (item) => {
+  setEnsraEditData({
+    ...item,
+    type: item.type === "individual" ? "jobSeeker" : item.type,
+  });
+  setIsEnsraEditOpen(true);
+};
+
+const handleEnsraEditChange = (field, value) => {
+  setEnsraEditData((prev) => ({ ...prev, [field]: value }));
+};
+
+const saveEnsraEdit = async () => {
+  const id = ensraEditData?._id || ensraEditData?.id;
+  if (!id) return;
+  try {
+    await updateEnsraFollowup(id, ensraEditData);
+    toast({
+      title: "ENSRA follow-up updated",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+    setIsEnsraEditOpen(false);
+    setEnsraEditData(null);
+    await loadEnsraFollowups();
+  } catch (err) {
+    console.error("Failed to update ENSRA follow-up", err);
+    toast({
+      title: "Error updating ENSRA follow-up",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  }
+};
   // Derived, filtered, and sorted arrays for Training Follow-Up
   const filteredTrainingFollowups = [...trainingFollowups]
     .filter((item) => {
@@ -442,10 +637,12 @@ const CustomerFollowup = () => {
   };
 
   useEffect(() => {
-    fetchData();
-    fetchPendingB2BCustomers();
-    fetchCompletedSales();
-  }, []);
+  fetchData();
+  fetchPendingB2BCustomers();
+  fetchCompletedSales();
+  loadTrainingFollowups();
+  loadEnsraFollowups();
+}, []);
 
   const handleUpdateServices = async (id, updatedServiceProvided, updatedServiceNotProvided) => {
     try {
@@ -1396,17 +1593,18 @@ const CustomerFollowup = () => {
                             <CompactHeaderCell>Phone Number</CompactHeaderCell>
                             <CompactHeaderCell>Field of Work</CompactHeaderCell>
                             <CompactHeaderCell>Course</CompactHeaderCell>
-                            <CompactHeaderCell>Schedule & Shift</CompactHeaderCell>
-                            <CompactHeaderCell>Material Delivery Status</CompactHeaderCell>
-                            <CompactHeaderCell>Progress</CompactHeaderCell>
-                            <CompactHeaderCell>ID Info</CompactHeaderCell>
-                            <CompactHeaderCell>Package Status</CompactHeaderCell>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {filteredTrainingFollowups.length > 0 ? (
-                            filteredTrainingFollowups.map((item) => (
-                              <Tr key={item.id}>
+                          <CompactHeaderCell>Schedule & Shift</CompactHeaderCell>
+                          <CompactHeaderCell>Material Delivery Status</CompactHeaderCell>
+                          <CompactHeaderCell>Progress</CompactHeaderCell>
+                          <CompactHeaderCell>ID Info</CompactHeaderCell>
+                          <CompactHeaderCell>Package Status</CompactHeaderCell>
+                          <CompactHeaderCell>Actions</CompactHeaderCell>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {filteredTrainingFollowups.length > 0 ? (
+                          filteredTrainingFollowups.map((item) => (
+                              <Tr key={item._id}>
                                 <CompactCell>
                                   {item.startDate ? new Date(item.startDate).toLocaleDateString() : "-"}
                                 </CompactCell>
@@ -1424,7 +1622,7 @@ const CustomerFollowup = () => {
                                       value={item.scheduleShift || ""}
                                       onChange={(e) =>
                                         handleInlineTrainingChange(
-                                          item.id,
+                                          item._id,
                                           "scheduleShift",
                                           e.target.value
                                         )
@@ -1446,7 +1644,7 @@ const CustomerFollowup = () => {
                                       value={item.materialStatus || ""}
                                       onChange={(e) =>
                                         handleInlineTrainingChange(
-                                          item.id,
+                                          item._id,
                                           "materialStatus",
                                           e.target.value
                                         )
@@ -1466,7 +1664,7 @@ const CustomerFollowup = () => {
                                       value={item.progress || ""}
                                       onChange={(e) =>
                                         handleInlineTrainingChange(
-                                          item.id,
+                                          item._id,
                                           "progress",
                                           e.target.value
                                         )
@@ -1481,11 +1679,35 @@ const CustomerFollowup = () => {
                                 </CompactCell>
                                 <CompactCell>{item.idInfo}</CompactCell>
                                 <CompactCell>{item.packageStatus}</CompactCell>
+                                <CompactCell>
+                                  <HStack spacing={2}>
+                                    <Tooltip label="Edit training follow-up">
+                                      <IconButton
+                                        aria-label="Edit training follow-up"
+                                        icon={<EditIcon />}
+                                        size="xs"
+                                        colorScheme="blue"
+                                        variant="outline"
+                                        onClick={() => openTrainingEdit(item)}
+                                      />
+                                    </Tooltip>
+                                    <Tooltip label="Delete training follow-up">
+                                      <IconButton
+                                        aria-label="Delete training follow-up"
+                                        icon={<DeleteIcon />}
+                                        size="xs"
+                                        colorScheme="red"
+                                        variant="outline"
+                                        onClick={() => handleDeleteTrainingFollowup(item._id)}
+                                      />
+                                    </Tooltip>
+                                  </HStack>
+                                </CompactCell>
                               </Tr>
                             ))
                           ) : (
                             <Tr>
-                              <Td colSpan={12} textAlign="center" py={10}>
+                              <Td colSpan={13} textAlign="center" py={10}>
                                 <Text color="gray.500">
                                   No training follow-up records found.
                                 </Text>
@@ -1542,7 +1764,7 @@ const CustomerFollowup = () => {
                           >
                             <option value="all">All Types</option>
                             <option value="company">Company</option>
-                            <option value="individual">Individual</option>
+                            <option value="jobSeeker">Job Seeker</option>
                           </Input>
                         </Box>
                         <Button
@@ -1571,16 +1793,17 @@ const CustomerFollowup = () => {
                             <CompactHeaderCell>Salary Range</CompactHeaderCell>
                             <CompactHeaderCell>Job Requirements</CompactHeaderCell>
                             <CompactHeaderCell>Job Seeker Name</CompactHeaderCell>
-                            <CompactHeaderCell>Skills</CompactHeaderCell>
-                            <CompactHeaderCell>Experience</CompactHeaderCell>
-                            <CompactHeaderCell>Education</CompactHeaderCell>
-                            <CompactHeaderCell>Expected Salary</CompactHeaderCell>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {filteredEnsraFollowups.length > 0 ? (
-                            filteredEnsraFollowups.map((item) => (
-                              <Tr key={item.id}>
+                          <CompactHeaderCell>Skills</CompactHeaderCell>
+                          <CompactHeaderCell>Experience</CompactHeaderCell>
+                          <CompactHeaderCell>Education</CompactHeaderCell>
+                          <CompactHeaderCell>Expected Salary</CompactHeaderCell>
+                          <CompactHeaderCell>Actions</CompactHeaderCell>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {filteredEnsraFollowups.length > 0 ? (
+                          filteredEnsraFollowups.map((item) => (
+                              <Tr key={item._id || item.id}>
                                 <CompactCell>{item.type}</CompactCell>
                                 <CompactCell>{item.packageType}</CompactCell>
                                 <CompactCell>{item.companyName}</CompactCell>
@@ -1592,11 +1815,35 @@ const CustomerFollowup = () => {
                                 <CompactCell>{item.jobSeekerExperience}</CompactCell>
                                 <CompactCell>{item.jobSeekerEducation}</CompactCell>
                                 <CompactCell>{item.jobSeekerExpectedSalary}</CompactCell>
+                                <CompactCell>
+                                  <HStack spacing={2}>
+                                    <Tooltip label="Edit ENSRA follow-up">
+                                      <IconButton
+                                        aria-label="Edit ENSRA follow-up"
+                                        icon={<EditIcon />}
+                                        size="xs"
+                                        colorScheme="blue"
+                                        variant="outline"
+                                        onClick={() => openEnsraEdit(item)}
+                                      />
+                                    </Tooltip>
+                                    <Tooltip label="Delete ENSRA follow-up">
+                                      <IconButton
+                                        aria-label="Delete ENSRA follow-up"
+                                        icon={<DeleteIcon />}
+                                        size="xs"
+                                        colorScheme="red"
+                                        variant="outline"
+                                        onClick={() => handleDeleteEnsraFollowup(item._id || item.id)}
+                                      />
+                                    </Tooltip>
+                                  </HStack>
+                                </CompactCell>
                               </Tr>
                             ))
                           ) : (
                             <Tr>
-                              <Td colSpan={12} textAlign="center" py={10}>
+                              <Td colSpan={13} textAlign="center" py={10}>
                                 <Text color="gray.500">
                                   No ENSRA follow-up records found.
                                 </Text>
@@ -1658,7 +1905,7 @@ const CustomerFollowup = () => {
                                   >
                                     <HStack spacing={4}>
                                       <Radio value="company">Company - Looking to hire</Radio>
-                                      <Radio value="individual">Individual - Managing job seekers</Radio>
+                                      <Radio value="jobSeeker">Job Seeker - Managing opportunities</Radio>
                                     </HStack>
                                   </RadioGroup>
                                 </Box>
@@ -1750,7 +1997,7 @@ const CustomerFollowup = () => {
                                   </>
                                 )}
 
-                                {ensraForm.type === "individual" && (
+                                {ensraForm.type === "jobSeeker" && (
                                   <>
                                     <Stack direction={isMobile ? "column" : "row"} spacing={4}>
                                       <Box flex={1}>
@@ -1842,7 +2089,7 @@ const CustomerFollowup = () => {
                                   width="full"
                                   isDisabled={
                                     (ensraForm.type === "company" && !ensraForm.companyName) ||
-                                    (ensraForm.type === "individual" && !ensraForm.jobSeekerName)
+                                    (ensraForm.type === "jobSeeker" && !ensraForm.jobSeekerName)
                                   }
                                 >
                                   Register for ENSRA
@@ -1881,6 +2128,183 @@ const CustomerFollowup = () => {
           </DrawerBody>
         </DrawerContent>
       </Drawer>
+
+      {/* Training Edit Modal */}
+      <Modal isOpen={isTrainingEditOpen} onClose={() => setIsTrainingEditOpen(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit Training Follow-Up</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {trainingEditData && (
+              <VStack spacing={3} align="stretch">
+                <Input
+                  placeholder="Agent Name"
+                  value={trainingEditData.agentName || ""}
+                  onChange={(e) => handleTrainingEditChange("agentName", e.target.value)}
+                />
+                <Input
+                  placeholder="Customer Name"
+                  value={trainingEditData.customerName || ""}
+                  onChange={(e) => handleTrainingEditChange("customerName", e.target.value)}
+                />
+                <Input
+                  placeholder="Email"
+                  value={trainingEditData.email || ""}
+                  onChange={(e) => handleTrainingEditChange("email", e.target.value)}
+                />
+                <Input
+                  placeholder="Phone Number"
+                  value={trainingEditData.phoneNumber || ""}
+                  onChange={(e) => handleTrainingEditChange("phoneNumber", e.target.value)}
+                />
+                <Input
+                  placeholder="Course"
+                  value={trainingEditData.trainingType || ""}
+                  onChange={(e) => handleTrainingEditChange("trainingType", e.target.value)}
+                />
+                <Input
+                  as="select"
+                  value={trainingEditData.scheduleShift || ""}
+                  onChange={(e) => handleTrainingEditChange("scheduleShift", e.target.value)}
+                >
+                  <option value="">Select schedule</option>
+                  <option value="Regular">Regular</option>
+                  <option value="Night">Night</option>
+                  <option value="Weekend">Weekend</option>
+                  <option value="Night/Weekend">Night/Weekend</option>
+                </Input>
+                <Input
+                  as="select"
+                  value={trainingEditData.materialStatus || ""}
+                  onChange={(e) => handleTrainingEditChange("materialStatus", e.target.value)}
+                >
+                  <option value="">Select material status</option>
+                  <option value="Not Delivered">Not Delivered</option>
+                  <option value="Delivered">Delivered</option>
+                </Input>
+                <Input
+                  as="select"
+                  value={trainingEditData.progress || ""}
+                  onChange={(e) => handleTrainingEditChange("progress", e.target.value)}
+                >
+                  <option value="">Select progress</option>
+                  <option value="Not Started">Not Started</option>
+                  <option value="Started">Started</option>
+                  <option value="Dropped">Dropped</option>
+                </Input>
+                <Input
+                  placeholder="ID Info"
+                  value={trainingEditData.idInfo || ""}
+                  onChange={(e) => handleTrainingEditChange("idInfo", e.target.value)}
+                />
+                <Input
+                  placeholder="Package Status"
+                  value={trainingEditData.packageStatus || ""}
+                  onChange={(e) => handleTrainingEditChange("packageStatus", e.target.value)}
+                />
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button mr={3} onClick={() => setIsTrainingEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button colorScheme="teal" onClick={saveTrainingEdit}>
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* ENSRA Edit Modal */}
+      <Modal isOpen={isEnsraEditOpen} onClose={() => setIsEnsraEditOpen(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit ENSRA Follow-Up</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {ensraEditData && (
+              <VStack spacing={3} align="stretch">
+                <Input
+                  as="select"
+                  value={ensraEditData.type || ""}
+                  onChange={(e) => handleEnsraEditChange("type", e.target.value)}
+                >
+                  <option value="company">Company</option>
+                  <option value="jobSeeker">Job Seeker</option>
+                </Input>
+                <Input
+                  placeholder="Package Type"
+                  value={ensraEditData.packageType || ""}
+                  onChange={(e) => handleEnsraEditChange("packageType", e.target.value)}
+                />
+                <Input
+                  placeholder="Company Name"
+                  value={ensraEditData.companyName || ""}
+                  onChange={(e) => handleEnsraEditChange("companyName", e.target.value)}
+                />
+                <Input
+                  placeholder="Positions Offered (comma separated)"
+                  value={
+                    Array.isArray(ensraEditData.positionsOffered)
+                      ? ensraEditData.positionsOffered.join(", ")
+                      : ensraEditData.positionsOffered || ""
+                  }
+                  onChange={(e) => handleEnsraEditChange("positionsOffered", e.target.value)}
+                />
+                <Input
+                  placeholder="Salary Range"
+                  value={ensraEditData.salaryRange || ""}
+                  onChange={(e) => handleEnsraEditChange("salaryRange", e.target.value)}
+                />
+                <Textarea
+                  placeholder="Job Requirements"
+                  value={ensraEditData.jobRequirements || ""}
+                  onChange={(e) => handleEnsraEditChange("jobRequirements", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Name"
+                  value={ensraEditData.jobSeekerName || ""}
+                  onChange={(e) => handleEnsraEditChange("jobSeekerName", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Skills (comma separated)"
+                  value={
+                    Array.isArray(ensraEditData.jobSeekerSkills)
+                      ? ensraEditData.jobSeekerSkills.join(", ")
+                      : ensraEditData.jobSeekerSkills || ""
+                  }
+                  onChange={(e) => handleEnsraEditChange("jobSeekerSkills", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Experience"
+                  value={ensraEditData.jobSeekerExperience || ""}
+                  onChange={(e) => handleEnsraEditChange("jobSeekerExperience", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Education"
+                  value={ensraEditData.jobSeekerEducation || ""}
+                  onChange={(e) => handleEnsraEditChange("jobSeekerEducation", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Expected Salary"
+                  value={ensraEditData.jobSeekerExpectedSalary || ""}
+                  onChange={(e) => handleEnsraEditChange("jobSeekerExpectedSalary", e.target.value)}
+                />
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button mr={3} onClick={() => setIsEnsraEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button colorScheme="teal" onClick={saveEnsraEdit}>
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Notes Modal */}
       <Modal isOpen={isNotesModalOpen} onClose={closeNotesModal}>
