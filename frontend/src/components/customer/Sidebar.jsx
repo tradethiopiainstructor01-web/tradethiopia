@@ -115,7 +115,7 @@ const SSidebar = () => {
             isCollapsed={isCollapsed}
             to="/CustomerFollowup"
             icon={<FiUsers />}
-            label="B2B Follow Up"
+            label="Follow Up"
           />
           <SidebarLink
             isCollapsed={isCollapsed}

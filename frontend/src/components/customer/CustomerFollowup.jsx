@@ -541,7 +541,7 @@ const CustomerFollowup = () => {
           color={headerBg}
           fontWeight="bold"
         >
-          Customer Success B2B Follow-up
+          Customer Success Follow-up
         </Heading>
         
         <Tabs variant="enclosed" colorScheme="blue" isFitted={isMobile}>
@@ -549,7 +549,7 @@ const CustomerFollowup = () => {
             <Tab>
               <HStack spacing={2}>
                 <CheckIcon />
-                <Text>Follow-up Customers</Text>
+                <Text>B2B Customers Follow-up</Text>
               </HStack>
             </Tab>
             <Tab>
