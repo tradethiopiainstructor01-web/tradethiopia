@@ -87,6 +87,12 @@ const CustomerFollowup = () => {
   const [selectedRow, setSelectedRow] = useState(null);
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [showEnsraFormCard, setShowEnsraFormCard] = useState(false);
+  const [trainingSearch, setTrainingSearch] = useState("");
+  const [trainingProgressFilter, setTrainingProgressFilter] = useState("all");
+  const [trainingSortAsc, setTrainingSortAsc] = useState(true);
+  const [ensraSearch, setEnsraSearch] = useState("");
+  const [ensraTypeFilter, setEnsraTypeFilter] = useState("all");
+  const [ensraSortAsc, setEnsraSortAsc] = useState(true);
   const toast = useToast();
   
   // Responsive breakpoints
@@ -378,6 +384,50 @@ const CustomerFollowup = () => {
     );
   };
 
+  // Derived, filtered, and sorted arrays for Training Follow-Up
+  const filteredTrainingFollowups = [...trainingFollowups]
+    .filter((item) => {
+      const term = trainingSearch.trim().toLowerCase();
+      if (!term) return true;
+      return (
+        (item.customerName && item.customerName.toLowerCase().includes(term)) ||
+        (item.agentName && item.agentName.toLowerCase().includes(term)) ||
+        (item.email && item.email.toLowerCase().includes(term))
+      );
+    })
+    .filter((item) => {
+      if (trainingProgressFilter === "all") return true;
+      return (item.progress || "").toLowerCase() === trainingProgressFilter.toLowerCase();
+    })
+    .sort((a, b) => {
+      const nameA = (a.customerName || "").toLowerCase();
+      const nameB = (b.customerName || "").toLowerCase();
+      if (nameA < nameB) return trainingSortAsc ? -1 : 1;
+      if (nameA > nameB) return trainingSortAsc ? 1 : -1;
+      return 0;
+    });
+
+  // Derived, filtered, and sorted arrays for ENSRA Follow-Up
+  const filteredEnsraFollowups = [...ensraFollowups]
+    .filter((item) => {
+      const term = ensraSearch.trim().toLowerCase();
+      if (!term) return true;
+      const company = (item.companyName || "").toLowerCase();
+      const seeker = (item.jobSeekerName || "").toLowerCase();
+      return company.includes(term) || seeker.includes(term);
+    })
+    .filter((item) => {
+      if (ensraTypeFilter === "all") return true;
+      return (item.type || "").toLowerCase() === ensraTypeFilter.toLowerCase();
+    })
+    .sort((a, b) => {
+      const nameA = ((a.companyName || a.jobSeekerName || "").toLowerCase());
+      const nameB = ((b.companyName || b.jobSeekerName || "").toLowerCase());
+      if (nameA < nameB) return ensraSortAsc ? -1 : 1;
+      if (nameA > nameB) return ensraSortAsc ? 1 : -1;
+      return 0;
+    });
+
   const handleInlineEnsraChange = (id, field, value) => {
     setEnsraFollowups((prev) =>
       prev.map((item) =>
@@ -566,13 +616,13 @@ const CustomerFollowup = () => {
             </Tab>
             <Tab>
               <HStack spacing={2}>
-                <DownloadIcon />
+                <CheckIcon />
                 <Text>Training Follow-Up</Text>
               </HStack>
             </Tab>
             <Tab>
               <HStack spacing={2}>
-                <DownloadIcon />
+                <DownloadIcon /><CheckIcon />
                 <Text>ENSRA Follow-Up</Text>
               </HStack>
             </Tab>
@@ -1292,6 +1342,44 @@ const CustomerFollowup = () => {
                     <Heading size="md" color={headerBg}>
                       Training Follow-Up
                     </Heading>
+
+                    {/* Training search / filter / sort controls */}
+                    <Flex direction={isMobile ? "column" : "row"} gap={3} align="center">
+                      <Box flex={1} width="100%">
+                        <Input
+                          placeholder="Search by customer, agent, or email..."
+                          value={trainingSearch}
+                          onChange={(e) => setTrainingSearch(e.target.value)}
+                          size="sm"
+                          borderRadius="md"
+                          borderColor={borderColor}
+                        />
+                      </Box>
+                      <HStack spacing={3} width={isMobile ? "100%" : "auto"} justify={isMobile ? "space-between" : "flex-end"}>
+                        <Box minW="160px">
+                          <Input
+                            as="select"
+                            size="sm"
+                            value={trainingProgressFilter}
+                            onChange={(e) => setTrainingProgressFilter(e.target.value)}
+                          >
+                            <option value="all">All Progress</option>
+                            <option value="Not Started">Not Started</option>
+                            <option value="Started">Started</option>
+                            <option value="Dropped">Dropped</option>
+                          </Input>
+                        </Box>
+                        <Button
+                          size="sm"
+                          colorScheme="blue"
+                          variant="outline"
+                          onClick={() => setTrainingSortAsc((prev) => !prev)}
+                        >
+                          Sort {trainingSortAsc ? "A–Z" : "Z–A"}
+                        </Button>
+                      </HStack>
+                    </Flex>
+
                     <Box overflowX="auto">
                       <Table
                         variant="simple"
@@ -1315,8 +1403,8 @@ const CustomerFollowup = () => {
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {trainingFollowups.length > 0 ? (
-                            trainingFollowups.map((item) => (
+                          {filteredTrainingFollowups.length > 0 ? (
+                            filteredTrainingFollowups.map((item) => (
                               <Tr key={item.id}>
                                 <CompactCell>
                                   {item.startDate ? new Date(item.startDate).toLocaleDateString() : "-"}
@@ -1398,7 +1486,7 @@ const CustomerFollowup = () => {
                             <Tr>
                               <Td colSpan={12} textAlign="center" py={10}>
                                 <Text color="gray.500">
-                                  No training follow-up records yet.
+                                  No training follow-up records found.
                                 </Text>
                               </Td>
                             </Tr>
@@ -1418,15 +1506,53 @@ const CustomerFollowup = () => {
                       <Heading size="md" color={headerBg}>
                         ENSRA Follow-Up
                       </Heading>
-                      <Tooltip label="Add ENSRA customer">
-                        <IconButton
-                          aria-label="Add ENSRA customer"
-                          icon={<AddIcon />}
-                          colorScheme="teal"
+                      <HStack spacing={2}>
+                        <Tooltip label="Add ENSRA customer">
+                          <IconButton
+                            aria-label="Add ENSRA customer"
+                            icon={<AddIcon />}
+                            colorScheme="teal"
+                            size="sm"
+                            onClick={() => setShowEnsraFormCard(true)}
+                          />
+                        </Tooltip>
+                      </HStack>
+                    </Flex>
+
+                    {/* ENSRA search / filter / sort controls */}
+                    <Flex direction={isMobile ? "column" : "row"} gap={3} align="center">
+                      <Box flex={1} width="100%">
+                        <Input
+                          placeholder="Search by company or job seeker name..."
+                          value={ensraSearch}
+                          onChange={(e) => setEnsraSearch(e.target.value)}
                           size="sm"
-                          onClick={() => setShowEnsraFormCard(true)}
+                          borderRadius="md"
+                          borderColor={borderColor}
                         />
-                      </Tooltip>
+                      </Box>
+                      <HStack spacing={3} width={isMobile ? "100%" : "auto"} justify={isMobile ? "space-between" : "flex-end"}>
+                        <Box minW="160px">
+                          <Input
+                            as="select"
+                            size="sm"
+                            value={ensraTypeFilter}
+                            onChange={(e) => setEnsraTypeFilter(e.target.value)}
+                          >
+                            <option value="all">All Types</option>
+                            <option value="company">Company</option>
+                            <option value="individual">Individual</option>
+                          </Input>
+                        </Box>
+                        <Button
+                          size="sm"
+                          colorScheme="blue"
+                          variant="outline"
+                          onClick={() => setEnsraSortAsc((prev) => !prev)}
+                        >
+                          Sort {ensraSortAsc ? "A–Z" : "Z–A"}
+                        </Button>
+                      </HStack>
                     </Flex>
 
                     <Box overflowX="auto">
@@ -1451,8 +1577,8 @@ const CustomerFollowup = () => {
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {ensraFollowups.length > 0 ? (
-                            ensraFollowups.map((item) => (
+                          {filteredEnsraFollowups.length > 0 ? (
+                            filteredEnsraFollowups.map((item) => (
                               <Tr key={item.id}>
                                 <CompactCell>{item.type}</CompactCell>
                                 <CompactCell>{item.packageType}</CompactCell>
@@ -1471,7 +1597,7 @@ const CustomerFollowup = () => {
                             <Tr>
                               <Td colSpan={12} textAlign="center" py={10}>
                                 <Text color="gray.500">
-                                  No ENSRA follow-up records yet.
+                                  No ENSRA follow-up records found.
                                 </Text>
                               </Td>
                             </Tr>
