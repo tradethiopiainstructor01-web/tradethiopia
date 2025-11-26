@@ -594,8 +594,9 @@ const CustomerFollowup = () => {
           Customer Success Follow-up
         </Heading>
         
-        <Tabs variant="enclosed" colorScheme="blue" isFitted={isMobile}>
-          <TabList mb={4}>
+        <Box overflowX="auto" maxW="100%">
+          <Tabs variant="enclosed" colorScheme="blue" isFitted={!isMobile}>
+            <TabList mb={4} flexWrap={isMobile ? "wrap" : "nowrap"}>
             <Tab>
               <HStack spacing={2}>
                 <CheckIcon />
@@ -626,9 +627,9 @@ const CustomerFollowup = () => {
                 <Text>ENSRA Follow-Up</Text>
               </HStack>
             </Tab>
-          </TabList>
-          
-          <TabPanels>
+            </TabList>
+            
+            <TabPanels>
             {/* Existing Follow-up Customers Tab */}
             <TabPanel px={0}>
               <Card bg={cardBg} boxShadow="md" borderRadius="lg">
@@ -1856,8 +1857,9 @@ const CustomerFollowup = () => {
                 </CardBody>
               </Card>
             </TabPanel>
-          </TabPanels>
-        </Tabs>
+            </TabPanels>
+          </Tabs>
+        </Box>
       </VStack>
 
       {/* Drawer for EditCustomerInfo */}
