@@ -137,11 +137,12 @@ const CustomerFollowup = () => {
       actions: true,
     },
     completedSales: {
-      customer: true,
-      email: true,
+      agentName: true,
+      customerName: true,
+      trainingProgram: true,
       phone: true,
-      status: true,
-      followUpDate: true,
+      email: true,
+      schedulePreference: true,
     },
     trainingFollowup: {
       startDate: true,
@@ -220,9 +221,22 @@ const CustomerFollowup = () => {
     setLoadingTraining(true);
     setTrainingError("");
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/followup`);
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/salescustomers`, {
+        params: { followupStatus: "Completed" }
+      });
+
       if (Array.isArray(response.data)) {
-        const completed = response.data.filter((item) => item.status === "Completed");
+        const completed = response.data
+          .filter((item) => (item.followupStatus || "").toLowerCase() === "completed")
+          .map((item) => ({
+            id: item._id || item.id,
+            agentName: item.agentName || item.agent?.name || item.agentId || "Unknown agent",
+            customerName: item.customerName || item.clientName,
+            trainingProgram: item.contactTitle,
+            phone: item.phone || item.phoneNumber,
+            email: item.email,
+            schedulePreference: item.schedulePreference || item.scheduleShift || "-",
+          }));
         setCompletedSales(completed);
       } else {
         setCompletedSales([]);
@@ -924,11 +938,12 @@ const saveEnsraEdit = async () => {
   ];
 
   const completedSalesColumnOptions = [
-    { key: "customer", label: "Customer" },
-    { key: "email", label: "Email" },
+    { key: "agentName", label: "Agent" },
+    { key: "customerName", label: "Customer" },
+    { key: "trainingProgram", label: "Training Program" },
     { key: "phone", label: "Phone" },
-    { key: "status", label: "Status" },
-    { key: "followUpDate", label: "Follow-up Date" },
+    { key: "email", label: "Email" },
+    { key: "schedulePreference", label: "Schedule Preference" },
   ];
 
   const trainingFollowupColumnOptions = [
@@ -1157,12 +1172,28 @@ const saveEnsraEdit = async () => {
 
   const completedSalesColumnsToRender = [
     {
-      key: "customer",
-      visible: visibleColumns.completedSales.customer,
-      header: "Customer",
-      render: (item) => (
-        <CompactCell>{item.fullName || item.clientName}</CompactCell>
-      ),
+      key: "agentName",
+      visible: visibleColumns.completedSales.agentName,
+      header: "Agent",
+      render: (item) => <CompactCell>{item.agentName}</CompactCell>,
+    },
+    {
+      key: "customerName",
+      visible: visibleColumns.completedSales.customerName,
+      header: "Customer Name",
+      render: (item) => <CompactCell>{item.customerName}</CompactCell>,
+    },
+    {
+      key: "trainingProgram",
+      visible: visibleColumns.completedSales.trainingProgram,
+      header: "Training Program",
+      render: (item) => <CompactCell>{item.trainingProgram}</CompactCell>,
+    },
+    {
+      key: "phone",
+      visible: visibleColumns.completedSales.phone && !isMobile,
+      header: "Phone",
+      render: (item) => <CompactCell>{item.phone}</CompactCell>,
     },
     {
       key: "email",
@@ -1171,34 +1202,10 @@ const saveEnsraEdit = async () => {
       render: (item) => <CompactCell>{item.email}</CompactCell>,
     },
     {
-      key: "phone",
-      visible: visibleColumns.completedSales.phone && !isMobile,
-      header: "Phone",
-      render: (item) => <CompactCell>{item.phoneNumber}</CompactCell>,
-    },
-    {
-      key: "status",
-      visible: visibleColumns.completedSales.status,
-      header: "Status",
-      render: (item) => (
-        <CompactCell>
-          <Badge colorScheme="green" fontSize="xs">
-            {item.status}
-          </Badge>
-        </CompactCell>
-      ),
-    },
-    {
-      key: "followUpDate",
-      visible: visibleColumns.completedSales.followUpDate,
-      header: "Follow-up Date",
-      render: (item) => (
-        <CompactCell>
-          {item.followUpDate
-            ? new Date(item.followUpDate).toLocaleDateString()
-            : "-"}
-        </CompactCell>
-      ),
+      key: "schedulePreference",
+      visible: visibleColumns.completedSales.schedulePreference,
+      header: "Schedule Preference",
+      render: (item) => <CompactCell>{item.schedulePreference}</CompactCell>,
     },
   ].filter((col) => col.visible);
 
@@ -1731,11 +1738,11 @@ const saveEnsraEdit = async () => {
                         bg={tableBg}
                         boxShadow="sm"
                       >
-                        <Table 
-                          variant="striped" 
+                        <Table
+                          variant="striped"
                           colorScheme="gray"
-                          size="sm" 
-                          minWidth={isMobile ? "700px" : "auto"}
+                          size="sm"
+                          minWidth={isMobile ? "900px" : "auto"}
                         >
                           <Thead bg={headerBg}>
                             <Tr>
@@ -1830,7 +1837,7 @@ const saveEnsraEdit = async () => {
                             {Array.isArray(completedSales) && completedSales.length > 0 ? (
                               completedSales.map((item) => (
                                 <Tr
-                                  key={item._id}
+                                  key={item.id || item._id}
                                   _hover={{ bg: rowHoverBg }}
                                 >
                                   {completedSalesColumnsToRender.map((col) => (
