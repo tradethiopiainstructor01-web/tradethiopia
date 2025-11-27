@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
   Flex,
@@ -8,153 +8,63 @@ import {
   HStack,
   Divider,
   Tooltip,
-  useBreakpointValue,
-  Drawer,
-  DrawerBody,
-  DrawerOverlay,
-  DrawerContent,
-  DrawerCloseButton,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import {
   FaHome,
   FaChartLine,
   FaUsers,
-  FaSignOutAlt,
   FaArrowLeft,
   FaArrowRight,
   FaVideo,
-  FaBars,
 } from 'react-icons/fa';
-import FollowUpList from "../../components/FollowUpList";
-import Training from './Training.jsx';
-import PDFList from '../../components/PDFList';
-import Dashboard from './SalesDashboard.jsx';
 
-const Sidebar = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [activeItem, setActiveItem] = useState('Home');
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const isMobile = useBreakpointValue({ base: true, md: false });
-
-  const toggleSidebar = () => {
-    if (isMobile) {
-      setIsDrawerOpen(!isDrawerOpen);
-    } else {
-      setIsCollapsed(!isCollapsed);
-    }
-  };
-
-  const renderContent = () => {
-    switch (activeItem) {
-      case 'Home':
-        return <Dashboard />;
-      case 'Resources':
-        return <PDFList />;
-      case 'Users':
-        return <FollowUpList />;
-      case 'Tutorials':
-        return <Training />;
-      default:
-        return <Text fontSize="xl">Select an option from the Sidebar.</Text>;
-    }
-  };
+const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) => {
+  // Color mode values
+  const sidebarBg = useColorModeValue('gray.800', 'gray.900');
+  const textColor = useColorModeValue('white', 'gray.100');
+  const borderColor = useColorModeValue('whiteAlpha.300', 'whiteAlpha.200');
 
   return (
-    <>
-      {/* Drawer for mobile */}
-      <Drawer isOpen={isDrawerOpen} placement="left" onClose={() => setIsDrawerOpen(false)}>
-        <DrawerOverlay>
-          <DrawerContent>
-            <DrawerCloseButton />
-            <DrawerBody p={4}>
-              <VStack align="stretch" spacing={4}>
-                {['Home', 'Users', 'Resources', 'Tutorials'].map((label) => (
-                  <SidebarItem
-                    key={label}
-                    icon={label === 'Home' ? FaHome : label === 'Users' ? FaUsers : label === 'Resources' ? FaChartLine : FaVideo}
-                    label={label}
-                    isActive={activeItem === label}
-                    onClick={() => { setActiveItem(label); setIsDrawerOpen(false); }}
-                  />
-                ))}
-                <SidebarItem
-                  icon={FaSignOutAlt}
-                  label="Logout"
-                  onClick={() => alert('Logging out...')}
-                />
-              </VStack>
-            </DrawerBody>
-          </DrawerContent>
-        </DrawerOverlay>
-      </Drawer>
-
-      <Flex>
-        {/* Sidebar for larger screens */}
-        <Box
-          display={{ base: 'none', md: 'block' }} // Hide on mobile
-          as="aside"
-          position="relative"
-          bg="gray.800"
+    <Flex direction="column" h="100%" bg={sidebarBg} color={textColor}>
+      <HStack justifyContent="space-between" alignItems="center" mb={6} mt={2} px={4}>
+        {!isCollapsed && (
+          <Text fontSize="lg" fontWeight="bold" textTransform="uppercase" color="teal.300">
+            Sales Dashboard
+          </Text>
+        )}
+        <IconButton
+          icon={isCollapsed ? <FaArrowRight /> : <FaArrowLeft />}
+          aria-label="Toggle Sidebar"
+          variant="ghost"
           color="white"
-          w={isCollapsed ? '70px' : '250px'}
-          h="auto"
-          p={4}
-          transition="all 0.3s ease"
-        >
-          <Flex direction="column" h="auto" p={0}>
-            <HStack justifyContent="space-between" alignItems="center" mb={6}>
-              {!isCollapsed && (
-                <Text fontSize="lg" fontWeight="bold" ml={2} textTransform="uppercase">
-                  Sales Dashboard
-                </Text>
-              )}
-              <IconButton
-                icon={isCollapsed ? <FaArrowRight /> : <FaArrowLeft />}
-                aria-label="Toggle Sidebar"
-                variant="ghost"
-                color="white"
-                onClick={toggleSidebar}
-                size="sm"
-              />
-            </HStack>
-            <Divider mb={4} />
-            <VStack align="stretch" spacing={4}>
-            {/* 'Resources',  add this to the line of code below to add the resource feature */}
-              {['Home', 'Tutorials'].map((label) => (
-                <SidebarItem
-                  key={label}
-                  icon={label === 'Home' ? FaHome : label === 'Resources' ? FaChartLine : FaVideo}
-                  label={label}
-                  isCollapsed={isCollapsed}
-                  isActive={activeItem === label}
-                  onClick={() => setActiveItem(label)}
-                />
-              ))}
-            </VStack>
-          </Flex>
-        </Box>
-
-        {/* Main Content Area */}
-        <Box
-          flex="1"
-          p={4}
-          ml={{ base: 0, md: isCollapsed ? '90px' : '100px' }} // Adjust margin based on sidebar state
-          transition="margin 0.3s ease"
-        >
-          {/* Sidebar toggle button for mobile */}
-          {isMobile && (
-            <IconButton
-              icon={<FaBars />}
-              onClick={toggleSidebar}
-              aria-label="Open Sidebar"
-              display={{ base: 'block', md: 'none' }} // Show only on mobile
-              mb={4}
-            />
-          )}
-          {renderContent()}
-        </Box>
-      </Flex>
-    </>
+          onClick={toggleCollapse}
+          size="sm"
+          _hover={{ bg: 'whiteAlpha.200' }}
+        />
+      </HStack>
+      <Divider mb={4} borderColor={borderColor} />
+      <VStack align="stretch" spacing={2} px={2}>
+        {['Home', 'Followup', 'Tutorials'].map((label) => (
+          <SidebarItem
+            key={label}
+            icon={
+              label === 'Home'
+                ? FaHome
+                : label === 'Followup'
+                ? FaUsers
+                : label === 'Resources'
+                ? FaChartLine
+                : FaVideo
+            }
+            label={label}
+            isCollapsed={isCollapsed}
+            isActive={activeItem === label}
+            onClick={() => setActiveItem(label)}
+          />
+        ))}
+      </VStack>
+    </Flex>
   );
 };
 
@@ -164,20 +74,21 @@ const SidebarItem = ({ icon, label, isCollapsed, isActive, onClick }) => {
       <HStack
         as="button"
         spacing={isCollapsed ? 0 : 4}
-        p={2}
+        p={3}
         w="100%"
-        bg={isActive ? 'blue.600' : 'gray.700'}
-        _hover={{ bg: isActive ? 'blue.500' : 'gray.600', transform: 'scale(1.05)', transition: 'all 0.2s ease' }}
-        borderRadius="md"
+        bg={isActive ? 'teal.600' : 'gray.700'}
+        _hover={{ bg: isActive ? 'teal.500' : 'gray.600', transform: 'translateX(2px)', transition: 'all 0.2s ease' }}
+        borderRadius="lg"
         justifyContent={isCollapsed ? 'center' : 'flex-start'}
-        transition="background 0.3s ease"
+        transition="all 0.3s ease"
         onClick={onClick}
+        boxShadow={isActive ? 'md' : 'sm'}
       >
         <Box as={icon} fontSize="20px" />
-        {!isCollapsed && <Text fontSize="md">{label}</Text>}
+        {!isCollapsed && <Text fontSize="md" fontWeight="medium">{label}</Text>}
       </HStack>
     </Tooltip>
   );
 };
 
-export default Sidebar;
+export default SSidebar;

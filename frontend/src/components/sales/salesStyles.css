@@ -1,0 +1,92 @@
+/* Only include styles that don't conflict with Chakra UI */
+/* Reset default styles for table components only */
+.customer-table-container table,
+.customer-table-container th,
+.customer-table-container td {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Status badges - using Chakra UI colors */
+.status-called {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-not-called {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-busy {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-no-answer {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.status-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-scheduled {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin: 0;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.empty-state-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+  color: #d1d5db;
+}
+
+.empty-state-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.empty-state-text {
+  color: #6b7280;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .status-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+}

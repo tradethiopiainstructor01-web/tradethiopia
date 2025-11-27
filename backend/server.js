@@ -25,6 +25,7 @@ const buyerRoutes = require('./routes/buyerRoutes.js');
 const sellerRoutes = require('./routes/sellerRoutes.js');
 const b2bMatchingRoutes = require('./routes/b2bMatchingRoutes.js');
 const savedMatchRoutes = require('./routes/savedMatchRoutes.js');
+const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
 
 // Load environment variables
 
@@ -134,6 +135,7 @@ app.use('/api/buyers', buyerRoutes);
 app.use('/api/sellers', sellerRoutes);
 app.use('/api/b2b', b2bMatchingRoutes);
 app.use('/api/saved-matches', savedMatchRoutes);
+app.use('/api/sales-customers', salesCustomerRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

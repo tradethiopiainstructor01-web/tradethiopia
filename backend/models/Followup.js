@@ -52,6 +52,20 @@ const followupSchema = new Schema(
         },
       },
     ],
+    followupStatus: {
+      type: String,
+      enum: ['Prospect','Pending','Completed','Scheduled','Cancelled'],
+      default: 'Pending'
+    },
+    schedulePreference: {
+      type: String,
+      enum: ['Regular','Weekend','Night','Online'],
+      default: 'Regular'
+    },
+    supervisorComment: {
+      type: String,
+      default: ''
+    },
     lastCalled: {
       type: Date,
     },
