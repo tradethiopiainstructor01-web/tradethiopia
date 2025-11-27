@@ -431,7 +431,7 @@ const FollowupPage = () => {
 
   return (
     <Box pt={4}>
-      <Heading 
+      {/* <Heading 
         as="h1" 
         size={{ base: "lg", md: "xl" }} 
         color={headerColor}
@@ -440,7 +440,7 @@ const FollowupPage = () => {
         mb={6}
       >
         Sales Dashboard
-      </Heading>
+      </Heading> */}
       
       {/* Stats Overview */}
       <SimpleGrid 

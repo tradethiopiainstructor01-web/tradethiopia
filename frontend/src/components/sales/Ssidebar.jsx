@@ -29,8 +29,8 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
     <Flex direction="column" h="100%" bg={sidebarBg} color={textColor}>
       <HStack justifyContent="space-between" alignItems="center" mb={6} mt={2} px={4}>
         {!isCollapsed && (
-          <Text fontSize="lg" fontWeight="bold" textTransform="uppercase" color="teal.300">
-            Sales Dashboard
+          <Text fontSize="md" fontWeight="bold" textTransform="uppercase" color="teal.300">
+            Dashboard
           </Text>
         )}
         <IconButton

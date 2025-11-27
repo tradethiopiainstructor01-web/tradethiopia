@@ -390,7 +390,7 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
               py={2}
               px={2}
             >
-              Contact Title
+              Training Title
             </Th>
             <Th 
               color={headerColor} 
