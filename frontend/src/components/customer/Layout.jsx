@@ -38,7 +38,7 @@ const Layout = ({ children }) => {
           <DrawerOverlay />
           <DrawerContent>
             <Sidebar
-              isCollapsed={false}
+              isCollapsed={isSidebarCollapsed}
               toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
             />
           </DrawerContent>

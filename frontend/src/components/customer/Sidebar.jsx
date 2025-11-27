@@ -22,12 +22,19 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 import { MdLibraryBooks } from "react-icons/md";
 
-const SSidebar = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) => {
+  // Allow the sidebar to be controlled by a parent while preserving a local fallback.
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
   const scrollBoxRef = useRef(null);
 
+  const isControlled = typeof collapsedProp === "boolean" && typeof toggleProp === "function";
+  const isCollapsed = isControlled ? collapsedProp : internalCollapsed;
   const toggleCollapse = () => {
-    setIsCollapsed((prevState) => !prevState);
+    if (isControlled) {
+      toggleProp();
+    } else {
+      setInternalCollapsed((prevState) => !prevState);
+    }
   };
 
   // Scroll up/down functions

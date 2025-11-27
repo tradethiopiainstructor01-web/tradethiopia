@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Layout from "./Layout";
 import {
@@ -50,6 +50,12 @@ import {
   useColorModeValue,
   Radio,
   RadioGroup,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItemOption,
+  MenuOptionGroup,
+  TableContainer,
 } from "@chakra-ui/react";
 import { 
   ArrowBackIcon, 
@@ -61,6 +67,8 @@ import {
   CheckIcon,
   SmallCloseIcon,
   AddIcon,
+  SettingsIcon,
+  ChevronDownIcon,
 } from "@chakra-ui/icons";
 import EditCustomerInfo from "./EditCustomerInfo";
 import {
@@ -106,6 +114,65 @@ const CustomerFollowup = () => {
   const [trainingEditData, setTrainingEditData] = useState(null);
   const [isEnsraEditOpen, setIsEnsraEditOpen] = useState(false);
   const [ensraEditData, setEnsraEditData] = useState(null);
+  const [visibleColumns, setVisibleColumns] = useState({
+    followup: {
+      clientName: true,
+      companyName: true,
+      phone: true,
+      email: true,
+      package: true,
+      service: true,
+      deadline: true,
+      actions: true,
+    },
+    pendingB2B: {
+      client: true,
+      company: true,
+      email: true,
+      phone: true,
+      type: true,
+      industry: true,
+      country: true,
+      package: true,
+      actions: true,
+    },
+    completedSales: {
+      customer: true,
+      email: true,
+      phone: true,
+      status: true,
+      followUpDate: true,
+    },
+    trainingFollowup: {
+      startDate: true,
+      agentName: true,
+      customerName: true,
+      email: true,
+      phone: true,
+      fieldOfWork: true,
+      course: true,
+      schedule: true,
+      materialStatus: true,
+      progress: true,
+      idInfo: true,
+      packageStatus: true,
+      actions: true,
+    },
+    ensra: {
+      type: true,
+      packageType: true,
+      companyName: true,
+      positionsOffered: true,
+      salaryRange: true,
+      jobRequirements: true,
+      jobSeekerName: true,
+      jobSeekerSkills: true,
+      jobSeekerExperience: true,
+      jobSeekerEducation: true,
+      jobSeekerExpectedSalary: true,
+      actions: true,
+    },
+  });
   const toast = useToast();
   
   // Responsive breakpoints
@@ -116,9 +183,11 @@ const CustomerFollowup = () => {
   const cardBg = useColorModeValue("white", "gray.700");
   const headerBg = useColorModeValue("blue.500", "blue.600");
   const borderColor = useColorModeValue("gray.200", "gray.600");
+  const tableBg = useColorModeValue("white", "gray.800");
+  const tableBorderColor = useColorModeValue("gray.200", "gray.700");
+  const rowHoverBg = useColorModeValue("gray.50", "gray.700");
 
   const [isMobile] = useMediaQuery("(max-width: 768px)");
-
   const { 
     isOpen: isEditOpen, 
     onOpen: onEditOpen, 
@@ -753,13 +822,60 @@ const saveEnsraEdit = async () => {
     }
   };
 
+  const renderColumnMenu = (tableKey, columns) => {
+    const current = visibleColumns[tableKey] || {};
+    const selected = Object.entries(current)
+      .filter(([_, value]) => value)
+      .map(([key]) => key);
+
+    const handleChange = (values) => {
+      setVisibleColumns((prev) => ({
+        ...prev,
+        [tableKey]: columns.reduce(
+          (acc, col) => ({
+            ...acc,
+            [col.key]: values.includes(col.key),
+          }),
+          {}
+        ),
+      }));
+    };
+
+    return (
+      <Menu closeOnSelect={false}>
+        <MenuButton
+          as={Button}
+          size="sm"
+          leftIcon={<SettingsIcon />}
+          rightIcon={<ChevronDownIcon />}
+          variant="outline"
+          colorScheme="blue"
+        >
+          Columns
+        </MenuButton>
+        <MenuList maxH="300px" overflowY="auto">
+          <MenuOptionGroup type="checkbox" value={selected} onChange={handleChange}>
+            {columns.map((col) => (
+              <MenuItemOption key={col.key} value={col.key}>
+                {col.label}
+              </MenuItemOption>
+            ))}
+          </MenuOptionGroup>
+        </MenuList>
+      </Menu>
+    );
+  };
+
   // Compact table cell component for better spacing
   const CompactCell = ({ children, isHeader = false }) => (
     <Td 
       py={isHeader ? 3 : 2} 
-      px={2} 
+      px={3} 
       fontSize={isHeader ? "sm" : "sm"}
       fontWeight={isHeader ? "bold" : "normal"}
+      borderBottom="1px solid"
+      borderColor={borderColor}
+      whiteSpace="nowrap"
     >
       {children}
     </Td>
@@ -769,14 +885,586 @@ const saveEnsraEdit = async () => {
   const CompactHeaderCell = ({ children }) => (
     <Th 
       py={3} 
-      px={2} 
+      px={3} 
       fontSize="sm"
       color="white"
       textTransform="none"
+      position="sticky"
+      top={0}
+      bg={headerBg}
+      zIndex={1}
+      boxShadow="sm"
+      borderColor={borderColor}
     >
       {children}
     </Th>
   );
+
+  const followupColumnOptions = [
+    { key: "clientName", label: "Client Name" },
+    { key: "companyName", label: "Company" },
+    { key: "phone", label: "Phone" },
+    { key: "email", label: "Email" },
+    { key: "package", label: "Package" },
+    { key: "service", label: "Service" },
+    { key: "deadline", label: "Deadline" },
+    { key: "actions", label: "Actions" },
+  ];
+
+  const pendingB2BColumnOptions = [
+    { key: "client", label: "Client" },
+    { key: "company", label: "Company" },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Phone" },
+    { key: "type", label: "Type" },
+    { key: "industry", label: "Industry" },
+    { key: "country", label: "Country" },
+    { key: "package", label: "Package" },
+    { key: "actions", label: "Actions" },
+  ];
+
+  const completedSalesColumnOptions = [
+    { key: "customer", label: "Customer" },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Phone" },
+    { key: "status", label: "Status" },
+    { key: "followUpDate", label: "Follow-up Date" },
+  ];
+
+  const trainingFollowupColumnOptions = [
+    { key: "startDate", label: "Training Start Date" },
+    { key: "agentName", label: "Agent Name" },
+    { key: "customerName", label: "Customer Name" },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Phone Number" },
+    { key: "fieldOfWork", label: "Field of Work" },
+    { key: "course", label: "Course" },
+    { key: "schedule", label: "Schedule & Shift" },
+    { key: "materialStatus", label: "Material Delivery Status" },
+    { key: "progress", label: "Progress" },
+    { key: "idInfo", label: "ID Info" },
+    { key: "packageStatus", label: "Package Status" },
+    { key: "actions", label: "Actions" },
+  ];
+
+  const ensraColumnOptions = [
+    { key: "type", label: "Type" },
+    { key: "packageType", label: "Package Type" },
+    { key: "companyName", label: "Company Name" },
+    { key: "positionsOffered", label: "Positions Offered" },
+    { key: "salaryRange", label: "Salary Range" },
+    { key: "jobRequirements", label: "Job Requirements" },
+    { key: "jobSeekerName", label: "Job Seeker Name" },
+    { key: "jobSeekerSkills", label: "Skills" },
+    { key: "jobSeekerExperience", label: "Experience" },
+    { key: "jobSeekerEducation", label: "Education" },
+    { key: "jobSeekerExpectedSalary", label: "Expected Salary" },
+    { key: "actions", label: "Actions" },
+  ];
+
+  const followupColumnsToRender = [
+    {
+      key: "clientName",
+      visible: visibleColumns.followup.clientName,
+      header: "Client Name",
+      render: (item) => <CompactCell>{item.clientName}</CompactCell>,
+    },
+    {
+      key: "companyName",
+      visible: visibleColumns.followup.companyName,
+      header: "Company",
+      render: (item) => <CompactCell>{item.companyName}</CompactCell>,
+    },
+    {
+      key: "phone",
+      visible: visibleColumns.followup.phone && !isMobile,
+      header: "Phone",
+      render: (item) => <CompactCell>{item.phoneNumber}</CompactCell>,
+    },
+    {
+      key: "email",
+      visible: visibleColumns.followup.email && !isMobile,
+      header: "Email",
+      render: (item) => <CompactCell>{item.email}</CompactCell>,
+    },
+    {
+      key: "package",
+      visible: visibleColumns.followup.package,
+      header: "Package",
+      render: (item) => (
+        <CompactCell>
+          <Badge colorScheme="purple" fontSize="xs">
+            {item.packageType || "Not specified"}
+          </Badge>
+        </CompactCell>
+      ),
+    },
+    {
+      key: "service",
+      visible: visibleColumns.followup.service && !isLargerThan768,
+      header: "Service",
+      render: (item) => (
+        <CompactCell>
+          <Text noOfLines={1} fontSize="xs">
+            {item.serviceProvided}
+          </Text>
+        </CompactCell>
+      ),
+    },
+    {
+      key: "deadline",
+      visible: visibleColumns.followup.deadline,
+      header: "Deadline",
+      render: (item) => (
+        <CompactCell>{new Date(item.deadline).toLocaleDateString()}</CompactCell>
+      ),
+    },
+    {
+      key: "actions",
+      visible: visibleColumns.followup.actions,
+      header: "Actions",
+      render: (item) => (
+        <CompactCell>
+          <HStack spacing={1}>
+            <Tooltip label="Update Services">
+              <IconButton
+                aria-label="Update Services"
+                icon={<EditIcon />}
+                colorScheme="teal"
+                size="xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedClient(item);
+                  setShowUpdateCard(true);
+                }}
+              />
+            </Tooltip>
+            <Tooltip label="Edit Customer">
+              <IconButton
+                aria-label="Edit customer"
+                icon={<EditIcon />}
+                colorScheme="blue"
+                size="xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedClient(item);
+                  onEditOpen();
+                }}
+              />
+            </Tooltip>
+            <Tooltip label="Delete Customer">
+              <IconButton
+                aria-label="Delete customer"
+                icon={<SmallCloseIcon />}
+                colorScheme="red"
+                size="xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteCustomer(item._id);
+                }}
+              />
+            </Tooltip>
+          </HStack>
+        </CompactCell>
+      ),
+    },
+  ].filter((col) => col.visible);
+
+  const pendingB2BColumnsToRender = [
+    {
+      key: "client",
+      visible: visibleColumns.pendingB2B.client,
+      header: "Client",
+      render: (customer) => <CompactCell>{customer.clientName}</CompactCell>,
+    },
+    {
+      key: "company",
+      visible: visibleColumns.pendingB2B.company,
+      header: "Company",
+      render: (customer) => <CompactCell>{customer.companyName}</CompactCell>,
+    },
+    {
+      key: "email",
+      visible: visibleColumns.pendingB2B.email && !isMobile,
+      header: "Email",
+      render: (customer) => <CompactCell>{customer.email}</CompactCell>,
+    },
+    {
+      key: "phone",
+      visible: visibleColumns.pendingB2B.phone && !isMobile,
+      header: "Phone",
+      render: (customer) => <CompactCell>{customer.phoneNumber}</CompactCell>,
+    },
+    {
+      key: "type",
+      visible: visibleColumns.pendingB2B.type,
+      header: "Type",
+      render: (customer) => (
+        <CompactCell>
+          <Badge
+            colorScheme={customer.type === "buyer" ? "green" : "purple"}
+            fontSize="xs"
+          >
+            {customer.type}
+          </Badge>
+        </CompactCell>
+      ),
+    },
+    {
+      key: "industry",
+      visible: visibleColumns.pendingB2B.industry && !isLargerThan768,
+      header: "Industry",
+      render: (customer) => <CompactCell>{customer.industry}</CompactCell>,
+    },
+    {
+      key: "country",
+      visible: visibleColumns.pendingB2B.country,
+      header: "Country",
+      render: (customer) => <CompactCell>{customer.country}</CompactCell>,
+    },
+    {
+      key: "package",
+      visible: visibleColumns.pendingB2B.package,
+      header: "Package",
+      render: (customer) => (
+        <CompactCell>
+          <Badge colorScheme="blue" fontSize="xs">
+            {customer.packageType || "Not specified"}
+          </Badge>
+        </CompactCell>
+      ),
+    },
+    {
+      key: "actions",
+      visible: visibleColumns.pendingB2B.actions,
+      header: "Actions",
+      render: (customer) => (
+        <CompactCell>
+          <Tooltip label="Import this customer to follow-up system">
+            <Button
+              size="xs"
+              colorScheme="teal"
+              leftIcon={<DownloadIcon />}
+              onClick={() => handleImportB2BCustomer(customer)}
+            >
+              Import
+            </Button>
+          </Tooltip>
+        </CompactCell>
+      ),
+    },
+  ].filter((col) => col.visible);
+
+  const completedSalesColumnsToRender = [
+    {
+      key: "customer",
+      visible: visibleColumns.completedSales.customer,
+      header: "Customer",
+      render: (item) => (
+        <CompactCell>{item.fullName || item.clientName}</CompactCell>
+      ),
+    },
+    {
+      key: "email",
+      visible: visibleColumns.completedSales.email && !isMobile,
+      header: "Email",
+      render: (item) => <CompactCell>{item.email}</CompactCell>,
+    },
+    {
+      key: "phone",
+      visible: visibleColumns.completedSales.phone && !isMobile,
+      header: "Phone",
+      render: (item) => <CompactCell>{item.phoneNumber}</CompactCell>,
+    },
+    {
+      key: "status",
+      visible: visibleColumns.completedSales.status,
+      header: "Status",
+      render: (item) => (
+        <CompactCell>
+          <Badge colorScheme="green" fontSize="xs">
+            {item.status}
+          </Badge>
+        </CompactCell>
+      ),
+    },
+    {
+      key: "followUpDate",
+      visible: visibleColumns.completedSales.followUpDate,
+      header: "Follow-up Date",
+      render: (item) => (
+        <CompactCell>
+          {item.followUpDate
+            ? new Date(item.followUpDate).toLocaleDateString()
+            : "-"}
+        </CompactCell>
+      ),
+    },
+  ].filter((col) => col.visible);
+
+  const trainingFollowupColumnsToRender = [
+    {
+      key: "startDate",
+      visible: visibleColumns.trainingFollowup.startDate,
+      header: "Training Start Date",
+      render: (item) => (
+        <CompactCell>
+          {item.startDate ? new Date(item.startDate).toLocaleDateString() : "-"}
+        </CompactCell>
+      ),
+    },
+    {
+      key: "agentName",
+      visible: visibleColumns.trainingFollowup.agentName,
+      header: "Agent Name",
+      render: (item) => <CompactCell>{item.agentName}</CompactCell>,
+    },
+    {
+      key: "customerName",
+      visible: visibleColumns.trainingFollowup.customerName,
+      header: "Customer Name",
+      render: (item) => <CompactCell>{item.customerName}</CompactCell>,
+    },
+    {
+      key: "email",
+      visible: visibleColumns.trainingFollowup.email,
+      header: "Email",
+      render: (item) => <CompactCell>{item.email}</CompactCell>,
+    },
+    {
+      key: "phone",
+      visible: visibleColumns.trainingFollowup.phone,
+      header: "Phone Number",
+      render: (item) => <CompactCell>{item.phoneNumber}</CompactCell>,
+    },
+    {
+      key: "fieldOfWork",
+      visible: visibleColumns.trainingFollowup.fieldOfWork,
+      header: "Field of Work",
+      render: (item) => <CompactCell>{item.fieldOfWork}</CompactCell>,
+    },
+    {
+      key: "course",
+      visible: visibleColumns.trainingFollowup.course,
+      header: "Course",
+      render: (item) => <CompactCell>{item.trainingType}</CompactCell>,
+    },
+    {
+      key: "schedule",
+      visible: visibleColumns.trainingFollowup.schedule,
+      header: "Schedule & Shift",
+      render: (item) => (
+        <CompactCell>
+          <Tooltip label={item.scheduleShift || "Not set"} hasArrow>
+            <Input
+              as="select"
+              size="sm"
+              value={item.scheduleShift || ""}
+              onChange={(e) =>
+                handleInlineTrainingChange(item._id, "scheduleShift", e.target.value)
+              }
+            >
+              <option value="">Select schedule</option>
+              <option value="Regular">Regular</option>
+              <option value="Night">Night</option>
+              <option value="Weekend">Weekend</option>
+              <option value="Night/Weekend">Night/Weekend</option>
+            </Input>
+          </Tooltip>
+        </CompactCell>
+      ),
+    },
+    {
+      key: "materialStatus",
+      visible: visibleColumns.trainingFollowup.materialStatus,
+      header: "Material Delivery Status",
+      render: (item) => (
+        <CompactCell>
+          <Tooltip label={item.materialStatus || "Not set"} hasArrow>
+            <Input
+              as="select"
+              size="sm"
+              value={item.materialStatus || ""}
+              onChange={(e) =>
+                handleInlineTrainingChange(item._id, "materialStatus", e.target.value)
+              }
+            >
+              <option value="">Select status</option>
+              <option value="Not Delivered">Not Delivered</option>
+              <option value="Delivered">Delivered</option>
+            </Input>
+          </Tooltip>
+        </CompactCell>
+      ),
+    },
+    {
+      key: "progress",
+      visible: visibleColumns.trainingFollowup.progress,
+      header: "Progress",
+      render: (item) => (
+        <CompactCell>
+          <Tooltip label={item.progress || "Not set"} hasArrow>
+            <Input
+              as="select"
+              size="sm"
+              value={item.progress || ""}
+              onChange={(e) =>
+                handleInlineTrainingChange(item._id, "progress", e.target.value)
+              }
+            >
+              <option value="">Select progress</option>
+              <option value="Not Started">Not Started</option>
+              <option value="Started">Started</option>
+              <option value="Dropped">Dropped</option>
+            </Input>
+          </Tooltip>
+        </CompactCell>
+      ),
+    },
+    {
+      key: "idInfo",
+      visible: visibleColumns.trainingFollowup.idInfo,
+      header: "ID Info",
+      render: (item) => <CompactCell>{item.idInfo}</CompactCell>,
+    },
+    {
+      key: "packageStatus",
+      visible: visibleColumns.trainingFollowup.packageStatus,
+      header: "Package Status",
+      render: (item) => <CompactCell>{item.packageStatus}</CompactCell>,
+    },
+    {
+      key: "actions",
+      visible: visibleColumns.trainingFollowup.actions,
+      header: "Actions",
+      render: (item) => (
+        <CompactCell>
+          <HStack spacing={2}>
+            <Tooltip label="Edit training follow-up">
+              <IconButton
+                aria-label="Edit training follow-up"
+                icon={<EditIcon />}
+                size="xs"
+                colorScheme="blue"
+                variant="outline"
+                onClick={() => openTrainingEdit(item)}
+              />
+            </Tooltip>
+            <Tooltip label="Delete training follow-up">
+              <IconButton
+                aria-label="Delete training follow-up"
+                icon={<DeleteIcon />}
+                size="xs"
+                colorScheme="red"
+                variant="outline"
+                onClick={() => handleDeleteTrainingFollowup(item._id)}
+              />
+            </Tooltip>
+          </HStack>
+        </CompactCell>
+      ),
+    },
+  ].filter((col) => col.visible);
+
+  const ensraColumnsToRender = [
+    {
+      key: "type",
+      visible: visibleColumns.ensra.type,
+      header: "Type",
+      render: (item) => <CompactCell>{item.type}</CompactCell>,
+    },
+    {
+      key: "packageType",
+      visible: visibleColumns.ensra.packageType,
+      header: "Package Type",
+      render: (item) => <CompactCell>{item.packageType}</CompactCell>,
+    },
+    {
+      key: "companyName",
+      visible: visibleColumns.ensra.companyName,
+      header: "Company Name",
+      render: (item) => <CompactCell>{item.companyName}</CompactCell>,
+    },
+    {
+      key: "positionsOffered",
+      visible: visibleColumns.ensra.positionsOffered,
+      header: "Positions Offered",
+      render: (item) => <CompactCell>{item.positionsOffered}</CompactCell>,
+    },
+    {
+      key: "salaryRange",
+      visible: visibleColumns.ensra.salaryRange,
+      header: "Salary Range",
+      render: (item) => <CompactCell>{item.salaryRange}</CompactCell>,
+    },
+    {
+      key: "jobRequirements",
+      visible: visibleColumns.ensra.jobRequirements,
+      header: "Job Requirements",
+      render: (item) => <CompactCell>{item.jobRequirements}</CompactCell>,
+    },
+    {
+      key: "jobSeekerName",
+      visible: visibleColumns.ensra.jobSeekerName,
+      header: "Job Seeker Name",
+      render: (item) => <CompactCell>{item.jobSeekerName}</CompactCell>,
+    },
+    {
+      key: "jobSeekerSkills",
+      visible: visibleColumns.ensra.jobSeekerSkills,
+      header: "Skills",
+      render: (item) => <CompactCell>{item.jobSeekerSkills}</CompactCell>,
+    },
+    {
+      key: "jobSeekerExperience",
+      visible: visibleColumns.ensra.jobSeekerExperience,
+      header: "Experience",
+      render: (item) => <CompactCell>{item.jobSeekerExperience}</CompactCell>,
+    },
+    {
+      key: "jobSeekerEducation",
+      visible: visibleColumns.ensra.jobSeekerEducation,
+      header: "Education",
+      render: (item) => <CompactCell>{item.jobSeekerEducation}</CompactCell>,
+    },
+    {
+      key: "jobSeekerExpectedSalary",
+      visible: visibleColumns.ensra.jobSeekerExpectedSalary,
+      header: "Expected Salary",
+      render: (item) => <CompactCell>{item.jobSeekerExpectedSalary}</CompactCell>,
+    },
+    {
+      key: "actions",
+      visible: visibleColumns.ensra.actions,
+      header: "Actions",
+      render: (item) => (
+        <CompactCell>
+          <HStack spacing={2}>
+            <Tooltip label="Edit ENSRA follow-up">
+              <IconButton
+                aria-label="Edit ENSRA follow-up"
+                icon={<EditIcon />}
+                size="xs"
+                colorScheme="blue"
+                variant="outline"
+                onClick={() => openEnsraEdit(item)}
+              />
+            </Tooltip>
+            <Tooltip label="Delete ENSRA follow-up">
+              <IconButton
+                aria-label="Delete ENSRA follow-up"
+                icon={<DeleteIcon />}
+                size="xs"
+                colorScheme="red"
+                variant="outline"
+                onClick={() => handleDeleteEnsraFollowup(item._id || item.id)}
+              />
+            </Tooltip>
+          </HStack>
+        </CompactCell>
+      ),
+    },
+  ].filter((col) => col.visible);
 
   return (
     <Layout overflowX="auto" maxW="1200px" mx="auto" py={4} px={2}>
@@ -852,6 +1540,7 @@ const saveEnsraEdit = async () => {
                       </Flex>
                       
                       <HStack spacing={2}>
+                        {renderColumnMenu("followup", followupColumnOptions)}
                         <Tooltip label="Refresh data">
                           <IconButton
                             aria-label="Refresh"
@@ -952,93 +1641,38 @@ const saveEnsraEdit = async () => {
                             </VStack>
                           </Box>
                         ) : (
-                          <Box overflowX="auto">
+                          <TableContainer
+                            overflowX="auto"
+                            border="1px solid"
+                            borderColor={tableBorderColor}
+                            borderRadius="lg"
+                            bg={tableBg}
+                            boxShadow="sm"
+                          >
                             <Table 
-                              variant="simple" 
+                              variant="striped"
+                              colorScheme="gray"
                               size="sm" 
                               minWidth={isMobile ? "600px" : "auto"}
                             >
                               <Thead bg={headerBg}>
                                 <Tr>
-                                  <CompactHeaderCell>Client Name</CompactHeaderCell>
-                                  <CompactHeaderCell>Company</CompactHeaderCell>
-                                  {!isMobile && <CompactHeaderCell>Phone</CompactHeaderCell>}
-                                  {!isMobile && <CompactHeaderCell>Email</CompactHeaderCell>}
-                                  <CompactHeaderCell>Package</CompactHeaderCell>
-                                  {!isLargerThan768 && <CompactHeaderCell>Service</CompactHeaderCell>}
-                                  <CompactHeaderCell>Deadline</CompactHeaderCell>
-                                  <CompactHeaderCell>Actions</CompactHeaderCell>
+                                  {followupColumnsToRender.map((col) => (
+                                    <CompactHeaderCell key={col.key}>{col.header}</CompactHeaderCell>
+                                  ))}
                                 </Tr>
                               </Thead>
-                              <Tbody>
+                            <Tbody>
                                 {Array.isArray(filteredData) && filteredData.map((item) => (
                                   <Tr 
                                     key={item._id} 
                                     onClick={() => isMobile && handleRowClick(item)}
-                                    _hover={{ bg: useColorModeValue("gray.50", "gray.600") }}
+                                    _hover={{ bg: rowHoverBg }}
                                     cursor={isMobile ? "pointer" : "default"}
                                   >
-                                    <CompactCell>{item.clientName}</CompactCell>
-                                    <CompactCell>{item.companyName}</CompactCell>
-                                    {!isMobile && <CompactCell>{item.phoneNumber}</CompactCell>}
-                                    {!isMobile && <CompactCell>{item.email}</CompactCell>}
-                                    <CompactCell>
-                                      <Badge colorScheme="purple" fontSize="xs">
-                                        {item.packageType || 'Not specified'}
-                                      </Badge>
-                                    </CompactCell>
-                                    {!isLargerThan768 && (
-                                      <CompactCell>
-                                        <Text noOfLines={1} fontSize="xs">
-                                          {item.serviceProvided}
-                                        </Text>
-                                      </CompactCell>
-                                    )}
-                                    <CompactCell>
-                                      {new Date(item.deadline).toLocaleDateString()}
-                                    </CompactCell>
-                                    <CompactCell>
-                                      <HStack spacing={1}>
-                                        <Tooltip label="Update Services">
-                                          <IconButton
-                                            aria-label="Update Services"
-                                            icon={<EditIcon />}
-                                            colorScheme="teal"
-                                            size="xs"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setSelectedClient(item);
-                                              setShowUpdateCard(true);
-                                            }}
-                                          />
-                                        </Tooltip>
-                                        <Tooltip label="Edit Customer">
-                                          <IconButton
-                                            aria-label="Edit customer"
-                                            icon={<EditIcon />}
-                                            colorScheme="blue"
-                                            size="xs"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setSelectedClient(item);
-                                              onEditOpen();
-                                            }}
-                                          />
-                                        </Tooltip>
-                                        <Tooltip label="Delete Customer">
-                                          <IconButton
-                                            aria-label="Delete customer"
-                                            icon={<SmallCloseIcon />}
-                                            colorScheme="red"
-                                            size="xs"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDeleteCustomer(item._id);
-                                            }}
-                                          />
-                                        </Tooltip>
-                                      </HStack>
-                                    </CompactCell>
+                                    {followupColumnsToRender.map((col) => (
+                                      <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
+                                    ))}
                                   </Tr>
                                 ))}
                               </Tbody>
@@ -1049,7 +1683,7 @@ const saveEnsraEdit = async () => {
                                 No customers found
                               </Text>
                             )}
-                          </Box>
+                          </TableContainer>
                         )}
                       </>
                     )}
@@ -1068,16 +1702,19 @@ const saveEnsraEdit = async () => {
                       <Heading size="md" color={headerBg}>
                         Pending B2B Customers for Import
                       </Heading>
-                      <Tooltip label="Refresh B2B customer list">
-                        <IconButton
-                          aria-label="Refresh B2B"
-                          icon={<RepeatIcon />}
-                          colorScheme="blue"
-                          onClick={fetchPendingB2BCustomers}
-                          isLoading={loadingB2B}
-                          size="md"
-                        />
-                      </Tooltip>
+                      <HStack spacing={2}>
+                        {renderColumnMenu("pendingB2B", pendingB2BColumnOptions)}
+                        <Tooltip label="Refresh B2B customer list">
+                          <IconButton
+                            aria-label="Refresh B2B"
+                            icon={<RepeatIcon />}
+                            colorScheme="blue"
+                            onClick={fetchPendingB2BCustomers}
+                            isLoading={loadingB2B}
+                            size="md"
+                          />
+                        </Tooltip>
+                      </HStack>
                     </Flex>
                     
                     {loadingB2B ? (
@@ -1086,23 +1723,25 @@ const saveEnsraEdit = async () => {
                         <Text ml={4}>Loading pending B2B customers...</Text>
                       </Flex>
                     ) : (
-                      <Box overflowX="auto">
+                      <TableContainer
+                        overflowX="auto"
+                        border="1px solid"
+                        borderColor={tableBorderColor}
+                        borderRadius="lg"
+                        bg={tableBg}
+                        boxShadow="sm"
+                      >
                         <Table 
-                          variant="simple" 
+                          variant="striped" 
+                          colorScheme="gray"
                           size="sm" 
                           minWidth={isMobile ? "700px" : "auto"}
                         >
                           <Thead bg={headerBg}>
                             <Tr>
-                              <CompactHeaderCell>Client</CompactHeaderCell>
-                              <CompactHeaderCell>Company</CompactHeaderCell>
-                              {!isMobile && <CompactHeaderCell>Email</CompactHeaderCell>}
-                              {!isMobile && <CompactHeaderCell>Phone</CompactHeaderCell>}
-                              <CompactHeaderCell>Type</CompactHeaderCell>
-                              {!isLargerThan768 && <CompactHeaderCell>Industry</CompactHeaderCell>}
-                              <CompactHeaderCell>Country</CompactHeaderCell>
-                              <CompactHeaderCell>Package</CompactHeaderCell>
-                              <CompactHeaderCell>Actions</CompactHeaderCell>
+                              {pendingB2BColumnsToRender.map((col) => (
+                                <CompactHeaderCell key={col.key}>{col.header}</CompactHeaderCell>
+                              ))}
                             </Tr>
                           </Thead>
                           <Tbody>
@@ -1110,44 +1749,16 @@ const saveEnsraEdit = async () => {
                               pendingB2BCustomers.map((customer) => (
                                 <Tr 
                                   key={customer._id}
-                                  _hover={{ bg: useColorModeValue("gray.50", "gray.600") }}
+                                  _hover={{ bg: rowHoverBg }}
                                 >
-                                  <CompactCell>{customer.clientName}</CompactCell>
-                                  <CompactCell>{customer.companyName}</CompactCell>
-                                  {!isMobile && <CompactCell>{customer.email}</CompactCell>}
-                                  {!isMobile && <CompactCell>{customer.phoneNumber}</CompactCell>}
-                                  <CompactCell>
-                                    <Badge 
-                                      colorScheme={customer.type === 'buyer' ? 'green' : 'purple'}
-                                      fontSize="xs"
-                                    >
-                                      {customer.type}
-                                    </Badge>
-                                  </CompactCell>
-                                  {!isLargerThan768 && <CompactCell>{customer.industry}</CompactCell>}
-                                  <CompactCell>{customer.country}</CompactCell>
-                                  <CompactCell>
-                                    <Badge colorScheme="blue" fontSize="xs">
-                                      {customer.packageType || 'Not specified'}
-                                    </Badge>
-                                  </CompactCell>
-                                  <CompactCell>
-                                    <Tooltip label="Import this customer to follow-up system">
-                                      <Button
-                                        size="xs"
-                                        colorScheme="teal"
-                                        leftIcon={<DownloadIcon />}
-                                        onClick={() => handleImportB2BCustomer(customer)}
-                                      >
-                                        Import
-                                      </Button>
-                                    </Tooltip>
-                                  </CompactCell>
+                                  {pendingB2BColumnsToRender.map((col) => (
+                                    <React.Fragment key={col.key}>{col.render(customer)}</React.Fragment>
+                                  ))}
                                 </Tr>
                               ))
                             ) : (
                               <Tr>
-                                <Td colSpan={isMobile ? 6 : 9} textAlign="center" py={10}>
+                                <Td colSpan={pendingB2BColumnsToRender.length || 1} textAlign="center" py={10}>
                                   <Text color="gray.500">
                                     No pending B2B customers found. All B2B customers have been imported.
                                   </Text>
@@ -1156,7 +1767,7 @@ const saveEnsraEdit = async () => {
                             )}
                           </Tbody>
                         </Table>
-                      </Box>
+                      </TableContainer>
                     )}
                   </VStack>
                 </CardBody>
@@ -1171,6 +1782,7 @@ const saveEnsraEdit = async () => {
                         Training from Completed Sales
                       </Heading>
                       <HStack spacing={2}>
+                        {renderColumnMenu("completedSales", completedSalesColumnOptions)}
                         <Tooltip label="Refresh completed sales">
                           <IconButton
                             aria-label="Refresh Training"
@@ -1193,19 +1805,25 @@ const saveEnsraEdit = async () => {
                         {trainingError}
                       </Text>
                     ) : (
-                      <Box overflowX="auto">
+                      <TableContainer
+                        overflowX="auto"
+                        border="1px solid"
+                        borderColor={tableBorderColor}
+                        borderRadius="lg"
+                        bg={tableBg}
+                        boxShadow="sm"
+                      >
                         <Table
-                          variant="simple"
+                          variant="striped"
+                          colorScheme="gray"
                           size="sm"
                           minWidth={isMobile ? "700px" : "auto"}
                         >
                           <Thead bg={headerBg}>
                             <Tr>
-                              <CompactHeaderCell>Customer</CompactHeaderCell>
-                              {!isMobile && <CompactHeaderCell>Email</CompactHeaderCell>}
-                              {!isMobile && <CompactHeaderCell>Phone</CompactHeaderCell>}
-                              <CompactHeaderCell>Status</CompactHeaderCell>
-                              <CompactHeaderCell>Follow-up Date</CompactHeaderCell>
+                              {completedSalesColumnsToRender.map((col) => (
+                                <CompactHeaderCell key={col.key}>{col.header}</CompactHeaderCell>
+                              ))}
                             </Tr>
                           </Thead>
                           <Tbody>
@@ -1213,26 +1831,16 @@ const saveEnsraEdit = async () => {
                               completedSales.map((item) => (
                                 <Tr
                                   key={item._id}
-                                  _hover={{ bg: useColorModeValue("gray.50", "gray.600") }}
+                                  _hover={{ bg: rowHoverBg }}
                                 >
-                                  <CompactCell>{item.fullName || item.clientName}</CompactCell>
-                                  {!isMobile && <CompactCell>{item.email}</CompactCell>}
-                                  {!isMobile && <CompactCell>{item.phoneNumber}</CompactCell>}
-                                  <CompactCell>
-                                    <Badge colorScheme="green" fontSize="xs">
-                                      {item.status}
-                                    </Badge>
-                                  </CompactCell>
-                                  <CompactCell>
-                                    {item.followUpDate
-                                      ? new Date(item.followUpDate).toLocaleDateString()
-                                      : "-"}
-                                  </CompactCell>
+                                  {completedSalesColumnsToRender.map((col) => (
+                                    <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
+                                  ))}
                                 </Tr>
                               ))
                             ) : (
                               <Tr>
-                                <Td colSpan={isMobile ? 4 : 5} textAlign="center" py={10}>
+                                <Td colSpan={completedSalesColumnsToRender.length || 1} textAlign="center" py={10}>
                                   <Text color="gray.500">
                                     No completed sales found for training.
                                   </Text>
@@ -1241,7 +1849,8 @@ const saveEnsraEdit = async () => {
                             )}
                           </Tbody>
                         </Table>
-                      </Box>
+                      </TableContainer>
+                    
                     )}
 
                     <Divider />
@@ -1567,156 +2176,61 @@ const saveEnsraEdit = async () => {
                             <option value="Dropped">Dropped</option>
                           </Input>
                         </Box>
+                        {renderColumnMenu("trainingFollowup", trainingFollowupColumnOptions)}
                         <Button
                           size="sm"
                           colorScheme="blue"
                           variant="outline"
                           onClick={() => setTrainingSortAsc((prev) => !prev)}
                         >
-                          Sort {trainingSortAsc ? "A–Z" : "Z–A"}
+                          Sort {trainingSortAsc ? "A-Z" : "Z-A"}
                         </Button>
                       </HStack>
                     </Flex>
 
-                    <Box overflowX="auto">
+                    <TableContainer
+                      overflowX="auto"
+                      border="1px solid"
+                      borderColor={tableBorderColor}
+                      borderRadius="lg"
+                      bg={tableBg}
+                      boxShadow="sm"
+                    >
                       <Table
-                        variant="simple"
+                        variant="striped"
+                        colorScheme="gray"
                         size="sm"
                         minWidth={isMobile ? "900px" : "auto"}
                       >
                         <Thead bg={headerBg}>
                           <Tr>
-                            <CompactHeaderCell>Training Start Date</CompactHeaderCell>
-                            <CompactHeaderCell>Agent Name</CompactHeaderCell>
-                            <CompactHeaderCell>Customer Name</CompactHeaderCell>
-                            <CompactHeaderCell>Email</CompactHeaderCell>
-                            <CompactHeaderCell>Phone Number</CompactHeaderCell>
-                            <CompactHeaderCell>Field of Work</CompactHeaderCell>
-                            <CompactHeaderCell>Course</CompactHeaderCell>
-                          <CompactHeaderCell>Schedule & Shift</CompactHeaderCell>
-                          <CompactHeaderCell>Material Delivery Status</CompactHeaderCell>
-                          <CompactHeaderCell>Progress</CompactHeaderCell>
-                          <CompactHeaderCell>ID Info</CompactHeaderCell>
-                          <CompactHeaderCell>Package Status</CompactHeaderCell>
-                          <CompactHeaderCell>Actions</CompactHeaderCell>
-                        </Tr>
-                      </Thead>
-                      <Tbody>
-                        {filteredTrainingFollowups.length > 0 ? (
-                          filteredTrainingFollowups.map((item) => (
-                              <Tr key={item._id}>
-                                <CompactCell>
-                                  {item.startDate ? new Date(item.startDate).toLocaleDateString() : "-"}
-                                </CompactCell>
-                                <CompactCell>{item.agentName}</CompactCell>
-                                <CompactCell>{item.customerName}</CompactCell>
-                                <CompactCell>{item.email}</CompactCell>
-                                <CompactCell>{item.phoneNumber}</CompactCell>
-                                <CompactCell>{item.fieldOfWork}</CompactCell>
-                                <CompactCell>{item.trainingType}</CompactCell>
-                                <CompactCell>
-                                  <Tooltip label={item.scheduleShift || "Not set"} hasArrow>
-                                    <Input
-                                      as="select"
-                                      size="sm"
-                                      value={item.scheduleShift || ""}
-                                      onChange={(e) =>
-                                        handleInlineTrainingChange(
-                                          item._id,
-                                          "scheduleShift",
-                                          e.target.value
-                                        )
-                                      }
-                                    >
-                                      <option value="">Select schedule</option>
-                                      <option value="Regular">Regular</option>
-                                      <option value="Night">Night</option>
-                                      <option value="Weekend">Weekend</option>
-                                      <option value="Night/Weekend">Night/Weekend</option>
-                                    </Input>
-                                  </Tooltip>
-                                </CompactCell>
-                                <CompactCell>
-                                  <Tooltip label={item.materialStatus || "Not set"} hasArrow>
-                                    <Input
-                                      as="select"
-                                      size="sm"
-                                      value={item.materialStatus || ""}
-                                      onChange={(e) =>
-                                        handleInlineTrainingChange(
-                                          item._id,
-                                          "materialStatus",
-                                          e.target.value
-                                        )
-                                      }
-                                    >
-                                      <option value="">Select status</option>
-                                      <option value="Not Delivered">Not Delivered</option>
-                                      <option value="Delivered">Delivered</option>
-                                    </Input>
-                                  </Tooltip>
-                                </CompactCell>
-                                <CompactCell>
-                                  <Tooltip label={item.progress || "Not set"} hasArrow>
-                                    <Input
-                                      as="select"
-                                      size="sm"
-                                      value={item.progress || ""}
-                                      onChange={(e) =>
-                                        handleInlineTrainingChange(
-                                          item._id,
-                                          "progress",
-                                          e.target.value
-                                        )
-                                      }
-                                    >
-                                      <option value="">Select progress</option>
-                                      <option value="Not Started">Not Started</option>
-                                      <option value="Started">Started</option>
-                                      <option value="Dropped">Dropped</option>
-                                    </Input>
-                                  </Tooltip>
-                                </CompactCell>
-                                <CompactCell>{item.idInfo}</CompactCell>
-                                <CompactCell>{item.packageStatus}</CompactCell>
-                                <CompactCell>
-                                  <HStack spacing={2}>
-                                    <Tooltip label="Edit training follow-up">
-                                      <IconButton
-                                        aria-label="Edit training follow-up"
-                                        icon={<EditIcon />}
-                                        size="xs"
-                                        colorScheme="blue"
-                                        variant="outline"
-                                        onClick={() => openTrainingEdit(item)}
-                                      />
-                                    </Tooltip>
-                                    <Tooltip label="Delete training follow-up">
-                                      <IconButton
-                                        aria-label="Delete training follow-up"
-                                        icon={<DeleteIcon />}
-                                        size="xs"
-                                        colorScheme="red"
-                                        variant="outline"
-                                        onClick={() => handleDeleteTrainingFollowup(item._id)}
-                                      />
-                                    </Tooltip>
-                                  </HStack>
-                                </CompactCell>
+                            {trainingFollowupColumnsToRender.map((col) => (
+                              <CompactHeaderCell key={col.key}>{col.header}</CompactHeaderCell>
+                            ))}
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {filteredTrainingFollowups.length > 0 ? (
+                            filteredTrainingFollowups.map((item) => (
+                                <Tr key={item._id} _hover={{ bg: rowHoverBg }}>
+                                  {trainingFollowupColumnsToRender.map((col) => (
+                                    <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
+                                  ))}
+                                </Tr>
+                              ))
+                            ) : (
+                              <Tr>
+                                <Td colSpan={trainingFollowupColumnsToRender.length || 1} textAlign="center" py={10}>
+                                  <Text color="gray.500">
+                                    No training follow-up records found.
+                                  </Text>
+                                </Td>
                               </Tr>
-                            ))
-                          ) : (
-                            <Tr>
-                              <Td colSpan={13} textAlign="center" py={10}>
-                                <Text color="gray.500">
-                                  No training follow-up records found.
-                                </Text>
-                              </Td>
-                            </Tr>
-                          )}
-                        </Tbody>
-                      </Table>
-                    </Box>
+                            )}
+                          </Tbody>
+                        </Table>
+                      </TableContainer>
+                    
                   </VStack>
                 </CardBody>
               </Card>
@@ -1730,6 +2244,7 @@ const saveEnsraEdit = async () => {
                         ENSRA Follow-Up
                       </Heading>
                       <HStack spacing={2}>
+                        {renderColumnMenu("ensra", ensraColumnOptions)}
                         <Tooltip label="Add ENSRA customer">
                           <IconButton
                             aria-label="Add ENSRA customer"
@@ -1773,86 +2288,54 @@ const saveEnsraEdit = async () => {
                           variant="outline"
                           onClick={() => setEnsraSortAsc((prev) => !prev)}
                         >
-                          Sort {ensraSortAsc ? "A–Z" : "Z–A"}
+                          Sort {ensraSortAsc ? "A-Z" : "Z-A"}
                         </Button>
                       </HStack>
                     </Flex>
 
-                    <Box overflowX="auto">
+                    <TableContainer
+                      overflowX="auto"
+                      border="1px solid"
+                      borderColor={tableBorderColor}
+                      borderRadius="lg"
+                      bg={tableBg}
+                      boxShadow="sm"
+                    >
                       <Table
-                        variant="simple"
+                        variant="striped"
+                        colorScheme="gray"
                         size="sm"
                         minWidth={isMobile ? "900px" : "auto"}
                       >
                         <Thead bg={headerBg}>
                           <Tr>
-                            <CompactHeaderCell>Type</CompactHeaderCell>
-                            <CompactHeaderCell>Package Type</CompactHeaderCell>
-                            <CompactHeaderCell>Company Name</CompactHeaderCell>
-                            <CompactHeaderCell>Positions Offered</CompactHeaderCell>
-                            <CompactHeaderCell>Salary Range</CompactHeaderCell>
-                            <CompactHeaderCell>Job Requirements</CompactHeaderCell>
-                            <CompactHeaderCell>Job Seeker Name</CompactHeaderCell>
-                          <CompactHeaderCell>Skills</CompactHeaderCell>
-                          <CompactHeaderCell>Experience</CompactHeaderCell>
-                          <CompactHeaderCell>Education</CompactHeaderCell>
-                          <CompactHeaderCell>Expected Salary</CompactHeaderCell>
-                          <CompactHeaderCell>Actions</CompactHeaderCell>
-                        </Tr>
-                      </Thead>
-                      <Tbody>
-                        {filteredEnsraFollowups.length > 0 ? (
-                          filteredEnsraFollowups.map((item) => (
-                              <Tr key={item._id || item.id}>
-                                <CompactCell>{item.type}</CompactCell>
-                                <CompactCell>{item.packageType}</CompactCell>
-                                <CompactCell>{item.companyName}</CompactCell>
-                                <CompactCell>{item.positionsOffered}</CompactCell>
-                                <CompactCell>{item.salaryRange}</CompactCell>
-                                <CompactCell>{item.jobRequirements}</CompactCell>
-                                <CompactCell>{item.jobSeekerName}</CompactCell>
-                                <CompactCell>{item.jobSeekerSkills}</CompactCell>
-                                <CompactCell>{item.jobSeekerExperience}</CompactCell>
-                                <CompactCell>{item.jobSeekerEducation}</CompactCell>
-                                <CompactCell>{item.jobSeekerExpectedSalary}</CompactCell>
-                                <CompactCell>
-                                  <HStack spacing={2}>
-                                    <Tooltip label="Edit ENSRA follow-up">
-                                      <IconButton
-                                        aria-label="Edit ENSRA follow-up"
-                                        icon={<EditIcon />}
-                                        size="xs"
-                                        colorScheme="blue"
-                                        variant="outline"
-                                        onClick={() => openEnsraEdit(item)}
-                                      />
-                                    </Tooltip>
-                                    <Tooltip label="Delete ENSRA follow-up">
-                                      <IconButton
-                                        aria-label="Delete ENSRA follow-up"
-                                        icon={<DeleteIcon />}
-                                        size="xs"
-                                        colorScheme="red"
-                                        variant="outline"
-                                        onClick={() => handleDeleteEnsraFollowup(item._id || item.id)}
-                                      />
-                                    </Tooltip>
-                                  </HStack>
-                                </CompactCell>
+                            {ensraColumnsToRender.map((col) => (
+                              <CompactHeaderCell key={col.key}>{col.header}</CompactHeaderCell>
+                            ))}
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {filteredEnsraFollowups.length > 0 ? (
+                            filteredEnsraFollowups.map((item) => (
+                                <Tr key={item._id || item.id} _hover={{ bg: rowHoverBg }}>
+                                  {ensraColumnsToRender.map((col) => (
+                                    <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
+                                  ))}
+                                </Tr>
+                              ))
+                            ) : (
+                              <Tr>
+                                <Td colSpan={ensraColumnsToRender.length || 1} textAlign="center" py={10}>
+                                  <Text color="gray.500">
+                                    No ENSRA follow-up records found.
+                                  </Text>
+                                </Td>
                               </Tr>
-                            ))
-                          ) : (
-                            <Tr>
-                              <Td colSpan={13} textAlign="center" py={10}>
-                                <Text color="gray.500">
-                                  No ENSRA follow-up records found.
-                                </Text>
-                              </Td>
-                            </Tr>
-                          )}
+                            )}
                         </Tbody>
                       </Table>
-                    </Box>
+                    </TableContainer>
+                    
 
                     {showEnsraFormCard && (
                       <>
