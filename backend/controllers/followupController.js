@@ -1,6 +1,7 @@
 const User = require("../models/user.model.js");
 const Followup = require("../models/Followup.js");
 const mongoose = require("mongoose");
+const nodemailer = require("nodemailer");
 
 // @desc    Get report for customer service users
 // @route   GET /api/followups/report
@@ -177,6 +178,166 @@ const deleteFollowup = async (req, res) => {
       return res.status(404).json({ message: "Follow-up not found" });
     }
     res.status(200).json({ message: "Follow-up deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Send bulk email to follow-ups
+// @route   POST /api/followups/bulk-email
+// @access  Public (protect in middleware if required)
+const sendBulkEmail = async (req, res) => {
+  const { ids = [], subject, body, sender = "System", senderEmail } = req.body || {};
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ message: "No follow-up ids provided" });
+  }
+  if (!subject || !body) {
+    return res.status(400).json({ message: "Subject and body are required" });
+  }
+
+  const transportConfig = {
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT || 587,
+    secure: false,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  };
+
+  if (!transportConfig.host || !transportConfig.auth.user || !transportConfig.auth.pass) {
+    return res.status(500).json({ message: "SMTP configuration missing" });
+  }
+
+  const transporter = nodemailer.createTransport(transportConfig);
+
+  try {
+    const followups = await Followup.find({ _id: { $in: ids } });
+    const results = [];
+
+    for (const f of followups) {
+      if (!f.email || f.email === "none") {
+        results.push({ id: f._id, status: "skipped", reason: "No email" });
+        continue;
+      }
+      try {
+        await transporter.sendMail({
+          from: senderEmail
+            ? `${senderEmail} via Followup <${transportConfig.auth.user}>`
+            : transportConfig.auth.user,
+          replyTo: senderEmail || transportConfig.auth.user,
+          to: f.email,
+          subject,
+          text: body.replaceAll("{{clientName}}", f.clientName || ""),
+        });
+        f.messages.push({ sender, body: `[BULK EMAIL] ${subject}\n\n${body}` });
+        await f.save();
+        results.push({ id: f._id, status: "sent" });
+      } catch (err) {
+        results.push({ id: f._id, status: "failed", reason: err.message });
+      }
+    }
+
+    res.status(200).json({ results });
+  } catch (error) {
+    console.error("Bulk email failed", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get messages for a follow-up
+// @route   GET /api/followups/:id/messages
+const getMessages = async (req, res) => {
+  try {
+    const followup = await Followup.findById(req.params.id).select("messages clientName email");
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+    res.status(200).json(followup.messages || []);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Add a message to a follow-up (agent note to customer)
+// @route   POST /api/followups/:id/messages
+const addMessage = async (req, res) => {
+  const { body, sender = "Agent" } = req.body || {};
+  if (!body) return res.status(400).json({ message: "Message body is required" });
+  try {
+    const followup = await Followup.findById(req.params.id);
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+    followup.messages.push({ sender, body });
+    await followup.save();
+    res.status(201).json(followup.messages);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Increment contact attempt counters
+// @route   PATCH /api/followups/:id/attempts
+// @access  Public
+const incrementAttempts = async (req, res) => {
+  const { type } = req.body; // call | message | email
+  const allowed = {
+    call: "call_count",
+    message: "message_count",
+    email: "email_count",
+  };
+  const field = allowed[type];
+  if (!field) {
+    return res.status(400).json({ message: "Invalid attempt type" });
+  }
+  try {
+    const updated = await Followup.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { [field]: 1 } },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: "Follow-up not found" });
+    res.status(200).json(updated);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Add communication log
+// @route   POST /api/followups/:id/communications
+// @access  Public
+const addCommunicationLog = async (req, res) => {
+  const { channel, note } = req.body;
+  const validChannels = ["Phone call", "WhatsApp", "Telegram", "Email", "In-person visit"];
+  if (!validChannels.includes(channel)) {
+    return res.status(400).json({ message: "Invalid channel" });
+  }
+  try {
+    const followup = await Followup.findById(req.params.id);
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+
+    followup.communications.push({ channel, note });
+    const saved = await followup.save();
+    res.status(200).json(saved);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Update priority
+// @route   PATCH /api/followups/:id/priority
+// @access  Public
+const updatePriority = async (req, res) => {
+  const { priority } = req.body;
+  const valid = ["High", "Medium", "Low"];
+  if (!valid.includes(priority)) {
+    return res.status(400).json({ message: "Invalid priority" });
+  }
+  try {
+    const updated = await Followup.findByIdAndUpdate(
+      req.params.id,
+      { priority },
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(404).json({ message: "Follow-up not found" });
+    res.status(200).json(updated);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -390,7 +551,7 @@ const editCustomer = async (req, res) => {
 // @access  Public
 const importB2BCustomers = async (req, res) => {
   try {
-    const { customerType, customerId } = req.body;
+    const { customerType, customerId, agentId: incomingAgentId } = req.body;
     
     // Dynamically import the models since they're not available in this scope
     const buyerModel = require('../models/Buyer');
@@ -424,6 +585,12 @@ const importB2BCustomers = async (req, res) => {
       });
     }
     
+    const resolvedAgentId = incomingAgentId || customerData.agentId;
+
+    if (!resolvedAgentId) {
+      return res.status(400).json({ message: "agentId is required to import this customer" });
+    }
+
     // Create follow-up record from B2B customer data
     const followupData = {
       clientName: customerData.contactPerson,
@@ -435,7 +602,8 @@ const importB2BCustomers = async (req, res) => {
       serviceProvided: "Initial contact made",
       serviceNotProvided: "Ongoing relationship management",
       deadline: new Date(new Date().setFullYear(new Date().getFullYear() + 1)), // 1 year from now
-      createdBy: req.body.createdBy || null
+      createdBy: req.body.createdBy || null,
+      agentId: resolvedAgentId,
     };
     
     const followup = new Followup(followupData);
@@ -507,14 +675,18 @@ const getPendingB2BCustomers = async (req, res) => {
 module.exports = {
   getCustomerReport,
   createFollowup,
-  getCustomerReport,
   getCustomerStats,
-  createFollowup,
   getFollowups,
   getFollowupById,
   updateFollowup,
   deleteFollowup,
+  sendBulkEmail,
+  getMessages,
+  addMessage,
   addNote,
+  incrementAttempts,
+  addCommunicationLog,
+  updatePriority,
   updateLastCalled,
   updateServices,
   editCustomer,

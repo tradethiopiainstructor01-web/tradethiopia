@@ -15,6 +15,13 @@ router.get("/b2b-pending", followupController.getPendingB2BCustomers);
 // Import B2B customers to follow-up system
 router.post("/import-b2b", followupController.importB2BCustomers);
 
+router.post("/bulk-email", followupController.sendBulkEmail);
+router.get("/:id/messages", followupController.getMessages);
+router.post("/:id/messages", followupController.addMessage);
+router.patch("/:id/attempts", followupController.incrementAttempts);
+router.post("/:id/communications", followupController.addCommunicationLog);
+router.patch("/:id/priority", followupController.updatePriority);
+
 // Get all follow-ups
 router.get("/", followupController.getFollowups);
 

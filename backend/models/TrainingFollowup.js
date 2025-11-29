@@ -5,6 +5,7 @@ const trainingFollowupSchema = new Schema(
     trainingType: { type: String, index: true },
     batch: { type: String },
     startDate: { type: Date, index: true },
+    endDate: { type: Date, index: true },
     duration: { type: String },
     paymentOption: { type: String, enum: ["full", "partial"], default: "full" },
     paymentAmount: { type: Number, default: 0 },

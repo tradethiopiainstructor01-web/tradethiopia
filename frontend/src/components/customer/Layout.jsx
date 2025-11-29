@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure } from "@chakra-ui/react";
 import Sidebar from "./Sidebar";
 import Cnavbar from "./customNavbar";
+import { useColorModeValue } from "@chakra-ui/react";
 
 const Layout = ({ children }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const pageBg = useColorModeValue("#f5f8ff", "#0b1224");
 
   return (
     <Box display="flex" flexDirection="column" height="100vh">
@@ -21,7 +23,7 @@ const Layout = ({ children }) => {
           position="fixed"
           top="60px"
           left={0}
-          width={isSidebarCollapsed ? "70px" : "200px"}
+          width={isSidebarCollapsed ? "72px" : "240px"}
           height="calc(100vh - 60px)" // Adjust height to account for the navbar
           transition="width 0.3s"
           display={{ base: "none", md: "block" }} // Hide on mobile
@@ -48,11 +50,11 @@ const Layout = ({ children }) => {
         <Box
           ml={{
             base: 0, // No margin on mobile
-            md: isSidebarCollapsed ? "70px" : "200px", // Adjust for collapsed or expanded sidebar on larger screens
+            md: isSidebarCollapsed ? "72px" : "240px", // Adjust for collapsed or expanded sidebar on larger screens
           }}
           transition="margin-left 0.3s"
           p={4}
-          bg="#f8f9fa"
+          bg={pageBg}
           flex="1"
           width="100%" // Ensure it takes up the remaining space
         >
