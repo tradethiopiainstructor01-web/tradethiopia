@@ -16,15 +16,16 @@ import {
   MenuDivider,
   useBreakpointValue,
 } from '@chakra-ui/react';
-import { FaBell, FaUserCircle, FaMoon, FaSun, FaStickyNote } from 'react-icons/fa';
+import { FaBell, FaUserCircle, FaMoon, FaSun, FaStickyNote, FaBars } from 'react-icons/fa';
 import NotesDrawer from './NoteDrawer';
 import { useUserStore } from '../../store/user';
 import { useNavigate } from 'react-router-dom';
 
-const Snavbar = () => {
+const Snavbar = ({ onToggleSidebar }) => {
   const { colorMode, toggleColorMode } = useColorMode();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const navigate = useNavigate();
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Get user data from Zustand store
   const currentUser = useUserStore((state) => state.currentUser);
@@ -46,57 +47,30 @@ const Snavbar = () => {
 
   return (
     <Box
+      position="fixed"
+      top={0}
+      left={0}
+      right={0}
+      zIndex={1000}
       bgGradient={gradientBg}
       px={4}
-      py={2}
+      py={3}
       shadow="md"
       transition="background 0.2s ease"
     >
-      <Flex alignItems="center" wrap="wrap">
+      <Flex alignItems="center" justifyContent="space-between">
+        {isMobile && (
+          <IconButton
+            icon={<FaBars />}
+            aria-label="Toggle Sidebar"
+            variant="ghost"
+            color="white"
+            onClick={onToggleSidebar}
+            mr={2}
+          />
+        )}
         <Spacer />
-        <HStack spacing={4} display={{ base: "none", md: "flex" }}>
-          <IconButton
-            icon={<FaBell />}
-            aria-label="Notifications"
-            variant="ghost"
-            color="white"
-          />
-          <IconButton
-            icon={<FaStickyNote />}
-            aria-label="Notes"
-            variant="ghost"
-            color="white"
-            onClick={onOpen}
-          />
-          <IconButton
-            icon={colorMode === 'light' ? <FaMoon /> : <FaSun />}
-            aria-label="Toggle Theme"
-            variant="ghost"
-            color="white"
-            onClick={toggleColorMode}
-          />
-          <Menu>
-            <MenuButton>
-              <Avatar
-                name={currentUser?.username || "User"}
-                size="sm"
-                bg="teal.300"
-                icon={<FaUserCircle fontSize="20px" />}
-              />
-            </MenuButton>
-            <MenuList>
-              <Box p={4}>
-                <Text fontWeight="bold" fontSize="lg">{currentUser?.username || "User"}</Text>
-                <Text fontSize="sm" color="gray.500">{currentUser?.role || "Role not available"}</Text>
-              </Box>
-              <MenuDivider />
-              <MenuItem onClick={handleLogout}>Logout</MenuItem>
-            </MenuList>
-          </Menu>
-        </HStack>
-
-        {/* Mobile Icons */}
-        <HStack spacing={4} display={{ base: "flex", md: "none" }}>
+        <HStack spacing={4}>
           <IconButton
             icon={<FaBell />}
             aria-label="Notifications"

@@ -93,6 +93,9 @@ const createFollowup = async (req, res) => {
     serviceNotProvided,
     deadline,
     createdBy,
+    followupStatus,
+    schedulePreference,
+    supervisorComment,
   } = req.body;
 
   try {
@@ -106,6 +109,9 @@ const createFollowup = async (req, res) => {
       serviceProvided,
       serviceNotProvided,
       deadline,
+      followupStatus,
+      schedulePreference,
+      supervisorComment,
       createdBy,
     });
 
@@ -328,6 +334,8 @@ const editCustomer = async (req, res) => {
     serviceProvided,
     serviceNotProvided
   } = req.body;
+  // allow updating schedulePreference and followupStatus via edit endpoint
+  const { schedulePreference, followupStatus } = req.body;
 
   try {
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -346,6 +354,7 @@ const editCustomer = async (req, res) => {
       ...(formattedDeadline && { deadline: formattedDeadline }),
       serviceProvided,
       serviceNotProvided
+      , schedulePreference, followupStatus
     };
 
     // Remove undefined fields
