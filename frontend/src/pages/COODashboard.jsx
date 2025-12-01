@@ -376,6 +376,21 @@ const COODashboard = () => {
     },
   ];
 
+  // Lightweight customer service snapshot for COO view
+  const csSummary = [
+    { label: 'Tickets today', value: '124', detail: '+8% vs daily avg', tone: 'blue' },
+    { label: 'SLA met', value: '92%', detail: 'First response < 1h', tone: 'green' },
+    { label: 'CSAT', value: '4.6 / 5', detail: 'Last 30 days', tone: 'purple' },
+    { label: 'Backlog', value: '38', detail: '15 older than 48h', tone: 'orange' },
+  ];
+
+  const csQueues = [
+    { queue: 'Phone', owner: 'Aman', open: 12, sla: '88%', aging: '5 > 48h' },
+    { queue: 'Email', owner: 'Liya', open: 26, sla: '94%', aging: '6 > 48h' },
+    { queue: 'Chat', owner: 'Sara', open: 18, sla: '91%', aging: '3 > 48h' },
+    { queue: 'Social', owner: 'Mekdes', open: 9, sla: '89%', aging: '1 > 48h' },
+  ];
+
   const handleLogout = () => {
     clearUser();
     navigate('/login');
@@ -934,6 +949,75 @@ const COODashboard = () => {
                 </VStack>
               </Box>
             </Grid>
+          </MotionBox>
+
+          <MotionBox
+            bg="white"
+            p={{ base: 4, md: 5 }}
+            borderRadius="xl"
+            border="1px solid"
+            borderColor="blackAlpha.100"
+            boxShadow="0 20px 50px rgba(15, 23, 42, 0.06)"
+            whileHover={{ scale: 1.01 }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Flex align="center" justify="space-between" mb={4} wrap="wrap" gap={3}>
+              <Box>
+                <Heading size="md">Customer Service report</Heading>
+                <Text fontSize="sm" color="gray.600">Volume, SLA, CSAT, and backlog at a glance.</Text>
+              </Box>
+              <Tag colorScheme="blue" variant="subtle" size="md">Live queue</Tag>
+            </Flex>
+            <SimpleGrid columns={{ base: 2, md: 4 }} gap={3} mb={4}>
+              {csSummary.map((item) => (
+                <Box
+                  key={item.label}
+                  p={3}
+                  borderRadius="md"
+                  border="1px solid"
+                  borderColor="blackAlpha.100"
+                  bg="gray.50"
+                >
+                  <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">
+                    {item.label}
+                  </Text>
+                  <Heading size="md" mt={1}>{item.value}</Heading>
+                  <Tag mt={2} size="sm" colorScheme={item.tone} variant="subtle">
+                    {item.detail}
+                  </Tag>
+                </Box>
+              ))}
+            </SimpleGrid>
+            <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="md" overflow="hidden">
+              <Table size="sm">
+                <Thead bg="gray.50">
+                  <Tr>
+                    <Th>Queue</Th>
+                    <Th>Owner</Th>
+                    <Th isNumeric>Open</Th>
+                    <Th>SLA</Th>
+                    <Th>Aging</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {csQueues.map((row) => (
+                    <Tr key={row.queue}>
+                      <Td>{row.queue}</Td>
+                      <Td>{row.owner}</Td>
+                      <Td isNumeric>{row.open}</Td>
+                      <Td>
+                        <Badge colorScheme={parseInt(row.sla) >= 92 ? 'green' : 'yellow'} variant="subtle">
+                          {row.sla}
+                        </Badge>
+                      </Td>
+                      <Td>{row.aging}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
           </MotionBox>
 
           <MotionBox
