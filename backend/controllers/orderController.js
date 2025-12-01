@@ -1,6 +1,6 @@
 const Order = require('../models/Order');
 const Stock = require('../models/Stock');
-const SalesCustomer = require('../models/SalesCustomer');
+const OrderCustomer = require('../models/OrderCustomer');
 const asyncHandler = require('express-async-handler');
 
 // @desc    Get all orders
@@ -9,7 +9,7 @@ const asyncHandler = require('express-async-handler');
 const getOrders = asyncHandler(async (req, res) => {
   try {
     const orders = await Order.find({})
-      .populate('customerId', 'customerName')
+      .populate('customerId', 'name email phone')
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
@@ -26,7 +26,7 @@ const getOrders = asyncHandler(async (req, res) => {
 const getOrderById = asyncHandler(async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
-      .populate('customerId', 'customerName');
+      .populate('customerId', 'name email phone');
     
     if (order) {
       res.json(order);
@@ -45,11 +45,22 @@ const getOrderById = asyncHandler(async (req, res) => {
 // @route   POST /api/orders
 // @access  Private
 const createOrder = asyncHandler(async (req, res) => {
-  const { customerId, customerName, items, notes } = req.body;
+  const { 
+    customerId, 
+    customerName, 
+    customerEmail, 
+    customerPhone, 
+    items, 
+    notes, 
+    paymentType,
+    paymentAmount,
+    salesAgent // Accept salesAgent from frontend
+  } = req.body;
 
   try {
     // Validate customer exists
-    const customer = await SalesCustomer.findById(customerId);
+    const customer = await OrderCustomer.findById(customerId);
+    
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -64,10 +75,11 @@ const createOrder = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: `Stock item with ID ${item.stockItemId} not found` });
       }
       
-      // Check if sufficient quantity is available
-      if (stockItem.quantity < item.quantity) {
+      // Check if sufficient quantity is available (considering both regular and buffer stock)
+      const totalAvailable = stockItem.quantity + stockItem.bufferStock;
+      if (totalAvailable < item.quantity) {
         return res.status(400).json({ 
-          message: `Insufficient quantity for ${stockItem.name}. Available: ${stockItem.quantity}, Requested: ${item.quantity}` 
+          message: `Insufficient quantity for ${stockItem.name}. Available: ${totalAvailable}, Requested: ${item.quantity}` 
         });
       }
       
@@ -84,23 +96,47 @@ const createOrder = asyncHandler(async (req, res) => {
       totalAmount += orderItem.totalPrice;
     }
 
+    // Use salesAgent information from frontend or fallback to fetching from database
+    let agentInfo = salesAgent;
+    if (!agentInfo || !agentInfo.id) {
+      // Fallback to fetching user information from database if not provided
+      const User = require('../models/user.model'); // Correct path to User model
+      const user = await User.findById(req.user.id);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      agentInfo = {
+        id: user._id,
+        name: user.username || user.name || user.fullName,
+        email: user.email || user.altEmail
+      };
+    }
+
     const order = new Order({
       customerId,
       customerName,
+      customerEmail,
+      customerPhone,
       items: orderItems,
       totalAmount,
+      paymentType,
+      paymentAmount: paymentAmount || 0,
       notes,
-      createdBy: req.user.id // Assuming user ID is available in req.user
+      salesAgent: agentInfo, // Use sales agent information
+      createdBy: req.user.id
     });
 
     const createdOrder = await order.save();
     
     // Populate the customer details before sending response
     const populatedOrder = await Order.findById(createdOrder._id)
-      .populate('customerId', 'customerName');
+      .populate('customerId', 'name email phone');
     
     res.status(201).json(populatedOrder);
   } catch (error) {
+    console.error('Error creating order:', error);
     res.status(500).json({ 
       message: "Error creating order", 
       error: error.message 
@@ -112,25 +148,62 @@ const createOrder = asyncHandler(async (req, res) => {
 // @route   PUT /api/orders/:id
 // @access  Private
 const updateOrder = asyncHandler(async (req, res) => {
-  const { status, notes, confirmedBy } = req.body;
+  const { status, notes, confirmedBy, paymentType, paymentAmount } = req.body;
 
   try {
     const order = await Order.findById(req.params.id);
 
     if (order) {
-      // Only allow updating status, notes, and confirmation details
+      // Only allow updating status, notes, confirmation details, and payment info
       if (status) order.status = status;
       if (notes !== undefined) order.notes = notes;
+      if (paymentType) order.paymentType = paymentType;
+      if (paymentAmount !== undefined) order.paymentAmount = paymentAmount;
       if (confirmedBy) {
         order.confirmedBy = confirmedBy;
         order.confirmedAt = Date.now();
+      }
+      
+      // If status is being updated to Delivered, deduct stock
+      if (status === 'Delivered' && order.status !== 'Delivered') {
+        order.deliveredAt = Date.now();
+        
+        // Deduct stock for each item in the order
+        for (const item of order.items) {
+          const stockItem = await Stock.findById(item.stockItemId);
+          if (stockItem) {
+            // First try to deduct from regular stock
+            if (stockItem.quantity >= item.quantity) {
+              stockItem.quantity -= item.quantity;
+            } else {
+              // Deduct from regular stock first
+              const remainingQuantity = item.quantity - stockItem.quantity;
+              stockItem.quantity = 0;
+              
+              // Then deduct from buffer stock if available
+              if (stockItem.bufferStock >= remainingQuantity) {
+                stockItem.bufferStock -= remainingQuantity;
+                // Also reduce reserved buffer if needed
+                if (stockItem.reservedBuffer >= remainingQuantity) {
+                  stockItem.reservedBuffer -= remainingQuantity;
+                }
+              } else {
+                // Not enough stock in buffer either
+                return res.status(400).json({ 
+                  message: `Not enough stock for ${stockItem.name} even after checking buffer stock` 
+                });
+              }
+            }
+            await stockItem.save();
+          }
+        }
       }
 
       const updatedOrder = await order.save();
       
       // Populate the customer details before sending response
       const populatedOrder = await Order.findById(updatedOrder._id)
-        .populate('customerId', 'customerName');
+        .populate('customerId', 'name email phone');
       
       res.json(populatedOrder);
     } else {
@@ -171,7 +244,7 @@ const deleteOrder = asyncHandler(async (req, res) => {
 const getOrdersByCustomerId = asyncHandler(async (req, res) => {
   try {
     const orders = await Order.find({ customerId: req.params.customerId })
-      .populate('customerId', 'customerName')
+      .populate('customerId', 'name email phone')
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {

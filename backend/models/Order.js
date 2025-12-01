@@ -34,12 +34,18 @@ const orderItemSchema = new mongoose.Schema({
 const orderSchema = new mongoose.Schema({
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'SalesCustomer',
+    ref: 'OrderCustomer',
     required: true
   },
   customerName: {
     type: String,
     required: true
+  },
+  customerEmail: {
+    type: String
+  },
+  customerPhone: {
+    type: String
   },
   items: [orderItemSchema],
   status: {
@@ -52,8 +58,35 @@ const orderSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  paymentType: {
+    type: String,
+    enum: ['Advance', 'Half', 'Full'],
+    default: 'Full'
+  },
+  paymentAmount: {
+    type: Number,
+    min: 0
+  },
   notes: {
     type: String
+  },
+  // Sales agent who created the order
+  salesAgent: {
+    type: {
+      id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      name: {
+        type: String,
+        required: true
+      },
+      email: {
+        type: String
+      }
+    },
+    required: true
   },
   createdBy: {
     type: String,
@@ -63,6 +96,9 @@ const orderSchema = new mongoose.Schema({
     type: String
   },
   confirmedAt: {
+    type: Date
+  },
+  deliveredAt: {
     type: Date
   }
 }, {

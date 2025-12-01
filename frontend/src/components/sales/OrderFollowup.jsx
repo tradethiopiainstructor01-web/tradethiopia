@@ -49,7 +49,12 @@ import {
   Divider,
   Tag,
   TagLabel,
-  TagCloseButton
+  TagCloseButton,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper
 } from '@chakra-ui/react';
 import { 
   SearchIcon, 
@@ -60,7 +65,7 @@ import {
   CloseIcon,
   ChevronDownIcon
 } from '@chakra-ui/icons';
-import axios from 'axios';
+import axios from '../../services/axiosInstance';
 
 const OrderFollowup = () => {
   const [orders, setOrders] = useState([]);
@@ -73,8 +78,12 @@ const OrderFollowup = () => {
   const [formData, setFormData] = useState({
     customerId: '',
     customerName: '',
+    customerEmail: '',
+    customerPhone: '',
     items: [],
-    notes: ''
+    notes: '',
+    paymentType: 'Full',
+    paymentAmount: ''
   });
   const [selectedStockItem, setSelectedStockItem] = useState(null);
   const [itemQuantity, setItemQuantity] = useState(1);
@@ -90,16 +99,16 @@ const OrderFollowup = () => {
       setLoading(true);
       
       // Fetch orders
-      const ordersResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/orders`);
+      const ordersResponse = await axios.get(`/orders`);
       setOrders(ordersResponse.data);
       
       // Fetch stock items
-      const stockResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/stock`);
+      const stockResponse = await axios.get(`/stock`);
       setStockItems(stockResponse.data);
       
-      // Fetch customers
-      const customersResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers`);
-      setCustomers(customersResponse.data);
+      // Note: We're not fetching customers anymore since we're entering customer info manually
+      // But we still need the customers state for the view/edit functionality
+      // So we'll fetch customers only when needed for viewing existing orders
     } catch (err) {
       setError('Failed to fetch data');
       toast({
@@ -133,7 +142,7 @@ const OrderFollowup = () => {
 
   const fetchOrderStats = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/orders/stats`);
+      const response = await axios.get(`/orders/stats`);
       setOrderStats(response.data);
     } catch (err) {
       console.error('Failed to fetch order stats');
@@ -153,18 +162,6 @@ const OrderFollowup = () => {
     });
   };
 
-  // Handle customer selection
-  const handleCustomerChange = (e) => {
-    const customerId = e.target.value;
-    const customer = customers.find(c => c._id === customerId);
-    
-    setFormData({
-      ...formData,
-      customerId,
-      customerName: customer ? customer.customerName : ''
-    });
-  };
-
   // Add item to order
   const addItemToOrder = () => {
     if (!selectedStockItem || itemQuantity <= 0) {
@@ -178,6 +175,19 @@ const OrderFollowup = () => {
       return;
     }
 
+    // Check if sufficient quantity is available (considering both regular and buffer stock)
+    const totalAvailable = selectedStockItem.quantity + (selectedStockItem.bufferStock || 0);
+    if (totalAvailable < itemQuantity) {
+      toast({
+        title: 'Insufficient Stock',
+        description: `Only ${totalAvailable} units available for ${selectedStockItem.name}`,
+        status: 'warning',
+        duration: 5000,
+        isClosable: true
+      });
+      return;
+    }
+
     // Check if item already exists in order
     const existingItemIndex = formData.items.findIndex(
       item => item.stockItemId === selectedStockItem._id
@@ -186,7 +196,21 @@ const OrderFollowup = () => {
     if (existingItemIndex >= 0) {
       // Update quantity of existing item
       const updatedItems = [...formData.items];
-      updatedItems[existingItemIndex].quantity += itemQuantity;
+      const newQuantity = updatedItems[existingItemIndex].quantity + itemQuantity;
+      
+      // Check if new quantity exceeds available stock
+      if (totalAvailable < newQuantity) {
+        toast({
+          title: 'Insufficient Stock',
+          description: `Only ${totalAvailable} units available for ${selectedStockItem.name}`,
+          status: 'warning',
+          duration: 5000,
+          isClosable: true
+        });
+        return;
+      }
+      
+      updatedItems[existingItemIndex].quantity = newQuantity;
       updatedItems[existingItemIndex].totalPrice = 
         updatedItems[existingItemIndex].quantity * updatedItems[existingItemIndex].unitPrice;
       
@@ -230,10 +254,22 @@ const OrderFollowup = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.customerId || formData.items.length === 0) {
+    if (!formData.customerName || formData.items.length === 0) {
       toast({
         title: 'Missing Information',
-        description: 'Please select a customer and add at least one item',
+        description: 'Please enter customer name and add at least one item',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+    
+    // Validate payment amount based on payment type
+    if (formData.paymentType !== 'Full' && (!formData.paymentAmount || formData.paymentAmount <= 0)) {
+      toast({
+        title: 'Payment Information Required',
+        description: 'Please enter payment amount for advance or half payment',
         status: 'warning',
         duration: 3000,
         isClosable: true
@@ -243,10 +279,12 @@ const OrderFollowup = () => {
     
     try {
       if (isEditing) {
-        // For editing, we'll just update the status/notes
-        await axios.put(`${import.meta.env.VITE_API_URL}/api/orders/${currentOrderId}`, {
+        // For editing, we'll update the order details
+        await axios.put(`/orders/${currentOrderId}`, {
           status: formData.status,
-          notes: formData.notes
+          notes: formData.notes,
+          paymentType: formData.paymentType,
+          paymentAmount: formData.paymentAmount
         });
         toast({
           title: 'Success',
@@ -256,23 +294,73 @@ const OrderFollowup = () => {
           isClosable: true
         });
       } else {
-        // Create new order
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/orders`, formData);
-        toast({
-          title: 'Success',
-          description: 'Order created successfully',
-          status: 'success',
-          duration: 3000,
-          isClosable: true
-        });
+        // Get sales agent information from the user store
+        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        
+        // First check if a customer with this name already exists
+        let customerId;
+        try {
+          const customerData = {
+            name: formData.customerName,
+            email: formData.customerEmail,
+            phone: formData.customerPhone
+          };
+          
+          console.log('Creating customer with data:', customerData);
+          const customerResponse = await axios.post(`/order-customers`, customerData);
+          customerId = customerResponse.data._id;
+          console.log('Customer created with ID:', customerId);
+        } catch (customerError) {
+          console.error('Customer creation error:', customerError);
+          // If customer creation fails, show error
+          throw new Error('Failed to create customer: ' + (customerError.response?.data?.message || customerError.message));
+        }
+        
+        // Create new order with the customer ID
+        try {
+          const orderData = {
+            customerId,
+            customerName: formData.customerName,
+            customerEmail: formData.customerEmail,
+            customerPhone: formData.customerPhone,
+            items: formData.items,
+            notes: formData.notes,
+            paymentType: formData.paymentType,
+            paymentAmount: formData.paymentAmount,
+            // Add sales agent information from the current user
+            salesAgent: {
+              id: currentUser._id,
+              name: currentUser.username, // Using username since that's what we have in the store
+              email: '' // We don't have email in the store, but it's optional in the model
+            }
+          };
+          
+          console.log('Creating order with data:', orderData);
+          await axios.post(`/orders`, orderData);
+          toast({
+            title: 'Success',
+            description: 'Order created successfully',
+            status: 'success',
+            duration: 3000,
+            isClosable: true
+          });
+        } catch (orderError) {
+          console.error('Order creation error:', orderError);
+          // If order creation fails, show error
+          throw new Error('Failed to create order: ' + (orderError.response?.data?.message || orderError.message));
+        }
       }
       
       // Reset form and refresh data
       setFormData({
         customerId: '',
         customerName: '',
+        customerEmail: '',
+        customerPhone: '',
         items: [],
-        notes: ''
+        notes: '',
+        paymentType: 'Full',
+        paymentAmount: ''
       });
       setIsEditing(false);
       setCurrentOrderId(null);
@@ -280,11 +368,12 @@ const OrderFollowup = () => {
       fetchData();
       fetchOrderStats();
     } catch (err) {
+      console.error('Order creation error:', err);
       toast({
         title: 'Error',
-        description: err.response?.data?.message || 'Failed to save order',
+        description: err.message || 'Failed to save order',
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true
       });
     }
@@ -295,9 +384,13 @@ const OrderFollowup = () => {
     setFormData({
       customerId: order.customerId._id || order.customerId,
       customerName: order.customerName,
+      customerEmail: order.customerEmail || '',
+      customerPhone: order.customerPhone || '',
       items: order.items,
       notes: order.notes || '',
-      status: order.status
+      status: order.status,
+      paymentType: order.paymentType || 'Full',
+      paymentAmount: order.paymentAmount || ''
     });
     setIsEditing(true);
     setCurrentOrderId(order._id);
@@ -309,9 +402,13 @@ const OrderFollowup = () => {
     setFormData({
       customerId: order.customerId._id || order.customerId,
       customerName: order.customerName,
+      customerEmail: order.customerEmail || '',
+      customerPhone: order.customerPhone || '',
       items: order.items,
       notes: order.notes || '',
-      status: order.status
+      status: order.status,
+      paymentType: order.paymentType || 'Full',
+      paymentAmount: order.paymentAmount || ''
     });
     setCurrentOrderId(order._id);
     onViewOpen();
@@ -321,7 +418,7 @@ const OrderFollowup = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this order?')) {
       try {
-        await axios.delete(`${import.meta.env.VITE_API_URL}/api/orders/${id}`);
+        await axios.delete(`/orders/${id}`);
         toast({
           title: 'Success',
           description: 'Order deleted successfully',
@@ -346,7 +443,7 @@ const OrderFollowup = () => {
   // Handle status update
   const handleStatusUpdate = async (orderId, status) => {
     try {
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/orders/${orderId}`, {
+      await axios.put(`/orders/${orderId}`, {
         status
       });
       toast({
@@ -374,8 +471,12 @@ const OrderFollowup = () => {
     setFormData({
       customerId: '',
       customerName: '',
+      customerEmail: '',
+      customerPhone: '',
       items: [],
-      notes: ''
+      notes: '',
+      paymentType: 'Full',
+      paymentAmount: ''
     });
     setIsEditing(false);
     setCurrentOrderId(null);
@@ -385,7 +486,9 @@ const OrderFollowup = () => {
   // Filter orders based on search term and status
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order._id.toLowerCase().includes(searchTerm.toLowerCase());
+                         order._id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (order.customerEmail && order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                         (order.customerPhone && order.customerPhone.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = selectedStatus ? order.status === selectedStatus : true;
     return matchesSearch && matchesStatus;
   });
@@ -393,6 +496,14 @@ const OrderFollowup = () => {
   // Calculate order total
   const calculateOrderTotal = (items) => {
     return items.reduce((total, item) => total + item.totalPrice, 0);
+  };
+
+  // Handle payment amount change
+  const handlePaymentAmountChange = (valueAsString, valueAsNumber) => {
+    setFormData({
+      ...formData,
+      paymentAmount: valueAsNumber
+    });
   };
 
   if (loading) {
@@ -450,7 +561,7 @@ const OrderFollowup = () => {
                 <SearchIcon color='gray.300' />
               </InputLeftElement>
               <Input
-                placeholder="Search by customer name or order ID"
+                placeholder="Search by customer name, email, phone or order ID"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -495,9 +606,12 @@ const OrderFollowup = () => {
                 <Tr>
                   <Th>Order ID</Th>
                   <Th>Customer</Th>
+                  <Th>Contact</Th>
                   <Th>Items</Th>
                   <Th isNumeric>Total (ETB)</Th>
+                  <Th>Payment</Th>
                   <Th>Status</Th>
+                  <Th>Sales Agent</Th>
                   <Th>Date</Th>
                   <Th>Actions</Th>
                 </Tr>
@@ -511,6 +625,12 @@ const OrderFollowup = () => {
                       </Td>
                       <Td>
                         <Text fontWeight="medium">{order.customerName}</Text>
+                      </Td>
+                      <Td>
+                        <Text fontSize="sm">
+                          {order.customerEmail && `${order.customerEmail}\n`}
+                          {order.customerPhone}
+                        </Text>
                       </Td>
                       <Td>
                         <Flex direction="column">
@@ -530,6 +650,17 @@ const OrderFollowup = () => {
                         {calculateOrderTotal(order.items).toLocaleString()}
                       </Td>
                       <Td>
+                        <Badge colorScheme={
+                          order.paymentType === 'Advance' ? 'purple' :
+                          order.paymentType === 'Half' ? 'yellow' : 'green'
+                        }>
+                          {order.paymentType}
+                        </Badge>
+                        {order.paymentAmount > 0 && (
+                          <Text fontSize="sm">ETB {order.paymentAmount.toLocaleString()}</Text>
+                        )}
+                      </Td>
+                      <Td>
                         <Badge 
                           colorScheme={
                             order.status === 'Pending' ? 'orange' :
@@ -541,6 +672,16 @@ const OrderFollowup = () => {
                         >
                           {order.status}
                         </Badge>
+                      </Td>
+                      <Td>
+                        <Text fontSize="sm" fontWeight="medium">
+                          {order.salesAgent?.name}
+                        </Text>
+                        {order.salesAgent?.email && (
+                          <Text fontSize="xs" color="gray.500">
+                            {order.salesAgent.email}
+                          </Text>
+                        )}
                       </Td>
                       <Td>
                         {new Date(order.createdAt).toLocaleDateString()}
@@ -614,7 +755,7 @@ const OrderFollowup = () => {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={7} textAlign="center">
+                    <Td colSpan={10} textAlign="center">
                       <Text>No orders found</Text>
                     </Td>
                   </Tr>
@@ -628,7 +769,7 @@ const OrderFollowup = () => {
       {/* Create/Edit Order Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
-        <ModalContent maxW="600px">
+        <ModalContent maxW="800px">
           <ModalHeader>
             {isEditing ? 'Edit Order' : 'Create New Order'}
           </ModalHeader>
@@ -637,27 +778,44 @@ const OrderFollowup = () => {
             <ModalBody>
               <Tabs>
                 <TabList>
-                  <Tab>Order Details</Tab>
+                  <Tab>Customer Details</Tab>
                   <Tab>Items</Tab>
+                  <Tab>Payment</Tab>
                 </TabList>
                 
                 <TabPanels>
                   <TabPanel>
                     <Flex direction="column" gap={4}>
                       <FormControl isRequired>
-                        <FormLabel>Customer</FormLabel>
-                        <Select
-                          name="customerId"
-                          value={formData.customerId}
-                          onChange={handleCustomerChange}
-                          placeholder="Select customer"
-                        >
-                          {customers.map((customer) => (
-                            <option key={customer._id} value={customer._id}>
-                              {customer.customerName}
-                            </option>
-                          ))}
-                        </Select>
+                        <FormLabel>Customer Name</FormLabel>
+                        <Input
+                          name="customerName"
+                          value={formData.customerName}
+                          onChange={handleInputChange}
+                          placeholder="Enter customer name"
+                        />
+                      </FormControl>
+                      
+                      <FormControl>
+                        <FormLabel>Customer Email</FormLabel>
+                        <Input
+                          name="customerEmail"
+                          value={formData.customerEmail}
+                          onChange={handleInputChange}
+                          placeholder="Enter customer email"
+                          type="email"
+                        />
+                      </FormControl>
+                      
+                      <FormControl>
+                        <FormLabel>Customer Phone</FormLabel>
+                        <Input
+                          name="customerPhone"
+                          value={formData.customerPhone}
+                          onChange={handleInputChange}
+                          placeholder="Enter customer phone"
+                          type="tel"
+                        />
                       </FormControl>
                       
                       <FormControl>
@@ -694,34 +852,45 @@ const OrderFollowup = () => {
                     <Flex direction="column" gap={4}>
                       {!isEditing && (
                         <>
-                          <Flex gap={2}>
-                            <Select
-                              flex="1"
-                              placeholder="Select item"
-                              value={selectedStockItem?._id || ''}
-                              onChange={(e) => {
-                                const item = stockItems.find(i => i._id === e.target.value);
-                                setSelectedStockItem(item || null);
-                              }}
-                            >
-                              {stockItems.map((item) => (
-                                <option key={item._id} value={item._id}>
-                                  {item.name} - ETB {item.price} ({item.sku})
-                                </option>
-                              ))}
-                            </Select>
+                          <Flex gap={2} alignItems="flex-end">
+                            <FormControl flex="1">
+                              <FormLabel>Product</FormLabel>
+                              <Select
+                                placeholder="Select item"
+                                value={selectedStockItem?._id || ''}
+                                onChange={(e) => {
+                                  const item = stockItems.find(i => i._id === e.target.value);
+                                  setSelectedStockItem(item || null);
+                                }}
+                              >
+                                {stockItems.map((item) => (
+                                  <option key={item._id} value={item._id}>
+                                    {item.name} - ETB {item.price} ({item.sku})
+                                    (Avail: {item.quantity}{item.bufferStock ? ` + ${item.bufferStock} (Buffer)` : ''})
+                                  </option>
+                                ))}
+                              </Select>
+                            </FormControl>
                             
-                            <Input
-                              type="number"
-                              min="1"
-                              value={itemQuantity}
-                              onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
-                              width="100px"
-                            />
+                            <FormControl width="120px">
+                              <FormLabel>Quantity</FormLabel>
+                              <NumberInput
+                                min={1}
+                                value={itemQuantity}
+                                onChange={(valueAsString, valueAsNumber) => setItemQuantity(valueAsNumber)}
+                              >
+                                <NumberInputField />
+                                <NumberInputStepper>
+                                  <NumberIncrementStepper />
+                                  <NumberDecrementStepper />
+                                </NumberInputStepper>
+                              </NumberInput>
+                            </FormControl>
                             
                             <Button 
                               onClick={addItemToOrder}
                               colorScheme="teal"
+                              height="40px"
                             >
                               Add
                             </Button>
@@ -782,6 +951,45 @@ const OrderFollowup = () => {
                       )}
                     </Flex>
                   </TabPanel>
+                  
+                  <TabPanel>
+                    <Flex direction="column" gap={4}>
+                      <FormControl isRequired>
+                        <FormLabel>Payment Type</FormLabel>
+                        <Select
+                          name="paymentType"
+                          value={formData.paymentType}
+                          onChange={handleInputChange}
+                        >
+                          <option value="Full">Full Payment</option>
+                          <option value="Half">Half Payment</option>
+                          <option value="Advance">Advance Payment</option>
+                        </Select>
+                      </FormControl>
+                      
+                      {(formData.paymentType === 'Advance' || formData.paymentType === 'Half') && (
+                        <FormControl isRequired>
+                          <FormLabel>Payment Amount (ETB)</FormLabel>
+                          <NumberInput
+                            min={0}
+                            value={formData.paymentAmount}
+                            onChange={handlePaymentAmountChange}
+                          >
+                            <NumberInputField />
+                          </NumberInput>
+                          <Text fontSize="sm" color="gray.500" mt={1}>
+                            Order Total: ETB {calculateOrderTotal(formData.items).toLocaleString()}
+                          </Text>
+                        </FormControl>
+                      )}
+                      
+                      {formData.paymentType === 'Full' && (
+                        <Text fontSize="sm" color="green.500">
+                          Full payment of ETB {calculateOrderTotal(formData.items).toLocaleString()} will be collected
+                        </Text>
+                      )}
+                    </Flex>
+                  </TabPanel>
                 </TabPanels>
               </Tabs>
             </ModalBody>
@@ -804,7 +1012,7 @@ const OrderFollowup = () => {
       {/* View Order Details Modal */}
       <Modal isOpen={isViewOpen} onClose={onViewClose} size="xl">
         <ModalOverlay />
-        <ModalContent maxW="600px">
+        <ModalContent maxW="800px">
           <ModalHeader>Order Details</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
@@ -825,6 +1033,14 @@ const OrderFollowup = () => {
               <Box>
                 <Text fontWeight="bold">Customer:</Text>
                 <Text>{formData.customerName}</Text>
+                {formData.customerEmail && <Text>Email: {formData.customerEmail}</Text>}
+                {formData.customerPhone && <Text>Phone: {formData.customerPhone}</Text>}
+              </Box>
+              
+              <Box>
+                <Text fontWeight="bold">Sales Agent:</Text>
+                <Text>{formData.salesAgent?.name}</Text>
+                {formData.salesAgent?.email && <Text>Email: {formData.salesAgent.email}</Text>}
               </Box>
               
               <Box>
@@ -859,6 +1075,19 @@ const OrderFollowup = () => {
                     </Tbody>
                   </Table>
                 </TableContainer>
+              </Box>
+              
+              <Box>
+                <Text fontWeight="bold">Payment:</Text>
+                <Badge colorScheme={
+                  formData.paymentType === 'Advance' ? 'purple' :
+                  formData.paymentType === 'Half' ? 'yellow' : 'green'
+                }>
+                  {formData.paymentType}
+                </Badge>
+                {formData.paymentAmount > 0 && (
+                  <Text mt={1}>Amount: ETB {formData.paymentAmount.toLocaleString()}</Text>
+                )}
               </Box>
               
               <Box>
