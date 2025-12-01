@@ -1,4 +1,5 @@
-const { Schema, model } = require("mongoose");
+const mongoose = require('mongoose');
+const { Schema, model } = mongoose;
 
 const followupSchema = new Schema(
   {
@@ -66,10 +67,50 @@ const followupSchema = new Schema(
       type: String,
       default: ''
     },
+    call_count: { type: Number, default: 0 },
+    message_count: { type: Number, default: 0 },
+    email_count: { type: Number, default: 0 },
+    priority: {
+      type: String,
+      enum: ["High", "Medium", "Low"],
+      default: "Medium",
+    },
+    communications: [
+      {
+        channel: {
+          type: String,
+          enum: ["Phone call", "WhatsApp", "Telegram", "Email", "In-person visit"],
+          required: true,
+        },
+        note: {
+          type: String,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+    messages: [
+      {
+        sender: { type: String, default: "System" }, // e.g., agent name/email
+        body: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+
+    agentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User', // Reference to the User model
+      required: false,
+      default: null,
+    },
     lastCalled: {
       type: Date,
     },
+    
   },
+
   {
     timestamps: true, // Automatically adds `createdAt` and `updatedAt`
   }

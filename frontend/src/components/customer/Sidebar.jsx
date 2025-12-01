@@ -7,7 +7,9 @@ import {
   Link,
   Text,
   Tooltip,
+  useColorModeValue,
 } from "@chakra-ui/react";
+import { useLocation } from "react-router-dom";
 import {
   FiHome,
   FiPlusCircle,
@@ -21,13 +23,23 @@ import {
 } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
 import { MdLibraryBooks } from "react-icons/md";
+import { FiChevronsLeft, FiChevronsRight } from "react-icons/fi";
+import { FiSettings } from "react-icons/fi";
 
-const SSidebar = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) => {
+  // Allow the sidebar to be controlled by a parent while preserving a local fallback.
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
   const scrollBoxRef = useRef(null);
+  const location = useLocation();
 
+  const isControlled = typeof collapsedProp === "boolean" && typeof toggleProp === "function";
+  const isCollapsed = isControlled ? collapsedProp : internalCollapsed;
   const toggleCollapse = () => {
-    setIsCollapsed((prevState) => !prevState);
+    if (isControlled) {
+      toggleProp();
+    } else {
+      setInternalCollapsed((prevState) => !prevState);
+    }
   };
 
   // Scroll up/down functions
@@ -42,47 +54,64 @@ const SSidebar = () => {
     }
   };
 
+  const isActive = (path) => location.pathname === path;
+
+  const sidebarBg = useColorModeValue("linear-gradient(180deg, #f9fbff, #f1f5ff)", "linear-gradient(180deg, #0b1224, #0f1e3a)");
+  const textColor = useColorModeValue("gray.800", "white");
+  const accentColor = useColorModeValue("#2563eb", "teal.200");
+  const iconColor = useColorModeValue("gray.600", "white");
+  const activeIconColor = useColorModeValue("blue.600", "teal.200");
+  const activeTextColor = useColorModeValue("blue.800", "white");
+
   return (
     <Box
       as="nav"
-      width={isCollapsed ? "70px" : "200px"}
+      width={isCollapsed ? "72px" : "240px"}
       minHeight="100vh"
       maxHeight="100vh"
       position="fixed"
       left={0}
       top={0}
-      bg="#001f3f"
-      color="white"
-      transition="width 0.3s"
+      bgGradient={sidebarBg}
+      color={textColor}
+      transition="width 0.25s ease"
       zIndex="1000"
       display="flex"
       flexDirection="column"
       overflow="hidden"
+      boxShadow="lg"
+      pos="relative"
     >
       {/* Sidebar Header */}
       <Flex
-        justify={isCollapsed ? "center" : "flex-start"}
+        justify={isCollapsed ? "center" : "space-between"}
         align="center"
-        p={4}
+        px={isCollapsed ? 0 : 4}
+        py={4}
         flexShrink={0}
       >
         {!isCollapsed && (
-          <Text fontWeight="bold" fontSize="lg" color="white">
-            Customer Service
-          </Text>
+          <Flex align="center" gap={2}>
+            <Box w="10px" h="32px" bgGradient={useColorModeValue("linear(to-b, blue.400, purple.400)", "linear(to-b, teal.300, cyan.400)")} borderRadius="full" />
+            <Text fontWeight="bold" fontSize="lg" letterSpacing="0.5px" color={textColor}>
+              Customer Hub
+            </Text>
+          </Flex>
         )}
       </Flex>
-
-      {/* Collapse Toggle Button */}
-      <Flex justify="flex-end" align="center" p={4} flexShrink={0}>
-        <IconButton
-          icon={<FiMenu />}
-          variant="ghost"
-          color="white"
-          onClick={toggleCollapse}
-          aria-label="Toggle Sidebar"
-        />
-      </Flex>
+      <IconButton
+        icon={isCollapsed ? <FiChevronsRight /> : <FiChevronsLeft />}
+        variant="solid"
+        colorScheme={isCollapsed ? "teal" : "blue"}
+        size="sm"
+        aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        onClick={toggleCollapse}
+        position="absolute"
+        top="12px"
+        right={isCollapsed ? "6px" : "10px"}
+        borderRadius="full"
+        boxShadow="md"
+      />
 
       {/* Scroll Up Button */}
       {/* <Flex justify="center" align="center" p={1}>
@@ -104,24 +133,44 @@ const SSidebar = () => {
             to="/Cdashboard"
             icon={<FiHome />}
             label="Dashboard"
+            active={isActive("/Cdashboard")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
           />
                     <SidebarLink
             isCollapsed={isCollapsed}
             to="/b2b-dashboard"
             icon={<FiGlobe />}
             label="B2B Marketplace"
+            active={isActive("/b2b-dashboard")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
           />
           <SidebarLink
             isCollapsed={isCollapsed}
             to="/CustomerFollowup"
             icon={<FiUsers />}
-            label="B2B Follow Up"
+            label="Follow Up"
+            active={isActive("/CustomerFollowup")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
           />
           <SidebarLink
             isCollapsed={isCollapsed}
             to="/CustomerReport"
             icon={<FiBookOpen />}
             label="Customer Report"
+            active={isActive("/CustomerReport")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
           />
 
           <SidebarLink
@@ -129,6 +178,22 @@ const SSidebar = () => {
             to="/training"
             icon={<FiBook />}
             label="Training"
+            active={isActive("/training")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
+          />
+          <SidebarLink
+            isCollapsed={isCollapsed}
+            to="/customer-settings"
+            icon={<FiSettings />}
+            label="Customer Settings"
+            active={isActive("/customer-settings")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
           />
 
           {/* Removed Resources link as requested */}
@@ -151,7 +216,7 @@ const SSidebar = () => {
 };
 
 /* Sidebar Link Component */
-const SidebarLink = ({ isCollapsed, to, icon, label }) => (
+const SidebarLink = ({ isCollapsed, to, icon, label, active, iconColor, activeIconColor, textColor, activeTextColor }) => (
   <Tooltip label={label} isDisabled={!isCollapsed} placement="right" hasArrow>
     <Link
       as={RouterLink}
@@ -163,12 +228,16 @@ const SidebarLink = ({ isCollapsed, to, icon, label }) => (
         align="center"
         p={2}
         borderRadius="md"
-        _hover={{ bg: "#003366" }}
-        transition="background-color 0.3s ease"
+        bg={active ? "rgba(56, 189, 248, 0.15)" : "transparent"}
+        border={active ? "1px solid rgba(56, 189, 248, 0.4)" : "1px solid transparent"}
+        _hover={{ bg: "rgba(56, 189, 248, 0.08)", borderColor: "rgba(56, 189, 248, 0.3)" }}
+        transition="all 0.2s ease"
       >
-        {icon}
+        <Box color={active ? activeIconColor : iconColor} fontSize="18px">
+          {icon}
+        </Box>
         {!isCollapsed && (
-          <Text ml={3} whiteSpace="nowrap" fontSize="14px">
+          <Text ml={3} whiteSpace="nowrap" fontSize="14px" color={active ? activeTextColor : textColor}>
             {label}
           </Text>
         )}

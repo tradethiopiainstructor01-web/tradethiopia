@@ -23,3 +23,29 @@ export const updateAsset = (id, asset) => API.put(`/assets/${id}`, asset).then(r
 
 // Delete an asset
 export const deleteAsset = (id) => API.delete(`/assets/${id}`).then(response => response.data);
+
+// Training follow-ups
+export const fetchTrainingFollowups = (params) =>
+  API.get('/training-followups', { params }).then(response => response.data);
+
+export const createTrainingFollowup = (data) =>
+  API.post('/training-followups', data).then(response => response.data);
+
+export const updateTrainingFollowup = (id, data) =>
+  API.put(`/training-followups/${id}`, data).then(response => response.data);
+
+export const deleteTrainingFollowup = (id) =>
+  API.delete(`/training-followups/${id}`).then(response => response.data);
+
+// ENSRA follow-ups
+export const fetchEnsraFollowups = (params) =>
+  API.get('/ensra-followups', { params }).then(response => response.data);
+
+export const createEnsraFollowup = (data) =>
+  API.post('/ensra-followups', data).then(response => response.data);
+
+export const updateEnsraFollowup = (id, data) =>
+  API.put(`/ensra-followups/${id}`, data).then(response => response.data);
+
+export const deleteEnsraFollowup = (id) =>
+  API.delete(`/ensra-followups/${id}`).then(response => response.data);

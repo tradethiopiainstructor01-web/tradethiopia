@@ -23,4 +23,7 @@ router.route('/:id')
   .put(protect, updateCustomer)
   .delete(protect, deleteCustomer);
 
+// Alias for /api/sales-customers with followupStatus=Completed
+router.get('/salescustomers', protect, getCustomers);
+
 module.exports = router;

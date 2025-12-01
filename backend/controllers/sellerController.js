@@ -3,7 +3,7 @@ const Seller = require('../models/Seller');
 // Create a new seller
 const createSeller = async (req, res) => {
   try {
-    const { companyName, contactPerson, email, phoneNumber, country, industry, products, certifications, packageType } = req.body;
+    const { companyName, contactPerson, email, phoneNumber, country, industry, products, certifications, packageType, agentId } = req.body;
 
     // Check if the email already exists
     const existingSeller = await Seller.findOne({ email });
@@ -21,6 +21,7 @@ const createSeller = async (req, res) => {
       products,
       certifications,
       packageType,
+      agentId,
     });
 
     await seller.save();
@@ -60,7 +61,7 @@ const getSellerById = async (req, res) => {
 const updateSeller = async (req, res) => {
   try {
     const { id } = req.params;
-    const { companyName, contactPerson, email, phoneNumber, country, industry, products, certifications, packageType } = req.body;
+    const { companyName, contactPerson, email, phoneNumber, country, industry, products, certifications, packageType, agentId } = req.body;
 
     // Check if the email is being changed and if it already exists
     const existingSeller = await Seller.findOne({ email, _id: { $ne: id } });
@@ -70,7 +71,7 @@ const updateSeller = async (req, res) => {
 
     const seller = await Seller.findByIdAndUpdate(
       id,
-      { companyName, contactPerson, email, phoneNumber, country, industry, products, certifications, packageType },
+      { companyName, contactPerson, email, phoneNumber, country, industry, products, certifications, packageType, agentId },
       { new: true, runValidators: true }
     );
 

@@ -25,7 +25,13 @@ const buyerRoutes = require('./routes/buyerRoutes.js');
 const sellerRoutes = require('./routes/sellerRoutes.js');
 const b2bMatchingRoutes = require('./routes/b2bMatchingRoutes.js');
 const savedMatchRoutes = require('./routes/savedMatchRoutes.js');
+const trainingFollowupRoutes = require('./routes/trainingFollowupRoutes.js');
+const ensraFollowupRoutes = require('./routes/ensraFollowupRoutes.js');
 const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
+const packageRoutes = require('./routes/packageRoutes.js');
+const serviceTypeRoutes = require('./routes/serviceTypeRoutes.js');
+const metricRoutes = require('./routes/metricRoutes.js');
+const tradexFollowupRoutes = require('./routes/tradexFollowupRoutes.js');
 
 // Load environment variables
 
@@ -135,7 +141,15 @@ app.use('/api/buyers', buyerRoutes);
 app.use('/api/sellers', sellerRoutes);
 app.use('/api/b2b', b2bMatchingRoutes);
 app.use('/api/saved-matches', savedMatchRoutes);
+app.use('/api/training-followups', trainingFollowupRoutes);
+app.use('/api/ensra-followups', ensraFollowupRoutes);
+// Support both kebab and non-kebab paths for sales customers
+app.use('/api/salescustomers', salesCustomerRoutes);
 app.use('/api/sales-customers', salesCustomerRoutes);
+app.use('/api/packages', packageRoutes);
+app.use('/api/service-types', serviceTypeRoutes);
+app.use('/api', metricRoutes);
+app.use('/api/tradex-followups', tradexFollowupRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -153,7 +167,7 @@ module.exports = app;
 
 // Connect to MongoDB and start the server only when running locally
 if (require.main === module) {
-    const PORT = process.env.PORT || 5001;
+    const PORT = process.env.PORT || 5000;
     
     // Connect to database and start server
     connectDB()

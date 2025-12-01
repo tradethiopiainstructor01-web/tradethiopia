@@ -37,6 +37,11 @@ const SellerSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  agentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+  },
   // Add packages field for tracking purchased packages
   packages: [{
     packageName: String,
