@@ -43,8 +43,20 @@ const handleLogin = async () => {
                     case 'customerservice':
                         navigate('/Cdashboard');
                         break;
+                    case 'COO':
+                    case 'coo':
+                        navigate('/coo-dashboard');
+                        break;
+                    case 'TradeXTV':
+                    case 'tradextv':
+                    case 'tradexTv':
+                        navigate('/tradextv-dashboard');
+                        break;
                     case 'HR':
                         navigate('/dashboard');
+                        break;
+                    case 'tradextv':
+                        navigate('/tradextv');
                         break;
                     default:
                         navigate('/ComingSoonPage'); // Optional: handle unknown roles

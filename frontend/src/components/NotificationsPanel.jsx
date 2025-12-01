@@ -14,7 +14,7 @@ import {
   useDisclosure,
 } from '@chakra-ui/react';
 
-const NotificationsPanel = () => {
+const NotificationsPanel = ({ buttonProps = {}, buttonLabel = 'Notifications' }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   // Sample data for recent notifications and announcements
@@ -32,8 +32,8 @@ const NotificationsPanel = () => {
   return (
     <>
       {/* Button to open notifications panel */}
-      <Button onClick={onOpen} colorScheme="teal" size="sm" position="fixed" top={4} right={4}>
-        Notifications
+      <Button onClick={onOpen} colorScheme="teal" size="sm" {...buttonProps}>
+        {buttonLabel}
       </Button>
 
       {/* Drawer for Notifications Panel */}

@@ -129,7 +129,7 @@ return (
                             <option value="customerservice">Customer Service</option>
                             <option value="SocialmediaManager">Socialmedia Manager</option>
                             <option value="SalesSupervisor">Sales Supervisor</option>
-                            <option value="TETV">TETV</option>
+                            <option value="tradextv">tradextv</option>
                             <option value="IT">IT</option>
                             <option value="Instructor">Instructor</option>
                             <option value="EventManager">Event Manager</option>

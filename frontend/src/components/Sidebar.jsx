@@ -8,7 +8,7 @@ import {
   Text,
   useBreakpointValue,
 } from "@chakra-ui/react";
-import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase } from "react-icons/fi";
+import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase, FiBarChart } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
 import { FiFileText } from 'react-icons/fi';
 
@@ -58,6 +58,8 @@ const Sidebar = () => {
             {!isCollapsed && <Text ml={3}>Dashboard</Text>}
           </Flex>
         </Link>
+
+        {/* COO Dashboard Link removed */}
 
         {/* Account Management Link */}
         <Link as={RouterLink} to="/users" _hover={{ textDecoration: "none" }}>
