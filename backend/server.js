@@ -29,6 +29,8 @@ const trainingFollowupRoutes = require('./routes/trainingFollowupRoutes.js');
 const ensraFollowupRoutes = require('./routes/ensraFollowupRoutes.js');
 const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
 const packageRoutes = require('./routes/packageRoutes.js');
+const stockRoutes = require('./routes/stockRoutes.js');
+const orderRoutes = require('./routes/orderRoutes.js');
 
 // Load environment variables
 
@@ -144,6 +146,8 @@ app.use('/api/ensra-followups', ensraFollowupRoutes);
 app.use('/api/salescustomers', salesCustomerRoutes);
 app.use('/api/sales-customers', salesCustomerRoutes);
 app.use('/api/packages', packageRoutes);
+app.use('/api/stock', stockRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

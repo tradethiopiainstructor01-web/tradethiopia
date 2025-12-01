@@ -6,6 +6,8 @@ import FollowupPage from "./FollowupPage";
 import Training from "./Training.jsx";
 import PDFList from '../PDFList';
 import Dashboard from './SalesDashboard.jsx';
+// import FinanceDashboard from './FinanceDashboard.jsx'; // Replaced with dedicated page
+import OrderFollowup from './OrderFollowup.jsx';
 
 const Layout = ({ children }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
@@ -20,6 +22,12 @@ const Layout = ({ children }) => {
         return <FollowupPage />;
       case 'Resources':
         return <PDFList />;
+      case 'Finance':
+        // Navigate to the dedicated finance dashboard page
+        window.location.href = '/finance-dashboard';
+        return null;
+      case 'Orders':
+        return <OrderFollowup />;
       case 'Users':
         return <Box p={6}><Text fontSize="xl">Users section</Text></Box>;
       case 'Tutorials':

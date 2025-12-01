@@ -10,13 +10,31 @@ const axiosInstance = axios.create({
 
 // Add an interceptor to add JWT token to every request if it's available
 axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token'); // Get token from localStorage
+  const token = localStorage.getItem('userToken'); // Get token from localStorage
+  console.log('Axios interceptor - Token:', token ? 'Present' : 'Missing');
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`; // Add token to request header
+    console.log('Axios interceptor - Token attached to request');
+  } else {
+    console.log('Axios interceptor - No token to attach');
   }
+  console.log('Axios interceptor - Request config:', config);
   return config;
 }, (error) => {
+  console.error('Axios interceptor - Request error:', error);
   return Promise.reject(error);
 });
+
+// Add response interceptor for debugging
+axiosInstance.interceptors.response.use(
+  (response) => {
+    console.log('Axios response:', response);
+    return response;
+  },
+  (error) => {
+    console.error('Axios response error:', error);
+    return Promise.reject(error);
+  }
+);
 
 export default axiosInstance;

@@ -9,7 +9,7 @@ const NewsFeed = () => {
   useEffect(() => {
     const fetchNews = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('userToken');
         const response = await fetch('/api/news', {
           headers: { Authorization: `Bearer ${token}` },
         });

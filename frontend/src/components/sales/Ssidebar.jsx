@@ -17,6 +17,8 @@ import {
   FaArrowLeft,
   FaArrowRight,
   FaVideo,
+  FaMoneyBillWave,
+  FaShoppingCart
 } from 'react-icons/fa';
 
 const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) => {
@@ -45,7 +47,7 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
       </HStack>
       <Divider mb={4} borderColor={borderColor} />
       <VStack align="stretch" spacing={2} px={2}>
-        {['Home', 'Followup', 'Tutorials'].map((label) => (
+        {['Home', 'Followup', 'Finance', 'Orders', 'Tutorials'].map((label) => (
           <SidebarItem
             key={label}
             icon={
@@ -53,6 +55,10 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
                 ? FaHome
                 : label === 'Followup'
                 ? FaUsers
+                : label === 'Finance'
+                ? FaMoneyBillWave
+                : label === 'Orders'
+                ? FaShoppingCart
                 : label === 'Resources'
                 ? FaChartLine
                 : FaVideo

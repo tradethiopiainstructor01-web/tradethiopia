@@ -1,66 +1,12 @@
 const SalesCustomer = require('../models/SalesCustomer');
-const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
-const mongoose = require('mongoose');
 
 // @desc    Get all customers for logged in agent
 // @route   GET /api/sales-customers
 // @access  Private
 const getCustomers = asyncHandler(async (req, res) => {
-  const { followupStatus } = req.query;
-
-  // Default: limit to the requesting agent only for sales role.
-  const filter = {};
-  const role = (req.user?.role || '').toLowerCase();
-  if (role === 'sales') {
-    filter.agentId = req.user.id;
-  }
-
-  if (followupStatus) {
-    // Case-insensitive match to handle variations like "completed" vs "Completed"
-    filter.followupStatus = new RegExp(`^${followupStatus}$`, "i");
-  }
-  // Fetch customers
-  const customers = await SalesCustomer.find(filter).lean();
-
-  // Attach agent names where available
-  const agentIds = [...new Set(customers.map((c) => c.agentId).filter(Boolean))];
-
-  // Safely convert string ids to ObjectIds, skipping invalid ones
-  const objectIds = agentIds
-    .map((id) => {
-      try {
-        return new mongoose.Types.ObjectId(id);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
-
-  const agents = objectIds.length
-    ? await User.find({ _id: { $in: objectIds } })
-        .select('username fullName email')
-        .lean()
-    : [];
-  const agentMap = agents.reduce((acc, user) => {
-    const display = user.username || user.fullName || user.email || 'Unknown agent';
-    acc[user._id.toString()] = {
-      display,
-      username: user.username || '',
-    };
-    return acc;
-  }, {});
-
-  const enriched = customers.map((c) => {
-    const agentInfo = agentMap[c.agentId];
-    return {
-      ...c,
-      agentName: agentInfo?.display || (mongoose.isValidObjectId(c.agentId) ? c.agentId : 'Unknown agent'),
-      agentUsername: agentInfo?.username || '',
-    };
-  });
-
-  res.json(enriched);
+  const customers = await SalesCustomer.find({ agentId: req.user.id });
+  res.json(customers);
 });
 
 // @desc    Get customer by ID

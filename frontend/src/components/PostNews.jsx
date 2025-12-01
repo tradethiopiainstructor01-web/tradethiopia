@@ -17,7 +17,7 @@ const PostNews = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('userToken');
       const response = await fetch('/api/news', {
         method: 'POST',
         headers: {

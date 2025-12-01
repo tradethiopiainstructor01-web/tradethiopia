@@ -17,6 +17,9 @@ import FourthPage from "./pages/FourthPage";
 import FifthPage from "./pages/FifthPage.jsx";
 import QuizPage from "./pages/quizPage.jsx";
 import Sdashboard from "./pages/sales/Sdashboard.jsx";
+import FinanceDashboardPage from "./pages/sales/FinanceDashboardPage.jsx";
+import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
+import InventoryPage from "./pages/sales/InventoryPage.jsx";
 import PDFList from './components/PDFList';
 import InfoForm from './pages/InfoForm';
 import EmployeeInfoPage from './pages/EmployeeInfoPage';
@@ -48,7 +51,8 @@ function App() {
   // Define the paths where Sidebar and Navbar should not appear
   const noNavSidebarRoutes = [
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
-    "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", 
+    "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
+    "/finance-dashboard/inventory",
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
     "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard", "/customer-settings"
   ];
@@ -84,6 +88,9 @@ function App() {
             <Route path="/exam" element={<QuizPage />} />
             <Route path="/WaitingForApproval" element={<WaitingForApproval />} />
             <Route path="/sdashboard" element={<Sdashboard />} />
+            <Route path="/finance-dashboard" element={<FinanceDashboardPage />} />
+            <Route path="/finance-dashboard/reports" element={<FinanceReportsPage />} />
+                        <Route path="/finance-dashboard/inventory" element={<InventoryPage />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />
