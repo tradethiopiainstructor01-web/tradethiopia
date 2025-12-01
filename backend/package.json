@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "cross-env NODE_ENV=test jest --runInBand",
     "start": "node server.js"
   },
   "keywords": [],
@@ -40,6 +40,10 @@
     "save": "^2.9.0"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "jest": "^29.6.1",
+    "supertest": "^6.3.3",
+    "mongodb-memory-server": "^8.12.1",
+    "cross-env": "^7.0.3"
   }
 }
