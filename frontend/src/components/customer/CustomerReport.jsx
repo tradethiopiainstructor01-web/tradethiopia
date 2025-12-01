@@ -65,6 +65,18 @@ const CustomerReport = () => {
     completedFollowups: 0,
     avgRating: 0
   });
+  const [activityTotals, setActivityTotals] = useState({
+    registered: 0,
+    followupAttempts: 0,
+    updateAttempts: 0,
+    importedTraining: 0,
+    importedB2B: 0,
+    materialUpdates: 0,
+    progressUpdates: 0,
+    serviceUpdates: 0,
+    packageStatusUpdates: 0,
+  });
+  const [interactionPerformance, setInteractionPerformance] = useState([]);
 
   const tableRef = useRef(null);
   const toast = useToast();
@@ -90,6 +102,67 @@ const CustomerReport = () => {
           const activeFollowups = totalCustomers - completedFollowups;
           const avgRating = res.data.report.reduce((sum, item) => 
             sum + (item.creator?.rating || 0), 0) / Math.max(res.data.report.length, 1);
+
+          const totals = res.data.report.reduce((acc, item) => {
+            acc.registered += 1;
+            acc.followupAttempts +=
+              (item.call_count || item.callAttempts || 0) +
+              (item.message_count || item.messageAttempts || 0) +
+              (item.email_count || item.emailAttempts || 0) +
+              (item.followupAttempts || 0);
+            acc.updateAttempts += item.updateAttempts || 0;
+            acc.importedTraining += item.trainingImported ? 1 : 0;
+            acc.importedB2B += item.b2bImported ? 1 : 0;
+            acc.materialUpdates += item.materialStatusUpdated ? 1 : 0;
+            acc.progressUpdates += item.progressUpdated ? 1 : 0;
+            acc.serviceUpdates += item.serviceUpdated ? 1 : 0;
+            acc.packageStatusUpdates += item.packageStatusUpdated ? 1 : 0;
+            return acc;
+          }, {
+            registered: 0,
+            followupAttempts: 0,
+            updateAttempts: 0,
+            importedTraining: 0,
+            importedB2B: 0,
+            materialUpdates: 0,
+            progressUpdates: 0,
+            serviceUpdates: 0,
+            packageStatusUpdates: 0,
+          });
+
+          const perUser = res.data.report.reduce((acc, item) => {
+            const uname = item.creator?.username || "Unassigned";
+            if (!acc[uname]) {
+              acc[uname] = {
+                username: uname,
+                registered: 0,
+                followupAttempts: 0,
+                updateAttempts: 0,
+                importedTraining: 0,
+                importedB2B: 0,
+                materialUpdates: 0,
+                progressUpdates: 0,
+                serviceUpdates: 0,
+                packageStatusUpdates: 0,
+                rating: item.creator?.rating || 0,
+                points: item.creator?.points || 0,
+              };
+            }
+            acc[uname].registered += 1;
+            acc[uname].followupAttempts +=
+              (item.call_count || item.callAttempts || 0) +
+              (item.message_count || item.messageAttempts || 0) +
+              (item.email_count || item.emailAttempts || 0) +
+              (item.followupAttempts || 0);
+            acc[uname].updateAttempts += item.updateAttempts || 0;
+            acc[uname].importedTraining += item.trainingImported ? 1 : 0;
+            acc[uname].importedB2B += item.b2bImported ? 1 : 0;
+            acc[uname].materialUpdates += item.materialStatusUpdated ? 1 : 0;
+            acc[uname].progressUpdates += item.progressUpdated ? 1 : 0;
+            acc[uname].serviceUpdates += item.serviceUpdated ? 1 : 0;
+            acc[uname].packageStatusUpdates += item.packageStatusUpdated ? 1 : 0;
+            return acc;
+          }, {});
           
           setStats({
             totalCustomers,
@@ -97,6 +170,8 @@ const CustomerReport = () => {
             completedFollowups,
             avgRating: avgRating.toFixed(1)
           });
+          setActivityTotals(totals);
+          setInteractionPerformance(Object.values(perUser));
         } else {
           setError("Invalid report data format.");
         }
@@ -359,8 +434,53 @@ const CustomerReport = () => {
           </Card>
         </SimpleGrid>
 
-        {/* Creator Performance Section */}
-        {creatorPerformance.length > 0 && (
+        {/* Activity snapshot aligned with Follow-up page */}
+        <Card 
+          bg={cardBg} 
+          boxShadow="lg" 
+          borderRadius="xl" 
+          borderWidth="1px" 
+          borderColor={borderColor}
+          mb={{ base: 6, md: 8 }}
+        >
+          <CardHeader pb={3}>
+            <HStack spacing={3}>
+              <Icon as={FiBarChart2} color="teal.500" boxSize={5} />
+              <Heading as="h2" size="lg" color={headerColor}>
+                Follow-up Activity Summary
+              </Heading>
+            </HStack>
+            <Text color={secondaryTextColor} fontSize="sm" mt={2}>
+              Mirrors actions on the Follow-up page for each user.
+            </Text>
+          </CardHeader>
+          <CardBody>
+            <Box overflowX="auto">
+              <Table variant="simple" size="sm">
+                <Thead bg="gray.50">
+                  <Tr>
+                    <Th>Metric</Th>
+                    <Th isNumeric>Count</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  <Tr><Td>Registered new customers</Td><Td isNumeric>{activityTotals.registered}</Td></Tr>
+                  <Tr><Td>Follow-up attempts</Td><Td isNumeric>{activityTotals.followupAttempts}</Td></Tr>
+                  <Tr><Td>Updating attempts</Td><Td isNumeric>{activityTotals.updateAttempts}</Td></Tr>
+                  <Tr><Td>Imported new training customers</Td><Td isNumeric>{activityTotals.importedTraining}</Td></Tr>
+                  <Tr><Td>Imported new B2B customers</Td><Td isNumeric>{activityTotals.importedB2B}</Td></Tr>
+                  <Tr><Td>Updated Material Delivery Status</Td><Td isNumeric>{activityTotals.materialUpdates}</Td></Tr>
+                  <Tr><Td>Updated Progress</Td><Td isNumeric>{activityTotals.progressUpdates}</Td></Tr>
+                  <Tr><Td>Updated Service</Td><Td isNumeric>{activityTotals.serviceUpdates}</Td></Tr>
+                  <Tr><Td>Updated Package Status</Td><Td isNumeric>{activityTotals.packageStatusUpdates}</Td></Tr>
+                </Tbody>
+              </Table>
+            </Box>
+          </CardBody>
+        </Card>
+
+        {/* Team Performance Section enhanced with interaction counts */}
+        {(creatorPerformance.length > 0 || interactionPerformance.length > 0) && (
           <Card 
             bg={cardBg} 
             boxShadow="lg" 
@@ -373,11 +493,11 @@ const CustomerReport = () => {
               <HStack spacing={3}>
                 <Icon as={FiTrendingUp} color="teal.500" boxSize={5} />
                 <Heading as="h2" size="lg" color={headerColor}>
-                  Team Performance
+                  Team Performance & Interactions
                 </Heading>
               </HStack>
               <Text color={secondaryTextColor} fontSize="sm" mt={2}>
-                Performance metrics for customer service representatives
+                Performance metrics for customer service representatives, including all interactions and updates tracked on the Follow-up page.
               </Text>
             </CardHeader>
             <CardBody>
@@ -386,13 +506,21 @@ const CustomerReport = () => {
                   <Thead>
                     <Tr>
                       <Th>Representative</Th>
-                      <Th>Points</Th>
-                      <Th>Rating</Th>
+                      <Th isNumeric>Registered</Th>
+                      <Th isNumeric>Follow-up Attempts</Th>
+                      <Th isNumeric>Update Attempts</Th>
+                      <Th isNumeric>Material</Th>
+                      <Th isNumeric>Progress</Th>
+                      <Th isNumeric>Service</Th>
+                      <Th isNumeric>Package</Th>
+                      <Th isNumeric>Imports (Training/B2B)</Th>
+                      <Th isNumeric>Rating</Th>
+                      <Th isNumeric>Points</Th>
                       <Th>Performance</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {creatorPerformance.map((creator, idx) => (
+                    {(interactionPerformance.length ? interactionPerformance : creatorPerformance).map((creator, idx) => (
                       <Tr key={idx}>
                         <Td>
                           <Flex align="center">
@@ -412,22 +540,30 @@ const CustomerReport = () => {
                             <Text fontWeight="medium">{creator.username}</Text>
                           </Flex>
                         </Td>
-                        <Td>
+                        <Td isNumeric>{creator.registered ?? 0}</Td>
+                        <Td isNumeric>{creator.followupAttempts ?? 0}</Td>
+                        <Td isNumeric>{creator.updateAttempts ?? 0}</Td>
+                        <Td isNumeric>{creator.materialUpdates ?? 0}</Td>
+                        <Td isNumeric>{creator.progressUpdates ?? 0}</Td>
+                        <Td isNumeric>{creator.serviceUpdates ?? 0}</Td>
+                        <Td isNumeric>{creator.packageStatusUpdates ?? 0}</Td>
+                        <Td isNumeric>{(creator.importedTraining ?? 0) + (creator.importedB2B ?? 0)}</Td>
+                        <Td isNumeric>
+                          <Flex align="center" justify="flex-end">
+                            <Icon as={FiStar} color="yellow.400" mr={1} />
+                            <Text>{creator.rating ?? 0}/5</Text>
+                          </Flex>
+                        </Td>
+                        <Td isNumeric>
                           <Badge colorScheme="blue" fontSize="sm">
-                            {creator.points}
+                            {creator.points ?? 0}
                           </Badge>
                         </Td>
                         <Td>
-                          <Flex align="center">
-                            <Icon as={FiStar} color="yellow.400" mr={1} />
-                            <Text>{creator.rating}/5</Text>
-                          </Flex>
-                        </Td>
-                        <Td>
                           <Progress 
-                            value={creator.rating * 20} 
+                            value={(creator.rating || 0) * 20} 
                             size="sm" 
-                            colorScheme={creator.rating >= 4 ? "green" : creator.rating >= 3 ? "yellow" : "red"} 
+                            colorScheme={(creator.rating || 0) >= 4 ? "green" : (creator.rating || 0) >= 3 ? "yellow" : "red"} 
                             borderRadius="full" 
                             w="100px"
                           />
@@ -573,6 +709,116 @@ const CustomerReport = () => {
                 </Tbody>
               </Table>
             </Box>
+          </CardBody>
+        </Card>
+
+        {/* Targets & Ratings */}
+        <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mt={8}>
+          <Card bg={cardBg} borderWidth="1px" borderColor={borderColor} boxShadow="lg">
+            <CardHeader pb={2}>
+              <Heading size="md" color={headerColor}>Customer Education Targets</Heading>
+              <Text color={secondaryTextColor} fontSize="sm">
+                Weekly targets are set in the Settings page; gaps show remaining work.
+              </Text>
+            </CardHeader>
+            <CardBody>
+              <Table variant="simple" size="sm">
+                <Thead bg="gray.50">
+                  <Tr>
+                    <Th>Item</Th>
+                    <Th isNumeric>Target (#)</Th>
+                    <Th isNumeric>Actual</Th>
+                    <Th isNumeric>Gap</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {[
+                    { label: "User Manuals Sent", target: 300 },
+                    { label: "Training Videos Shared", target: 300 },
+                    { label: "FAQ Guides Sent", target: 200 },
+                    { label: "Telegram Guidance Messages", target: 200 },
+                    { label: "Follow-up Reminders", target: 600 },
+                  ].map((row, idx) => (
+                    <Tr key={idx}>
+                      <Td>{row.label}</Td>
+                      <Td isNumeric>{row.target}</Td>
+                      <Td isNumeric>-</Td>
+                      <Td isNumeric>-</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </CardBody>
+          </Card>
+
+          <Card bg={cardBg} borderWidth="1px" borderColor={borderColor} boxShadow="lg">
+            <CardHeader pb={2}>
+              <Heading size="md" color={headerColor}>Individual Customer Success Officer Targets</Heading>
+            </CardHeader>
+            <CardBody>
+              <Table variant="simple" size="sm">
+                <Thead bg="gray.50">
+                  <Tr>
+                    <Th>Officer</Th>
+                    <Th isNumeric>Monthly Target (#)</Th>
+                    <Th isNumeric>Actual</Th>
+                    <Th isNumeric>Gap</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {[
+                    { label: "Officer 1", target: 300 },
+                    { label: "Officer 2", target: 300 },
+                    { label: "Officer 3", target: 300 },
+                    { label: "Officer 4", target: 300 },
+                    { label: "Customer Success Manager", target: 800 },
+                  ].map((row, idx) => (
+                    <Tr key={idx}>
+                      <Td>{row.label}</Td>
+                      <Td isNumeric>{row.target}</Td>
+                      <Td isNumeric>-</Td>
+                      <Td isNumeric>-</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </CardBody>
+          </Card>
+        </SimpleGrid>
+
+        <Card mt={6} bg={cardBg} borderWidth="1px" borderColor={borderColor} boxShadow="lg">
+          <CardHeader pb={2}>
+            <Heading size="md" color={headerColor}>Team Quality Metrics</Heading>
+          </CardHeader>
+          <CardBody>
+            <Table variant="simple" size="sm">
+              <Thead bg="gray.50">
+                <Tr>
+                  <Th>Quality Metric</Th>
+                  <Th isNumeric>Target</Th>
+                  <Th isNumeric>Actual</Th>
+                  <Th isNumeric>%</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {[
+                  { label: "Satisfaction Score", target: "90%" },
+                  { label: "Service Delivery Accuracy", target: "95%" },
+                  { label: "Policy Compliance", target: "100%" },
+                  { label: "Cross-Department Response", target: "100%" },
+                  { label: "Time-to-Resolve", target: "< 24 hrs" },
+                  { label: "Training-to-B2B Conversions", target: "30" },
+                  { label: "Renewals", target: "20" },
+                ].map((row, idx) => (
+                  <Tr key={idx}>
+                    <Td>{row.label}</Td>
+                    <Td isNumeric>{row.target}</Td>
+                    <Td isNumeric>-</Td>
+                    <Td isNumeric>-</Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
           </CardBody>
         </Card>
       </Box>

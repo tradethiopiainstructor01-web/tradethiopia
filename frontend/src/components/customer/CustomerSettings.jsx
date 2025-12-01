@@ -4,6 +4,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  chakra,
   Flex,
   Heading,
   HStack,
@@ -11,7 +12,6 @@ import {
   Input,
   NumberInput,
   NumberInputField,
-  Spacer,
   Stack,
   Table,
   TableContainer,
@@ -23,10 +23,13 @@ import {
   Tr,
   Button,
   useToast,
+  Tag,
+  TagLabel,
+  TagCloseButton,
 } from "@chakra-ui/react";
 import { AddIcon, DeleteIcon, EditIcon, CheckIcon, CloseIcon } from "@chakra-ui/icons";
 import axios from "axios";
-import Layout from './Layout';
+import Layout from "./Layout";
 
 const CustomerSettings = () => {
   const toast = useToast();
@@ -40,6 +43,32 @@ const CustomerSettings = () => {
     description: "",
   });
   const [editingId, setEditingId] = useState(null);
+  const weeklyTargetsKey = "customerWeeklyTargets";
+  const [weeklyTargets, setWeeklyTargets] = useState({
+    education: {
+      userManuals: 300,
+      trainingVideos: 300,
+      faqGuides: 200,
+      telegramGuidance: 200,
+      followupReminders: 600,
+    },
+    officers: {
+      officer1: 300,
+      officer2: 300,
+      officer3: 300,
+      officer4: 300,
+      manager: 800,
+    },
+    quality: {
+      satisfaction: 90,
+      serviceAccuracy: 95,
+      compliance: 100,
+      crossResponse: 100,
+      timeToResolveHours: 24,
+      trainingToB2B: 30,
+      renewals: 20,
+    },
+  });
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -55,6 +84,18 @@ const CustomerSettings = () => {
       }
     };
     fetchPackages();
+
+    try {
+      const saved = localStorage.getItem(weeklyTargetsKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          setWeeklyTargets((prev) => ({ ...prev, ...parsed }));
+        }
+      }
+    } catch {
+      /* ignore */
+    }
   }, [toast]);
 
   const handleChange = (field, value) => {
@@ -178,146 +219,381 @@ const CustomerSettings = () => {
       });
   };
 
+  const saveWeeklyTargets = () => {
+    try {
+      localStorage.setItem(weeklyTargetsKey, JSON.stringify(weeklyTargets));
+      toast({ title: "Weekly targets saved", status: "success" });
+    } catch (err) {
+      toast({
+        title: "Could not save targets",
+        description: err.message,
+        status: "error",
+      });
+    }
+  };
+
   return (
     <Layout>
-    <Box p={6} bg="gray.50" minH="100vh">
-      <Heading size="lg" mb={4}>Customer Settings</Heading>
+      <Box bgGradient="linear(to-b, gray.50, white)" minH="100vh" p={{ base: 4, md: 8 }}>
+        <Flex align="center" justify="space-between" mb={6}>
+          <Box>
+            <Heading size="lg">Customer Settings</Heading>
+            <Text color="gray.500" fontSize="sm">
+              Manage packages, services, pricing, and weekly targets in one place.
+            </Text>
+          </Box>
+          {loading && <Text color="gray.500" fontSize="sm">Loading...</Text>}
+        </Flex>
 
-      <Card mb={6}>
-        <CardHeader>
-          <HStack justify="space-between">
-            <Heading size="md">{editingId ? "Edit Package" : "Add Package"}</Heading>
-            {loading && <Text color="gray.500" fontSize="sm">Loading...</Text>}
-          </HStack>
-        </CardHeader>
-        <CardBody>
-          <Stack spacing={4}>
-            <HStack spacing={4}>
-              <NumberInput value={form.packageNumber} min={1} onChange={(val) => handleChange("packageNumber", val)}>
-                <NumberInputField placeholder="Package number (use numbers)" />
-              </NumberInput>
-              <Input
-                placeholder="Service name"
-                value={form.serviceInput}
-                onChange={(e) => handleChange("serviceInput", e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddService();
-                  }
-                }}
-              />
-              <Button colorScheme="blue" leftIcon={<AddIcon />} onClick={handleAddService}>
-                Add Service
-              </Button>
-            </HStack>
-            <HStack spacing={2} wrap="wrap">
-              {(form.services || []).map((svc) => (
-                <Button
-                  key={svc}
-                  size="xs"
-                  variant="outline"
-                  rightIcon={<CloseIcon boxSize={2} />}
-                  onClick={() => handleRemoveService(svc)}
-                >
-                  {svc}
-                </Button>
-              ))}
-            </HStack>
-            <HStack spacing={4}>
-              <NumberInput value={form.price} min={0} precision={2} onChange={(val) => handleChange("price", val)}>
-                <NumberInputField placeholder="Price" />
-              </NumberInput>
-              <Input
-                placeholder="Description (optional)"
-                value={form.description}
-                onChange={(e) => handleChange("description", e.target.value)}
-              />
-            </HStack>
-            <HStack>
+        <Card
+          mb={6}
+          border="1px solid"
+          borderColor="gray.200"
+          boxShadow="xl"
+          bg="white"
+          rounded="2xl"
+        >
+          <CardHeader
+            pb={2}
+            bgGradient="linear(to-r, teal.500, blue.500)"
+            color="white"
+            roundedTop="2xl"
+          >
+            <Flex align="center" justify="space-between">
+              <Box>
+                <Text fontSize="sm" opacity={0.9}>
+                  {editingId ? "Update an existing package" : "Create a new package"}
+                </Text>
+                <Heading size="md" mt={1}>
+                  {editingId ? "Edit Package" : "Add Package"}
+                </Heading>
+              </Box>
               <Button
-                colorScheme="teal"
-                leftIcon={editingId ? <CheckIcon /> : <AddIcon />}
-                onClick={editingId ? saveEdit : handleAdd}
+                size="sm"
+                variant="outline"
+                color="white"
+                borderColor="whiteAlpha.700"
+                leftIcon={<CloseIcon boxSize={2.5} />}
+                onClick={resetForm}
               >
-                {editingId ? "Save Changes" : "Add Package"}
+                Reset
               </Button>
-              {editingId && (
-                <Button variant="ghost" leftIcon={<CloseIcon />} onClick={resetForm}>
-                  Cancel
+            </Flex>
+          </CardHeader>
+          <CardBody>
+            <Stack spacing={5}>
+              <Stack
+                direction={{ base: "column", md: "row" }}
+                spacing={4}
+                align="flex-start"
+              >
+                <NumberInput
+                  value={form.packageNumber}
+                  min={1}
+                  onChange={(val) => handleChange("packageNumber", val)}
+                  flex={1}
+                >
+                  <NumberInputField placeholder="Package number (use numbers)" />
+                </NumberInput>
+                <Input
+                  placeholder="Add a service name"
+                  value={form.serviceInput}
+                  onChange={(e) => handleChange("serviceInput", e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddService();
+                    }
+                  }}
+                  flex={2}
+                />
+                <Button
+                  colorScheme="teal"
+                  leftIcon={<AddIcon />}
+                  onClick={handleAddService}
+                  minW="140px"
+                >
+                  Add Service
                 </Button>
-              )}
-            </HStack>
-          </Stack>
-        </CardBody>
-      </Card>
+              </Stack>
 
-      <Card>
-        <CardHeader>
-          <Heading size="md">Packages & Services</Heading>
-        </CardHeader>
-        <CardBody>
-          <TableContainer>
-            <Table size="sm" variant="striped" colorScheme="gray">
-              <Thead>
-                <Tr>
-                  <Th>Package #</Th>
-                  <Th>Services</Th>
-                  <Th>Price</Th>
-                  <Th>Description</Th>
-                  <Th textAlign="right">Actions</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {packages.length === 0 ? (
+              <HStack spacing={2} wrap="wrap">
+                {(form.services || []).map((svc) => (
+                  <Tag
+                    key={svc}
+                    size="md"
+                    borderRadius="full"
+                    colorScheme="blue"
+                    variant="subtle"
+                  >
+                    <TagLabel>{svc}</TagLabel>
+                    <TagCloseButton onClick={() => handleRemoveService(svc)} />
+                  </Tag>
+                ))}
+                {form.services.length === 0 && (
+                  <Text color="gray.500" fontSize="sm">
+                    Add at least one service to this package.
+                  </Text>
+                )}
+              </HStack>
+
+              <Stack
+                direction={{ base: "column", md: "row" }}
+                spacing={4}
+                align="stretch"
+              >
+                <NumberInput
+                  value={form.price}
+                  min={0}
+                  precision={2}
+                  onChange={(val) => handleChange("price", val)}
+                  flex={1}
+                >
+                  <NumberInputField placeholder="Price" />
+                </NumberInput>
+                <Input
+                  placeholder="Description (optional)"
+                  value={form.description}
+                  onChange={(e) => handleChange("description", e.target.value)}
+                  flex={2}
+                />
+              </Stack>
+
+              <HStack spacing={3}>
+                <Button
+                  colorScheme="teal"
+                  leftIcon={editingId ? <CheckIcon /> : <AddIcon />}
+                  onClick={editingId ? saveEdit : handleAdd}
+                >
+                  {editingId ? "Save Changes" : "Add Package"}
+                </Button>
+                {editingId && (
+                  <Button variant="ghost" leftIcon={<CloseIcon />} onClick={resetForm}>
+                    Cancel
+                  </Button>
+                )}
+              </HStack>
+            </Stack>
+          </CardBody>
+        </Card>
+
+        <Card border="1px solid" borderColor="gray.200" rounded="2xl" boxShadow="xl" mb={6}>
+          <CardHeader pb={2}>
+            <Heading size="md">Packages & Services</Heading>
+          </CardHeader>
+          <CardBody>
+            <TableContainer>
+              <Table size="sm" variant="simple">
+                <Thead bg="gray.50">
                   <Tr>
-                    <Td colSpan={5} textAlign="center" py={6}>
-                      <Text color="gray.500">No packages added yet.</Text>
-                    </Td>
+                    <Th fontSize="xs" textTransform="uppercase" letterSpacing="0.08em">
+                      Package #
+                    </Th>
+                    <Th fontSize="xs" textTransform="uppercase" letterSpacing="0.08em">
+                      Services
+                    </Th>
+                    <Th fontSize="xs" textTransform="uppercase" letterSpacing="0.08em">
+                      Price
+                    </Th>
+                    <Th fontSize="xs" textTransform="uppercase" letterSpacing="0.08em">
+                      Description
+                    </Th>
+                    <Th textAlign="right" fontSize="xs" textTransform="uppercase" letterSpacing="0.08em">
+                      Actions
+                    </Th>
                   </Tr>
-                ) : (
-                  packages.map((pkg) => (
-                    <Tr key={pkg._id}>
-                      <Td>{pkg.packageNumber}</Td>
-                      <Td>
-                        <Stack spacing={1}>
-                          {(pkg.services || []).map((svc, idx) => (
-                            <Text key={idx} fontSize="sm">
-                              • {svc}
-                            </Text>
-                          ))}
-                        </Stack>
-                      </Td>
-                      <Td>${Number(pkg.price || 0).toFixed(2)}</Td>
-                      <Td>{pkg.description || "-"}</Td>
-                      <Td textAlign="right">
-                        <HStack justify="flex-end" spacing={2}>
-                          <IconButton
-                            aria-label="Edit package"
-                            icon={<EditIcon />}
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => startEdit(pkg)}
-                          />
-                          <IconButton
-                            aria-label="Delete package"
-                            icon={<DeleteIcon />}
-                            size="sm"
-                            variant="ghost"
-                            colorScheme="red"
-                            onClick={() => deletePkg(pkg._id)}
-                          />
-                        </HStack>
+                </Thead>
+                <Tbody>
+                  {packages.length === 0 ? (
+                    <Tr>
+                      <Td colSpan={5} textAlign="center" py={6}>
+                        <Text color="gray.500">No packages added yet.</Text>
                       </Td>
                     </Tr>
-                  ))
-                )}
-              </Tbody>
-            </Table>
-          </TableContainer>
-        </CardBody>
-      </Card>
-    </Box>
+                  ) : (
+                    packages.map((pkg) => (
+                      <Tr key={pkg._id} _hover={{ bg: "gray.50" }}>
+                        <Td fontWeight="bold">{pkg.packageNumber}</Td>
+                        <Td>
+                          <Flex gap={2} wrap="wrap">
+                            {(pkg.services || []).map((svc, idx) => (
+                              <Tag key={idx} size="sm" variant="solid" colorScheme="purple">
+                                <TagLabel>{svc}</TagLabel>
+                              </Tag>
+                            ))}
+                          </Flex>
+                        </Td>
+                        <Td fontWeight="semibold">${Number(pkg.price || 0).toFixed(2)}</Td>
+                        <Td maxW="300px">
+                          <chakra.span noOfLines={2}>
+                            {pkg.description || "-"}
+                          </chakra.span>
+                        </Td>
+                        <Td textAlign="right">
+                          <HStack justify="flex-end" spacing={2}>
+                            <IconButton
+                              aria-label="Edit package"
+                              icon={<EditIcon />}
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => startEdit(pkg)}
+                            />
+                            <IconButton
+                              aria-label="Delete package"
+                              icon={<DeleteIcon />}
+                              size="sm"
+                              variant="ghost"
+                              colorScheme="red"
+                              onClick={() => deletePkg(pkg._id)}
+                            />
+                          </HStack>
+                        </Td>
+                      </Tr>
+                    ))
+                  )}
+                </Tbody>
+              </Table>
+            </TableContainer>
+          </CardBody>
+        </Card>
+
+        <Card border="1px solid" borderColor="gray.200" rounded="2xl" boxShadow="xl">
+          <CardHeader pb={2}>
+            <Heading size="md">Weekly Targets</Heading>
+            <Text color="gray.500" fontSize="sm">
+              Set weekly targets here; reports compare actuals against these numbers.
+            </Text>
+          </CardHeader>
+          <CardBody>
+            <Stack spacing={5}>
+              <Box>
+                <Heading size="sm" mb={2}>Customer Education Targets</Heading>
+                <Stack spacing={3}>
+                  {[
+                    { key: "userManuals", label: "User Manuals Sent" },
+                    { key: "trainingVideos", label: "Training Videos Shared" },
+                    { key: "faqGuides", label: "FAQ Guides Sent" },
+                    { key: "telegramGuidance", label: "Telegram Guidance Messages" },
+                    { key: "followupReminders", label: "Follow-up Reminders" },
+                  ].map((row) => (
+                    <HStack key={row.key}>
+                      <Text flex={1}>{row.label}</Text>
+                      <NumberInput
+                        value={weeklyTargets.education[row.key]}
+                        min={0}
+                        onChange={(val) =>
+                          setWeeklyTargets((prev) => ({
+                            ...prev,
+                            education: { ...prev.education, [row.key]: Number(val) || 0 },
+                          }))
+                        }
+                        maxW="140px"
+                      >
+                        <NumberInputField />
+                      </NumberInput>
+                    </HStack>
+                  ))}
+                </Stack>
+              </Box>
+
+              <Box>
+                <Heading size="sm" mb={2}>Individual Customer Success Officer Targets</Heading>
+                <Stack spacing={3}>
+                  {[
+                    { key: "officer1", label: "Officer 1" },
+                    { key: "officer2", label: "Officer 2" },
+                    { key: "officer3", label: "Officer 3" },
+                    { key: "officer4", label: "Officer 4" },
+                    { key: "manager", label: "Customer Success Manager" },
+                  ].map((row) => (
+                    <HStack key={row.key}>
+                      <Text flex={1}>{row.label}</Text>
+                      <NumberInput
+                        value={weeklyTargets.officers[row.key]}
+                        min={0}
+                        onChange={(val) =>
+                          setWeeklyTargets((prev) => ({
+                            ...prev,
+                            officers: { ...prev.officers, [row.key]: Number(val) || 0 },
+                          }))
+                        }
+                        maxW="140px"
+                      >
+                        <NumberInputField />
+                      </NumberInput>
+                    </HStack>
+                  ))}
+                </Stack>
+              </Box>
+
+              <Box>
+                <Heading size="sm" mb={2}>Team Quality Metrics</Heading>
+                <Stack spacing={3}>
+                  {[
+                    { key: "satisfaction", label: "Satisfaction Score (%)" },
+                    { key: "serviceAccuracy", label: "Service Delivery Accuracy (%)" },
+                    { key: "compliance", label: "Policy Compliance (%)" },
+                    { key: "crossResponse", label: "Cross-Department Response (%)" },
+                    { key: "timeToResolveHours", label: "Time-to-Resolve (hours)" },
+                    { key: "trainingToB2B", label: "Training-to-B2B Conversions" },
+                    { key: "renewals", label: "Renewals" },
+                  ].map((row) => (
+                    <HStack key={row.key}>
+                      <Text flex={1}>{row.label}</Text>
+                      <NumberInput
+                        value={weeklyTargets.quality[row.key]}
+                        min={0}
+                        onChange={(val) =>
+                          setWeeklyTargets((prev) => ({
+                            ...prev,
+                            quality: { ...prev.quality, [row.key]: Number(val) || 0 },
+                          }))
+                        }
+                        maxW="140px"
+                      >
+                        <NumberInputField />
+                      </NumberInput>
+                    </HStack>
+                  ))}
+                </Stack>
+              </Box>
+
+              <HStack>
+                <Button colorScheme="teal" onClick={saveWeeklyTargets} leftIcon={<CheckIcon />}>
+                  Save Weekly Targets
+                </Button>
+                <Button variant="ghost" onClick={() => setWeeklyTargets({
+                  education: {
+                    userManuals: 300,
+                    trainingVideos: 300,
+                    faqGuides: 200,
+                    telegramGuidance: 200,
+                    followupReminders: 600,
+                  },
+                  officers: {
+                    officer1: 300,
+                    officer2: 300,
+                    officer3: 300,
+                    officer4: 300,
+                    manager: 800,
+                  },
+                  quality: {
+                    satisfaction: 90,
+                    serviceAccuracy: 95,
+                    compliance: 100,
+                    crossResponse: 100,
+                    timeToResolveHours: 24,
+                    trainingToB2B: 30,
+                    renewals: 20,
+                  },
+                })} leftIcon={<CloseIcon />}>
+                  Reset to defaults
+                </Button>
+              </HStack>
+            </Stack>
+          </CardBody>
+        </Card>
+      </Box>
     </Layout>
   );
 };
