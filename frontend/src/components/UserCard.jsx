@@ -227,7 +227,7 @@ const UserCard = ({ user }) => {
                              <option value="customerservice">Customer Service</option>
                             <option value="sales">Sales</option>
                             <option value="SalesManager">Sales Manager</option>
-                            <option value="TETV">TETV</option>
+                            <option value="tradextv">tradextv</option>
                             <option value="IT">IT</option>
                             </Select>
                         </VStack>
