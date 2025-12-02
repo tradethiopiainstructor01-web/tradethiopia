@@ -44,6 +44,8 @@ import AdminTrainingUpload from "./pages/AdminTrainingUpload";
 import AdminCustomerReport from './components/AdminCSReport.jsx';
 import B2BDashboard from './pages/B2BDashboard';
 import CustomerSettings from "./components/customer/CustomerSettings";
+import COODashboard from './pages/COODashboard';
+import TradexTVDashboard from './pages/TradexTVDashboard';
 
 function App() {
   const location = useLocation();
@@ -54,7 +56,8 @@ function App() {
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
     "/finance-dashboard/inventory",
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
-    "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard", "/customer-settings"
+    "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard",
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings"
   ];
 
   // Check if the current path is a no-sidebar, no-navbar route
@@ -121,6 +124,8 @@ function App() {
             <Route path="/admin-training-upload" element={<AdminTrainingUpload />} />
             <Route path="/adminCustomerReport" element={<AdminCustomerReport />} />
             <Route path="/b2b-dashboard" element={<B2BDashboard />} />
+            <Route path="/coo-dashboard" element={<COODashboard />} />
+            <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
           </Routes>
         </Box>

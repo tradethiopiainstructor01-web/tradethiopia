@@ -3382,9 +3382,12 @@ const saveEnsraEdit = async () => {
             left="50%" 
             transform="translate(-50%, -50%)" 
             zIndex={1001}
-            width={isMobile ? "90%" : "400px"}
+            width={isMobile ? "95%" : "520px"}
             bg={cardBg}
-            boxShadow="xl"
+            boxShadow="2xl"
+            border="1px solid"
+            borderColor={borderColor}
+            borderRadius="lg"
           >
             <CardHeader pb={2}>
               <Flex justify="space-between" align="center">
@@ -3401,47 +3404,62 @@ const saveEnsraEdit = async () => {
               </Flex>
             </CardHeader>
             <CardBody>
-              <VStack spacing={3} align="stretch">
-                <Text fontWeight="bold">
-                  For {selectedClient.clientName}
-                </Text>
-                <Text fontSize="sm" color="gray.500">
-                  Package #: {selectedClient.packageNumber || selectedClient.packageType || "N/A"}
-                </Text>
+              <VStack spacing={4} align="stretch">
                 <Box>
-                  <Text fontWeight="semibold" mb={2}>Provided</Text>
-                  <VStack align="stretch" spacing={1}>
-                    {providedServices.length === 0 && (
-                      <Text fontSize="sm" color="gray.500">No services provided yet.</Text>
-                    )}
-                    {providedServices.map((svc) => (
-                      <Checkbox
-                        key={svc}
-                        isChecked
-                        onChange={() => moveToNotProvided(svc)}
-                      >
-                        {svc}
-                      </Checkbox>
-                    ))}
-                  </VStack>
+                  <Text fontWeight="bold" fontSize="lg">
+                    {selectedClient.clientName}
+                  </Text>
+                  <Text fontSize="sm" color="gray.500">
+                    Package #: {selectedClient.packageNumber || selectedClient.packageType || "N/A"}
+                  </Text>
+                  <Text fontSize="xs" color="gray.400" mt={1}>
+                    Toggle services to move them between Provided and Not Provided.
+                  </Text>
                 </Box>
-                <Box>
-                  <Text fontWeight="semibold" mb={2}>Not Provided</Text>
-                  <VStack align="stretch" spacing={1}>
-                    {notProvidedServices.length === 0 && (
-                      <Text fontSize="sm" color="gray.500">All services provided.</Text>
-                    )}
-                    {notProvidedServices.map((svc) => (
-                      <Checkbox
-                        key={svc}
-                        isChecked={false}
-                        onChange={() => moveToProvided(svc)}
-                      >
-                        {svc}
-                      </Checkbox>
-                    ))}
-                  </VStack>
-                </Box>
+
+                <Flex gap={4} direction={isMobile ? "column" : "row"}>
+                  <Box flex={1} border="1px solid" borderColor={borderColor} borderRadius="md" p={3} bg={useColorModeValue("green.50", "green.900")} >
+                    <Text fontWeight="semibold" mb={2} color={useColorModeValue("green.700", "green.200")}>
+                      Provided
+                    </Text>
+                    <VStack align="stretch" spacing={2}>
+                      {providedServices.length === 0 && (
+                        <Text fontSize="sm" color="gray.500">No services provided yet.</Text>
+                      )}
+                      {providedServices.map((svc) => (
+                        <Checkbox
+                          key={svc}
+                          isChecked
+                          colorScheme="green"
+                          onChange={() => moveToNotProvided(svc)}
+                        >
+                          {svc}
+                        </Checkbox>
+                      ))}
+                    </VStack>
+                  </Box>
+
+                  <Box flex={1} border="1px solid" borderColor={borderColor} borderRadius="md" p={3} bg={useColorModeValue("yellow.50", "orange.900")} >
+                    <Text fontWeight="semibold" mb={2} color={useColorModeValue("orange.700", "orange.200")}>
+                      Not Provided
+                    </Text>
+                    <VStack align="stretch" spacing={2}>
+                      {notProvidedServices.length === 0 && (
+                        <Text fontSize="sm" color="gray.500">All services provided.</Text>
+                      )}
+                      {notProvidedServices.map((svc) => (
+                        <Checkbox
+                          key={svc}
+                          colorScheme="orange"
+                          onChange={() => moveToProvided(svc)}
+                        >
+                          {svc}
+                        </Checkbox>
+                      ))}
+                    </VStack>
+                  </Box>
+                </Flex>
+
                 <HStack spacing={2}>
                   <Button
                     colorScheme="teal"

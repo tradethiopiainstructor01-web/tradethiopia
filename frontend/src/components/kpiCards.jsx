@@ -1,9 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { Box, SimpleGrid, Stat, StatLabel, StatNumber, StatHelpText, useColorModeValue } from '@chakra-ui/react';
+import { Box, SimpleGrid, Stat, StatLabel, StatNumber, StatHelpText, useColorModeValue, Spinner, Center, chakra } from '@chakra-ui/react';
+import { motion } from 'framer-motion';
+
+const MotionBox = chakra(motion.div);
+
+const containerVariants = {
+  hidden: {},
+  show: {
+    transition: {
+      staggerChildren: 0.12,
+      delayChildren: 0.06,
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' } }
+};
 import { FaUsers, FaUserPlus, FaUserCheck, FaTasks, FaBox } from 'react-icons/fa';
 import axios from 'axios';
 
-const KpiCards = () => {
+const KpiCards = ({ department = 'All' }) => {
   const bgColor = useColorModeValue("white", "gray.700");
   
   const [totalCustomers, setTotalCustomers] = useState(0);
@@ -16,79 +34,132 @@ const KpiCards = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetching counts from the backend
-        const customerResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/followup/count`);
-        const usersResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/users/count`);
-        const resourcesResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/resources/count`);
-        const assetResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/assets`);
+        // Fetch full lists and compute counts client-side so we can filter by department
+        const [followupsRes, usersRes, resourcesRes, assetsRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/api/followup`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/users`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/resources`),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/assets`),
+        ]);
 
-        if (!customerResponse.ok || !usersResponse.ok || !resourcesResponse.ok) {
-          throw new Error('Network response was not ok');
+        const followupsJson = followupsRes.ok ? await followupsRes.json() : null;
+        const usersJson = usersRes.ok ? await usersRes.json() : null;
+        const resourcesJson = resourcesRes.ok ? await resourcesRes.json() : null;
+        const assetsJson = assetsRes.data || null;
+
+        const followups = Array.isArray(followupsJson) ? followupsJson : (followupsJson && followupsJson.data ? followupsJson.data : []);
+        const users = Array.isArray(usersJson) ? usersJson : (usersJson && usersJson.data ? usersJson.data : []);
+        const resourcesList = Array.isArray(resourcesJson) ? resourcesJson : (resourcesJson && resourcesJson.data ? resourcesJson.data : []);
+        const assetsArray = assetsJson && assetsJson.data ? assetsJson.data : (Array.isArray(assetsJson) ? assetsJson : []);
+
+        // Build user -> department map
+        const userMap = {};
+        users.forEach(u => {
+          const name = u.username || u.userName || '';
+          const jt = u.jobTitle && u.jobTitle.trim() ? u.jobTitle.trim() : 'Unassigned';
+          userMap[name] = jt;
+        });
+
+        // If department filter is applied, compute set of usernames in that department
+        let usersInDept = null;
+        if (department && department !== 'All') {
+          usersInDept = new Set(users.filter(u => ((u.jobTitle && u.jobTitle.trim()) ? u.jobTitle.trim() : 'Unassigned') === department).map(u => u.username || u.userName || ''));
         }
 
-        // Parsing JSON responses
-        const customerData = await customerResponse.json();
-        const userData = await usersResponse.json();
-        const resourceData = await resourcesResponse.json();
-        const assetData = assetResponse.data; // This is the full response object
+        // Customers: count followups (if dept filter, count only those assigned to users in the dept)
+        let custCount = 0;
+        followups.forEach(f => {
+          if (usersInDept) {
+            const assigned = f.assignedTo || f.owner || f.assignedUser || f.username || '';
+            if (assigned && !usersInDept.has(assigned)) return;
+          }
+          custCount += 1;
+        });
 
-        console.log('Customer Count:', customerData);
-        console.log('User Count:', userData);
-        console.log('Resource Count:', resourceData);
-        console.log('Asset Data:', assetData);
+        // Employees & active employees
+        let totalEmp = users.length;
+        let activeEmp = users.filter(u => u.status === 'active').length;
+        if (usersInDept) {
+          totalEmp = users.filter(u => usersInDept.has(u.username || u.userName || '')).length;
+          activeEmp = users.filter(u => usersInDept.has(u.username || u.userName || '') && u.status === 'active').length;
+        }
 
-        // Setting state with fetched counts
-        setTotalCustomers(customerData.count); // Total customers
-        setEmployees(userData.data ? userData.data.totalUsers : userData.totalUsers); // Total employees
-        setActiveEmployees(userData.data ? userData.data.activeUsers : userData.activeUsers); // Active employees
-        setResources(resourceData.count); // Total resources
-        
-        // Extract the actual assets array from the response
-        const assetsArray = assetData && assetData.data ? assetData.data : [];
-        setTotalAssets(Array.isArray(assetsArray) ? assetsArray.length : 0);
+        // Resources (best-effort): try to map resource uploader/owner to department
+        let resourcesCount = resourcesList.length;
+        if (usersInDept) {
+          resourcesCount = resourcesList.filter(r => {
+            const owner = r.owner || r.uploadedBy || r.username || '';
+            return owner && usersInDept.has(owner);
+          }).length;
+        }
+
+        // Assets: map assignedTo to department
+        let assetsCount = assetsArray.length;
+        if (usersInDept) {
+          assetsCount = assetsArray.filter(a => {
+            const assigned = a.assignedTo || a.owner || '';
+            return assigned && usersInDept.has(assigned);
+          }).length;
+        }
+
+        setTotalCustomers(custCount);
+        setEmployees(totalEmp);
+        setActiveEmployees(activeEmp);
+        setResources(resourcesCount);
+        setTotalAssets(assetsCount);
       } catch (error) {
-        console.error("Error fetching data: ", error);
+        console.error("Error fetching KPI data: ", error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [department]);
 
   if (loading) {
-    return <div>Loading...</div>; // Placeholder while loading
+    return (
+      <Center p={6}>
+        <Spinner size="lg" />
+      </Center>
+    );
   }
 
   return (
-    <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={6} p={4}>
-      <StatCard title="Total Customers" value={totalCustomers} icon={FaUsers} bgColor={bgColor} />
-      <StatCard title="Total Employees" value={employees} icon={FaUserPlus} bgColor={bgColor} />
-      <StatCard title="Active Employees" value={activeEmployees} icon={FaUserCheck} bgColor={bgColor} />
-      <StatCard title="Total Assets" value={totalAssets} icon={FaBox} bgColor={bgColor} />
-      {/* <StatCard title="Total Resources" value={resources} icon={FaTasks} bgColor={bgColor} /> */}
-    </SimpleGrid>
+    <MotionBox variants={containerVariants} initial="hidden" animate="show">
+      <SimpleGrid as={MotionBox} variants={containerVariants} columns={{ base: 1, sm: 2, md: 4 }} spacing={6} p={4}>
+        <StatCard variants={itemVariants} title="Total Customers" value={totalCustomers} icon={FaUsers} bgColor={bgColor} />
+        <StatCard variants={itemVariants} title="Total Employees" value={employees} icon={FaUserPlus} bgColor={bgColor} />
+        <StatCard variants={itemVariants} title="Active Employees" value={activeEmployees} icon={FaUserCheck} bgColor={bgColor} />
+        <StatCard variants={itemVariants} title="Total Assets" value={totalAssets} icon={FaBox} bgColor={bgColor} />
+        <StatCard variants={itemVariants} title="Total Resources" value={resources} icon={FaTasks} bgColor={bgColor} />
+      </SimpleGrid>
+    </MotionBox>
   );
 };
 
-const StatCard = ({ title, value, icon: Icon, bgColor }) => (
-  <Box
+const StatCard = ({ title, value, icon: Icon, bgColor, variants }) => (
+  <MotionBox
     p={4}
     borderWidth="1px"
     borderRadius="lg"
     boxShadow="sm"
     bg={bgColor}
-    _hover={{ boxShadow: "md", transform: "scale(1.05)", transition: "0.2s ease-in-out" }}
+    whileHover={{ scale: 1.03, boxShadow: '0 10px 30px rgba(2,6,23,0.12)' }}
+    initial="hidden"
+    animate="show"
+    variants={variants}
+    transition={{ duration: 0.35 }}
   >
     <Stat>
       <Box display="flex" alignItems="center" mb={2}>
         <Box as={Icon} color="blue.500" mr={2} boxSize={6} />
         <StatLabel fontWeight="medium">{title}</StatLabel>
       </Box>
-      <StatNumber fontSize="2xl" fontWeight="bold">{value}</StatNumber>
+      <StatNumber fontSize="2xl" fontWeight="bold">{typeof value === 'number' ? value : '-'}</StatNumber>
       <StatHelpText color="green.500">Total count</StatHelpText>
     </Stat>
-  </Box>
+  </MotionBox>
 );
 
 export default KpiCards;
