@@ -155,6 +155,7 @@ const COODashboard = () => {
     const label = selectedDept || '';
     return label.toLowerCase().includes('tradex') ? 'tradextv' : label;
   }, [selectedDept]);
+<<<<<<< Updated upstream
   const tradexRevenueRows = [
     { metric: 'MTD revenue', target: 1200000, actual: 1290000 },
     { metric: 'New bookings', target: 550000, actual: 590000 },
@@ -166,6 +167,10 @@ const COODashboard = () => {
     { platform: 'Facebook', target: 4166, actual: 3920 },
     { platform: 'LinkedIn', target: 416, actual: 402 },
   ];
+=======
+  const [tradexRevenueRows, setTradexRevenueRows] = useState([]);
+  const [tradexSocialReport, setTradexSocialReport] = useState([]);
+>>>>>>> Stashed changes
 
   const toggleExcluded = (dept) => {
     if (dept === 'All') return;
@@ -227,6 +232,16 @@ const COODashboard = () => {
             sublabel: mtd.target ? `Target ${currencyFormatter.format(mtd.target)}` : '',
           };
         }
+<<<<<<< Updated upstream
+=======
+        // Populate revenue table rows
+        const rows = entries.map((e) => ({
+          metric: e.metric || 'Metric',
+          target: Number(e.target || 0),
+          actual: Number(e.actual || 0),
+        }));
+        setTradexRevenueRows(rows);
+>>>>>>> Stashed changes
       }
 
       // Social
@@ -240,6 +255,15 @@ const COODashboard = () => {
             sublabel: `${(top.actual || 0).toLocaleString()} vs ${top.target?.toLocaleString?.() || 0}`,
           };
         }
+<<<<<<< Updated upstream
+=======
+        const socialRows = entries.map((e) => ({
+          platform: e.platform || 'Platform',
+          target: Number(e.target || 0),
+          actual: Number(e.actual || 0),
+        }));
+        setTradexSocialReport(socialRows);
+>>>>>>> Stashed changes
       }
 
       // Followups
@@ -269,6 +293,25 @@ const COODashboard = () => {
         setTradexDeliverables(deliverables);
       }
 
+<<<<<<< Updated upstream
+=======
+      // If no data came back, keep a small placeholder so tables don't go empty
+      if (revRes.status !== 'fulfilled' || !Array.isArray(revRes.value?.data) || revRes.value.data.length === 0) {
+        setTradexRevenueRows([
+          { metric: 'MTD revenue', target: 0, actual: 0 },
+          { metric: 'New bookings', target: 0, actual: 0 },
+          { metric: 'Renewals & upsell', target: 0, actual: 0 },
+        ]);
+      }
+      if (socRes.status !== 'fulfilled' || !Array.isArray(socRes.value?.data) || socRes.value.data.length === 0) {
+        setTradexSocialReport([
+          { platform: 'YouTube', target: 0, actual: 0 },
+          { platform: 'TikTok', target: 0, actual: 0 },
+          { platform: 'Facebook', target: 0, actual: 0 },
+          { platform: 'LinkedIn', target: 0, actual: 0 },
+        ]);
+      }
+>>>>>>> Stashed changes
       setTradexSummaryData(summary);
     } catch (err) {
       console.error('Failed to load Tradex data', err);
@@ -390,7 +433,10 @@ const COODashboard = () => {
     { queue: 'Chat', owner: 'Sara', open: 18, sla: '91%', aging: '3 > 48h' },
     { queue: 'Social', owner: 'Mekdes', open: 9, sla: '89%', aging: '1 > 48h' },
   ];
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
   const handleLogout = () => {
     clearUser();
     navigate('/login');
@@ -961,6 +1007,7 @@ const COODashboard = () => {
             whileHover={{ scale: 1.01 }}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
+<<<<<<< Updated upstream
             transition={{ duration: 0.5 }}
           >
             <Flex align="center" justify="space-between" mb={4} wrap="wrap" gap={3}>
@@ -970,6 +1017,17 @@ const COODashboard = () => {
               </Box>
               <Tag colorScheme="blue" variant="subtle" size="md">Live queue</Tag>
             </Flex>
+=======
+          transition={{ duration: 0.5 }}
+        >
+          <Flex align="center" justify="space-between" mb={4} wrap="wrap" gap={3}>
+            <Box>
+              <Heading size="md">Customer Service report</Heading>
+              <Text fontSize="sm" color="gray.600">Volume, SLA, CSAT, and backlog at a glance.</Text>
+            </Box>
+            <Tag colorScheme="blue" variant="subtle" size="md">Live queue</Tag>
+          </Flex>
+>>>>>>> Stashed changes
             <SimpleGrid columns={{ base: 2, md: 4 }} gap={3} mb={4}>
               {csSummary.map((item) => (
                 <Box

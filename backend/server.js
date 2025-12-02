@@ -32,6 +32,12 @@ const packageRoutes = require('./routes/packageRoutes.js');
 const serviceTypeRoutes = require('./routes/serviceTypeRoutes.js');
 const metricRoutes = require('./routes/metricRoutes.js');
 const tradexFollowupRoutes = require('./routes/tradexFollowupRoutes.js');
+<<<<<<< Updated upstream
+=======
+const stockRoutes = require('./routes/stockRoutes.js');
+const orderRoutes = require('./routes/orderRoutes.js');
+const orderCustomerRoutes = require('./routes/orderCustomerRoutes.js');
+>>>>>>> Stashed changes
 
 // Load environment variables
 
@@ -150,6 +156,12 @@ app.use('/api/packages', packageRoutes);
 app.use('/api/service-types', serviceTypeRoutes);
 app.use('/api', metricRoutes);
 app.use('/api/tradex-followups', tradexFollowupRoutes);
+<<<<<<< Updated upstream
+=======
+app.use('/api/stock', stockRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/order-customers', orderCustomerRoutes);
+>>>>>>> Stashed changes
 
 // Global error handler
 app.use((err, req, res, next) => {
