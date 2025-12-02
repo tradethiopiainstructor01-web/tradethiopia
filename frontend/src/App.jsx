@@ -17,6 +17,11 @@ import FourthPage from "./pages/FourthPage";
 import FifthPage from "./pages/FifthPage.jsx";
 import QuizPage from "./pages/quizPage.jsx";
 import Sdashboard from "./pages/sales/Sdashboard.jsx";
+import FinanceDashboard from "./components/finance/FinanceDashboard";
+import InventoryPage from "./components/finance/InventoryPage";
+import OrdersPage from "./components/finance/OrdersPage";
+import DemandsPage from "./components/finance/DemandsPage";
+import PaymentsPage from "./components/finance/PaymentsPage";
 import PDFList from './components/PDFList';
 import InfoForm from './pages/InfoForm';
 import EmployeeInfoPage from './pages/EmployeeInfoPage';
@@ -40,6 +45,7 @@ import ComingSoonPage from "./pages/ComingSoonPage";
 import AdminTrainingUpload from "./pages/AdminTrainingUpload";
 import AdminCustomerReport from './components/AdminCSReport.jsx';
 import B2BDashboard from './pages/B2BDashboard';
+import ITDashboard from './pages/ITDashboard';
 
 function App() {
   const location = useLocation();
@@ -49,11 +55,14 @@ function App() {
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", 
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
-    "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard"
+    "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard", "/it-dashboard", "/it"
   ];
 
   // Check if the current path is a no-sidebar, no-navbar route
-  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname);
+  // Exclude any /finance routes from the main Nav/Sidebar so Finance pages
+  // can use their own `FinanceLayout` (similar to `/sdashboard` and `/Cdashboard`).
+  const isFinanceRoute = location.pathname.startsWith("/finance");
+  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname) && !isFinanceRoute;
 
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
@@ -83,6 +92,11 @@ function App() {
             <Route path="/exam" element={<QuizPage />} />
             <Route path="/WaitingForApproval" element={<WaitingForApproval />} />
             <Route path="/sdashboard" element={<Sdashboard />} />
+            <Route path="/finance" element={<FinanceDashboard />} />
+            <Route path="/finance/inventory" element={<InventoryPage />} />
+            <Route path="/finance/orders" element={<OrdersPage />} />
+            <Route path="/finance/demands" element={<DemandsPage />} />
+            <Route path="/finance/payments" element={<PaymentsPage />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />
@@ -113,6 +127,8 @@ function App() {
             <Route path="/admin-training-upload" element={<AdminTrainingUpload />} />
             <Route path="/adminCustomerReport" element={<AdminCustomerReport />} />
             <Route path="/b2b-dashboard" element={<B2BDashboard />} />
+            <Route path="/it-dashboard" element={<ITDashboard />} />
+            <Route path="/it" element={<ITDashboard />} />
           </Routes>
         </Box>
       </Box>

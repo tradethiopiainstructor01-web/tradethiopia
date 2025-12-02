@@ -26,6 +26,13 @@ const sellerRoutes = require('./routes/sellerRoutes.js');
 const b2bMatchingRoutes = require('./routes/b2bMatchingRoutes.js');
 const savedMatchRoutes = require('./routes/savedMatchRoutes.js');
 const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
+const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
+const inventoryRoutes = require('./routes/inventoryRoutes.js');
+const financeRoutes = require('./routes/financeRoutes.js');
+const demandRoutes = require('./routes/demandRoutes.js');
+const ordersRoutes = require('./routes/ordersRoutes.js');
+const paymentRoutes = require('./routes/paymentRoutes.js');
+const itRoutes = require('./routes/itRoutes.js');
 
 // Load environment variables
 
@@ -136,6 +143,13 @@ app.use('/api/sellers', sellerRoutes);
 app.use('/api/b2b', b2bMatchingRoutes);
 app.use('/api/saved-matches', savedMatchRoutes);
 app.use('/api/sales-customers', salesCustomerRoutes);
+app.use('/api/product-followups', productFollowupRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/demands', demandRoutes);
+app.use('/api/orders', ordersRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/it', itRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

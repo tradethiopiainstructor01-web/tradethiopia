@@ -19,7 +19,7 @@ import { SunIcon, MoonIcon } from "@chakra-ui/icons";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
-const MotionBox = motion(Box);
+const MotionBox = motion.div;
 
 const App = () => {
   const [colorMode, setColorMode] = useState("light");

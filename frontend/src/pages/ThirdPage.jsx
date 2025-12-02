@@ -22,7 +22,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom"; 
 import { SunIcon, MoonIcon } from "@chakra-ui/icons";  // Import icons for theme toggle
 
-const MotionBox = motion(Box);
+const MotionBox = motion.div;
 
 // Card Component
 const Card = ({ title, description, listItems }) => (

@@ -46,6 +46,9 @@ const handleLogin = async () => {
                     case 'HR':
                         navigate('/dashboard');
                         break;
+                    case 'IT':
+                        navigate('/it'); // Add IT role navigation
+                        break;
                     default:
                         navigate('/ComingSoonPage'); // Optional: handle unknown roles
                         break;

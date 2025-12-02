@@ -319,6 +319,57 @@ const updateServices = async (req, res) => {
   }
 };
 
+// @desc    Process an order for a followup: deduct inventory for selected products
+// @route   POST /api/followups/:id/process-order
+const processOrder = async (req, res) => {
+  const { id } = req.params;
+  // items can be [{ id: inventoryId, qty: number }, ...] or array of ids
+  const items = req.body.items || [];
+  try {
+    const followup = await Followup.findById(id);
+    if (!followup) return res.status(404).json({ message: 'Followup not found' });
+
+    // normalize items
+    const normalized = items.map(it => {
+      if (typeof it === 'string') return { id: it, qty: 1 };
+      return { id: it.id || it._id || it.inventoryId, qty: Number(it.qty) || 1 };
+    });
+
+    const InventoryItem = require('../models/InventoryItem');
+    const InventoryMovement = require('../models/InventoryMovement');
+
+    // check availability
+    for (const it of normalized) {
+      const inv = await InventoryItem.findById(it.id);
+      if (!inv) return res.status(404).json({ message: `Inventory item not found: ${it.id}` });
+      if ((inv.quantity || 0) < it.qty) return res.status(400).json({ message: `Insufficient stock for ${inv.name || inv._id}` });
+    }
+
+    // perform deductions and record movements
+    const results = [];
+    for (const it of normalized) {
+      const inv = await InventoryItem.findById(it.id);
+      const before = { quantity: inv.quantity, bufferStock: inv.bufferStock };
+      inv.quantity = (inv.quantity || 0) - it.qty;
+      await inv.save();
+      const after = { quantity: inv.quantity, bufferStock: inv.bufferStock };
+      try { await InventoryMovement.create({ item: inv._id, type: 'deliver', amount: it.qty, before, after, performedBy: req.user && req.user._id }); } catch (e) { console.error('Failed to record movement', e); }
+      results.push({ inventoryId: inv._id, name: inv.name, deducted: it.qty });
+    }
+
+    // mark followup as processed and attach products if not already present
+    followup.orderProcessed = true;
+    const productIds = Array.from(new Set([...(followup.products || []).map(String), ...normalized.map(n => n.id)]));
+    followup.products = productIds;
+    await followup.save();
+
+    res.json({ followup, processed: results });
+  } catch (err) {
+    console.error('Error processing order:', err);
+    res.status(500).json({ message: 'Failed to process order', error: err.message });
+  }
+};
+
 // @desc    Edit customer information
 // @route   PATCH /api/followups/:id/edit
 // @access  Public
@@ -507,16 +558,15 @@ const getPendingB2BCustomers = async (req, res) => {
 module.exports = {
   getCustomerReport,
   createFollowup,
-  getCustomerReport,
-  getCustomerStats,
-  createFollowup,
   getFollowups,
   getFollowupById,
   updateFollowup,
   deleteFollowup,
   addNote,
   updateLastCalled,
+  getCustomerStats,
   updateServices,
+  processOrder,
   editCustomer,
   importB2BCustomers,
   getPendingB2BCustomers

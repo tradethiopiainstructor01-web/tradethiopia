@@ -8,9 +8,8 @@ import {
   Text,
   useBreakpointValue,
 } from "@chakra-ui/react";
-import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase } from "react-icons/fi";
+import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase, FiBarChart2, FiBox, FiFileText } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
-import { FiFileText } from 'react-icons/fi';
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -104,6 +103,22 @@ const Sidebar = () => {
           <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
             <FiUsers />
             {!isCollapsed && <Text ml={3}>Customer List</Text>}
+          </Flex>
+        </Link>
+
+        {/* Finance Dashboard Link */}
+        <Link as={RouterLink} to="/finance" _hover={{ textDecoration: "none" }}>
+          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <FiBarChart2 />
+            {!isCollapsed && <Text ml={3}>Finance</Text>}
+          </Flex>
+        </Link>
+
+        {/* Inventory Link */}
+        <Link as={RouterLink} to="/finance/inventory" _hover={{ textDecoration: "none" }}>
+          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <FiBox />
+            {!isCollapsed && <Text ml={3}>Inventory</Text>}
           </Flex>
         </Link>
 

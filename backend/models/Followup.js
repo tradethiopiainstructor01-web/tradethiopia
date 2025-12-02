@@ -66,6 +66,10 @@ const followupSchema = new Schema(
       type: String,
       default: ''
     },
+    // linked inventory products (selected from inventory)
+    products: [{ type: require('mongoose').Schema.Types.ObjectId, ref: 'InventoryItem' }],
+    // whether an order has been processed for this followup
+    orderProcessed: { type: Boolean, default: false },
     lastCalled: {
       type: Date,
     },
