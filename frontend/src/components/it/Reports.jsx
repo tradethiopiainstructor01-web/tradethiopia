@@ -61,6 +61,31 @@ const Reports = () => {
   const bg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
 
+  // Allowed values for Task column
+  const INTERNAL_PLATFORMS = [
+    'Tradeethiopian.com',
+    'Tradethiopia.com',
+    'Tesbinn.com',
+    'Enisra.com',
+    'Tradextv.com',
+    'Trainings',
+    'Documentation',
+    'Meetings',
+    'Maintenance'
+  ];
+
+  const EXTERNAL_CATEGORIES = [
+    'Website',
+    'Logo',
+    'Company Profile',
+    'Banners',
+    'Broachers',
+    'Rollup',
+    'Flayers',
+    'Business Card',
+    'Letterheads'
+  ];
+
   useEffect(() => {
     fetchTasks();
   }, [dateRange]);
@@ -287,14 +312,144 @@ const Reports = () => {
     return overallStats;
   };
 
+  const formatTaskDate = (task) => {
+    const rawDate = task.date || task.startDate || task.createdAt || task.updatedAt;
+    if (!rawDate) return '';
+
+    const d = new Date(rawDate);
+    if (Number.isNaN(d.getTime())) return '';
+
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    });
+  };
+
+  const getTaskItems = (task) => {
+    const isInternal = (task.projectType || '').toLowerCase() === 'internal';
+
+    // Prefer backend-computed taskDetails when present
+    let raw = task.taskDetails;
+
+    // Fallbacks for older data:
+    // INTERNAL → platform fields
+    // EXTERNAL → category fields from both report and original task
+    if (!raw) {
+      if (isInternal) {
+        raw = task.platform || (task.taskRef && task.taskRef.platform) || '';
+      } else {
+        raw =
+          task.category ||
+          (task.taskRef && (task.taskRef.category || task.taskRef.taskDetails)) ||
+          '';
+      }
+    }
+
+    // INTERNAL: keep existing strict behavior using predefined platforms
+    if (isInternal) {
+      const allowed = INTERNAL_PLATFORMS;
+
+      const normalize = (value) => {
+        if (!value) return null;
+        const trimmed = String(value).trim();
+        if (!trimmed) return null;
+        return trimmed;
+      };
+
+      let candidates = [];
+
+      if (Array.isArray(raw)) {
+        candidates = raw.map(normalize).filter(Boolean);
+      } else if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed) {
+          const parts = trimmed
+            .split(',')
+            .map((v) => normalize(v))
+            .filter(Boolean);
+          candidates = parts.length ? parts : [trimmed];
+        }
+      }
+
+      // Keep only values that match the internal platforms list
+      let items = candidates.filter((v) => allowed.includes(v));
+
+      // If nothing matched but we have projectName, try to derive from there for old data
+      if (!items.length && task.projectName) {
+        const fromProjectName = String(task.projectName)
+          .split(',')
+          .map((v) => normalize(v))
+          .filter((v) => v && allowed.includes(v));
+        if (fromProjectName.length) {
+          items = fromProjectName;
+        }
+      }
+
+      return items;
+    }
+
+    // EXTERNAL: directly use all selected categories as saved (no placeholders or filtering)
+    const values = [];
+    const pushValue = (value) => {
+      if (!value) return;
+      const trimmed = String(value).trim();
+      if (!trimmed) return;
+      values.push(trimmed);
+    };
+
+    if (Array.isArray(raw)) {
+      raw.forEach(pushValue);
+    } else if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        return [];
+      }
+
+      if (trimmed.includes(',')) {
+        trimmed.split(',').forEach(pushValue);
+      } else {
+        pushValue(trimmed);
+      }
+    } else {
+      return [];
+    }
+
+    // De-duplicate while preserving order (in case backend stored duplicates)
+    const seen = new Set();
+    return values.filter((t) => {
+      if (seen.has(t)) return false;
+      seen.add(t);
+      return true;
+    });
+  };
+
+  const countTaskTargets = (task) => {
+    return getTaskItems(task).length || 0;
+  };
+
+  const getDisplayTaskName = (task) => {
+    const isInternal = (task.projectType || '').toLowerCase() === 'internal';
+
+    // INTERNAL → keep existing behavior (taskName only)
+    if (isInternal) {
+      return task.taskName || '';
+    }
+
+    // EXTERNAL → client name (taskName from report), with safe fallbacks
+    return task.taskName || task.client || task.projectName || '';
+  };
+
   // Filter tasks for display - only show completed tasks
   const filteredTasks = filterTasksByDate(tasks, dateRange).filter(task => {
     // Only show completed tasks
     if (task.status !== 'done') return false;
     
+    const search = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm || 
-      task.taskName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      task.projectName?.toLowerCase().includes(searchTerm.toLowerCase());
+      task.taskName?.toLowerCase().includes(search) ||
+      task.projectName?.toLowerCase().includes(search) ||
+      task.client?.toLowerCase().includes(search);
     
     // Filter by selected person if not 'all'
     const matchesPerson = selectedPerson === 'all' || 
@@ -589,56 +744,44 @@ const Reports = () => {
             <Table variant="simple">
               <Thead>
                 <Tr>
-                  <Th>Task</Th>
+                  <Th>Date</Th>
+                  <Th>Task Name</Th>
                   <Th>Type</Th>
-                  <Th>Category/Platform</Th>
-                  <Th>Points</Th>
-                  <Th>Actual</Th>
+                  <Th>Task</Th>
+                  <Th>Target</Th>
+                  <Th>Point</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {filteredTasks.map((task) => {
                   const points = calculateTaskPoints(task);
+                  const isInternal = (task.projectType || '').toLowerCase() === 'internal';
+                  const taskItems = getTaskItems(task);
+                  const targetCount = countTaskTargets(task);
+                  const displayTaskName = getDisplayTaskName(task);
+
                   return (
                     <Tr key={task._id}>
+                      <Td>
+                        {formatTaskDate(task)}
+                      </Td>
                       <Td fontWeight="medium">
-                        {task.taskName || task.projectName || 'Unnamed Task'}
+                        {displayTaskName}
                       </Td>
                       <Td>
-                        <Badge colorScheme={task.projectType === 'internal' ? 'blue' : 'purple'}>
+                        <Badge colorScheme={isInternal ? 'blue' : 'purple'}>
                           {task.projectType}
                         </Badge>
                       </Td>
                       <Td>
-                        <Wrap spacing={2}>
-                          {task.projectType === 'internal' ? (
-                            task.platform ? (
-                              task.platform.split(', ').map((plat, idx) => (
-                                <WrapItem key={idx}>
-                                  <Badge colorScheme="blue" variant="subtle">
-                                    {plat}
-                                  </Badge>
-                                </WrapItem>
-                              ))
-                            ) : (
-                              <Badge colorScheme="blue" variant="subtle">
-                                N/A
-                              </Badge>
-                            )
-                          ) : task.category ? (
-                            task.category.split(', ').map((cat, idx) => (
-                              <WrapItem key={idx}>
-                                <Badge colorScheme="purple" variant="subtle">
-                                  {cat}
-                                </Badge>
-                              </WrapItem>
-                            ))
-                          ) : (
-                            <Badge colorScheme="purple" variant="subtle">
-                              N/A
-                            </Badge>
-                          )}
-                        </Wrap>
+                        <Text>
+                          {taskItems.join(', ')}
+                        </Text>
+                      </Td>
+                      <Td>
+                        <Badge colorScheme={targetCount > 0 ? 'blue' : 'gray'}>
+                          {targetCount}
+                        </Badge>
                       </Td>
                       <Td>
                         {editingTaskId === task._id ? (
@@ -667,18 +810,6 @@ const Reports = () => {
                             </Button>
                           </HStack>
                         )}
-                      </Td>
-                      <Td>
-                        <Wrap spacing={2}>
-                          {task.personnelName?.map((person, idx) => (
-                            <WrapItem key={idx}>
-                              <HStack spacing={1}>
-                                <Icon as={FiUser} color={useColorModeValue('gray.500', 'gray.400')} boxSize={4} />
-                                <Text fontSize="sm">{person}</Text>
-                              </HStack>
-                            </WrapItem>
-                          ))}
-                        </Wrap>
                       </Td>
                     </Tr>
                   );

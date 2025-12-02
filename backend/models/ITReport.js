@@ -6,7 +6,10 @@ const ITReportSchema = new mongoose.Schema({
   projectName: { type: String, required: true },
   projectType: { type: String, enum: ['internal','external'], required: true },
   actionType: { type: String, required: true },
+  // Logical name of the task for display (internal task title or external client name)
   taskName: { type: String, required: false },
+  // Logical task details for display (internal platforms or external categories)
+  taskDetails: { type: String, required: false },
   description: { type: String },
   attachments: [{ type: String }], // Array of file URLs
   startDate: { type: Date },

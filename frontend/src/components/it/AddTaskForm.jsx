@@ -95,6 +95,96 @@ const AddTaskForm = ({ isOpen, onClose, onDone, defaultProjectType }) => {
       return;
     }
 
+    // Frontend validation: all required fields must be filled
+    if (projectType === 'internal') {
+      if (!taskName || !taskName.trim()) {
+        toast({
+          title: 'Missing field',
+          description: 'Task Name is required for internal tasks.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      if (!platform || (Array.isArray(platform) && platform.length === 0)) {
+        toast({
+          title: 'Missing field',
+          description: 'Please select at least one Platform for internal tasks.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const hasActionType =
+        (Array.isArray(actionType) && actionType.length > 0) ||
+        (!Array.isArray(actionType) && String(actionType).trim().length > 0);
+
+      if (!hasActionType) {
+        toast({
+          title: 'Missing field',
+          description: 'Please select at least one Action Type for internal tasks.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+    } else {
+      // external
+      if (!client || !client.trim()) {
+        toast({
+          title: 'Missing field',
+          description: 'Client Name is required for external tasks.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      if (!category || (Array.isArray(category) && category.length === 0)) {
+        toast({
+          title: 'Missing field',
+          description: 'Please select at least one Category for external tasks.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const hasActionType =
+        (Array.isArray(actionType) && actionType.length > 0) ||
+        (!Array.isArray(actionType) && String(actionType).trim().length > 0);
+
+      if (!hasActionType) {
+        toast({
+          title: 'Missing field',
+          description: 'Please select an Action Type for external tasks.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+    }
+
+    // Common required dates for both types
+    if (!startDate || !endDate) {
+      toast({
+        title: 'Missing field',
+        description: 'Start Date and End Date are required.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
     // Debugging: Log the actionType value and type
     console.log('Project Type:', projectType);
     console.log('Action Type Value:', actionType);

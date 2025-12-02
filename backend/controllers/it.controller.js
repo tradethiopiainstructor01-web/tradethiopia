@@ -127,11 +127,23 @@ const updateTask = async (req, res) => {
     // If status changed to Completed, generate report
     if (req.body.status && req.body.status === 'done') {
       try {
+        const isInternal = updated.projectType === 'internal';
+
+        // Task Name: internal → taskName (title), external → client name
+        const logicalTaskName = isInternal ? (updated.taskName || '') : (updated.client || '');
+
+        // Task Details: internal → platform(s), external → category(ies)
+        const logicalTaskDetails = isInternal ? (updated.platform || '') : (updated.category || '');
+
+        // Fallback projectName for backward compatibility - align with logical task name
+        const projectName = logicalTaskName || updated.projectName || updated.client || updated.platform || updated.category || '';
+
         const report = new ITReport({
-          projectName: updated.projectType === 'internal' ? updated.platform || updated.client : updated.client || updated.category,
+          projectName,
           projectType: updated.projectType,
           actionType: updated.actionType,
-          taskName: updated.taskName,
+          taskName: logicalTaskName,
+          taskDetails: logicalTaskDetails,
           description: updated.description,
           attachments: updated.attachments,
           startDate: updated.startDate,
@@ -171,7 +183,35 @@ const getReports = async (req, res) => {
   try {
     const q = {};
     if (req.query.projectType) q.projectType = req.query.projectType;
-    const reports = await ITReport.find(q).sort({ createdAt: -1 });
+    const reportDocs = await ITReport.find(q)
+      .populate('taskRef') // include original task details (platform/category/client, etc.)
+      .sort({ createdAt: -1 });
+
+    // Ensure external task categories (and internal platforms) are always available
+    const reports = reportDocs.map((doc) => {
+      const report = doc.toObject();
+
+      if (report.projectType === 'external') {
+        if (!report.taskDetails || !report.taskDetails.trim()) {
+          report.taskDetails =
+            report.category ||
+            (report.taskRef &&
+              (report.taskRef.category || report.taskRef.taskDetails)) ||
+            '';
+        }
+      } else {
+        if (!report.taskDetails || !report.taskDetails.trim()) {
+          report.taskDetails =
+            report.platform ||
+            (report.taskRef &&
+              (report.taskRef.platform || report.taskRef.taskDetails)) ||
+            '';
+        }
+      }
+
+      return report;
+    });
+
     res.json({ success: true, data: reports });
   } catch (error) {
     console.error('getReports error', error);
