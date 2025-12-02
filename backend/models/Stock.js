@@ -20,6 +20,13 @@ const stockSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  // Cost price for profit calculation
+  cost: {
+    type: Number,
+    required: false,
+    min: 0,
+    default: 0
+  },
   quantity: {
     type: Number,
     required: true,

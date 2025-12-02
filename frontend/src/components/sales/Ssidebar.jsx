@@ -47,15 +47,16 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
       </HStack>
       <Divider mb={4} borderColor={borderColor} />
       <VStack align="stretch" spacing={2} px={2}>
-        {['Home', 'Followup', 'Finance', 'Orders', 'Tutorials'].map((label) => (
+        {/* {['Home', 'Followup', 'Finance', 'Orders', 'Tutorials'].map((label) => ( */}
+          {['Home', 'Followup', 'Orders', 'Tutorials'].map((label) => (
           <SidebarItem
             key={label}
             icon={
               label === 'Home'
                 ? FaHome
                 : label === 'Followup'
-                ? FaUsers
-                : label === 'Finance'
+                // ? FaUsers
+                // : label === 'Finance'
                 ? FaMoneyBillWave
                 : label === 'Orders'
                 ? FaShoppingCart

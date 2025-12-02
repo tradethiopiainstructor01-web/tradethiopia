@@ -98,8 +98,26 @@ const OrderFollowup = () => {
     try {
       setLoading(true);
       
-      // Fetch orders
-      const ordersResponse = await axios.get(`/orders`);
+      // Get current user ID from localStorage (stored separately, not as a currentUser object)
+      const userId = localStorage.getItem('userId');
+      console.log('User ID from localStorage:', userId);
+      
+      if (!userId) {
+        setError('User not logged in');
+        toast({
+          title: 'Error',
+          description: 'User not logged in. Please log in again.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch orders for the current sales agent only
+      const ordersResponse = await axios.get(`/orders?salesAgentId=${userId}`);
+      console.log('Orders response:', ordersResponse.data);
       setOrders(ordersResponse.data);
       
       // Fetch stock items
@@ -110,12 +128,13 @@ const OrderFollowup = () => {
       // But we still need the customers state for the view/edit functionality
       // So we'll fetch customers only when needed for viewing existing orders
     } catch (err) {
+      console.error('Error fetching data:', err);
       setError('Failed to fetch data');
       toast({
         title: 'Error',
-        description: 'Failed to fetch data',
+        description: `Failed to fetch data: ${err.response?.data?.message || err.message}`,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true
       });
     } finally {
@@ -306,12 +325,9 @@ const OrderFollowup = () => {
             phone: formData.customerPhone
           };
           
-          console.log('Creating customer with data:', customerData);
           const customerResponse = await axios.post(`/order-customers`, customerData);
           customerId = customerResponse.data._id;
-          console.log('Customer created with ID:', customerId);
         } catch (customerError) {
-          console.error('Customer creation error:', customerError);
           // If customer creation fails, show error
           throw new Error('Failed to create customer: ' + (customerError.response?.data?.message || customerError.message));
         }
@@ -335,7 +351,6 @@ const OrderFollowup = () => {
             }
           };
           
-          console.log('Creating order with data:', orderData);
           await axios.post(`/orders`, orderData);
           toast({
             title: 'Success',
@@ -345,7 +360,6 @@ const OrderFollowup = () => {
             isClosable: true
           });
         } catch (orderError) {
-          console.error('Order creation error:', orderError);
           // If order creation fails, show error
           throw new Error('Failed to create order: ' + (orderError.response?.data?.message || orderError.message));
         }
@@ -443,6 +457,37 @@ const OrderFollowup = () => {
   // Handle status update
   const handleStatusUpdate = async (orderId, status) => {
     try {
+      // Find the order to check payment details
+      const order = orders.find(o => o._id === orderId);
+      if (!order) {
+        toast({
+          title: 'Error',
+          description: 'Order not found',
+          status: 'error',
+          duration: 3000,
+          isClosable: true
+        });
+        return;
+      }
+      
+      // If trying to deliver the order, check if payment is complete
+      if (status === 'Delivered') {
+        const orderTotal = calculateOrderTotal(order.items);
+        const paymentAmount = order.paymentAmount || 0;
+        
+        // For any payment type, full payment must be made before delivery
+        if (paymentAmount < orderTotal) {
+          toast({
+            title: 'Full Payment Required',
+            description: `Full payment of ETB ${orderTotal.toLocaleString()} is required before delivery. Current payment: ETB ${paymentAmount.toLocaleString()}. Remaining: ETB ${(orderTotal - paymentAmount).toLocaleString()}`,
+            status: 'warning',
+            duration: 5000,
+            isClosable: true
+          });
+          return;
+        }
+      }
+      
       await axios.put(`/orders/${orderId}`, {
         status
       });
@@ -491,6 +536,35 @@ const OrderFollowup = () => {
                          (order.customerPhone && order.customerPhone.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = selectedStatus ? order.status === selectedStatus : true;
     return matchesSearch && matchesStatus;
+  });
+
+  // Separate orders into processing (pending) and delivered
+  const processingOrders = orders.filter(order => 
+    order.status !== 'Delivered' && 
+    order.status !== 'Cancelled'
+  );
+
+  const deliveredOrders = orders.filter(order => 
+    order.status === 'Delivered'
+  );
+
+  // Apply search filter to each group
+  const filteredProcessingOrders = processingOrders.filter(order => {
+    const matchesSearch = order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order._id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (order.customerEmail && order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                         (order.customerPhone && order.customerPhone.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = selectedStatus ? order.status === selectedStatus : true;
+    return matchesSearch && matchesStatus && order.status !== 'Delivered' && order.status !== 'Cancelled';
+  });
+
+  const filteredDeliveredOrders = deliveredOrders.filter(order => {
+    const matchesSearch = order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order._id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (order.customerEmail && order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                         (order.customerPhone && order.customerPhone.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = selectedStatus ? order.status === selectedStatus : true;
+    return matchesSearch && matchesStatus && order.status === 'Delivered';
   });
 
   // Calculate order total
@@ -594,177 +668,287 @@ const OrderFollowup = () => {
         </CardBody>
       </Card>
 
-      {/* Orders Table */}
-      <Card>
-        <CardHeader>
-          <Heading as="h3" size="md">Orders</Heading>
-        </CardHeader>
-        <CardBody>
-          <TableContainer>
-            <Table variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>Order ID</Th>
-                  <Th>Customer</Th>
-                  <Th>Contact</Th>
-                  <Th>Items</Th>
-                  <Th isNumeric>Total (ETB)</Th>
-                  <Th>Payment</Th>
-                  <Th>Status</Th>
-                  <Th>Sales Agent</Th>
-                  <Th>Date</Th>
-                  <Th>Actions</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {filteredOrders.length > 0 ? (
-                  filteredOrders.map((order) => (
-                    <Tr key={order._id}>
-                      <Td>
-                        <Text fontWeight="bold">#{order._id.substring(0, 8)}</Text>
-                      </Td>
-                      <Td>
-                        <Text fontWeight="medium">{order.customerName}</Text>
-                      </Td>
-                      <Td>
-                        <Text fontSize="sm">
-                          {order.customerEmail && `${order.customerEmail}\n`}
-                          {order.customerPhone}
-                        </Text>
-                      </Td>
-                      <Td>
-                        <Flex direction="column">
-                          {order.items.slice(0, 2).map((item, index) => (
-                            <Text key={index} fontSize="sm">
-                              {item.name} x {item.quantity}
-                            </Text>
-                          ))}
-                          {order.items.length > 2 && (
-                            <Text fontSize="sm" color="gray.500">
-                              +{order.items.length - 2} more items
-                            </Text>
-                          )}
-                        </Flex>
-                      </Td>
-                      <Td isNumeric>
-                        {calculateOrderTotal(order.items).toLocaleString()}
-                      </Td>
-                      <Td>
-                        <Badge colorScheme={
-                          order.paymentType === 'Advance' ? 'purple' :
-                          order.paymentType === 'Half' ? 'yellow' : 'green'
-                        }>
-                          {order.paymentType}
-                        </Badge>
-                        {order.paymentAmount > 0 && (
-                          <Text fontSize="sm">ETB {order.paymentAmount.toLocaleString()}</Text>
-                        )}
-                      </Td>
-                      <Td>
-                        <Badge 
-                          colorScheme={
-                            order.status === 'Pending' ? 'orange' :
-                            order.status === 'Confirmed' ? 'blue' :
-                            order.status === 'Processing' ? 'yellow' :
-                            order.status === 'Shipped' ? 'purple' :
-                            order.status === 'Delivered' ? 'green' : 'red'
-                          }
-                        >
-                          {order.status}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        <Text fontSize="sm" fontWeight="medium">
-                          {order.salesAgent?.name}
-                        </Text>
-                        {order.salesAgent?.email && (
-                          <Text fontSize="xs" color="gray.500">
-                            {order.salesAgent.email}
-                          </Text>
-                        )}
-                      </Td>
-                      <Td>
-                        {new Date(order.createdAt).toLocaleDateString()}
-                      </Td>
-                      <Td>
-                        <Flex gap={2}>
-                          <Button 
-                            size="sm" 
-                            colorScheme="teal" 
-                            onClick={() => handleViewOrder(order)}
-                          >
-                            View
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            colorScheme="blue" 
-                            onClick={() => handleEdit(order)}
-                          >
-                            Edit
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            colorScheme="red" 
-                            onClick={() => handleDelete(order._id)}
-                          >
-                            Delete
-                          </Button>
-                        </Flex>
-                        
-                        {/* Status Update Buttons */}
-                        <Flex gap={1} mt={2} wrap="wrap">
-                          {order.status !== 'Confirmed' && (
-                            <Button 
-                              size="xs" 
-                              colorScheme="blue" 
-                              onClick={() => handleStatusUpdate(order._id, 'Confirmed')}
-                            >
-                              Confirm
-                            </Button>
-                          )}
-                          {order.status !== 'Processing' && (
-                            <Button 
-                              size="xs" 
-                              colorScheme="yellow" 
-                              onClick={() => handleStatusUpdate(order._id, 'Processing')}
-                            >
-                              Process
-                            </Button>
-                          )}
-                          {order.status !== 'Shipped' && (
-                            <Button 
-                              size="xs" 
-                              colorScheme="purple" 
-                              onClick={() => handleStatusUpdate(order._id, 'Shipped')}
-                            >
-                              Ship
-                            </Button>
-                          )}
-                          {order.status !== 'Delivered' && (
-                            <Button 
-                              size="xs" 
-                              colorScheme="green" 
-                              onClick={() => handleStatusUpdate(order._id, 'Delivered')}
-                            >
-                              Deliver
-                            </Button>
-                          )}
-                        </Flex>
-                      </Td>
-                    </Tr>
-                  ))
-                ) : (
-                  <Tr>
-                    <Td colSpan={10} textAlign="center">
-                      <Text>No orders found</Text>
-                    </Td>
-                  </Tr>
-                )}
-              </Tbody>
-            </Table>
-          </TableContainer>
-        </CardBody>
-      </Card>
+      {/* Tabbed Orders View */}
+      <Tabs variant="enclosed" mb={6}>
+        <TabList>
+          <Tab>Processing Orders ({filteredProcessingOrders.length})</Tab>
+          <Tab>Delivered Orders ({filteredDeliveredOrders.length})</Tab>
+        </TabList>
+        <TabPanels>
+          {/* Processing Orders Tab */}
+          <TabPanel px={0}>
+            <Card>
+              <CardBody>
+                <TableContainer>
+                  <Table variant="simple">
+                    <Thead>
+                      <Tr>
+                        <Th px={2} py={1} fontSize="xs">Order ID</Th>
+                        <Th px={2} py={1} fontSize="xs">Customer</Th>
+                        <Th px={2} py={1} fontSize="xs">Phone</Th>
+                        <Th px={2} py={1} fontSize="xs" isNumeric>Total (ETB)</Th>
+                        <Th px={2} py={1} fontSize="xs">Payment</Th>
+                        <Th px={2} py={1} fontSize="xs">Status</Th>
+                        <Th px={2} py={1} fontSize="xs">Date</Th>
+                        <Th px={2} py={1} fontSize="xs">Actions</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {filteredProcessingOrders.length > 0 ? (
+                        filteredProcessingOrders.map((order) => (
+                          <Tr key={order._id} fontSize="sm">
+                            <Td px={2} py={1}>
+                              <Text fontWeight="bold" fontSize="sm">#{order._id.substring(0, 8)}</Text>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Text fontWeight="medium" fontSize="sm">{order.customerName}</Text>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Text fontSize="sm">{order.customerPhone || '-'}</Text>
+                            </Td>
+                            <Td px={2} py={1} isNumeric>
+                              <Text fontSize="sm">{calculateOrderTotal(order.items).toLocaleString()}</Text>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Badge 
+                                fontSize="xs"
+                                colorScheme={
+                                  order.paymentType === 'Advance' ? 'purple' :
+                                  order.paymentType === 'Half' ? 'yellow' : 'green'
+                                }
+                              >
+                                {order.paymentType}
+                              </Badge>
+                              {order.paymentAmount > 0 && (
+                                <Text fontSize="xs" mt={1}>
+                                  Paid: ETB {order.paymentAmount.toLocaleString()}
+                                </Text>
+                              )}
+                              {order.paymentType !== 'Full' && (
+                                <Text fontSize="xs" color="gray.500">
+                                  Balance: ETB {(calculateOrderTotal(order.items) - (order.paymentAmount || 0)).toLocaleString()}
+                                </Text>
+                              )}
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Badge 
+                                fontSize="xs"
+                                colorScheme={
+                                  order.status === 'Pending' ? 'orange' :
+                                  order.status === 'Confirmed' ? 'blue' :
+                                  order.status === 'Processing' ? 'yellow' :
+                                  order.status === 'Shipped' ? 'purple' :
+                                  order.status === 'Delivered' ? 'green' : 'red'
+                                }
+                              >
+                                {order.status}
+                              </Badge>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Text fontSize="sm">{new Date(order.createdAt).toLocaleDateString()}</Text>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Flex direction="column" gap={1}>
+                                <Flex gap={1}>
+                                  <Button 
+                                    size="xs" 
+                                    colorScheme="teal" 
+                                    onClick={() => handleViewOrder(order)}
+                                    px={2}
+                                    py={1}
+                                  >
+                                    View
+                                  </Button>
+                                  <Button 
+                                    size="xs" 
+                                    colorScheme="blue" 
+                                    onClick={() => handleEdit(order)}
+                                    px={2}
+                                    py={1}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button 
+                                    size="xs" 
+                                    colorScheme="red" 
+                                    onClick={() => handleDelete(order._id)}
+                                    px={2}
+                                    py={1}
+                                  >
+                                    Delete
+                                  </Button>
+                                </Flex>
+                                
+                                {/* Status Update Buttons - Only show if order is not delivered */}
+                                {order.status !== 'Delivered' && (
+                                  <Flex gap={1} wrap="wrap">
+                                    {order.status !== 'Processing' && (
+                                      <Button 
+                                        size="xs" 
+                                        colorScheme="yellow" 
+                                        onClick={() => handleStatusUpdate(order._id, 'Processing')}
+                                        px={2}
+                                        py={1}
+                                        height="auto"
+                                        minHeight="20px"
+                                        fontSize="2xs"
+                                      >
+                                        Process
+                                      </Button>
+                                    )}
+                                    {order.status !== 'Delivered' && (
+                                      <Button 
+                                        size="xs" 
+                                        colorScheme="green" 
+                                        onClick={() => handleStatusUpdate(order._id, 'Delivered')}
+                                        px={2}
+                                        py={1}
+                                        height="auto"
+                                        minHeight="20px"
+                                        fontSize="2xs"
+                                      >
+                                        Deliver
+                                      </Button>
+                                    )}
+                                    {order.status !== 'Cancelled' && (
+                                      <Button 
+                                        size="xs" 
+                                        colorScheme="red" 
+                                        onClick={() => handleStatusUpdate(order._id, 'Cancelled')}
+                                        px={2}
+                                        py={1}
+                                        height="auto"
+                                        minHeight="20px"
+                                        fontSize="2xs"
+                                      >
+                                        Cancel
+                                      </Button>
+                                    )}
+                                  </Flex>
+                                )}
+                              </Flex>
+                            </Td>
+                          </Tr>
+                        ))
+                      ) : (
+                        <Tr>
+                          <Td colSpan={9} textAlign="center" py={4}>
+                            <Text fontSize="sm">No processing orders found</Text>
+                          </Td>
+                        </Tr>
+                      )}
+                    </Tbody>
+                  </Table>
+                </TableContainer>
+              </CardBody>
+            </Card>
+          </TabPanel>
+          
+          {/* Delivered Orders Tab */}
+          <TabPanel px={0}>
+            <Card>
+              <CardBody>
+                <TableContainer>
+                  <Table variant="simple">
+                    <Thead>
+                      <Tr>
+                        <Th px={2} py={1} fontSize="xs">Order ID</Th>
+                        <Th px={2} py={1} fontSize="xs">Customer</Th>
+                        <Th px={2} py={1} fontSize="xs">Phone</Th>
+                        <Th px={2} py={1} fontSize="xs" isNumeric>Total (ETB)</Th>
+                        <Th px={2} py={1} fontSize="xs">Payment</Th>
+                        <Th px={2} py={1} fontSize="xs">Date Delivered</Th>
+                        <Th px={2} py={1} fontSize="xs">Actions</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {filteredDeliveredOrders.length > 0 ? (
+                        filteredDeliveredOrders.map((order) => (
+                          <Tr key={order._id} fontSize="sm">
+                            <Td px={2} py={1}>
+                              <Text fontWeight="bold" fontSize="sm">#{order._id.substring(0, 8)}</Text>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Text fontWeight="medium" fontSize="sm">{order.customerName}</Text>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Text fontSize="sm">{order.customerPhone || '-'}</Text>
+                            </Td>
+                            <Td px={2} py={1} isNumeric>
+                              <Text fontSize="sm">{calculateOrderTotal(order.items).toLocaleString()}</Text>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Badge 
+                                fontSize="xs"
+                                colorScheme={
+                                  order.paymentType === 'Advance' ? 'purple' :
+                                  order.paymentType === 'Half' ? 'yellow' : 'green'
+                                }
+                              >
+                                {order.paymentType}
+                              </Badge>
+                              {order.paymentAmount > 0 && (
+                                <Text fontSize="xs" mt={1}>
+                                  Paid: ETB {order.paymentAmount.toLocaleString()}
+                                </Text>
+                              )}
+                              {order.paymentType !== 'Full' && (
+                                <Text fontSize="xs" color="gray.500">
+                                  Balance: ETB {(calculateOrderTotal(order.items) - (order.paymentAmount || 0)).toLocaleString()}
+                                </Text>
+                              )}
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Text fontSize="sm">{order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString() : '-'}</Text>
+                            </Td>
+                            <Td px={2} py={1}>
+                              <Flex gap={1}>
+                                <Button 
+                                  size="xs" 
+                                  colorScheme="teal" 
+                                  onClick={() => handleViewOrder(order)}
+                                  px={2}
+                                  py={1}
+                                >
+                                  View
+                                </Button>
+                                <Button 
+                                  size="xs" 
+                                  colorScheme="blue" 
+                                  onClick={() => handleEdit(order)}
+                                  px={2}
+                                  py={1}
+                                >
+                                  Edit
+                                </Button>
+                                <Button 
+                                  size="xs" 
+                                  colorScheme="red" 
+                                  onClick={() => handleDelete(order._id)}
+                                  px={2}
+                                  py={1}
+                                >
+                                  Delete
+                                </Button>
+                              </Flex>
+                            </Td>
+                          </Tr>
+                        ))
+                      ) : (
+                        <Tr>
+                          <Td colSpan={7} textAlign="center" py={4}>
+                            <Text fontSize="sm">No delivered orders found</Text>
+                          </Td>
+                        </Tr>
+                      )}
+                    </Tbody>
+                  </Table>
+                </TableContainer>
+              </CardBody>
+            </Card>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
 
       {/* Create/Edit Order Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
@@ -1085,8 +1269,14 @@ const OrderFollowup = () => {
                 }>
                   {formData.paymentType}
                 </Badge>
+                <Text mt={1}>Total: ETB {calculateOrderTotal(formData.items).toLocaleString()}</Text>
                 {formData.paymentAmount > 0 && (
-                  <Text mt={1}>Amount: ETB {formData.paymentAmount.toLocaleString()}</Text>
+                  <Text mt={1}>Paid: ETB {formData.paymentAmount.toLocaleString()}</Text>
+                )}
+                {formData.paymentType !== 'Full' && (
+                  <Text mt={1} color={calculateOrderTotal(formData.items) - (formData.paymentAmount || 0) > 0 ? "red.500" : "green.500"}>
+                    Balance: ETB {(calculateOrderTotal(formData.items) - (formData.paymentAmount || 0)).toLocaleString()}
+                  </Text>
                 )}
               </Box>
               

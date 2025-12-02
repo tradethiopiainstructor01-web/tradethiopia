@@ -40,7 +40,7 @@ const getStockItemById = asyncHandler(async (req, res) => {
 // @route   POST /api/stock
 // @access  Private
 const createStockItem = asyncHandler(async (req, res) => {
-  const { name, description, category, price, quantity, unit, sku, supplier } = req.body;
+  const { name, description, category, price, cost, quantity, unit, sku, supplier } = req.body;
 
   try {
     // Check if SKU already exists
@@ -54,6 +54,7 @@ const createStockItem = asyncHandler(async (req, res) => {
       description,
       category,
       price,
+      cost: cost || 0, // Default to 0 if not provided
       quantity,
       unit,
       sku,
@@ -74,7 +75,7 @@ const createStockItem = asyncHandler(async (req, res) => {
 // @route   PUT /api/stock/:id
 // @access  Private
 const updateStockItem = asyncHandler(async (req, res) => {
-  const { name, description, category, price, quantity, unit, sku, supplier } = req.body;
+  const { name, description, category, price, cost, quantity, unit, sku, supplier } = req.body;
 
   try {
     const stockItem = await Stock.findById(req.params.id);
@@ -92,6 +93,7 @@ const updateStockItem = asyncHandler(async (req, res) => {
       stockItem.description = description || stockItem.description;
       stockItem.category = category || stockItem.category;
       stockItem.price = price !== undefined ? price : stockItem.price;
+      stockItem.cost = cost !== undefined ? cost : stockItem.cost;
       stockItem.quantity = quantity !== undefined ? quantity : stockItem.quantity;
       stockItem.unit = unit || stockItem.unit;
       stockItem.sku = sku || stockItem.sku;

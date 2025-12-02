@@ -8,11 +8,25 @@ const asyncHandler = require('express-async-handler');
 // @access  Private
 const getOrders = asyncHandler(async (req, res) => {
   try {
-    const orders = await Order.find({})
+    // Build query filter
+    const filter = {};
+    
+    // If salesAgentId query param is provided, filter by that sales agent
+    if (req.query.salesAgentId) {
+      filter['salesAgent.id'] = req.query.salesAgentId;
+      console.log('Filtering orders by sales agent ID:', req.query.salesAgentId);
+    }
+    
+    console.log('Order filter:', filter);
+    
+    const orders = await Order.find(filter)
       .populate('customerId', 'name email phone')
       .sort({ createdAt: -1 });
+      
+    console.log('Found orders:', orders.length);
     res.json(orders);
   } catch (error) {
+    console.error('Error fetching orders:', error);
     res.status(500).json({ 
       message: "Error fetching orders", 
       error: error.message 
@@ -154,6 +168,8 @@ const updateOrder = asyncHandler(async (req, res) => {
     const order = await Order.findById(req.params.id);
 
     if (order) {
+      const oldStatus = order.status;
+      
       // Only allow updating status, notes, confirmation details, and payment info
       if (status) order.status = status;
       if (notes !== undefined) order.notes = notes;
@@ -164,8 +180,18 @@ const updateOrder = asyncHandler(async (req, res) => {
         order.confirmedAt = Date.now();
       }
       
-      // If status is being updated to Delivered, deduct stock
-      if (status === 'Delivered' && order.status !== 'Delivered') {
+      // If status is being updated to Delivered, check if payment is complete
+      if (status === 'Delivered' && oldStatus !== 'Delivered') {
+        // Validate that full payment has been made before delivery
+        const orderTotal = order.totalAmount || 0;
+        const paymentMade = order.paymentAmount || 0;
+        
+        if (paymentMade < orderTotal) {
+          return res.status(400).json({ 
+            message: `Full payment of ETB ${orderTotal.toLocaleString()} is required before delivery. Current payment: ETB ${paymentMade.toLocaleString()}. Balance due: ETB ${(orderTotal - paymentMade).toLocaleString()}`
+          });
+        }
+        
         order.deliveredAt = Date.now();
         
         // Deduct stock for each item in the order
@@ -190,10 +216,27 @@ const updateOrder = asyncHandler(async (req, res) => {
               } else {
                 // Not enough stock in buffer either
                 return res.status(400).json({ 
-                  message: `Not enough stock for ${stockItem.name} even after checking buffer stock` 
+                  message: `Not enough stock for ${stockItem.name}. Available: ${stockItem.quantity + stockItem.bufferStock}, Required: ${item.quantity}` 
                 });
               }
             }
+            await stockItem.save();
+          } else {
+            return res.status(404).json({ 
+              message: `Stock item with ID ${item.stockItemId} not found` 
+            });
+          }
+        }
+      }
+      
+      // If status is being changed from Delivered to another status, restock items
+      if (oldStatus === 'Delivered' && status !== 'Delivered') {
+        // Restock items when order is no longer delivered
+        for (const item of order.items) {
+          const stockItem = await Stock.findById(item.stockItemId);
+          if (stockItem) {
+            // Add back to regular stock
+            stockItem.quantity += item.quantity;
             await stockItem.save();
           }
         }
@@ -280,6 +323,10 @@ const getOrderStats = asyncHandler(async (req, res) => {
     
     const totalRevenue = revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0;
     
+    // For profit calculation, we would ideally join with stock items to get cost
+    // For now, we'll use a simplified approach with a 20% profit margin
+    const totalProfit = totalRevenue * 0.2;
+    
     res.json({
       totalOrders,
       pendingOrders,
@@ -288,7 +335,8 @@ const getOrderStats = asyncHandler(async (req, res) => {
       shippedOrders,
       deliveredOrders,
       cancelledOrders,
-      totalRevenue
+      totalRevenue,
+      totalProfit
     });
   } catch (error) {
     res.status(500).json({ 
