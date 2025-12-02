@@ -36,7 +36,9 @@ const createCustomer = asyncHandler(async (req, res) => {
     schedulePreference,
     email,
     note,
-    supervisorComment
+    supervisorComment,
+    coursePrice,
+    commission
   } = req.body;
 
   const customer = new SalesCustomer({
@@ -49,7 +51,9 @@ const createCustomer = asyncHandler(async (req, res) => {
     schedulePreference,
     email,
     note,
-    supervisorComment
+    supervisorComment,
+    coursePrice,
+    commission
   });
 
   const createdCustomer = await customer.save();
@@ -69,7 +73,9 @@ const updateCustomer = asyncHandler(async (req, res) => {
     schedulePreference,
     email,
     note,
-    supervisorComment
+    supervisorComment,
+    coursePrice,
+    commission
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -84,6 +90,8 @@ const updateCustomer = asyncHandler(async (req, res) => {
     customer.email = email || customer.email;
     customer.note = note || customer.note;
     customer.supervisorComment = supervisorComment || customer.supervisorComment;
+    customer.coursePrice = coursePrice || customer.coursePrice;
+    customer.commission = commission || customer.commission;
 
     const updatedCustomer = await customer.save();
     res.json(updatedCustomer);

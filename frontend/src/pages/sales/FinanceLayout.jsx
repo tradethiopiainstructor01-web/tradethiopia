@@ -37,7 +37,8 @@ import {
   FaUsers,
   FaFileInvoice,
   FaCogs,
-  FaArrowRight
+  FaArrowRight,
+  FaDollarSign
 } from 'react-icons/fa';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUserStore } from '../../store/user';
@@ -81,7 +82,7 @@ const FinanceLayout = ({ children }) => {
     { label: 'Financial Reports', icon: FaChartBar, path: '/finance-dashboard/reports' },
     { label: 'Inventory', icon: FaBoxes, path: '/finance-dashboard/inventory' },
     { label: 'Orders', icon: FaShoppingCart, path: '/finance-dashboard/orders' },
-    { label: 'Suppliers', icon: FaTruck, path: '/finance-dashboard/suppliers' },
+    { label: 'Pricing', icon: FaDollarSign, path: '/finance-dashboard/pricing' },
     { label: 'Customers', icon: FaUsers, path: '/finance-dashboard/customers' },
     { label: 'Invoices', icon: FaFileInvoice, path: '/finance-dashboard/invoices' },
     { label: 'Settings', icon: FaCogs, path: '/finance-dashboard/settings' }

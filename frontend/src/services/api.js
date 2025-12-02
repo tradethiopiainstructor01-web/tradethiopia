@@ -49,3 +49,16 @@ export const updateEnsraFollowup = (id, data) =>
 
 export const deleteEnsraFollowup = (id) =>
   API.delete(`/ensra-followups/${id}`).then(response => response.data);
+
+// Courses
+export const fetchCourses = () =>
+  API.get('/courses').then(response => response.data);
+
+export const createCourse = (data) =>
+  API.post('/courses', data).then(response => response.data);
+
+export const updateCourse = (id, data) =>
+  API.put(`/courses/${id}`, data).then(response => response.data);
+
+export const deleteCourse = (id) =>
+  API.delete(`/courses/${id}`).then(response => response.data);

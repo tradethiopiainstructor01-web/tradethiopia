@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+const commissionSchema = new mongoose.Schema({
+  grossCommission: { type: Number },
+  commissionTax: { type: Number },
+  netCommission: { type: Number }
+}, { _id: false });
+
 const salesCustomerSchema = new mongoose.Schema({
   agentId: {
     type: String,
@@ -43,7 +49,12 @@ const salesCustomerSchema = new mongoose.Schema({
   },
   supervisorComment: {
     type: String
-  }
+  },
+  // Commission fields
+  coursePrice: {
+    type: Number
+  },
+  commission: commissionSchema
 }, {
   timestamps: true
 });

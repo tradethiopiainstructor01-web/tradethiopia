@@ -616,8 +616,8 @@ const OrderFollowup = () => {
         </Stat>
         
         <Stat>
-          <StatLabel>Confirmed Orders</StatLabel>
-          <StatNumber color="blue.500">{orderStats.confirmedOrders}</StatNumber>
+          <StatLabel>Delivered Orders</StatLabel>
+          <StatNumber color="green.500">{orderStats.deliveredOrders}</StatNumber>
         </Stat>
         
         <Stat>

@@ -89,6 +89,7 @@ import {
   fetchEnsraFollowups,
   createEnsraFollowup,
   deleteEnsraFollowup,
+  fetchCourses,
 } from "../../services/api";
 
 const CustomerFollowup = () => {
@@ -146,6 +147,7 @@ const CustomerFollowup = () => {
   const [conversationLoading, setConversationLoading] = useState(false);
   const [conversationText, setConversationText] = useState("");
   const [packagesList, setPackagesList] = useState([]);
+  const [coursesList, setCoursesList] = useState([]);
   const [providedServices, setProvidedServices] = useState([]);
   const [notProvidedServices, setNotProvidedServices] = useState([]);
   const [pendingForm, setPendingForm] = useState({
@@ -597,16 +599,11 @@ const CustomerFollowup = () => {
     jobSeekerExpectedSalary: "",
   });
 
-  const trainingPrograms = [
-    { id: "International Trade Import Export", name: "International Trade Import Export", duration: "1 weeks", price: 6917 },
-    { id: "Data Science", name: "Data Science", duration: "16 weeks", price: 2000 },
-    { id: "Coffee Cupping", name: "Coffee Cupping", duration: "8 weeks", price: 29000 },
-    { id: "UI/UX Design", name: "UI/UX Design", duration: "8 weeks", price: 1000 },
-    { id: "Digital Marketing", name: "Digital Marketing", duration: "6 weeks", price: 800 },
-    { id: "Cybersecurity", name: "Cybersecurity", duration: "14 weeks", price: 1800 },
-    { id: "DevOps Engineering", name: "DevOps Engineering", duration: "18 weeks", price: 2200 },
-    { id: "Cloud Computing", name: "Cloud Computing", duration: "16 weeks", price: 2100 },
-  ];
+  const trainingPrograms = coursesList.map(course => ({
+    id: course._id,
+    name: course.name,
+    price: course.price
+  }));
 
   const handleTrainingTypeChange = (value) => {
     const program = trainingPrograms.find((p) => p.id === value);
@@ -784,7 +781,18 @@ const loadEnsraFollowups = async () => {
         console.error("Failed to load packages list", err);
       }
     };
+    
+    const fetchCoursesList = async () => {
+      try {
+        const data = await fetchCourses();
+        setCoursesList(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to load courses list", err);
+      }
+    };
+    
     fetchPackagesList();
+    fetchCoursesList();
   }, []);
 
 const handleDeleteTrainingFollowup = async (id) => {
