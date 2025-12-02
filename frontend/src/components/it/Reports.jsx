@@ -54,6 +54,8 @@ const Reports = () => {
   const [selectedPerson, setSelectedPerson] = useState('all');
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingPoints, setEditingPoints] = useState(1);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const toast = useToast();
   const { currentUser } = useUserStore();
   const token = currentUser?.token;
@@ -455,8 +457,29 @@ const Reports = () => {
     const matchesPerson = selectedPerson === 'all' || 
       (task.personnelName && task.personnelName.includes(selectedPerson)) ||
       (selectedPerson === 'Unassigned' && (!task.personnelName || task.personnelName.length === 0));
+
+    // Optional date filter (user-selected from/to)
+    let matchesDateRange = true;
+    if (fromDate || toDate) {
+      const taskDateRaw = task.completionDate || task.endDate || task.date || task.createdAt || task.updatedAt;
+      if (taskDateRaw) {
+        const d = new Date(taskDateRaw);
+        if (!Number.isNaN(d.getTime())) {
+          if (fromDate) {
+            const from = new Date(fromDate);
+            from.setHours(0, 0, 0, 0);
+            if (d < from) matchesDateRange = false;
+          }
+          if (toDate) {
+            const to = new Date(toDate);
+            to.setHours(23, 59, 59, 999);
+            if (d > to) matchesDateRange = false;
+          }
+        }
+      }
+    }
     
-    return matchesSearch && matchesPerson;
+    return matchesSearch && matchesPerson && matchesDateRange;
   });
 
   // Get unique assignees for the filter
@@ -541,6 +564,28 @@ const Reports = () => {
             >
               Refresh Data
             </Button>
+
+            {/* Custom Date Range Filter */}
+            <HStack spacing={2}>
+              <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                From:
+              </Text>
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                maxW="180px"
+              />
+              <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                To:
+              </Text>
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                maxW="180px"
+              />
+            </HStack>
           </HStack>
         </CardBody>
       </Card>
@@ -749,7 +794,7 @@ const Reports = () => {
                   <Th>Type</Th>
                   <Th>Task</Th>
                   <Th>Target</Th>
-                  <Th>Point</Th>
+                  <Th>Actual</Th>
                 </Tr>
               </Thead>
               <Tbody>
