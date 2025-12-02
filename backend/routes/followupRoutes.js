@@ -1,5 +1,8 @@
 const express = require("express");
 const followupController = require("../controllers/followupController.js");
+const orderController = require("../controllers/orderController.js");
+const { protect } = require('../middleware/auth.js');
+const { authorizeRoles } = require('../middleware/roles.js');
 
 const router = express.Router();
 
@@ -33,6 +36,13 @@ router.put("/:id", followupController.updateFollowup);
 
 // Delete a follow-up
 router.delete("/:id", followupController.deleteFollowup);
+router.post('/:id/process-order', protect, authorizeRoles('sales','sales_manager','admin','customerservice'), followupController.processOrder);
+// Reserve stock (allocate from on-hand then buffer) for a followup
+router.post('/:id/reserve', protect, authorizeRoles('sales','sales_manager','admin','customerservice'), orderController.reserveForFollowup);
+// Preview reservation (no DB changes)
+router.post('/:id/reserve/preview', protect, authorizeRoles('sales','sales_manager','admin','customerservice'), orderController.simulateReserveForFollowup);
+// Fulfill an order created for this followup (finance/admin only)
+router.post('/:followupId/orders/:orderId/fulfill', protect, authorizeRoles('finance','admin'), orderController.fulfillOrder);
 
 // Add a note to a follow-up
 router.post("/:id/notes", followupController.addNote);

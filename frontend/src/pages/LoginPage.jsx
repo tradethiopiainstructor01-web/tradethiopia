@@ -60,6 +60,9 @@ const handleLogin = async () => {
                     case 'it':
                         navigate('/it');
                         break;
+                    case 'IT':
+                        navigate('/it'); // Add IT role navigation
+                        break;
                     default:
                         navigate('/ComingSoonPage'); // Optional: handle unknown roles
                         break;

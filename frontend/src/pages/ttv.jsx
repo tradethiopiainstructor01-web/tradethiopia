@@ -19,7 +19,7 @@ import {
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
-const MotionBox = motion(Box);
+const MotionBox = motion.div;
 
 // Card Component
 const Card = ({ title, description, listItems }) => (
