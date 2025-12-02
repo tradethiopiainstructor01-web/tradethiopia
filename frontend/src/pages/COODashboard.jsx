@@ -155,22 +155,8 @@ const COODashboard = () => {
     const label = selectedDept || '';
     return label.toLowerCase().includes('tradex') ? 'tradextv' : label;
   }, [selectedDept]);
-<<<<<<< Updated upstream
   const [tradexRevenueRows, setTradexRevenueRows] = useState([]);
   const [tradexSocialReport, setTradexSocialReport] = useState([]);
-=======
-  const tradexRevenueRows = [
-    { metric: 'MTD revenue', target: 1200000, actual: 1290000 },
-    { metric: 'New bookings', target: 550000, actual: 590000 },
-    { metric: 'Renewals & upsell', target: 320000, actual: 345000 },
-  ];
-  const tradexSocialReport = [
-    { platform: 'YouTube', target: 833, actual: 720 },
-    { platform: 'TikTok', target: 1666, actual: 1810 },
-    { platform: 'Facebook', target: 4166, actual: 3920 },
-    { platform: 'LinkedIn', target: 416, actual: 402 },
-  ];
->>>>>>> Stashed changes
 
   const toggleExcluded = (dept) => {
     if (dept === 'All') return;
@@ -232,7 +218,6 @@ const COODashboard = () => {
             sublabel: mtd.target ? `Target ${currencyFormatter.format(mtd.target)}` : '',
           };
         }
-<<<<<<< Updated upstream
         // Populate revenue table rows
         const rows = entries.map((e) => ({
           metric: e.metric || 'Metric',
@@ -240,8 +225,6 @@ const COODashboard = () => {
           actual: Number(e.actual || 0),
         }));
         setTradexRevenueRows(rows);
-=======
->>>>>>> Stashed changes
       }
 
       // Social
@@ -255,15 +238,12 @@ const COODashboard = () => {
             sublabel: `${(top.actual || 0).toLocaleString()} vs ${top.target?.toLocaleString?.() || 0}`,
           };
         }
-<<<<<<< Updated upstream
         const socialRows = entries.map((e) => ({
           platform: e.platform || 'Platform',
           target: Number(e.target || 0),
           actual: Number(e.actual || 0),
         }));
         setTradexSocialReport(socialRows);
-=======
->>>>>>> Stashed changes
       }
 
       // Followups
@@ -293,8 +273,7 @@ const COODashboard = () => {
         setTradexDeliverables(deliverables);
       }
 
-<<<<<<< Updated upstream
-      // If no data came back, keep a small placeholder so tables don’t go empty
+      // If no data came back, keep a small placeholder so tables don't go empty
       if (revRes.status !== 'fulfilled' || !Array.isArray(revRes.value?.data) || revRes.value.data.length === 0) {
         setTradexRevenueRows([
           { metric: 'MTD revenue', target: 0, actual: 0 },
@@ -311,8 +290,6 @@ const COODashboard = () => {
         ]);
       }
 
-=======
->>>>>>> Stashed changes
       setTradexSummaryData(summary);
     } catch (err) {
       console.error('Failed to load Tradex data', err);
@@ -420,7 +397,6 @@ const COODashboard = () => {
     },
   ];
 
-<<<<<<< Updated upstream
   // Lightweight customer service snapshot for COO view
   const csSummary = [
     { label: 'Tickets today', value: '124', detail: '+8% vs daily avg', tone: 'blue' },
@@ -436,8 +412,6 @@ const COODashboard = () => {
     { queue: 'Social', owner: 'Mekdes', open: 9, sla: '89%', aging: '1 > 48h' },
   ];
 
-=======
->>>>>>> Stashed changes
   const handleLogout = () => {
     clearUser();
     navigate('/login');
@@ -1012,7 +986,6 @@ const COODashboard = () => {
           >
             <Flex align="center" justify="space-between" mb={4} wrap="wrap" gap={3}>
               <Box>
-<<<<<<< Updated upstream
                 <Heading size="md">Customer Service report</Heading>
                 <Text fontSize="sm" color="gray.600">Volume, SLA, CSAT, and backlog at a glance.</Text>
               </Box>
@@ -1082,8 +1055,6 @@ const COODashboard = () => {
           >
             <Flex align="center" justify="space-between" mb={4} wrap="wrap" gap={3}>
               <Box>
-=======
->>>>>>> Stashed changes
                 <Heading size="md">Awards</Heading>
                 <Text fontSize="sm" color="gray.600">Celebrating monthly standouts</Text>
               </Box>
