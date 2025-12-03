@@ -25,8 +25,13 @@ const buyerRoutes = require('./routes/buyerRoutes.js');
 const sellerRoutes = require('./routes/sellerRoutes.js');
 const b2bMatchingRoutes = require('./routes/b2bMatchingRoutes.js');
 const savedMatchRoutes = require('./routes/savedMatchRoutes.js');
-<<<<<<< Updated upstream
 const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
+// const packageRoutes = require('./routes/packageRoutes.js');
+// const serviceTypeRoutes = require('./routes/serviceTypeRoutes.js');
+// const metricRoutes = require('./routes/metricRoutes.js');
+// const tradexFollowupRoutes = require('./routes/tradexFollowupRoutes.js');
+// const stockRoutes = require('./routes/stockRoutes.js');
+// const orderCustomerRoutes = require('./routes/orderCustomerRoutes.js');
 const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
 const inventoryRoutes = require('./routes/inventoryRoutes.js');
 const financeRoutes = require('./routes/financeRoutes.js');
@@ -34,18 +39,6 @@ const demandRoutes = require('./routes/demandRoutes.js');
 const ordersRoutes = require('./routes/ordersRoutes.js');
 const paymentRoutes = require('./routes/paymentRoutes.js');
 const itRoutes = require('./routes/itRoutes.js');
-=======
-const trainingFollowupRoutes = require('./routes/trainingFollowupRoutes.js');
-const ensraFollowupRoutes = require('./routes/ensraFollowupRoutes.js');
-const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
-const packageRoutes = require('./routes/packageRoutes.js');
-const serviceTypeRoutes = require('./routes/serviceTypeRoutes.js');
-const metricRoutes = require('./routes/metricRoutes.js');
-const tradexFollowupRoutes = require('./routes/tradexFollowupRoutes.js');
-const stockRoutes = require('./routes/stockRoutes.js');
-const orderRoutes = require('./routes/orderRoutes.js');
-const orderCustomerRoutes = require('./routes/orderCustomerRoutes.js');
->>>>>>> Stashed changes
 
 // Load environment variables
 
@@ -155,8 +148,15 @@ app.use('/api/buyers', buyerRoutes);
 app.use('/api/sellers', sellerRoutes);
 app.use('/api/b2b', b2bMatchingRoutes);
 app.use('/api/saved-matches', savedMatchRoutes);
-<<<<<<< Updated upstream
+// Support both kebab and non-kebab paths for sales customers
+app.use('/api/salescustomers', salesCustomerRoutes);
 app.use('/api/sales-customers', salesCustomerRoutes);
+// app.use('/api/packages', packageRoutes);
+// app.use('/api/service-types', serviceTypeRoutes);
+// app.use('/api', metricRoutes);
+// app.use('/api/tradex-followups', tradexFollowupRoutes);
+// app.use('/api/stock', stockRoutes);
+// app.use('/api/order-customers', orderCustomerRoutes);
 app.use('/api/product-followups', productFollowupRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/finance', financeRoutes);
@@ -164,20 +164,6 @@ app.use('/api/demands', demandRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/it', itRoutes);
-=======
-app.use('/api/training-followups', trainingFollowupRoutes);
-app.use('/api/ensra-followups', ensraFollowupRoutes);
-// Support both kebab and non-kebab paths for sales customers
-app.use('/api/salescustomers', salesCustomerRoutes);
-app.use('/api/sales-customers', salesCustomerRoutes);
-app.use('/api/packages', packageRoutes);
-app.use('/api/service-types', serviceTypeRoutes);
-app.use('/api', metricRoutes);
-app.use('/api/tradex-followups', tradexFollowupRoutes);
-app.use('/api/stock', stockRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/order-customers', orderCustomerRoutes);
->>>>>>> Stashed changes
 
 // Global error handler
 app.use((err, req, res, next) => {
