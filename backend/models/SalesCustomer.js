@@ -43,7 +43,6 @@ const salesCustomerSchema = new mongoose.Schema({
   },
   supervisorComment: {
     type: String
-  }
   },
   // Course information
   courseName: {
@@ -77,7 +76,10 @@ const salesCustomerSchema = new mongoose.Schema({
   coursePrice: {
     type: Number
   },
-  commission: commissionSchema
+  commission: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Commission'
+  }
 }, {
   timestamps: true
 });

@@ -20,8 +20,7 @@ import {
   SimpleGrid,
   VStack,
   HStack,
-  Divider,
-  useToast
+  Divider
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon } from '@chakra-ui/icons';
 import {
@@ -33,12 +32,9 @@ import {
   DrawerContent,
   DrawerCloseButton,
   useDisclosure,
-  VStack,
-  HStack,
-  Divider
 } from '@chakra-ui/react';
 
-const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
+const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }) => {
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [addingRow, setAddingRow] = useState(false);
@@ -53,13 +49,8 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
     supervisorComment: ''
   });
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const toast = useToast();
-
   const [drawerCustomer, setDrawerCustomer] = useState(null);
-  const toast = useToast();
-
-  const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
   const userToken = localStorage.getItem('userToken');
   const userRole = localStorage.getItem('userRole') || 'agent';
@@ -81,6 +72,35 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
     return false;
   };
 
+  // Commission calculation function
+  const calculateCommission = (courseName, coursePrice) => {
+    // Commission rate: 7%
+    const commissionRate = 0.07;
+    // Commission tax: 0.075% of commission
+    const commissionTaxRate = 0.00075;
+    
+    // Calculate gross commission
+    const grossCommission = coursePrice * commissionRate;
+    // Calculate commission tax
+    const commissionTax = grossCommission * commissionTaxRate;
+    // Calculate net commission
+    const netCommission = grossCommission - commissionTax;
+    
+    return {
+      grossCommission: parseFloat(grossCommission.toFixed(2)),
+      commissionTax: parseFloat(commissionTax.toFixed(2)),
+      netCommission: parseFloat(netCommission.toFixed(2))
+    };
+  };
+
+  // Find course by name and get its price
+  const getCourseDetails = (courseName) => {
+    if (!courseName || !Array.isArray(courses)) return null;
+    
+    const course = courses.find(course => course.name === courseName);
+    return course ? { name: course.name, price: course.price } : null;
+  };
+
   const handleCellClick = (customer, field) => {
     const canEdit = canUserEditField(field, userRole);
     if (!canEdit) return;
@@ -91,6 +111,17 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
   const handleSave = (customer) => {
     if (editingCell) {
       const updated = { ...customer, [editingCell.field]: editValue };
+      
+      // If we're updating the followupStatus to "Completed", calculate commission
+      if (editingCell.field === 'followupStatus' && editValue === 'Completed') {
+        const courseDetails = getCourseDetails(customer.contactTitle);
+        if (courseDetails) {
+          const commission = calculateCommission(courseDetails.name, courseDetails.price);
+          updated.commission = commission;
+          updated.coursePrice = courseDetails.price;
+        }
+      }
+      
       onUpdate(customer._id, updated);
       // Track updated customer
       setUpdatedCustomers(prev => new Set(prev).add(customer._id));
@@ -148,7 +179,19 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
   };
 
   const handleAddNewCustomer = () => {
-    onAdd(newCustomer);
+    // If the new customer has a "Completed" status, calculate commission
+    let customerToAdd = { ...newCustomer };
+    
+    if (newCustomer.followupStatus === 'Completed' && newCustomer.contactTitle) {
+      const courseDetails = getCourseDetails(newCustomer.contactTitle);
+      if (courseDetails) {
+        const commission = calculateCommission(courseDetails.name, courseDetails.price);
+        customerToAdd.commission = commission;
+        customerToAdd.coursePrice = courseDetails.price;
+      }
+    }
+    
+    onAdd(customerToAdd);
     setAddingRow(false);
     setNewCustomer({
       customerName: '',
@@ -181,41 +224,61 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
     if (type === 'select') {
       return (
         <Td key={field} p={1}>
-          <Select
-            value={editValue}
-            onChange={handleInputChange}
-            onKeyDown={(e) => handleKeyDown(e, customer)}
-            size="xs"
-            autoFocus
-            onBlur={handleBlur}
-            fontSize="sm"
-            p={1}
-          >
-            {field === 'callStatus' ? (
-              <>
-                <option value="Called">Called</option>
-                <option value="Not Called">Not Called</option>
-                <option value="Busy">Busy</option>
-                <option value="No Answer">No Answer</option>
-                <option value="Callback">Callback</option>
-              </>
-            ) : field === 'schedulePreference' ? (
-              <>
-                <option value="Regular">Regular</option>
-                <option value="Weekend">Weekend</option>
-                <option value="Night">Night</option>
-                <option value="Online">Online</option>
-              </>
-            ) : (
-              <>
-                <option value="Prospect">Prospect</option>
-                <option value="Pending">Pending</option>
-                <option value="Completed">Completed</option>
-                <option value="Scheduled">Scheduled</option>
-                <option value="Cancelled">Cancelled</option>
-              </>
-            )}
-          </Select>
+          {field === 'contactTitle' ? (
+            <Select
+              value={editValue}
+              onChange={handleInputChange}
+              onKeyDown={(e) => handleKeyDown(e, customer)}
+              size="xs"
+              autoFocus
+              onBlur={handleBlur}
+              fontSize="sm"
+              p={1}
+            >
+              <option value="">Select a course</option>
+              {(Array.isArray(courses) ? courses : []).map(course => (
+                <option key={course._id} value={course.name}>
+                  {course.name}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Select
+              value={editValue}
+              onChange={handleInputChange}
+              onKeyDown={(e) => handleKeyDown(e, customer)}
+              size="xs"
+              autoFocus
+              onBlur={handleBlur}
+              fontSize="sm"
+              p={1}
+            >
+              {field === 'callStatus' ? (
+                <>
+                  <option value="Called">Called</option>
+                  <option value="Not Called">Not Called</option>
+                  <option value="Busy">Busy</option>
+                  <option value="No Answer">No Answer</option>
+                  <option value="Callback">Callback</option>
+                </>
+              ) : field === 'schedulePreference' ? (
+                <>
+                  <option value="Regular">Regular</option>
+                  <option value="Weekend">Weekend</option>
+                  <option value="Night">Night</option>
+                  <option value="Online">Online</option>
+                </>
+              ) : (
+                <>
+                  <option value="Prospect">Prospect</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Cancelled">Cancelled</option>
+                </>
+              )}
+            </Select>
+          )}
         </Td>
       );
     }
@@ -259,40 +322,59 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
     if (type === 'select') {
       return (
         <Td key={field} p={1}>
-          <Select
-            name={field}
-            value={value}
-            onChange={handleNewCustomerChange}
-            onKeyDown={handleNewCustomerKeyDown}
-            size="xs"
-            fontSize="sm"
-            p={1}
-          >
-            {field === 'callStatus' ? (
-              <>
-                <option value="Called">Called</option>
-                <option value="Not Called">Not Called</option>
-                <option value="Busy">Busy</option>
-                <option value="No Answer">No Answer</option>
-                <option value="Callback">Callback</option>
-              </>
-            ) : field === 'schedulePreference' ? (
-              <>
-                <option value="Regular">Regular</option>
-                <option value="Weekend">Weekend</option>
-                <option value="Night">Night</option>
-                <option value="Online">Online</option>
-              </>
-            ) : (
-              <>
-                <option value="Prospect">Prospect</option>
-                <option value="Pending">Pending</option>
-                <option value="Completed">Completed</option>
-                <option value="Scheduled">Scheduled</option>
-                <option value="Cancelled">Cancelled</option>
-              </>
-            )}
-          </Select>
+          {field === 'contactTitle' ? (
+            <Select
+              name={field}
+              value={value}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              size="xs"
+              fontSize="sm"
+              p={1}
+            >
+              <option value="">Select a course</option>
+              {(Array.isArray(courses) ? courses : []).map(course => (
+                <option key={course._id} value={course.name}>
+                  {course.name}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Select
+              name={field}
+              value={value}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              size="xs"
+              fontSize="sm"
+              p={1}
+            >
+              {field === 'callStatus' ? (
+                <>
+                  <option value="Called">Called</option>
+                  <option value="Not Called">Not Called</option>
+                  <option value="Busy">Busy</option>
+                  <option value="No Answer">No Answer</option>
+                  <option value="Callback">Callback</option>
+                </>
+              ) : field === 'schedulePreference' ? (
+                <>
+                  <option value="Regular">Regular</option>
+                  <option value="Weekend">Weekend</option>
+                  <option value="Night">Night</option>
+                  <option value="Online">Online</option>
+                </>
+              ) : (
+                <>
+                  <option value="Prospect">Prospect</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Cancelled">Cancelled</option>
+                </>
+              )}
+            </Select>
+          )}
         </Td>
       );
     }
@@ -377,118 +459,117 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
           Add New Customer Row
         </Button>
       </Box>
-      <Table variant="simple" size="sm" w="100%">
+      <Table variant="simple" size="sm" w="100%" boxShadow="sm" borderRadius="md" overflow="hidden">
         <Thead>
-          <Tr bg="teal.50">
+          <Tr bg="teal.500">
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Customer Name
             </Th>
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Training Title
             </Th>
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Phone
             </Th>
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Call Status
             </Th>
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Follow-up Status
             </Th>
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Schedule
             </Th>
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Date
             </Th>
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Email
             </Th>
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
             >
               Notes
             </Th>
-            {/* Supervisor Comment column removed from table - shown in drawer instead */}
             <Th 
-              color={headerColor} 
+              color="white" 
               fontWeight="bold" 
               textTransform="uppercase" 
               fontSize="xs" 
               letterSpacing="wider"
-              py={2}
+              py={3}
               px={2}
-              width="80px"
+              width="100px"
             >
               Actions
             </Th>
@@ -496,9 +577,9 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
         </Thead>
         <Tbody>
           {addingRow && (
-            <Tr bg="gray.50">
+            <Tr bg="gray.100">
               {renderNewCustomerCell('customerName', newCustomer.customerName)}
-              {renderNewCustomerCell('contactTitle', newCustomer.contactTitle)}
+              {renderNewCustomerCell('contactTitle', newCustomer.contactTitle, 'select')}
               {renderNewCustomerCell('phone', newCustomer.phone)}
               {renderNewCustomerCell('callStatus', newCustomer.callStatus, 'select')}
               {renderNewCustomerCell('followupStatus', newCustomer.followupStatus, 'select')}
@@ -532,13 +613,15 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
               _hover={{ bg: 'gray.50' }}
               transition="background 0.2s"
               fontSize="sm"
+              borderBottom="1px"
+              borderColor="gray.200"
             >
               {editingCell && editingCell.id === customer._id && editingCell.field === 'customerName' 
                 ? renderEditableCell(customer, 'customerName', customer.customerName)
                 : <Td onClick={() => handleCellClick(customer, 'customerName')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="120px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">{customer.customerName}</Td>}
               
               {editingCell && editingCell.id === customer._id && editingCell.field === 'contactTitle' 
-                ? renderEditableCell(customer, 'contactTitle', customer.contactTitle)
+                ? renderEditableCell(customer, 'contactTitle', customer.contactTitle, 'select')
                 : <Td onClick={() => handleCellClick(customer, 'contactTitle')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="120px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">{customer.contactTitle}</Td>}
               
               {editingCell && editingCell.id === customer._id && editingCell.field === 'phone' 
@@ -549,7 +632,7 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
                 ? renderEditableCell(customer, 'callStatus', customer.callStatus, 'select')
                 : (
                   <Td onClick={() => handleCellClick(customer, 'callStatus')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} fontSize="xs" px={1.5} py={0.5} maxWidth="100px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} fontSize="xs" px={2} py={1}>
                       {customer.callStatus}
                     </Badge>
                   </Td>
@@ -559,7 +642,7 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
                 ? renderEditableCell(customer, 'followupStatus', customer.followupStatus, 'select')
                 : (
                   <Td onClick={() => handleCellClick(customer, 'followupStatus')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} fontSize="xs" px={1.5} py={0.5} maxWidth="100px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} fontSize="xs" px={2} py={1}>
                       {customer.followupStatus}
                     </Badge>
                   </Td>
@@ -596,7 +679,7 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
                     zIndex="1"
                   />
                 )}
-                <HStack spacing={2} justify="flex-end">
+                <HStack spacing={1} justify="flex-end">
                   <IconButton
                     icon={<DeleteIcon />}
                     colorScheme="red"
@@ -607,11 +690,14 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
                   />
                   <IconButton
                     icon={<InfoIcon />}
-                    colorScheme="gray"
+                    colorScheme="blue"
                     size="xs"
-                    aria-label="Details"
-                    onClick={() => { setDrawerCustomer(customer); onOpen(); }}
-                    variant="ghost"
+                    onClick={() => {
+                      setDrawerCustomer(customer);
+                      onOpen();
+                    }}
+                    aria-label="View details"
+                    variant="outline"
                   />
                 </HStack>
               </Td>
@@ -620,48 +706,151 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
         </Tbody>
       </Table>
 
-        {/* Drawer for customer details/actions */}
-        <Drawer isOpen={isOpen} placement="right" onClose={() => { setDrawerCustomer(null); onClose(); }} size={{ base: 'full', md: 'md' }}>
-          <DrawerOverlay />
-          <DrawerContent>
-            <DrawerCloseButton />
-            <DrawerHeader>
-              {drawerCustomer ? drawerCustomer.customerName : 'Customer Details'}
-            </DrawerHeader>
-            <DrawerBody>
-              {drawerCustomer ? (
-                <Box>
-                  <Text fontWeight="semibold" mb={2}>Supervisor Comment</Text>
-                  <Textarea
-                    value={drawerCustomer.supervisorComment || ''}
-                    onChange={(e) => setDrawerCustomer(prev => ({ ...prev, supervisorComment: e.target.value }))}
-                    placeholder="Enter supervisor comment..."
-                    rows={8}
-                    isDisabled={!(userRole === 'admin' || userRole === 'sales_manager')}
-                  />
-                  {!(userRole === 'admin' || userRole === 'sales_manager') && (
-                    <Text mt={2} fontSize="sm" color="gray.500">Only users with Admin or Sales Manager role can edit this field.</Text>
-                  )}
+      {/* Customer Details Drawer */}
+      <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="lg">
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <DrawerHeader bg="teal.500" color="white">
+            Customer Details
+          </DrawerHeader>
+          <DrawerBody p={0}>
+            {drawerCustomer && (
+              <VStack align="stretch" spacing={0} divider={<Divider />}>
+                {/* Basic Information Section */}
+                <Box p={6}>
+                  <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.200">
+                    Basic Information
+                  </Heading>
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Customer Name</Text>
+                      <Text fontSize="md">{drawerCustomer.customerName || 'N/A'}</Text>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Training Title</Text>
+                      <Text fontSize="md">{drawerCustomer.contactTitle || 'N/A'}</Text>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Phone</Text>
+                      <Text fontSize="md">{drawerCustomer.phone || 'N/A'}</Text>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Email</Text>
+                      <Text fontSize="md">{drawerCustomer.email || 'N/A'}</Text>
+                    </Box>
+                  </SimpleGrid>
                 </Box>
-              ) : (
-                <Text>No customer selected</Text>
-              )}
-            </DrawerBody>
-            <DrawerFooter>
-              <HStack spacing={3}>
-                <Button colorScheme="teal" size="sm" onClick={() => {
-                  if (drawerCustomer) {
-                    // only send supervisorComment field to update
-                    onUpdate(drawerCustomer._id, { supervisorComment: drawerCustomer.supervisorComment });
-                  }
-                  setDrawerCustomer(null);
-                  onClose();
-                }} isDisabled={!(userRole === 'admin' || userRole === 'sales_manager')}>Save</Button>
-                <Button variant="outline" size="sm" onClick={() => { setDrawerCustomer(null); onClose(); }}>Close</Button>
-              </HStack>
-            </DrawerFooter>
-          </DrawerContent>
-        </Drawer>
+
+                {/* Status Information Section */}
+                <Box p={6} bg="gray.50">
+                  <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.300">
+                    Status Information
+                  </Heading>
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Call Status</Text>
+                      <Badge variant="solid" colorScheme={getStatusBadgeVariant(drawerCustomer.callStatus, 'call')} fontSize="md">
+                        {drawerCustomer.callStatus || 'N/A'}
+                      </Badge>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Follow-up Status</Text>
+                      <Badge variant="solid" colorScheme={getStatusBadgeVariant(drawerCustomer.followupStatus, 'followup')} fontSize="md">
+                        {drawerCustomer.followupStatus || 'N/A'}
+                      </Badge>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Schedule Preference</Text>
+                      <Text fontSize="md">{drawerCustomer.schedulePreference || 'N/A'}</Text>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Date</Text>
+                      <Text fontSize="md">{drawerCustomer.date ? formatDate(drawerCustomer.date) : 'N/A'}</Text>
+                    </Box>
+                  </SimpleGrid>
+                </Box>
+
+                {/* Commission Information Section - Only show if customer has completed status */}
+                {drawerCustomer.followupStatus === 'Completed' && (
+                  <Box p={6}>
+                    <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.200">
+                      Commission Details
+                    </Heading>
+                    <VStack align="stretch" spacing={4}>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                        <Box p={4} bg="blue.50" borderRadius="md" border="1px" borderColor="blue.100">
+                          <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Course Price</Text>
+                          <Text fontSize="xl" fontWeight="bold" color="blue.600">
+                            ETB {drawerCustomer.coursePrice ? drawerCustomer.coursePrice.toFixed(2) : 'N/A'}
+                          </Text>
+                        </Box>
+                        <Box p={4} bg="green.50" borderRadius="md" border="1px" borderColor="green.100">
+                          <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Gross Commission (7%)</Text>
+                          <Text fontSize="xl" fontWeight="bold" color="green.600">
+                            ETB {drawerCustomer.commission?.grossCommission ? drawerCustomer.commission.grossCommission.toFixed(2) : '0.00'}
+                          </Text>
+                        </Box>
+                      </SimpleGrid>
+                      
+                      {drawerCustomer.commission ? (
+                        <>
+                          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                            <Box p={4} bg="orange.50" borderRadius="md" border="1px" borderColor="orange.100">
+                              <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Commission Tax (0.075%)</Text>
+                              <Text fontSize="xl" fontWeight="bold" color="orange.600">
+                                ETB {drawerCustomer.commission.commissionTax ? drawerCustomer.commission.commissionTax.toFixed(2) : '0.00'}
+                              </Text>
+                            </Box>
+                            <Box p={4} bg="teal.50" borderRadius="md" border="1px" borderColor="teal.100">
+                              <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Net Commission</Text>
+                              <Text fontSize="2xl" fontWeight="bold" color="teal.600">
+                                ETB {drawerCustomer.commission.netCommission ? drawerCustomer.commission.netCommission.toFixed(2) : '0.00'}
+                              </Text>
+                            </Box>
+                          </SimpleGrid>
+                        </>
+                      ) : (
+                        <Text fontSize="sm" color="gray.500">Commission data not available</Text>
+                      )}
+                    </VStack>
+                  </Box>
+                )}
+
+                {/* Notes Section */}
+                <Box p={6}>
+                  <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.200">
+                    Notes
+                  </Heading>
+                  <VStack align="stretch" spacing={4}>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={2}>Customer Notes</Text>
+                      <Box p={3} bg="gray.50" borderRadius="md" minH="60px">
+                        <Text whiteSpace="pre-wrap" fontSize="sm">
+                          {drawerCustomer.note || 'No notes available'}
+                        </Text>
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={2}>Supervisor Comment</Text>
+                      <Box p={3} bg="gray.50" borderRadius="md" minH="60px">
+                        <Text whiteSpace="pre-wrap" fontSize="sm">
+                          {drawerCustomer.supervisorComment || 'No comments available'}
+                        </Text>
+                      </Box>
+                    </Box>
+                  </VStack>
+                </Box>
+              </VStack>
+            )}
+          </DrawerBody>
+          <DrawerFooter bg="gray.50">
+            <Button variant="outline" mr={3} onClick={onClose}>
+              Close
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </Box>
   );
 };

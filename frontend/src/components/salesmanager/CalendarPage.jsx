@@ -140,7 +140,7 @@ const CalendarPage = () => {
 
   // Filter events based on search and filters
   useEffect(() => {
-    let filtered = [...events];
+    let filtered = events;
     
     // Apply date filter
     if (view === 'day') {
