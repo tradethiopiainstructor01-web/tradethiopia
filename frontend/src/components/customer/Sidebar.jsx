@@ -175,6 +175,18 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
 
           <SidebarLink
             isCollapsed={isCollapsed}
+            to="/followup-report"
+            icon={<FiFileText />}
+            label="Follow-up Report"
+            active={isActive("/followup-report")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
+          />
+
+          <SidebarLink
+            isCollapsed={isCollapsed}
             to="/training"
             icon={<FiBook />}
             label="Training"

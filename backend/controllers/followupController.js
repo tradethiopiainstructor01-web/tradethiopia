@@ -1,6 +1,7 @@
 const User = require("../models/user.model.js");
 const Followup = require("../models/Followup.js");
 const mongoose = require("mongoose");
+const nodemailer = require("nodemailer");
 
 // @desc    Get report for customer service users
 // @route   GET /api/followups/report
@@ -28,9 +29,8 @@ const getCustomerReport = async (req, res) => {
     // Process all followups to create the report
     const report = followups.map(fu => {
       let creator = null;
-      // createdBy may be user _id or username, so check both
+      let agentInfo = null;
       const creatorId = fu.createdBy ? fu.createdBy.toString() : null;
-      // Try to find by _id
       if (creatorId && userMap[creatorId]) {
         const u = userMap[creatorId];
         if (u.role === "customerservice") {
@@ -41,7 +41,6 @@ const getCustomerReport = async (req, res) => {
           };
         }
       } else if (creatorId) {
-        // Try to find by username (if createdBy is username)
         const u = users.find(u => u.username === creatorId && u.role === "customerservice");
         if (u) {
           creator = {
@@ -51,8 +50,16 @@ const getCustomerReport = async (req, res) => {
           };
         }
       }
+      // Resolve agent by agentId if present
+      if (fu.agentId && userMap[fu.agentId?.toString?.()]) {
+        const a = userMap[fu.agentId.toString()];
+        agentInfo = {
+          username: a.username,
+          agentId: a._id?.toString?.(),
+          rating: typeof a.rating === "number" ? a.rating : 0,
+        };
+      }
       
-      // Calculate daily progress based on lastCalled date
       let dailyProgress = 0;
       if (fu.lastCalled) {
         const oneWeekAgo = new Date();
@@ -64,9 +71,27 @@ const getCustomerReport = async (req, res) => {
       
       return {
         clientName: fu.clientName,
+        companyName: fu.companyName || fu.company || "",
+        phoneNumber: fu.phoneNumber || fu.phone || "",
+        email: fu.email || "",
+        packageType: fu.packageType || fu.package || fu.packageNumber || "",
+        service: fu.service || fu.serviceProvided || "",
         notes: fu.notes && fu.notes.length > 0 ? fu.notes : [],
         lastCalled: fu.lastCalled ? fu.lastCalled : null,
         creator,
+        agentName: agentInfo?.username || fu.agentName || fu.assignedTo || null,
+        agentId: agentInfo?.agentId || fu.agentId || null,
+        call_count: fu.call_count || fu.callAttempts || 0,
+        message_count: fu.message_count || fu.messageAttempts || 0,
+        email_count: fu.email_count || fu.emailAttempts || 0,
+        followupAttempts: fu.followupAttempts || 0,
+        updateAttempts: fu.updateAttempts || 0,
+        trainingImported: fu.trainingImported || false,
+        b2bImported: fu.b2bImported || false,
+        materialStatusUpdated: fu.materialStatusUpdated || false,
+        progressUpdated: fu.progressUpdated || false,
+        serviceUpdated: fu.serviceUpdated || false,
+        packageStatusUpdated: fu.packageStatusUpdated || false,
         dailyProgress: dailyProgress,
         performanceRating: creator && creator.rating ? creator.rating : 0
       };
@@ -78,65 +103,6 @@ const getCustomerReport = async (req, res) => {
   }
 };
 
-// @desc    Add a new follow-up
-// @route   POST /api/followups
-// @access  Public
-const createFollowup = async (req, res) => {
-  const {
-    clientName,
-    companyName,
-    phoneNumber,
-    email,
-    packageType,
-    service,
-    serviceProvided,
-    serviceNotProvided,
-    deadline,
-    createdBy,
-    followupStatus,
-    schedulePreference,
-    supervisorComment,
-  } = req.body;
-
-  try {
-    const followup = new Followup({
-      clientName,
-      companyName,
-      phoneNumber,
-      email,
-      packageType,
-      service,
-      serviceProvided,
-      serviceNotProvided,
-      deadline,
-      followupStatus,
-      schedulePreference,
-      supervisorComment,
-      createdBy,
-    });
-
-    const savedFollowup = await followup.save();
-    res.status(201).json(savedFollowup);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
-// @desc    Get all follow-ups
-// @route   GET /api/followups
-// @access  Public
-const getFollowups = async (req, res) => {
-  try {
-    const followups = await Followup.find();
-    res.status(200).json(followups);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// @desc    Get a follow-up by ID
-// @route   GET /api/followups/:id
-// @access  Public
 const getFollowupById = async (req, res) => {
   try {
     const followup = await Followup.findById(req.params.id);
@@ -149,27 +115,42 @@ const getFollowupById = async (req, res) => {
   }
 };
 
-// @desc    Update a follow-up
-// @route   PUT /api/followups/:id
-// @access  Public
+const getFollowups = async (req, res) => {
+  try {
+    const followups = await Followup.find();
+    res.status(200).json(followups);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createFollowup = async (req, res) => {
+  try {
+    const followup = new Followup(req.body);
+    const savedFollowup = await followup.save();
+    res.status(201).json(savedFollowup);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const updateFollowup = async (req, res) => {
   try {
     const followup = await Followup.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
     });
+
     if (!followup) {
       return res.status(404).json({ message: "Follow-up not found" });
     }
+
     res.status(200).json(followup);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Delete a follow-up
-// @route   DELETE /api/followups/:id
-// @access  Public
 const deleteFollowup = async (req, res) => {
   try {
     const followup = await Followup.findByIdAndDelete(req.params.id);
@@ -182,291 +163,225 @@ const deleteFollowup = async (req, res) => {
   }
 };
 
-// @desc    Add a note to a follow-up
-// @route   POST /api/followups/:id/notes
-// @access  Public
-const addNote = async (req, res) => {
-  const { text } = req.body;
+const sendBulkEmail = async (req, res) => {
+  try {
+    const { ids = [], subject, body, sender = "System", senderEmail } = req.body || {};
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No follow-up ids provided" });
+    }
+    if (!subject || !body) {
+      return res.status(400).json({ message: "Subject and body are required" });
+    }
 
-  if (!text) {
-    return res.status(400).json({ message: "Note text is required." });
+    const followups = await Followup.find({ _id: { $in: ids } });
+
+    const emails = followups.map((f) => f.email).filter(Boolean);
+    if (emails.length === 0) {
+      return res.status(400).json({ message: "No valid email addresses found" });
+    }
+
+    let transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.example.com',
+      port: process.env.SMTP_PORT || 587,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER || 'user@example.com',
+        pass: process.env.SMTP_PASS || 'password'
+      }
+    });
+
+    const info = await transporter.sendMail({
+      from: senderEmail || process.env.SMTP_USER || 'no-reply@example.com',
+      to: emails.join(","),
+      subject: subject,
+      text: body,
+      html: `<p>${body}</p>`
+    });
+
+    res.json({ success: true, message: "Bulk email sent", messageId: info.messageId });
+  } catch (error) {
+    console.error("Bulk email error:", error);
+    res.status(500).json({ message: "Failed to send bulk email", error: error.message });
   }
+};
 
+const getMessages = async (req, res) => {
   try {
     const followup = await Followup.findById(req.params.id);
     if (!followup) {
-      return res.status(404).json({ message: "Follow-up not found." });
+      return res.status(404).json({ message: "Follow-up not found" });
     }
-
-    followup.notes.push({ text });
-    const updatedFollowup = await followup.save();
-
-    // Award points and rating to creator
-    if (followup.createdBy) {
-      const creator = await User.findById(followup.createdBy);
-      if (creator) {
-        creator.points = (creator.points || 0) + 1;
-        creator.rating = (creator.rating || 0) + 1;
-        await creator.save();
-      }
-    }
-
-    res.status(200).json(updatedFollowup);
+    res.status(200).json(followup.messages || []);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Update the last called date
-// @route   PATCH /api/followups/:id/lastCalled
-// @access
-// Update lastCalled for a specific follow-up
-const updateLastCalled = async (req, res) => {
+const addMessage = async (req, res) => {
   try {
     const { id } = req.params;
-    const currentTime = new Date();
-    const updatedFollowup = await Followup.findByIdAndUpdate(
-      id,
-      { $set: { lastCalled: currentTime } },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedFollowup) {
+    const { text, sender } = req.body;
+    const followup = await Followup.findById(id);
+    if (!followup) {
       return res.status(404).json({ message: "Follow-up not found" });
     }
-
-    res.status(200).json(updatedFollowup);
+    const newMessage = {
+      sender: sender || "Agent",
+      body: text,
+      createdAt: new Date(),
+    };
+    followup.messages = followup.messages || [];
+    followup.messages.push(newMessage);
+    await followup.save();
+    res.json(followup.messages);
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Failed to update lastCalled", error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
-const getCustomerStats = async (req, res) => {
+const addNote = async (req, res) => {
   try {
-    // Total customers
-    const total = await Followup.countDocuments();
-    console.log(`Total customers: ${total}`);
-
-    // New customers: Followups created in the last 30 days
-    const newCount = await Followup.countDocuments({
-      createdAt: { $gte: new Date(new Date() - 30 * 24 * 60 * 60 * 1000) }, // Last 30 days
-    });
-    console.log(`New customers in last 365 days: ${newCount}`);
-
-    // Active customers: Followups with a recent "last called" date (within the last 30 days)
-    const activeCount = await Followup.countDocuments({
-      lastCalled: { $gte: new Date(new Date() - 30 * 24 * 60 * 60 * 1000) },
-    });
-    console.log(`Active customers in last 365 days: ${activeCount}`);
-
-    res.json({
-      total,
-      new: newCount,
-      active: activeCount,
-    });
-  } catch (error) {
-    console.error("Error fetching customer stats:", error);
-    res
-      .status(500)
-      .json({ message: "Error fetching customer stats", error: error.message });
-  }
-};
-
-// Update Service Provided and Service Not Provided
-// In your updateServices controller
-const updateServices = async (req, res) => {
-  const { id } = req.params;
-  const { serviceProvided, serviceNotProvided } = req.body; // Get the services from the request body
-
-  // Log the request body to check if the data is being sent correctly
-  console.log("Request body:", req.body);
-
-  try {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid ID format" });
+    const followup = await Followup.findById(req.params.id);
+    if (!followup) {
+      return res.status(404).json({ message: "Follow-up not found" });
     }
+    const newNote = {
+      text: req.body.text,
+      createdAt: new Date(),
+    };
+    followup.notes = followup.notes || [];
+    followup.notes.push(newNote);
+    await followup.save();
+    res.status(200).json(followup.notes);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
-    // Update the followup with the new services
-    const updatedFollowup = await Followup.findByIdAndUpdate(
+const incrementAttempts = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type } = req.body;
+    const followup = await Followup.findById(id);
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+
+    if (type === 'call') followup.call_count = (followup.call_count || 0) + 1;
+    if (type === 'message') followup.message_count = (followup.message_count || 0) + 1;
+    if (type === 'email') followup.email_count = (followup.email_count || 0) + 1;
+
+    await followup.save();
+    res.json(followup);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const addCommunicationLog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { channel, note } = req.body;
+    const followup = await Followup.findById(id);
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+
+    followup.communicationLogs = followup.communicationLogs || [];
+    followup.communicationLogs.push({
+      channel,
+      note,
+      createdAt: new Date(),
+    });
+
+    await followup.save();
+    res.json(followup);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updatePriority = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { priority } = req.body;
+    const followup = await Followup.findByIdAndUpdate(
       id,
+      { priority },
+      { new: true }
+    );
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+    res.json(followup);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateLastCalled = async (req, res) => {
+  try {
+    const followup = await Followup.findById(req.params.id);
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+    followup.lastCalled = new Date();
+    await followup.save();
+    res.json(followup);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateServices = async (req, res) => {
+  try {
+    const { serviceProvided, serviceNotProvided } = req.body;
+    const followup = await Followup.findByIdAndUpdate(
+      req.params.id,
       { serviceProvided, serviceNotProvided },
       { new: true }
     );
-
-    if (!updatedFollowup) {
-      return res.status(404).json({ message: "Followup not found" });
-    }
-
-    // Award points and rating to creator
-    if (updatedFollowup.createdBy) {
-      const creator = await User.findById(updatedFollowup.createdBy);
-      if (creator) {
-        creator.points = (creator.points || 0) + 1;
-        creator.rating = (creator.rating || 0) + 1;
-        await creator.save();
-      }
-    }
-
-    // Return the updated followup
-    return res.json(updatedFollowup);
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+    res.json(followup);
   } catch (error) {
-    console.error("Error updating services:", error);
-    return res
-      .status(500)
-      .json({ message: "Error updating services", error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Process an order for a followup: deduct inventory for selected products
-// @route   POST /api/followups/:id/process-order
 const processOrder = async (req, res) => {
-  const { id } = req.params;
-  // items can be [{ id: inventoryId, qty: number }, ...] or array of ids
-  const items = req.body.items || [];
   try {
-    const followup = await Followup.findById(id);
-    if (!followup) return res.status(404).json({ message: 'Followup not found' });
-
-    // normalize items
-    const normalized = items.map(it => {
-      if (typeof it === 'string') return { id: it, qty: 1 };
-      return { id: it.id || it._id || it.inventoryId, qty: Number(it.qty) || 1 };
-    });
-
-    const InventoryItem = require('../models/InventoryItem');
-    const InventoryMovement = require('../models/InventoryMovement');
-
-    // check availability
-    for (const it of normalized) {
-      const inv = await InventoryItem.findById(it.id);
-      if (!inv) return res.status(404).json({ message: `Inventory item not found: ${it.id}` });
-      if ((inv.quantity || 0) < it.qty) return res.status(400).json({ message: `Insufficient stock for ${inv.name || inv._id}` });
-    }
-
-    // perform deductions and record movements
-    const results = [];
-    for (const it of normalized) {
-      const inv = await InventoryItem.findById(it.id);
-      const before = { quantity: inv.quantity, bufferStock: inv.bufferStock };
-      inv.quantity = (inv.quantity || 0) - it.qty;
-      await inv.save();
-      const after = { quantity: inv.quantity, bufferStock: inv.bufferStock };
-      try { await InventoryMovement.create({ item: inv._id, type: 'deliver', amount: it.qty, before, after, performedBy: req.user && req.user._id }); } catch (e) { console.error('Failed to record movement', e); }
-      results.push({ inventoryId: inv._id, name: inv.name, deducted: it.qty });
-    }
-
-    // mark followup as processed and attach products if not already present
-    followup.orderProcessed = true;
-    const productIds = Array.from(new Set([...(followup.products || []).map(String), ...normalized.map(n => n.id)]));
-    followup.products = productIds;
-    await followup.save();
-
-    res.json({ followup, processed: results });
-  } catch (err) {
-    console.error('Error processing order:', err);
-    res.status(500).json({ message: 'Failed to process order', error: err.message });
-  }
-};
-
-// @desc    Edit customer information
-// @route   PATCH /api/followups/:id/edit
-// @access  Public
-const editCustomer = async (req, res) => {
-  const { id } = req.params;
-  const {
-    clientName,
-    companyName,
-    phoneNumber,
-    email,
-    packageType,
-    deadline,
-    serviceProvided,
-    serviceNotProvided
-  } = req.body;
-  // allow updating schedulePreference and followupStatus via edit endpoint
-  const { schedulePreference, followupStatus } = req.body;
-
-  try {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid ID format" });
-    }
-
-    // Format deadline to ensure proper date handling
-    const formattedDeadline = deadline ? new Date(deadline) : undefined;
-
-    const updatedData = {
-      clientName,
-      companyName,
-      phoneNumber,
-      email,
-      packageType,
-      ...(formattedDeadline && { deadline: formattedDeadline }),
-      serviceProvided,
-      serviceNotProvided
-      , schedulePreference, followupStatus
-    };
-
-    // Remove undefined fields
-    Object.keys(updatedData).forEach(
-      key => updatedData[key] === undefined && delete updatedData[key]
-    );
-
-    const updatedFollowup = await Followup.findByIdAndUpdate(
-      id,
-      updatedData,
-      { 
-        new: true,
-        runValidators: true 
-      }
-    );
-
-    if (!updatedFollowup) {
-      return res.status(404).json({ message: "Customer not found" });
-    }
-
-    res.status(200).json(updatedFollowup);
+    const followup = await Followup.findById(req.params.id);
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+    // Implement business logic for processing the order
+    res.json({ success: true, message: "Order processed for follow-up" });
   } catch (error) {
-    console.error("Error editing customer:", error);
-    res.status(500).json({ 
-      message: "Error editing customer",
-      error: error.message 
-    });
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Import B2B customers (buyers and sellers) to follow-up system
-// @route   POST /api/followups/import-b2b
-// @access  Public
+const editCustomer = async (req, res) => {
+  try {
+    const followup = await Followup.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!followup) return res.status(404).json({ message: "Follow-up not found" });
+    res.json(followup);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const importB2BCustomers = async (req, res) => {
   try {
-    const { customerType, customerId } = req.body;
+    const { customerType, customerId, agentId: incomingAgentId } = req.body;
     
-    // Dynamically import the models since they're not available in this scope
-    const buyerModel = require('../models/Buyer');
-    const sellerModel = require('../models/Seller');
+    const model = customerType === 'buyer' 
+      ? require('../models/Buyer') 
+      : require('../models/Seller');
     
-    let customerData;
+    if (!customerId) {
+      return res.status(400).json({ message: "customerId is required" });
+    }
+
+    // Find the B2B customer (buyer or seller)
+    const customerData = await model.findById(customerId);
     
-    if (customerType === 'buyer') {
-      customerData = await buyerModel.findById(customerId);
-      if (!customerData) {
-        return res.status(404).json({ message: "Buyer not found" });
-      }
-    } else if (customerType === 'seller') {
-      customerData = await sellerModel.findById(customerId);
-      if (!customerData) {
-        return res.status(404).json({ message: "Seller not found" });
-      }
-    } else {
-      return res.status(400).json({ message: "Invalid customer type. Must be 'buyer' or 'seller'" });
+    if (!customerData) {
+      return res.status(404).json({ message: "B2B customer not found" });
     }
     
     // Check if customer already exists in follow-up system
-    const existingFollowup = await Followup.findOne({ 
-      email: customerData.email 
-    });
+    const existingFollowup = await Followup.findOne({ email: customerData.email });
     
     if (existingFollowup) {
       return res.status(400).json({ 
@@ -475,6 +390,12 @@ const importB2BCustomers = async (req, res) => {
       });
     }
     
+    const resolvedAgentId = incomingAgentId || customerData.agentId;
+
+    if (!resolvedAgentId) {
+      return res.status(400).json({ message: "agentId is required to import this customer" });
+    }
+
     // Create follow-up record from B2B customer data
     const followupData = {
       clientName: customerData.contactPerson,
@@ -486,7 +407,8 @@ const importB2BCustomers = async (req, res) => {
       serviceProvided: "Initial contact made",
       serviceNotProvided: "Ongoing relationship management",
       deadline: new Date(new Date().setFullYear(new Date().getFullYear() + 1)), // 1 year from now
-      createdBy: req.body.createdBy || null
+      createdBy: req.body.createdBy || null,
+      agentId: resolvedAgentId,
     };
     
     const followup = new Followup(followupData);
@@ -562,9 +484,14 @@ module.exports = {
   getFollowupById,
   updateFollowup,
   deleteFollowup,
+  sendBulkEmail,
+  getMessages,
+  addMessage,
   addNote,
+  incrementAttempts,
+  addCommunicationLog,
+  updatePriority,
   updateLastCalled,
-  getCustomerStats,
   updateServices,
   processOrder,
   editCustomer,

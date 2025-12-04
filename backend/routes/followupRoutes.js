@@ -9,9 +9,6 @@ const router = express.Router();
 // Get customer report for customer service users
 router.get("/report", followupController.getCustomerReport);
 
-// Get customer stats (must come before /:id)
-router.get("/stats", followupController.getCustomerStats);
-
 // Get all B2B customers that are not yet in follow-up system
 router.get("/b2b-pending", followupController.getPendingB2BCustomers);
 

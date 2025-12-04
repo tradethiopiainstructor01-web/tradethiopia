@@ -22,10 +22,12 @@ import {
   Thead,
   Tr,
   Button,
+  Select,
   useToast,
   Tag,
   TagLabel,
   TagCloseButton,
+  Badge,
 } from "@chakra-ui/react";
 import { AddIcon, DeleteIcon, EditIcon, CheckIcon, CloseIcon } from "@chakra-ui/icons";
 import axios from "axios";
@@ -35,6 +37,10 @@ const CustomerSettings = () => {
   const toast = useToast();
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pendingB2B, setPendingB2B] = useState([]);
+  const [csUsers, setCsUsers] = useState([]);
+  const [assigningId, setAssigningId] = useState(null);
+  const [selectedAgent, setSelectedAgent] = useState({});
   const [form, setForm] = useState({
     packageNumber: "",
     services: [],
@@ -97,6 +103,47 @@ const CustomerSettings = () => {
       /* ignore */
     }
   }, [toast]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("userToken");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const fetchCsUsers = async () => {
+      try {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users`, { headers });
+
+        // Normalize possible response shapes
+        const raw =
+          (Array.isArray(res.data) && res.data) ||
+          res.data?.users ||
+          res.data?.data ||
+          [];
+
+        const users = Array.isArray(raw) ? raw : [];
+
+        const customerServiceAgents = users.filter((u) => {
+          const role = (u.role || u.roleName || "").toLowerCase().replace(/[\s_-]+/g, "");
+          return role === "customerservice";
+        });
+
+        setCsUsers(customerServiceAgents);
+      } catch (err) {
+        console.error("Failed to load CS users", err);
+      }
+    };
+
+    const fetchPendingB2B = async () => {
+      try {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/followups/b2b-pending`, { headers });
+        setPendingB2B(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error("Failed to load pending B2B customers", err);
+      }
+    };
+
+    fetchCsUsers();
+    fetchPendingB2B();
+  }, []);
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -229,6 +276,37 @@ const CustomerSettings = () => {
         description: err.message,
         status: "error",
       });
+    }
+  };
+
+  const handleAssignB2B = async (customer) => {
+    const token = localStorage.getItem("userToken");
+    const agentId = selectedAgent[customer._id];
+    if (!token) {
+      toast({ title: "Please log in first", status: "error" });
+      return;
+    }
+    if (!agentId) {
+      toast({ title: "Select an agent", status: "warning" });
+      return;
+    }
+    setAssigningId(customer._id);
+    try {
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/followups/import-b2b`,
+        { customerType: customer.type, customerId: customer._id, agentId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast({ title: "Assigned and imported", status: "success" });
+      setPendingB2B((prev) => prev.filter((c) => c._id !== customer._id));
+    } catch (err) {
+      toast({
+        title: "Failed to assign",
+        description: err.response?.data?.message || err.message,
+        status: "error",
+      });
+    } finally {
+      setAssigningId(null);
     }
   };
 
@@ -591,6 +669,81 @@ const CustomerSettings = () => {
                 </Button>
               </HStack>
             </Stack>
+          </CardBody>
+        </Card>
+
+        <Card border="1px solid" borderColor="gray.200" rounded="2xl" boxShadow="xl" mb={6}>
+          <CardHeader pb={2}>
+            <Heading size="md">Assign B2B Customers</Heading>
+            <Text color="gray.500" fontSize="sm">
+              Select a customer service agent for each pending B2B customer.
+            </Text>
+          </CardHeader>
+          <CardBody>
+            <TableContainer>
+              <Table size="sm" variant="simple">
+                <Thead bg="gray.50">
+                  <Tr>
+                    <Th>Client</Th>
+                    <Th>Company</Th>
+                    <Th>Email</Th>
+                    <Th>Phone</Th>
+                    <Th>Type</Th>
+                    <Th>Assign to Agent</Th>
+                    <Th></Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {pendingB2B.length === 0 ? (
+                    <Tr>
+                      <Td colSpan={7} textAlign="center" py={6}>
+                        <Text color="gray.500">No pending B2B customers.</Text>
+                      </Td>
+                    </Tr>
+                  ) : (
+                    pendingB2B.map((cust) => (
+                      <Tr key={cust._id}>
+                        <Td>{cust.clientName}</Td>
+                        <Td>{cust.companyName}</Td>
+                        <Td>{cust.email}</Td>
+                        <Td>{cust.phoneNumber}</Td>
+                        <Td>
+                          <Badge colorScheme={cust.type === "buyer" ? "green" : "purple"}>
+                            {cust.type}
+                          </Badge>
+                        </Td>
+                        <Td>
+                          <Select
+                            placeholder="Select agent"
+                            size="sm"
+                            value={selectedAgent[cust._id] || ""}
+                            onChange={(e) =>
+                              setSelectedAgent((prev) => ({ ...prev, [cust._id]: e.target.value }))
+                            }
+                          >
+                            {csUsers.map((u) => (
+                              <option key={u._id} value={u._id}>
+                                {u.username || u.email || u._id}
+                              </option>
+                            ))}
+                          </Select>
+                        </Td>
+                        <Td textAlign="right">
+                          <Button
+                            size="sm"
+                            colorScheme="teal"
+                            isLoading={assigningId === cust._id}
+                            onClick={() => handleAssignB2B(cust)}
+                          >
+                            Assign
+                          </Button>
+                        </Td>
+                      </Tr>
+                    ))
+                  )}
+                </Tbody>
+              </Table>
+            </TableContainer>
           </CardBody>
         </Card>
       </Box>

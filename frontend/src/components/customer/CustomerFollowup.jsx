@@ -2288,8 +2288,6 @@ const saveEnsraEdit = async () => {
                 <Text>Training Follow-Up</Text>
               </HStack>
             </Tab>
-           
-            
 
              <Tab>
               <HStack spacing={2}>
@@ -2298,7 +2296,7 @@ const saveEnsraEdit = async () => {
               </HStack>
             </Tab>
 
-            <Tab>
+             <Tab>
               <HStack spacing={2}>
                 <DownloadIcon /><CheckIcon />
                 <Text>ENSRA Follow-Up</Text>
