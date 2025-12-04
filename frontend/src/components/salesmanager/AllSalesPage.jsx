@@ -1,0 +1,592 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Box,
+  Heading,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Card,
+  CardBody,
+  Text,
+  Badge,
+  useColorModeValue,
+  Flex,
+  Select,
+  InputGroup,
+  InputLeftElement,
+  Input,
+  Icon,
+  Spinner,
+  Button,
+  IconButton,
+  Tooltip,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  useToast,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Textarea,
+  HStack,
+  VStack,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  SimpleGrid,
+} from '@chakra-ui/react';
+import { FiSearch, FiDollarSign, FiEdit2, FiCalendar, FiFilter, FiChevronDown, FiDownload } from 'react-icons/fi';
+import { getAllSales, getAllAgents, updateSupervisorComment } from '../../services/salesManagerService';
+import * as XLSX from 'xlsx';
+
+const AllSalesPage = () => {
+  const [customers, setCustomers] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [currentSale, setCurrentSale] = useState(null);
+  const [supervisorComment, setSupervisorComment] = useState('');
+  const [filters, setFilters] = useState({
+    search: '',
+    agent: '',
+    dateRange: '',
+    dateFrom: '',
+    dateTo: ''
+  });
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [dateRangeType, setDateRangeType] = useState('all');
+
+  const toast = useToast();
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const headerColor = useColorModeValue('teal.600', 'teal.200');
+
+  // Fetch all sales and agents
+  useEffect(() => {
+    // Add a small delay to ensure auth is properly set up
+    const timer = setTimeout(() => {
+      fetchData();
+      fetchAgents();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  const fetchData = async (filterParams = {}) => {
+    setLoading(true);
+    try {
+      // Prepare filters for API call
+      const apiFilters = {
+        ...filterParams
+      };
+      // If statusFilter is set and not 'All', pass it to backend
+      if (filterParams.status !== undefined) {
+        // already provided explicitly
+      } else if (statusFilter && statusFilter !== 'All') {
+        apiFilters.status = statusFilter;
+      }
+      
+      const data = await getAllSales(apiFilters);
+      setCustomers(data);
+      setFilteredCustomers(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching sales:', err);
+      setError(err.message || 'Failed to fetch sales data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAgents = async () => {
+    try {
+      const data = await getAllAgents();
+      setAgents(data);
+    } catch (err) {
+      console.error('Error fetching agents:', err);
+      toast({
+        title: "Error fetching agents",
+        description: err.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const applyFilters = () => {
+    let result = [...customers];
+    
+    // Apply search filter
+    if (filters.search) {
+      const searchTerm = filters.search.toLowerCase();
+      result = result.filter(customer => 
+        (customer.customerName && customer.customerName.toLowerCase().includes(searchTerm)) ||
+        (customer.phone && customer.phone.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    // Apply agent filter
+    if (filters.agent) {
+      result = result.filter(customer => 
+        customer.agentId && 
+        ((typeof customer.agentId === 'object' && customer.agentId._id === filters.agent) ||
+        (typeof customer.agentId === 'string' && customer.agentId === filters.agent))
+      );
+    }
+    
+    // Apply status filter
+    if (statusFilter && statusFilter !== 'All') {
+      result = result.filter(customer => customer.followupStatus === statusFilter);
+    }
+    
+    // Apply date range filter
+    if (dateRangeType !== 'all' && dateRangeType !== 'custom') {
+      const now = new Date();
+      let fromDate = new Date();
+      
+      switch (dateRangeType) {
+        case 'today':
+          fromDate.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          fromDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          fromDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          fromDate.setFullYear(now.getFullYear() - 1);
+          break;
+        default:
+          break;
+      }
+      
+      result = result.filter(customer => {
+        const customerDate = new Date(customer.date);
+        return customerDate >= fromDate && customerDate <= now;
+      });
+    } else if (dateRangeType === 'custom') {
+      if (filters.dateFrom) {
+        const fromDate = new Date(filters.dateFrom);
+        result = result.filter(customer => new Date(customer.date) >= fromDate);
+      }
+      if (filters.dateTo) {
+        const toDate = new Date(filters.dateTo);
+        toDate.setHours(23, 59, 59, 999); // End of day
+        result = result.filter(customer => new Date(customer.date) <= toDate);
+      }
+    }
+    
+    setFilteredCustomers(result);
+  };
+
+  const handleDateRangeChange = (rangeType) => {
+    setDateRangeType(rangeType);
+    if (rangeType !== 'custom') {
+      setFilters(prev => ({
+        ...prev,
+        dateFrom: '',
+        dateTo: ''
+      }));
+    }
+  };
+
+  const applyCustomDateFilter = () => {
+    applyFilters();
+  };
+
+  // Apply filters when they change
+  useEffect(() => {
+    applyFilters();
+  }, [filters, statusFilter, dateRangeType, customers]);
+
+  const openEditModal = (sale) => {
+    setCurrentSale(sale);
+    setSupervisorComment(sale.supervisorComment || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveComment = async () => {
+    try {
+      await updateSupervisorComment(currentSale._id, supervisorComment);
+      // Update the local state
+      setCustomers(prev => 
+        prev.map(customer => 
+          customer._id === currentSale._id 
+            ? { ...customer, supervisorComment } 
+            : customer
+        )
+      );
+      setFilteredCustomers(prev => 
+        prev.map(customer => 
+          customer._id === currentSale._id 
+            ? { ...customer, supervisorComment } 
+            : customer
+        )
+      );
+      setIsEditModalOpen(false);
+      toast({
+        title: "Comment updated",
+        description: "Supervisor comment has been updated successfully.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: "Error updating comment",
+        description: err.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'ETB'
+    }).format(amount || 0);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Export to Excel function
+  const exportToExcel = () => {
+    try {
+      // Prepare data for export
+      const exportData = filteredCustomers.map(customer => ({
+        'Customer Name': customer.customerName || 'N/A',
+        'Phone': customer.phone || 'N/A',
+        'Training/Contact Title': customer.contactTitle || customer.note || '—',
+        'Agent': (customer.agentId && typeof customer.agentId === 'object' && (customer.agentId.fullName || customer.agentId.username)) || (typeof customer.agentId === 'string' && customer.agentId) || 'N/A',
+        'Date': formatDate(customer.date),
+        'Course Price': formatCurrency(customer.coursePrice),
+        'Commission': formatCurrency(customer.commission?.netCommission),
+        'Status': customer.followupStatus || 'N/A',
+        'Supervisor Comment': customer.supervisorComment || ''
+      }));
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Adjust column widths
+      const colWidths = [
+        { wch: 20 }, // Customer Name
+        { wch: 15 }, // Phone
+        { wch: 25 }, // Training/Contact Title
+        { wch: 20 }, // Agent
+        { wch: 15 }, // Date
+        { wch: 15 }, // Course Price
+        { wch: 15 }, // Commission
+        { wch: 15 }, // Status
+        { wch: 30 }  // Supervisor Comment
+      ];
+      ws['!cols'] = colWidths;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'All Sales');
+
+      // Export file
+      XLSX.writeFile(wb, 'sales_report.xlsx');
+
+      toast({
+        title: "Export successful",
+        description: "Sales data has been exported to Excel",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export sales data",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+  if (loading) {
+    return (
+      <Flex justify="center" align="center" height="200px">
+        <Spinner size="xl" />
+        <Text ml={4}>Loading sales data...</Text>
+      </Flex>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card bg={cardBg} borderWidth="1px" borderColor={borderColor}>
+        <CardBody>
+          <Text color="red.500">Error: {error}</Text>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  return (
+    <Box p={{ base: 2, md: 4 }}>
+      <Flex 
+        direction={{ base: 'column', md: 'row' }} 
+        justify="space-between" 
+        align={{ base: 'stretch', md: 'center' }} 
+        mb={{ base: 4, md: 6 }} 
+        gap={{ base: 3, md: 4 }}
+      >
+        <Heading as="h1" size={{ base: 'md', md: 'lg' }} color={headerColor}>
+          All Sales
+        </Heading>
+        
+        <HStack spacing={3}>
+          <Button
+            leftIcon={<FiDownload />}
+            onClick={exportToExcel}
+            colorScheme="teal"
+            size="sm"
+            variant="solid"
+          >
+            Export to Excel
+          </Button>
+        </HStack>
+      </Flex>
+      
+      {/* Status Tabs */}
+      <Tabs variant="soft-rounded" colorScheme="teal" mb={4} size="sm" index={['All','Completed','Pending','Prospect','Scheduled','Cancelled'].indexOf(statusFilter)} onChange={(i) => setStatusFilter(['All','Completed','Pending','Prospect','Scheduled','Cancelled'][i])}>
+        <TabList>
+          <Tab px={3} py={1}>All</Tab>
+          <Tab px={3} py={1}>Completed</Tab>
+          <Tab px={3} py={1}>Pending</Tab>
+          <Tab px={3} py={1}>Prospect</Tab>
+          <Tab px={3} py={1}>Scheduled</Tab>
+          <Tab px={3} py={1}>Cancelled</Tab>
+        </TabList>
+      </Tabs>
+      
+      {/* Filters */}
+      <Card mb={{ base: 4, md: 6 }} bg={cardBg} borderWidth="1px" borderColor={borderColor} p={{ base: 3, md: 4 }} boxShadow="sm">
+        <CardBody p={0}>
+          <VStack spacing={{ base: 2, md: 3 }} align="stretch">
+            <Flex wrap="wrap" gap={{ base: 2, md: 3 }}>
+              {/* Search */}
+              <InputGroup width={{ base: "100%", md: "250px" }} size="sm">
+                <InputLeftElement pointerEvents="none">
+                  <Icon as={FiSearch} color="gray.300" boxSize="4" />
+                </InputLeftElement>
+                <Input
+                  placeholder="Search customers..."
+                  value={filters.search}
+                  onChange={(e) => handleFilterChange('search', e.target.value)}
+                  size="sm"
+                />
+              </InputGroup>
+              
+              {/* Agent Filter */}
+              <Select
+                placeholder="All Agents"
+                width={{ base: "100%", md: "180px" }}
+                value={filters.agent}
+                onChange={(e) => handleFilterChange('agent', e.target.value)}
+                size="sm"
+              >
+                {agents.map(agent => (
+                  <option key={agent._id} value={agent._id}>
+                    {agent.fullName || agent.username}
+                  </option>
+                ))}
+              </Select>
+              
+              {/* Date Range Filter */}
+              <Menu>
+                <MenuButton as={Button} rightIcon={<FiChevronDown />} width={{ base: "100%", md: "180px" }} size="sm" variant="outline">
+                  {dateRangeType === 'today' && 'Today'}
+                  {dateRangeType === 'week' && 'This Week'}
+                  {dateRangeType === 'month' && 'This Month'}
+                  {dateRangeType === 'year' && 'This Year'}
+                  {dateRangeType === 'custom' && 'Custom Range'}
+                  {dateRangeType === 'all' && 'All Time'}
+                </MenuButton>
+                <MenuList fontSize="sm">
+                  <MenuItem onClick={() => handleDateRangeChange('all')}>All Time</MenuItem>
+                  <MenuItem onClick={() => handleDateRangeChange('today')}>Today</MenuItem>
+                  <MenuItem onClick={() => handleDateRangeChange('week')}>This Week</MenuItem>
+                  <MenuItem onClick={() => handleDateRangeChange('month')}>This Month</MenuItem>
+                  <MenuItem onClick={() => handleDateRangeChange('year')}>This Year</MenuItem>
+                  <MenuItem onClick={() => handleDateRangeChange('custom')}>Custom Range</MenuItem>
+                </MenuList>
+              </Menu>
+            </Flex>
+            
+            {/* Custom Date Range */}
+            {dateRangeType === 'custom' && (
+              <Flex wrap="wrap" gap={{ base: 2, md: 3 }}>
+                <Input
+                  type="date"
+                  placeholder="From"
+                  value={filters.dateFrom}
+                  onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                  width={{ base: "100%", md: "130px" }}
+                  size="sm"
+                />
+                <Input
+                  type="date"
+                  placeholder="To"
+                  value={filters.dateTo}
+                  onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                  width={{ base: "100%", md: "130px" }}
+                  size="sm"
+                />
+                <Button onClick={applyCustomDateFilter} colorScheme="teal" size="sm">
+                  Apply
+                </Button>
+              </Flex>
+            )}
+          </VStack>
+        </CardBody>
+      </Card>
+      
+      {/* Results Count */}
+      <Text mb={{ base: 3, md: 4 }} fontSize="sm" color="gray.500">
+        Showing {filteredCustomers.length} of {customers.length} sales
+      </Text>
+      
+      {/* Sales Table */}
+      <Card bg={cardBg} borderWidth="1px" borderColor={borderColor} boxShadow="sm">
+        <CardBody p={{ base: 2, md: 3 }}>
+          <Box overflowX="auto">
+            <Table variant="simple" size={{ base: "sm", md: "sm" }}>
+              <Thead>
+                <Tr>
+                  <Th>Customer</Th>
+                  <Th>Phone</Th>
+                  <Th>Training</Th>
+                  <Th>Agent</Th>
+                  <Th>Date</Th>
+                  <Th isNumeric>Course Price</Th>
+                  <Th isNumeric>Commission</Th>
+                  <Th>Status</Th>
+                  <Th>Actions</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+              {filteredCustomers.length === 0 ? (
+                <Tr>
+                  <Td colSpan={9} textAlign="center">
+                    No sales found matching your criteria
+                  </Td>
+                </Tr>
+              ) : (
+                filteredCustomers.map((customer) => (
+                  <Tr key={customer._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+                    <Td>
+                      <Text fontWeight="semibold" fontSize="sm">{customer.customerName}</Text>
+                    </Td>
+                    <Td>
+                      <Text fontSize="sm">{customer.phone || 'N/A'}</Text>
+                    </Td>
+                    <Td>
+                      <Text fontSize="sm" maxW="150px" isTruncated title={customer.contactTitle || customer.note || '—'}>{customer.contactTitle || customer.note || '—'}</Text>
+                    </Td>
+                    <Td>
+                      <Text fontSize="sm" maxW="120px" isTruncated title={(customer.agentId && typeof customer.agentId === 'object' && (customer.agentId.fullName || customer.agentId.username)) || (typeof customer.agentId === 'string' && customer.agentId) || 'N/A'}>{(customer.agentId && typeof customer.agentId === 'object' && (customer.agentId.fullName || customer.agentId.username)) || (typeof customer.agentId === 'string' && customer.agentId) || 'N/A'}</Text>
+                    </Td>
+                    <Td>
+                      <Text fontSize="sm">{formatDate(customer.date)}</Text>
+                    </Td>
+                    <Td isNumeric>
+                      <Text fontSize="sm" fontWeight="medium">{formatCurrency(customer.coursePrice)}</Text>
+                    </Td>
+                    <Td isNumeric>
+                      <Text fontSize="sm" fontWeight="medium">{formatCurrency(customer.commission?.netCommission)}</Text>
+                    </Td>
+                    <Td>
+                      <Badge colorScheme={customer.followupStatus === 'Completed' ? 'green' : customer.followupStatus === 'Pending' ? 'yellow' : customer.followupStatus === 'Cancelled' ? 'red' : 'blue'} fontSize="xs" px={2} py={1}>
+                        {customer.followupStatus}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Tooltip label="Edit Supervisor Comment">
+                        <IconButton
+                          icon={<FiEdit2 />}
+                          size="sm"
+                          onClick={() => openEditModal(customer)}
+                          variant="ghost"
+                          colorScheme="teal"
+                        />
+                      </Tooltip>
+                    </Td>
+                  </Tr>
+                ))
+              )}
+              </Tbody>
+            </Table>
+          </Box>
+        </CardBody>
+      </Card>
+      
+      {/* Edit Supervisor Comment Modal */}
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit Supervisor Comment</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>Customer: {currentSale?.customerName}</FormLabel>
+              <FormLabel>Agent: {(currentSale?.agentId && typeof currentSale?.agentId === 'object' && (currentSale?.agentId.fullName || currentSale?.agentId.username)) || (typeof currentSale?.agentId === 'string' && currentSale?.agentId) || 'N/A'}</FormLabel>
+              <FormLabel mt={4}>Supervisor Comment</FormLabel>
+              <Textarea
+                value={supervisorComment}
+                onChange={(e) => setSupervisorComment(e.target.value)}
+                placeholder="Enter supervisor comment..."
+                rows={5}
+              />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={() => setIsEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button colorScheme="teal" onClick={handleSaveComment}>
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </Box>
+  );
+};
+
+export default AllSalesPage;

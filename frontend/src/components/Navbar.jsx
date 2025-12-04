@@ -31,9 +31,13 @@ const NavbarPage = () => {
     const users = useUserStore((state) => state.users);
     const [notifications, setNotifications] = useState([]);
 
+    const clearUser = useUserStore((state) => state.clearUser);
+
     const handleLogout = () => {
-        localStorage.clear();
-        navigate("/login");
+        // Use the Zustand store to clear user state (also clears localStorage)
+        if (typeof clearUser === 'function') clearUser();
+        // Navigate to login
+        navigate('/login');
     };
 
     useEffect(() => {

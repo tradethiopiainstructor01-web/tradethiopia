@@ -1,28 +1,28 @@
 import React from "react";
 import {
   Box,
-  Text,
-  Button,
   VStack,
+  HStack,
+  Image,
+  Text,
   Heading,
   useColorModeValue,
+  IconButton,
+  Button,
   Drawer,
   DrawerBody,
   DrawerHeader,
   DrawerOverlay,
   DrawerContent,
   DrawerCloseButton,
-  HStack,
   SimpleGrid,
-  useColorMode,
-  IconButton,
-  Image,
+  useDisclosure,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom"; 
 import { SunIcon, MoonIcon } from "@chakra-ui/icons";  // Import icons for theme toggle
 
-const MotionBox = motion(Box);
+const MotionBox = motion.create(Box);
 
 // Card Component
 const Card = ({ title, description, listItems }) => (
@@ -53,7 +53,7 @@ const Card = ({ title, description, listItems }) => (
 );
 
 const ImportExportPage = () => {
-  const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
+  const { isOpen, onOpen, onClose } = useDisclosure();
   const navigate = useNavigate();
   const { colorMode, toggleColorMode } = useColorMode(); // Get color mode and toggle function
 
@@ -145,16 +145,6 @@ gemstone trading.
     { title: "Mission", description: "To empower the business society by equipping individuals and organizations with the knowledge and skills necessary to excel in the global and local business environments." },
     { title: "Vision", description: "To be one of the leading innovative business schools in Africa by 2030, renowned for our practical approach and commitment to excellence in business education." },
     { title: "Values", description: "Affordable, Concise and Practical, Real-World Alignment" },
-    
-    // { 
-    //   title: "Values:", 
-    //   description: "Our core values include", 
-    //   listItems: [
-    //     "Affordable: Providing cost-effective training solutions to ensure accessibility for a wide range of professionals.",
-    //     "Concise and Practical: Offering short, focused training sessions that deliver actionable insights and skills.",
-    //     "Real-World Alignment: Ensuring that our programs are directly applicable to the challenges and opportunities faced in international and local business contexts."
-    //   ] 
-    // },
   ];
 
   return (
@@ -192,7 +182,7 @@ gemstone trading.
               TESSBINN
             </Heading>
           </HStack>
-          </HStack>
+        </HStack>
 
         {/* Animated Line under Heading */}
         <MotionBox
@@ -205,8 +195,6 @@ gemstone trading.
           transition={{ duration: 2.5, ease: "easeInOut" }}
           mt={1}
         />
-
-        
 
         <iframe
           width="100%"
@@ -242,7 +230,7 @@ gemstone trading.
 
         <Button
           colorScheme="teal"
-          onClick={() => setIsDrawerOpen(true)}
+          onClick={onOpen}
           variant="solid"
         >
           List Of Trainings
@@ -250,8 +238,8 @@ gemstone trading.
 
         {/* Drawer for additional content */}
         <Drawer
-          isOpen={isDrawerOpen}
-          onClose={() => setIsDrawerOpen(false)}
+          isOpen={isOpen}
+          onClose={onClose}
           size="md"
           placement="right"
         >

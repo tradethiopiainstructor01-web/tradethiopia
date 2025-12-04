@@ -224,9 +224,9 @@ const UserCard = ({ user }) => {
                                 onChange={(e) => setUpdatedUser({ ...updatedUser, role: e.target.value })}
                             >
                                 <option value="admin">Admin</option>
-                             <option value="customerservice">Customer Service</option>
-                            <option value="sales">Sales</option>
-                            <option value="SalesManager">Sales Manager</option>
+                                <option value="customerservice">Customer Service</option>
+                                <option value="sales">Sales</option>
+                                <option value="salesmanager">Sales Manager</option>
                             <option value="tradextv">tradextv</option>
                             <option value="IT">IT</option>
                             </Select>

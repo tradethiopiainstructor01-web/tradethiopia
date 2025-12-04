@@ -47,6 +47,19 @@ import B2BDashboard from './pages/B2BDashboard';
 import CustomerSettings from "./components/customer/CustomerSettings";
 import COODashboard from './pages/COODashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
+import { 
+  SalesManagerLayout, 
+  SalesManagerDashboard,
+  AllSalesPage,
+  TeamManagementPage,
+  PerformancePage,
+  SettingsPage,
+  TaskManagementPage,
+  ReportsPage
+} from "./components/salesmanager";
+import CalendarPage from "./components/salesmanager/CalendarPage";
+import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerProtectedRoute";
+import RoleProtectedRoute from "./components/RoleProtectedRoute";
 
 function App() {
   const location = useLocation();
@@ -66,6 +79,7 @@ function App() {
 
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
+<<<<<<< Updated upstream
       {showNavAndSidebar && <NavbarPage />}
       <Box 
         display="flex" 
@@ -132,6 +146,102 @@ function App() {
           </Routes>
         </Box>
       </Box>
+=======
+      <Routes>
+        {/* Sales Manager Routes - These should not show the main navbar/sidebar */}
+        <Route path="/salesmanager/*" element={
+          <SalesManagerProtectedRoute>
+            <SalesManagerLayout />
+          </SalesManagerProtectedRoute>
+        }>
+          <Route index element={<SalesManagerDashboard />} />
+          <Route path="all-sales" element={<AllSalesPage />} />
+          <Route path="performance" element={<PerformancePage />} />
+          <Route path="team" element={<TeamManagementPage />} />
+          <Route path="tasks" element={<TaskManagementPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
+        
+        {/* All other routes */}
+        <Route path="*" element={
+          <>
+            {showNavAndSidebar && <NavbarPage />}
+            <Box 
+              display="flex" 
+              flexDirection="row" 
+              width="100%"
+              pt={showNavAndSidebar ? "80px" : "0"}
+            >
+              {showNavAndSidebar && <Sidebar />}
+              <Box
+                flex="1"
+                p={showNavAndSidebar ? { base: 2, md: 5 } : 0}
+                ml={showNavAndSidebar ? { base: "70px", md: "250px" } : 0}
+                transition="margin-left 0.3s ease"
+                width="100%"
+              >
+                <Routes>
+                  <Route path="/" element={<WelcomePage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/InfoForm" element={<InfoForm />} />
+                  <Route path="/secondpage" element={<SecondPage />} />
+                  <Route path="/thirdpage" element={<ThirdPage />} />
+                  <Route path="/fourthpage" element={<FourthPage />} />
+                  <Route path="/fifthpage" element={<FifthPage />} />
+                  <Route path="/exam" element={<QuizPage />} />
+                  <Route path="/WaitingForApproval" element={<WaitingForApproval />} />
+                  <Route path="/sdashboard" element={
+                    <RoleProtectedRoute allowedRoles={['sales']}>
+                      <Sdashboard />
+                    </RoleProtectedRoute>
+                  } />
+                  <Route path="/finance-dashboard" element={<FinanceDashboardPage />} />
+                  <Route path="/finance-dashboard/reports" element={<FinanceReportsPage />} />
+                  <Route path="/finance-dashboard/inventory" element={<InventoryPage />} />
+                  <Route path="/finance-dashboard/orders" element={<OrdersPage />} />
+                  <Route path="/finance-dashboard/pricing" element={<PricingPage />} />
+                  <Route path="/employee-info" element={<EmployeeInfoPage />} />
+                  <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
+                  <Route path="/users" element={<HomePage />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/documentupload" element={<DocumentUploadForm />} />
+                  <Route path="/category" element={<Category />} />
+                  <Route path="/documentlist" element={<DocumentList />} />
+                  <Route path="/EmployeeDocument" element={<EmployeeDocumentList />} />
+                  <Route path="/documentlist/:id" element={<DocumentList />} />
+                  <Route path="/create" element={<CreatePage />} />
+                  <Route path="/quiz" element={<CreateQuiz />} />
+                  <Route path="/resources" element={<PDFList />} />
+                  <Route path="/Addresource" element={<Addresource />} />
+                  <Route path="/FollowUpList" element={<FollowUpList />} />
+                  <Route path="/CustomerFollowUpForm" element={<CustomerFollowUpForm />} />
+                  <Route path="/assetcategory" element={<AssetCategoryPage />} />
+                  <Route path="/assets" element={<AssetManagementPage />} />
+                  <Route path="/ttv" element={<TTV />} />
+                  <Route path="/PDF" element={<PDFList />} />
+                  <Route path="/CustomerFollowup" element={<CustomerFollowup />} />
+                  <Route path="/AddCustomer" element={<AddCustomer />} />
+                  <Route path="/VideoList" element={<VideoList />} />
+                  <Route path="/UploadPage" element={<UploadResource />} />
+                  <Route path="/Cdashboard" element={<CDashboard />} />
+                  <Route path="/CustomerReport" element={<CustomerReport />} />
+                  <Route path="/training" element={<TrainingPage />} />
+                  <Route path="/ComingSoonPage" element={<ComingSoonPage />} />
+                  <Route path="/admin-training-upload" element={<AdminTrainingUpload />} />
+                  <Route path="/adminCustomerReport" element={<AdminCustomerReport />} />
+                  <Route path="/b2b-dashboard" element={<B2BDashboard />} />
+                  <Route path="/coo-dashboard" element={<COODashboard />} />
+                  <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
+                  <Route path="/customer-settings" element={<CustomerSettings />} />
+                </Routes>
+              </Box>
+            </Box>
+          </>
+        } />
+      </Routes>
+>>>>>>> Stashed changes
     </Box>
   );
 }

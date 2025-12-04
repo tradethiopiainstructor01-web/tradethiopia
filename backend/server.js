@@ -4,6 +4,8 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const mongoose = require('mongoose');
+const http = require('http');
+const socketIo = require('socket.io');
 
 dotenv.config();
 
@@ -35,11 +37,54 @@ const tradexFollowupRoutes = require('./routes/tradexFollowupRoutes.js');
 const stockRoutes = require('./routes/stockRoutes.js');
 const orderRoutes = require('./routes/orderRoutes.js');
 const orderCustomerRoutes = require('./routes/orderCustomerRoutes.js');
-
+const salesManagerRoutes = require('./routes/salesManagerRoutes.js');
+const salesTargetRoutes = require('./routes/salesTargetRoutes.js');
+const taskRoutes = require('./routes/taskRoutes.js');
+const calendarRoutes = require('./routes/calendarRoutes.js');
 // Load environment variables
 
 // Initialize Express app
 const app = express();
+
+// Create HTTP server and initialize Socket.IO
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Store connected users
+const connectedUsers = new Map();
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+  
+  // Register user with their ID
+  socket.on('registerUser', (userId) => {
+    connectedUsers.set(userId, socket.id);
+    console.log(`User ${userId} registered with socket ${socket.id}`);
+  });
+  
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+    // Remove user from connected users map
+    for (let [userId, socketId] of connectedUsers.entries()) {
+      if (socketId === socket.id) {
+        connectedUsers.delete(userId);
+        break;
+      }
+    }
+  });
+});
+
+// Make io available to other modules
+app.set('io', io);
+app.set('connectedUsers', connectedUsers);
 
 // Middleware
 app.use(cors({
@@ -126,7 +171,29 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+app.get('/api/test-completed-sales', async (req, res) => {
+  try {
+    const SalesCustomer = require('./models/SalesCustomer');
+    const completedCount = await SalesCustomer.countDocuments({ followupStatus: 'Completed' });
+    const totalCount = await SalesCustomer.countDocuments();
+    
+    res.json({ 
+      success: true,
+      completedCount,
+      totalCount,
+      message: `Found ${completedCount} completed sales out of ${totalCount} total sales`
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: 'Test failed',
+      error: error.message 
+    });
+  }
+});
+
 // API Routes
+
 app.use("/api/users", userRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/notifications", notificationRoutes);
@@ -156,6 +223,10 @@ app.use('/api/tradex-followups', tradexFollowupRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/order-customers', orderCustomerRoutes);
+app.use('/api/sales-manager', salesManagerRoutes);
+app.use('/api/sales-targets', salesTargetRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -180,6 +251,16 @@ if (require.main === module) {
       .then(() => {
         const server = app.listen(PORT, () => {
           console.log(`Server running on port ${PORT}`);
+        });
+        
+        // Initialize Socket.IO with the HTTP server
+        const io = app.get('io');
+        io.attach(server, {
+          cors: {
+            origin: '*',
+            methods: ['GET', 'POST'],
+            credentials: true
+          }
         });
         
         // Handle EADDRINUSE error gracefully

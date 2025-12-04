@@ -133,6 +133,7 @@ return (
                             <option value="IT">IT</option>
                             <option value="Instructor">Instructor</option>
                             <option value="EventManager">Event Manager</option>
+                            <option value="salesmanager">Sales Manager</option>
                         </Select>
                         <Button colorScheme="blue" onClick={handleSubmit} w="full">
                             {userId ? "Update User" : "Add User"}

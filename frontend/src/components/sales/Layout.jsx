@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure, Text } from "@chakra-ui/react";
 import SSidebar from "./Ssidebar";
 import SNavbar from "./Snavbar";
@@ -8,11 +8,25 @@ import PDFList from '../PDFList';
 import Dashboard from './SalesDashboard.jsx';
 // import FinanceDashboard from './FinanceDashboard.jsx'; // Replaced with dedicated page
 import OrderFollowup from './OrderFollowup.jsx';
+import SalesTargetsPage from './SalesTargetsPage.jsx';
+import TaskDashboard from './TaskDashboard.jsx';
 
 const Layout = ({ children }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
+  
+  // Load initial state from localStorage or default to 'Home'
+  const getInitialActiveItem = () => {
+    const savedItem = localStorage.getItem('salesActiveItem');
+    return savedItem || 'Home';
+  };
+  
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeItem, setActiveItem] = useState('Home');
+  const [activeItem, setActiveItem] = useState(getInitialActiveItem);
+
+  // Save activeItem to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('salesActiveItem', activeItem);
+  }, [activeItem]);
 
   const renderContent = () => {
     switch (activeItem) {
@@ -32,6 +46,10 @@ const Layout = ({ children }) => {
         return <Box p={6}><Text fontSize="xl">Users section</Text></Box>;
       case 'Tutorials':
         return <Training />;
+      case 'Targets':
+        return <SalesTargetsPage />;
+      case 'Tasks':
+        return <TaskDashboard />;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }

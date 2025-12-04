@@ -43,7 +43,23 @@ const salesCustomerSchema = new mongoose.Schema({
   },
   supervisorComment: {
     type: String
+<<<<<<< Updated upstream
   }
+=======
+  },
+  // Course information
+  courseName: {
+    type: String
+  },
+  courseId: {
+    type: String
+  },
+  // Commission fields
+  coursePrice: {
+    type: Number
+  },
+  commission: commissionSchema
+>>>>>>> Stashed changes
 }, {
   timestamps: true
 });

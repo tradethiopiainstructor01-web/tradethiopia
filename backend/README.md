@@ -3,6 +3,40 @@
 ## Overview
 This is the backend API for the Portal application, built with Node.js, Express, and MongoDB.
 
+## Sales Manager Functionality
+
+### Overview
+We've implemented sales manager functionality to provide oversight and management capabilities for sales teams. Sales managers can view all sales across all agents, monitor team performance, and manage sales settings.
+
+### Data Model Updates
+
+- **User Model**: Added `salesmanager` role to the enum list of allowed roles
+- **SalesCustomer Model**: No changes required as it already contains all necessary commission and sales data
+
+### API Endpoints
+
+#### Sales Manager Dashboard
+- `GET /api/sales-manager/dashboard-stats` - Get dashboard statistics for sales manager
+
+#### All Sales Management
+- `GET /api/sales-manager/all-sales` - Get all completed sales from all agents
+
+#### Team Performance
+- `GET /api/sales-manager/team-performance` - Get team performance statistics
+
+### Access Control
+
+Only users with the `salesmanager` role can access these endpoints. All endpoints are protected with JWT authentication.
+
+### Frontend Integration
+
+The sales manager functionality is available through a dedicated section in the frontend with:
+- Dashboard overview showing key metrics
+- All sales page displaying completed sales from all agents
+- Team management page for overseeing sales agents
+- Performance analytics and reporting
+- Settings management for commission rates and targets
+
 ## New Package Tracking Functionality
 
 ### Package Management for B2B Marketplace

@@ -27,6 +27,7 @@ import {
   Icon,
   Text
 } from '@chakra-ui/react';
+
 import { AddIcon, SearchIcon } from '@chakra-ui/icons';
 import { 
   FiUser, 
@@ -38,7 +39,12 @@ import {
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
+<<<<<<< Updated upstream
 import axios from 'axios';
+=======
+import { fetchCourses } from '../../services/api';
+import axiosInstance from '../../services/axiosInstance';
+>>>>>>> Stashed changes
 
 const FollowupPage = () => {
   const [customers, setCustomers] = useState([]);
@@ -71,22 +77,11 @@ const FollowupPage = () => {
     'Supervisor Comment': true
   });
   const toast = useToast();
-
-  // Date filter states
-  const [dateFilterType, setDateFilterType] = useState('All'); // All | DateRange | Week | Year
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [weekValue, setWeekValue] = useState(''); // yyyy-Www
-  const [yearValue, setYearValue] = useState('');
-
-  const headerColor = useColorModeValue('gray.700', 'white');
   const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
   const secondaryTextColor = useColorModeValue('gray.600', 'gray.400');
 
+  // Initialize data
   useEffect(() => {
-    // Load customers first so client-side prospect count is computed correctly,
-    // then fetch server stats to merge, avoiding overwriting with stale local state.
     const init = async () => {
       await fetchCustomers();
       await fetchStats();
@@ -94,6 +89,7 @@ const FollowupPage = () => {
     init();
   }, []);
 
+<<<<<<< Updated upstream
   const fetchStats = async () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers/stats`, {
@@ -103,6 +99,51 @@ const FollowupPage = () => {
       });
       // Set server stats, then override active with client-side computation (based on followupStatus === 'Prospect')
       setStats(response.data);
+=======
+  const fetchCoursesData = async () => {
+    try {
+      const data = await fetchCourses();
+      setCourses(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching courses:', err);
+      // Set empty array on error to ensure dropdown works
+      setCourses([]);
+    }
+  };
+
+  // Calculate total commission for all completed sales
+  const calculateTotalCommission = (customers) => {
+    if (!Array.isArray(customers) || customers.length === 0) {
+      return 0;
+    }
+    
+    const filteredCustomers = customers
+      .filter(customer => {
+        // Filter for completed deals with valid commission data
+        const hasValidCommission = customer.commission && 
+               typeof customer.commission === 'object' &&
+               customer.commission.hasOwnProperty('netCommission') &&
+               typeof customer.commission.netCommission === 'number' &&
+               !isNaN(customer.commission.netCommission);
+               
+        const isValid = customer.followupStatus === 'Completed' && hasValidCommission;
+        return isValid;
+      });
+      
+    return filteredCustomers.reduce((sum, customer) => {
+      return sum + customer.commission.netCommission;
+    }, 0);
+  };
+
+  const fetchStats = async (currentCommission = null) => {
+    try {
+      const response = await axiosInstance.get('/sales-customers/stats');
+      // Merge server stats with our locally calculated commission
+      setStats(prev => ({
+        ...response.data,
+        totalCommission: currentCommission !== null ? currentCommission : (prev.totalCommission || 0)
+      }));
+>>>>>>> Stashed changes
       try {
           const prospectCount = (customers || []).filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
           setStats(prev => ({ ...prev, new: prospectCount }));
@@ -202,8 +243,19 @@ const FollowupPage = () => {
         schedulePreference: updatedCustomer.schedulePreference || updatedCustomer.schedule || 'Regular'
       };
       setCustomers(prev => prev.map(cust => cust.id === id ? mappedCustomer : cust));
+<<<<<<< Updated upstream
       // Refresh stats after successful save
       fetchStats();
+=======
+      // Refresh stats
+      fetchStats(null);
+      // Calculate total commission
+      const totalCommission = calculateTotalCommission(
+        previousCustomers.map(cust => cust.id === id ? mappedCustomer : cust)
+      );
+      setStats(prev => ({ ...prev, totalCommission }));
+      // No success toast - handled with visual indicator in table
+>>>>>>> Stashed changes
     } catch (err) {
       // Revert optimistic update on error
       if (previousCustomers) setCustomers(previousCustomers);
@@ -517,6 +569,7 @@ const FollowupPage = () => {
             </Stat>
           </CardBody>
         </Card>
+<<<<<<< Updated upstream
 
         <Card 
           bg={cardBg} 
@@ -564,6 +617,11 @@ const FollowupPage = () => {
           h="100%"
         >
           <CardBody p={3}>
+=======
+                
+        <Card bg={cardBg} boxShadow="md" borderRadius="lg" overflow="hidden">
+          <CardBody>
+>>>>>>> Stashed changes
             <Stat>
               <Flex alignItems="center">
                 <Box
@@ -588,6 +646,16 @@ const FollowupPage = () => {
                   </StatHelpText>
                 </Box>
               </Flex>
+            </Stat>
+          </CardBody>
+        </Card>
+
+                <Card bg={cardBg} boxShadow="md" borderRadius="lg" overflow="hidden">
+          <CardBody>
+            <Stat>
+              <StatLabel fontWeight="medium" color={secondaryTextColor}>Total Commission</StatLabel>
+              <StatNumber fontSize="2xl" color="green.500">ETB {typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}</StatNumber>
+              <StatHelpText fontSize="sm" color={secondaryTextColor}>from all sales</StatHelpText>
             </Stat>
           </CardBody>
         </Card>

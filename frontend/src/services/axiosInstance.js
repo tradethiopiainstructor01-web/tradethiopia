@@ -1,6 +1,8 @@
 // src/services/axiosInstance.js
 
 import axios from 'axios';
+import { useUserStore } from '../store/user';
+import { useNavigate } from 'react-router-dom';
 
 // Create axios instance with baseURL and authorization header setup
 const baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
@@ -33,6 +35,33 @@ axiosInstance.interceptors.response.use(
   },
   (error) => {
     console.error('Axios response error:', error);
+    // If the server returns 401 (unauthorized), clear local user and redirect to login
+    try {
+      const status = error?.response?.status;
+      if (status === 401) {
+        // Clear Zustand store and localStorage
+        const clearUser = useUserStore.getState().clearUser;
+        if (typeof clearUser === 'function') {
+          clearUser();
+        } else {
+          // Fallback
+          localStorage.removeItem('userToken');
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('userName');
+          localStorage.removeItem('userStatus');
+          localStorage.removeItem('infoStatus');
+          localStorage.removeItem('userId');
+        }
+
+        // Redirect to login page
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+      }
+    } catch (e) {
+      console.error('Error handling 401 response:', e);
+    }
+
     return Promise.reject(error);
   }
 );

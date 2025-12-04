@@ -19,7 +19,9 @@ const handleLogin = async () => {
         console.log('Login response:', response.data); // Debugging line
 
         if (response.data.success) {
-            const { _id, role, status, infoStatus, token, username } = { ...response.data.user, token: response.data.token };
+            // Extract user data and token correctly
+            const { user, token } = response.data;
+            const { _id, role, status, infoStatus, username } = user;
 
             // Save token and user information in local storage
             setCurrentUser({ username, role, status, infoStatus, token, _id });
@@ -39,6 +41,9 @@ const handleLogin = async () => {
                         break;
                     case 'sales':
                         navigate('/sdashboard');
+                        break;
+                    case 'salesmanager':
+                        navigate('/salesmanager');
                         break;
                     case 'customerservice':
                         navigate('/Cdashboard');

@@ -23,6 +23,7 @@ import {
 } from '@chakra-ui/react';
 import { Bar } from 'react-chartjs-2';
 import { MdPeople, MdCheckCircle, MdPendingActions, MdError, MdNote } from 'react-icons/md';
+import { FiCheckCircle, FiCheck, FiClock } from 'react-icons/fi';
 import axios from 'axios';
 import { Chart, registerables } from 'chart.js';
 
@@ -289,6 +290,66 @@ const Dashboard = () => {
               </CardBody>
             </Card>
           </Flex>
+
+          {/* Task Reminders Section */}
+          <Card 
+            mt={6} 
+            p={5} 
+            bg={cardBg} 
+            borderRadius="lg" 
+            boxShadow="md"
+            transition="all 0.2s"
+            _hover={{ boxShadow: 'lg' }}
+          >
+            <CardBody>
+              <Text 
+                fontSize="xl" 
+                fontWeight="bold" 
+                mb={4} 
+                color={headerColor}
+              >
+                Task Reminders
+              </Text>
+              
+              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                <Box p={4} bg="blue.50" borderRadius="md" border="1px" borderColor="blue.200">
+                  <Flex align="center" mb={2}>
+                    <Icon as={FiCheckCircle} color="blue.500" mr={2} />
+                    <Text fontWeight="bold" color="blue.700">Pending Tasks</Text>
+                  </Flex>
+                  <Text fontSize="2xl" fontWeight="bold" color="blue.600">3</Text>
+                  <Text fontSize="sm" color="blue.500">2 due soon</Text>
+                </Box>
+                
+                <Box p={4} bg="green.50" borderRadius="md" border="1px" borderColor="green.200">
+                  <Flex align="center" mb={2}>
+                    <Icon as={FiCheck} color="green.500" mr={2} />
+                    <Text fontWeight="bold" color="green.700">Completed Tasks</Text>
+                  </Flex>
+                  <Text fontSize="2xl" fontWeight="bold" color="green.600">5</Text>
+                  <Text fontSize="sm" color="green.500">This week</Text>
+                </Box>
+                
+                <Box p={4} bg="orange.50" borderRadius="md" border="1px" borderColor="orange.200">
+                  <Flex align="center" mb={2}>
+                    <Icon as={FiClock} color="orange.500" mr={2} />
+                    <Text fontWeight="bold" color="orange.700">Overdue Tasks</Text>
+                  </Flex>
+                  <Text fontSize="2xl" fontWeight="bold" color="orange.600">1</Text>
+                  <Text fontSize="sm" color="orange.500">Requires immediate attention</Text>
+                </Box>
+              </SimpleGrid>
+              
+              <Button 
+                mt={4} 
+                colorScheme="teal" 
+                size="sm" 
+                onClick={() => window.location.href = '/sdashboard#tasks'}
+              >
+                View All Tasks
+              </Button>
+            </CardBody>
+          </Card>
 
           {/* Modal for Viewing Full Note Content */}
           <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="xl">
