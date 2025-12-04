@@ -39,13 +39,11 @@ import {
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
-<<<<<<< Updated upstream
 import axios from 'axios';
-=======
 import { fetchCourses } from '../../services/api';
 import axiosInstance from '../../services/axiosInstance';
->>>>>>> Stashed changes
-
+import { fetchCourses } from '../../services/api';
+import axiosInstance from '../../services/axiosInstance';
 const FollowupPage = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +87,6 @@ const FollowupPage = () => {
     init();
   }, []);
 
-<<<<<<< Updated upstream
   const fetchStats = async () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers/stats`, {
@@ -99,7 +96,7 @@ const FollowupPage = () => {
       });
       // Set server stats, then override active with client-side computation (based on followupStatus === 'Prospect')
       setStats(response.data);
-=======
+
   const fetchCoursesData = async () => {
     try {
       const data = await fetchCourses();
@@ -143,7 +140,6 @@ const FollowupPage = () => {
         ...response.data,
         totalCommission: currentCommission !== null ? currentCommission : (prev.totalCommission || 0)
       }));
->>>>>>> Stashed changes
       try {
           const prospectCount = (customers || []).filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
           setStats(prev => ({ ...prev, new: prospectCount }));
@@ -243,10 +239,9 @@ const FollowupPage = () => {
         schedulePreference: updatedCustomer.schedulePreference || updatedCustomer.schedule || 'Regular'
       };
       setCustomers(prev => prev.map(cust => cust.id === id ? mappedCustomer : cust));
-<<<<<<< Updated upstream
       // Refresh stats after successful save
       fetchStats();
-=======
+
       // Refresh stats
       fetchStats(null);
       // Calculate total commission
@@ -255,7 +250,7 @@ const FollowupPage = () => {
       );
       setStats(prev => ({ ...prev, totalCommission }));
       // No success toast - handled with visual indicator in table
->>>>>>> Stashed changes
+
     } catch (err) {
       // Revert optimistic update on error
       if (previousCustomers) setCustomers(previousCustomers);
@@ -569,7 +564,6 @@ const FollowupPage = () => {
             </Stat>
           </CardBody>
         </Card>
-<<<<<<< Updated upstream
 
         <Card 
           bg={cardBg} 
@@ -617,11 +611,9 @@ const FollowupPage = () => {
           h="100%"
         >
           <CardBody p={3}>
-=======
-                
         <Card bg={cardBg} boxShadow="md" borderRadius="lg" overflow="hidden">
           <CardBody>
->>>>>>> Stashed changes
+
             <Stat>
               <Flex alignItems="center">
                 <Box
@@ -646,6 +638,24 @@ const FollowupPage = () => {
                   </StatHelpText>
                 </Box>
               </Flex>
+
+        <Card bg={cardBg} boxShadow="md" borderRadius="lg" overflow="hidden">
+          <CardBody>
+            <Stat>
+              <StatLabel fontWeight="medium" color={secondaryTextColor}>Completed Deals</StatLabel>
+              <StatNumber fontSize="2xl" color="green.500">{stats.completedDeals}</StatNumber>
+              <StatHelpText fontSize="sm" color={secondaryTextColor}>this period</StatHelpText>
+            </Stat>
+          </CardBody>
+        </Card>
+        
+        <Card bg={cardBg} boxShadow="md" borderRadius="lg" overflow="hidden">
+          <CardBody>
+            <Stat>
+              <StatLabel fontWeight="medium" color={secondaryTextColor}>Called Today</StatLabel>
+              <StatNumber fontSize="2xl" color="purple.500">{stats.calledCustomers}</StatNumber>
+              <StatHelpText fontSize="sm" color={secondaryTextColor}>customers contacted</StatHelpText>
+
             </Stat>
           </CardBody>
         </Card>

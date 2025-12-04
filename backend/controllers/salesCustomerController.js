@@ -36,15 +36,12 @@ const createCustomer = asyncHandler(async (req, res) => {
     schedulePreference,
     email,
     note,
-<<<<<<< Updated upstream
-    supervisorComment
-=======
+
     supervisorComment,
     courseName,
     courseId,
     coursePrice,
     commission
->>>>>>> Stashed changes
   } = req.body;
 
   const customer = new SalesCustomer({
@@ -57,15 +54,13 @@ const createCustomer = asyncHandler(async (req, res) => {
     schedulePreference,
     email,
     note,
-<<<<<<< Updated upstream
-    supervisorComment
-=======
+
     supervisorComment,
     courseName: contactTitle, // Map contactTitle to courseName for consistency
     courseId,
     coursePrice,
     commission
->>>>>>> Stashed changes
+
   });
 
   const createdCustomer = await customer.save();
@@ -85,15 +80,12 @@ const updateCustomer = asyncHandler(async (req, res) => {
     schedulePreference,
     email,
     note,
-<<<<<<< Updated upstream
-    supervisorComment
-=======
     supervisorComment,
     courseName,
     courseId,
     coursePrice,
     commission
->>>>>>> Stashed changes
+
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -108,13 +100,10 @@ const updateCustomer = asyncHandler(async (req, res) => {
     customer.email = email || customer.email;
     customer.note = note || customer.note;
     customer.supervisorComment = supervisorComment || customer.supervisorComment;
-<<<<<<< Updated upstream
-=======
     customer.courseName = contactTitle || customer.contactTitle; // Update courseName when contactTitle changes
     customer.courseId = courseId || customer.courseId;
     customer.coursePrice = coursePrice || customer.coursePrice;
     customer.commission = commission || customer.commission;
->>>>>>> Stashed changes
 
     const updatedCustomer = await customer.save();
     res.json(updatedCustomer);

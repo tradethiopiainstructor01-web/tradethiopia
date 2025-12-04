@@ -17,14 +17,11 @@ import {
   Text,
   Heading,
   useColorModeValue,
-<<<<<<< Updated upstream
-=======
   SimpleGrid,
   VStack,
   HStack,
   Divider,
   useToast
->>>>>>> Stashed changes
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon } from '@chakra-ui/icons';
 import {
@@ -57,11 +54,9 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
   });
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const { isOpen, onOpen, onClose } = useDisclosure();
-<<<<<<< Updated upstream
   const [drawerCustomer, setDrawerCustomer] = useState(null);
-=======
   const toast = useToast();
->>>>>>> Stashed changes
+  const toast = useToast();
 
   const userToken = localStorage.getItem('userToken');
   const userRole = localStorage.getItem('userRole') || 'agent';

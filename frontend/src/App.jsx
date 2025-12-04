@@ -79,7 +79,6 @@ function App() {
 
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
-<<<<<<< Updated upstream
       {showNavAndSidebar && <NavbarPage />}
       <Box 
         display="flex" 
@@ -146,7 +145,6 @@ function App() {
           </Routes>
         </Box>
       </Box>
-=======
       <Routes>
         {/* Sales Manager Routes - These should not show the main navbar/sidebar */}
         <Route path="/salesmanager/*" element={
@@ -241,7 +239,6 @@ function App() {
           </>
         } />
       </Routes>
->>>>>>> Stashed changes
     </Box>
   );
 }
