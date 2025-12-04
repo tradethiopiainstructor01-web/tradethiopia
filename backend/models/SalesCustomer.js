@@ -61,6 +61,13 @@ const salesCustomerSchema = new mongoose.Schema({
   courseId: {
     type: String
   },
+  // Course information
+  courseName: {
+    type: String
+  },
+  courseId: {
+    type: String
+  },
   // Commission fields
   coursePrice: {
     type: Number
