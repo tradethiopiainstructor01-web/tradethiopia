@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import Layout from './Layout';
 import jsPDF from "jspdf";
-import 'jspdf-autotable';
+import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 import {
   Box,
@@ -33,7 +33,18 @@ import {
   Badge,
   VStack,
   HStack,
-  Divider
+  Divider,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  FormControl,
+  FormLabel,
+  NumberInput,
+  NumberInputField,
+  Select
 } from "@chakra-ui/react";
 import { 
   FiDownload, 
@@ -114,8 +125,8 @@ const ActivityMetric = ({ label, value, icon: Icon }) => (
 );
 
 const TargetRow = ({ label, target, actual, isPercentage = false }) => {
-  const gap = target - actual;
-  const gapColor = gap > 0 ? "red.500" : "green.500";
+  const gap = actual - target;
+  const gapColor = gap > 0 ? "green.500" : "red.500";
   const displayTarget = isPercentage ? `${target}%` : target;
   const displayActual = isPercentage ? `${actual}%` : actual;
   
@@ -202,6 +213,12 @@ const CustomerReport = () => {
   
   const [interactionPerformance, setInteractionPerformance] = useState([]);
   const [customerServiceUsers, setCustomerServiceUsers] = useState([]);
+  const [actualOverrides, setActualOverrides] = useState({});
+  const [actualModal, setActualModal] = useState({
+    isOpen: false,
+    metricLabel: "",
+    value: ""
+  });
   const [targets, setTargets] = useState({
     education: {
       userManuals: 300,
@@ -236,6 +253,7 @@ const CustomerReport = () => {
   const headerColor = useColorModeValue("blue.600", "blue.200");
   const textColor = useColorModeValue("gray.700", "gray.200");
   const secondaryTextColor = useColorModeValue("gray.500", "gray.400");
+  const modalBg = useColorModeValue("white", "gray.800");
 
   const getAgentName = (item) =>
     item.agentName ||
@@ -244,6 +262,105 @@ const CustomerReport = () => {
     item.agent ||
     item.creator?.username ||
     "Unassigned";
+
+  const getActualValue = (label, fallback) => {
+    const v = actualOverrides[label];
+    if (v === undefined || v === null || v === "") return fallback;
+    const parsed = Number(v);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
+
+  const metricOptions = () => {
+    const base = [
+      { label: "User Manuals Sent", defaultVal: activityTotals.materialUpdates },
+      { label: "Training Videos Shared", defaultVal: activityTotals.progressUpdates },
+      { label: "FAQ Guides Sent", defaultVal: activityTotals.serviceUpdates },
+      { label: "Telegram Guidance Messages", defaultVal: Math.floor(activityTotals.followupAttempts * 0.3) },
+      { label: "Follow-up Reminders", defaultVal: activityTotals.followupAttempts },
+      { label: "Satisfaction Score", defaultVal: 85 },
+      { label: "Service Delivery Accuracy", defaultVal: 92 },
+      { label: "Policy Compliance", defaultVal: 98 },
+      { label: "Cross-Department Response", defaultVal: 95 },
+      { label: "Time-to-Resolve (hrs)", defaultVal: 20 },
+      { label: "Training-to-B2B Conversions", defaultVal: Math.min(targets.qualityMetrics.trainingToB2B, 25) },
+      { label: "Renewals", defaultVal: Math.min(targets.qualityMetrics.renewals, 18) },
+    ];
+
+    // Include all customer service officers (and any remaining perf entries) so they appear in the Actual dropdown
+    const seenLabels = new Set();
+    (customerServiceUsers || []).forEach((officer) => {
+      const officerData =
+        interactionPerformance.find(
+          (perf) =>
+            perf.username === officer.email ||
+            perf.userId === officer.id ||
+            perf.agentId === officer.id ||
+            perf.username === officer.username
+        ) || { followupAttempts: 0, updateAttempts: 0 };
+      const label = officer.name || officer.username || "Officer";
+      seenLabels.add(label);
+      base.push({
+        label,
+        defaultVal: (officerData.followupAttempts || 0) + (officerData.updateAttempts || 0),
+      });
+    });
+    // Add any interactionPerformance entries not yet represented (fallback)
+    interactionPerformance.forEach((perf, idx) => {
+      const label = perf.username || `Officer ${idx + 1}`;
+      if (seenLabels.has(label)) return;
+      seenLabels.add(label);
+      base.push({
+        label,
+        defaultVal: (perf.followupAttempts || 0) + (perf.updateAttempts || 0),
+      });
+    });
+
+    base.push({
+      label: "Customer Success Manager",
+      defaultVal: interactionPerformance.reduce(
+        (sum, officer) => sum + officer.followupAttempts + officer.updateAttempts,
+        0
+      ),
+    });
+
+    return base;
+  };
+
+  const openActualModal = () => {
+    const opts = metricOptions();
+    const first = opts[0] || { label: "", defaultVal: 0 };
+    setActualModal({
+      isOpen: true,
+      metricLabel: first.label,
+      value: getActualValue(first.label, first.defaultVal),
+    });
+  };
+
+  const handleActualChange = (label) => {
+    const opts = metricOptions();
+    const match = opts.find((o) => o.label === label);
+    const nextVal = getActualValue(label, match ? match.defaultVal : 0);
+    setActualModal((prev) => ({
+      ...prev,
+      metricLabel: label,
+      value: nextVal,
+    }));
+  };
+
+  const saveActualValue = () => {
+    setActualOverrides((prev) => ({
+      ...prev,
+      [actualModal.metricLabel]: actualModal.value,
+    }));
+    setActualModal((prev) => ({ ...prev, isOpen: false }));
+    toast({
+      title: "Actual updated",
+      description: `${actualModal.metricLabel} set to ${actualModal.value}`,
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+  };
 
   useEffect(() => {
     const fetchReportData = async () => {
@@ -264,17 +381,28 @@ const CustomerReport = () => {
             ? usersRes.data.users
             : [];
 
-        const customerServiceUsers = usersRaw
+        const filteredCS = usersRaw
           .filter(user => {
             const role = (user.role || user.roleName || '').toLowerCase().replace(/[\s_-]+/g, '');
-            return role === 'customerservice';
+            return role.includes('customerservice');
           })
           .map(user => ({
             id: user._id || user.id,
             name: user.name || user.username || 'Unknown User',
             email: user.email || '',
+            username: user.username,
             role: 'Customer Service Officer'
           }));
+
+        const customerServiceUsers = filteredCS.length
+          ? filteredCS
+          : usersRaw.map(user => ({
+              id: user._id || user.id,
+              name: user.name || user.username || 'Unknown User',
+              email: user.email || '',
+              username: user.username,
+              role: user.role || user.roleName || ''
+            }));
         
         setCustomerServiceUsers(customerServiceUsers);
         
@@ -295,20 +423,39 @@ const CustomerReport = () => {
           const avgRating = reportData.reduce((sum, item) => 
             sum + (item.creator?.rating || 0), 0) / Math.max(reportData.length, 1);
 
+          const boolToInt = (val) => (val ? 1 : 0);
+
           const totals = reportData.reduce((acc, item) => {
+            const materialCount =
+              Number(item.materialUpdates || 0) +
+              boolToInt(item.materialStatusUpdated);
+            const progressCount =
+              Number(item.progressUpdates || 0) +
+              boolToInt(item.progressUpdated);
+            const serviceCount =
+              Number(item.serviceUpdates || 0) +
+              boolToInt(item.serviceUpdated);
+            const packageCount =
+              Number(item.packageStatusUpdates || 0) +
+              boolToInt(item.packageStatusUpdated);
+            const updateAttemptCount =
+              Number(item.updateAttempts || 0) +
+              Number(item.notes?.length || 0) +
+              Number(item.communicationLogs?.length || item.communications?.length || 0);
+
             acc.registered += 1;
             acc.followupAttempts +=
               (item.call_count || item.callAttempts || 0) +
               (item.message_count || item.messageAttempts || 0) +
               (item.email_count || item.emailAttempts || 0) +
               (item.followupAttempts || 0);
-            acc.updateAttempts += item.updateAttempts || 0;
-            acc.importedTraining += item.trainingImported ? 1 : 0;
-            acc.importedB2B += item.b2bImported ? 1 : 0;
-            acc.materialUpdates += item.materialStatusUpdated ? 1 : 0;
-            acc.progressUpdates += item.progressUpdated ? 1 : 0;
-            acc.serviceUpdates += item.serviceUpdated ? 1 : 0;
-            acc.packageStatusUpdates += item.packageStatusUpdated ? 1 : 0;
+            acc.updateAttempts += updateAttemptCount;
+            acc.importedTraining += boolToInt(item.trainingImported);
+            acc.importedB2B += boolToInt(item.b2bImported);
+            acc.materialUpdates += materialCount;
+            acc.progressUpdates += progressCount;
+            acc.serviceUpdates += serviceCount;
+            acc.packageStatusUpdates += packageCount;
             return acc;
           }, {
             registered: 0,
@@ -349,13 +496,30 @@ const CustomerReport = () => {
               (item.message_count || item.messageAttempts || 0) +
               (item.email_count || item.emailAttempts || 0) +
               (item.followupAttempts || 0);
-            acc[uname].updateAttempts += item.updateAttempts || 0;
-            acc[uname].importedTraining += item.trainingImported ? 1 : 0;
-            acc[uname].importedB2B += item.b2bImported ? 1 : 0;
-            acc[uname].materialUpdates += item.materialStatusUpdated ? 1 : 0;
-            acc[uname].progressUpdates += item.progressUpdated ? 1 : 0;
-            acc[uname].serviceUpdates += item.serviceUpdated ? 1 : 0;
-            acc[uname].packageStatusUpdates += item.packageStatusUpdated ? 1 : 0;
+            const updateAttemptCount =
+              Number(item.updateAttempts || 0) +
+              Number(item.notes?.length || 0) +
+              Number(item.communicationLogs?.length || item.communications?.length || 0);
+            const materialCount =
+              Number(item.materialUpdates || 0) +
+              boolToInt(item.materialStatusUpdated);
+            const progressCount =
+              Number(item.progressUpdates || 0) +
+              boolToInt(item.progressUpdated);
+            const serviceCount =
+              Number(item.serviceUpdates || 0) +
+              boolToInt(item.serviceUpdated);
+            const packageCount =
+              Number(item.packageStatusUpdates || 0) +
+              boolToInt(item.packageStatusUpdated);
+
+            acc[uname].updateAttempts += updateAttemptCount;
+            acc[uname].importedTraining += boolToInt(item.trainingImported);
+            acc[uname].importedB2B += boolToInt(item.b2bImported);
+            acc[uname].materialUpdates += materialCount;
+            acc[uname].progressUpdates += progressCount;
+            acc[uname].serviceUpdates += serviceCount;
+            acc[uname].packageStatusUpdates += packageCount;
             return acc;
           }, {});
           
@@ -420,7 +584,7 @@ const CustomerReport = () => {
         ['Average Rating', `${stats.avgRating}/5`]
       ];
       
-      doc.autoTable({
+      autoTable(doc, {
         startY: 45,
         head: [summaryData[0]],
         body: summaryData.slice(1),
@@ -436,14 +600,39 @@ const CustomerReport = () => {
       
       const educationData = [
         ['Item', 'Target', 'Actual', 'Gap'],
-        ['User Manuals Sent', targets.education.userManuals, activityTotals.materialUpdates, targets.education.userManuals - activityTotals.materialUpdates],
-        ['Training Videos Shared', targets.education.trainingVideos, activityTotals.progressUpdates, targets.education.trainingVideos - activityTotals.progressUpdates],
-        ['FAQ Guides Sent', targets.education.faqGuides, activityTotals.serviceUpdates, targets.education.faqGuides - activityTotals.serviceUpdates],
-        ['Telegram Guidance Messages', targets.education.telegramMessages, Math.floor(activityTotals.followupAttempts * 0.3), targets.education.telegramMessages - Math.floor(activityTotals.followupAttempts * 0.3)],
-        ['Follow-up Reminders', targets.education.followupReminders, activityTotals.followupAttempts, targets.education.followupReminders - activityTotals.followupReminders]
+        [
+          'User Manuals Sent',
+          targets.education.userManuals,
+          getActualValue('User Manuals Sent', activityTotals.materialUpdates),
+          getActualValue('User Manuals Sent', activityTotals.materialUpdates) - targets.education.userManuals
+        ],
+        [
+          'Training Videos Shared',
+          targets.education.trainingVideos,
+          getActualValue('Training Videos Shared', activityTotals.progressUpdates),
+          getActualValue('Training Videos Shared', activityTotals.progressUpdates) - targets.education.trainingVideos
+        ],
+        [
+          'FAQ Guides Sent',
+          targets.education.faqGuides,
+          getActualValue('FAQ Guides Sent', activityTotals.serviceUpdates),
+          getActualValue('FAQ Guides Sent', activityTotals.serviceUpdates) - targets.education.faqGuides
+        ],
+        [
+          'Telegram Guidance Messages',
+          targets.education.telegramMessages,
+          getActualValue('Telegram Guidance Messages', Math.floor(activityTotals.followupAttempts * 0.3)),
+          getActualValue('Telegram Guidance Messages', Math.floor(activityTotals.followupAttempts * 0.3)) - targets.education.telegramMessages
+        ],
+        [
+          'Follow-up Reminders',
+          targets.education.followupReminders,
+          getActualValue('Follow-up Reminders', activityTotals.followupAttempts),
+          getActualValue('Follow-up Reminders', activityTotals.followupAttempts) - targets.education.followupReminders
+        ]
       ];
       
-      doc.autoTable({
+      autoTable(doc, {
         startY: 30,
         head: [educationData[0]],
         body: educationData.slice(1),
@@ -465,21 +654,47 @@ const CustomerReport = () => {
       
       const officerData = [
         ['Officer', 'Monthly Target', 'Actual', 'Gap'],
-        ...interactionPerformance.slice(0, 4).map((officer, idx) => [
-          `Officer ${idx + 1}`,
-          targets.officerTargets[`officer${idx + 1}`],
-          officer.followupAttempts + officer.updateAttempts,
-          targets.officerTargets[`officer${idx + 1}`] - (officer.followupAttempts + officer.updateAttempts)
-        ]),
-        [
-          'Customer Success Manager',
-          targets.officerTargets.manager,
-          interactionPerformance.reduce((sum, officer) => sum + officer.followupAttempts + officer.updateAttempts, 0),
-          targets.officerTargets.manager - interactionPerformance.reduce((sum, officer) => sum + officer.followupAttempts + officer.updateAttempts, 0)
-        ]
+        ...(customerServiceUsers.length
+          ? customerServiceUsers.map((officer, idx) => {
+              const perf =
+                interactionPerformance.find(
+                  (p) => p.username === officer.email || p.userId === officer.id || p.agentId === officer.id
+                ) || { followupAttempts: 0, updateAttempts: 0 };
+              const targetVal = targets.officerTargets[`officer${idx + 1}`] || targets.officerTargets[`officer${idx}`] || 300;
+              const actualVal = getActualValue(
+                officer.name,
+                (perf.followupAttempts || 0) + (perf.updateAttempts || 0)
+              );
+              return [
+                officer.name,
+                targetVal,
+                actualVal,
+                actualVal - targetVal
+              ];
+            })
+          : interactionPerformance.slice(0, 4).map((perf, idx) => {
+              const label = perf.username || `Officer ${idx + 1}`;
+              const targetVal = targets.officerTargets[`officer${idx + 1}`] || 300;
+              const actualVal = getActualValue(label, (perf.followupAttempts || 0) + (perf.updateAttempts || 0));
+              return [label, targetVal, actualVal, actualVal - targetVal];
+            })),
+        (() => {
+          const targetVal = targets.officerTargets.manager;
+          const fallbackActual = interactionPerformance.reduce(
+            (sum, officer) => sum + (officer.followupAttempts || 0) + (officer.updateAttempts || 0),
+            0
+          );
+          const actualVal = getActualValue('Customer Success Manager', fallbackActual);
+          return [
+            'Customer Success Manager',
+            targetVal,
+            actualVal,
+            actualVal - targetVal
+          ];
+        })()
       ];
       
-      doc.autoTable({
+      autoTable(doc, {
         startY: 30,
         head: [officerData[0]],
         body: officerData.slice(1),
@@ -493,53 +708,62 @@ const CustomerReport = () => {
       doc.setFontSize(16);
       doc.text('Team Quality Metrics', 14, 20);
       
+      const qs = targets.qualityMetrics;
+      const satVal = getActualValue('Satisfaction Score', 85);
+      const accVal = getActualValue('Service Delivery Accuracy', 92);
+      const compVal = getActualValue('Policy Compliance', 98);
+      const crossVal = getActualValue('Cross-Department Response', 95);
+      const ttrVal = getActualValue('Time-to-Resolve (hrs)', 20);
+      const b2bVal = getActualValue('Training-to-B2B Conversions', Math.min(qs.trainingToB2B, 25));
+      const renewVal = getActualValue('Renewals', Math.min(qs.renewals, 18));
+
       const qualityData = [
         ['Metric', 'Target', 'Actual', 'Progress'],
         [
           'Satisfaction Score', 
-          `${targets.qualityMetrics.satisfaction}%`, 
-          '85%', 
-          { v: 85, color: 85 >= 90 ? [46, 204, 113] : 85 >= 70 ? [241, 196, 15] : [231, 76, 60] }
+          `${qs.satisfaction}%`, 
+          `${satVal}%`, 
+          { v: satVal, color: satVal >= 90 ? [46, 204, 113] : satVal >= 70 ? [241, 196, 15] : [231, 76, 60] }
         ],
         [
           'Service Delivery Accuracy', 
-          `${targets.qualityMetrics.deliveryAccuracy}%`, 
-          '92%', 
-          { v: 92, color: [46, 204, 113] }
+          `${qs.deliveryAccuracy}%`, 
+          `${accVal}%`, 
+          { v: accVal, color: accVal >= qs.deliveryAccuracy ? [46, 204, 113] : [241, 196, 15] }
         ],
         [
           'Policy Compliance', 
-          `${targets.qualityMetrics.policyCompliance}%`, 
-          '98%', 
-          { v: 98, color: [46, 204, 113] }
+          `${qs.policyCompliance}%`, 
+          `${compVal}%`, 
+          { v: compVal, color: compVal >= qs.policyCompliance ? [46, 204, 113] : [241, 196, 15] }
         ],
         [
           'Cross-Department Response', 
-          `${targets.qualityMetrics.crossDeptResponse}%`, 
-          '95%', 
-          { v: 95, color: [46, 204, 113] }
+          `${qs.crossDeptResponse}%`, 
+          `${crossVal}%`, 
+          { v: crossVal, color: crossVal >= qs.crossDeptResponse ? [46, 204, 113] : [241, 196, 15] }
         ],
         [
           'Time-to-Resolve', 
-          `< ${targets.qualityMetrics.timeToResolve} hrs`, 
-          '20 hrs', 
-          { v: (20 / targets.qualityMetrics.timeToResolve) * 100, color: [46, 204, 113] }
+          `< ${qs.timeToResolve} hrs`, 
+          `${ttrVal} hrs`, 
+          { v: (qs.timeToResolve / (ttrVal || 1)) * 100, color: [46, 204, 113] }
         ],
         [
           'Training-to-B2B Conversions', 
-          targets.qualityMetrics.trainingToB2B, 
-          '25', 
-          { v: (25 / targets.qualityMetrics.trainingToB2B) * 100, color: 25 >= 30 ? [46, 204, 113] : [241, 196, 15] }
+          qs.trainingToB2B, 
+          `${b2bVal}`, 
+          { v: (b2bVal / (qs.trainingToB2B || 1)) * 100, color: b2bVal >= qs.trainingToB2B ? [46, 204, 113] : [241, 196, 15] }
         ],
         [
           'Renewals', 
-          targets.qualityMetrics.renewals, 
-          '18', 
-          { v: (18 / targets.qualityMetrics.renewals) * 100, color: 18 >= 20 ? [46, 204, 113] : [241, 196, 15] }
+          qs.renewals, 
+          `${renewVal}`, 
+          { v: (renewVal / (qs.renewals || 1)) * 100, color: renewVal >= qs.renewals ? [46, 204, 113] : [241, 196, 15] }
         ]
       ];
       
-      doc.autoTable({
+      autoTable(doc, {
         startY: 30,
         head: [qualityData[0].slice(0, 3)],
         body: qualityData.slice(1).map(row => row.slice(0, 3)),
@@ -549,6 +773,11 @@ const CustomerReport = () => {
         didDrawCell: (data) => {
           if (data.section === 'body' && data.column.index === 2) {
             const progress = qualityData[data.row.index + 1][3];
+            const pct = progress && typeof progress.v === "number" ? progress.v : 0;
+            const color = Array.isArray(progress?.color) && progress.color.length === 3
+              ? progress.color
+              : [46, 204, 113];
+
             const x = data.cell.x + 2;
             const y = data.cell.y + 2;
             const width = data.cell.width - 4;
@@ -559,14 +788,14 @@ const CustomerReport = () => {
             doc.rect(x, y, width, height, 'F');
             
             // Draw progress
-            doc.setFillColor(progress.color || [46, 204, 113]);
-            doc.rect(x, y, (width * progress.v) / 100, height, 'F');
+            doc.setFillColor(color[0], color[1], color[2]);
+            doc.rect(x, y, (width * pct) / 100, height, 'F');
             
             // Draw text
             doc.setTextColor(0, 0, 0);
             doc.setFontSize(8);
             doc.text(
-              `${Math.round(progress.v)}%`, 
+              `${Math.round(pct)}%`, 
               x + width / 2, 
               y + height / 2 + 2, 
               { align: 'center', baseline: 'middle' }
@@ -662,15 +891,23 @@ const CustomerReport = () => {
               })} | Professional Summary
             </Text>
           </Box>
-          <Button
-            leftIcon={<FiDownload />}
-            colorScheme="blue"
-            onClick={handleExportPDF}
-            mb={{ base: 4, md: 0 }}
-            isLoading={loading}
-          >
-            Export as PDF
-          </Button>
+          <HStack spacing={3} align="center">
+            <Button
+              colorScheme="purple"
+              variant="outline"
+              onClick={openActualModal}
+            >
+              Actual
+            </Button>
+            <Button
+              leftIcon={<FiDownload />}
+              colorScheme="blue"
+              onClick={handleExportPDF}
+              isLoading={loading}
+            >
+              Export as PDF
+            </Button>
+          </HStack>
         </Flex>
 
         {/* Stats Overview */}
@@ -788,27 +1025,30 @@ const CustomerReport = () => {
                 <TargetRow
                   label="User Manuals Sent"
                   target={targets.education.userManuals}
-                  actual={activityTotals.materialUpdates}
+                  actual={getActualValue("User Manuals Sent", activityTotals.materialUpdates)}
                 />
                 <TargetRow
                   label="Training Videos Shared"
                   target={targets.education.trainingVideos}
-                  actual={activityTotals.progressUpdates}
+                  actual={getActualValue("Training Videos Shared", activityTotals.progressUpdates)}
                 />
                 <TargetRow
                   label="FAQ Guides Sent"
                   target={targets.education.faqGuides}
-                  actual={activityTotals.serviceUpdates}
+                  actual={getActualValue("FAQ Guides Sent", activityTotals.serviceUpdates)}
                 />
                 <TargetRow
                   label="Telegram Guidance Messages"
                   target={targets.education.telegramMessages}
-                  actual={Math.floor(activityTotals.followupAttempts * 0.3)} // Example calculation
+                  actual={getActualValue(
+                    "Telegram Guidance Messages",
+                    Math.floor(activityTotals.followupAttempts * 0.3)
+                  )}
                 />
                 <TargetRow
                   label="Follow-up Reminders"
                   target={targets.education.followupReminders}
-                  actual={activityTotals.followupAttempts}
+                  actual={getActualValue("Follow-up Reminders", activityTotals.followupAttempts)}
                 />
               </Tbody>
             </Table>
@@ -834,26 +1074,35 @@ const CustomerReport = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {customerServiceUsers.slice(0, 4).map((officer, index) => {
-                  const officerData = interactionPerformance.find(
-                    perf => perf.username === officer.email || perf.userId === officer.id
-                  ) || { followupAttempts: 0, updateAttempts: 0 };
-                  
+                {(customerServiceUsers.length ? customerServiceUsers : interactionPerformance).map((officer, index) => {
+                  const perf =
+                    interactionPerformance.find(
+                      (p) => p.username === officer.email || p.userId === officer.id || p.agentId === officer.id || p.username === officer.username
+                    ) || { followupAttempts: 0, updateAttempts: 0 };
+                  const label = officer.name || officer.username || `Officer ${index + 1}`;
+                  const targetVal = targets.officerTargets[`officer${index + 1}`] || 300;
+                  const actualVal = getActualValue(
+                    label,
+                    (perf.followupAttempts || 0) + (perf.updateAttempts || 0)
+                  );
                   return (
                     <TargetRow
-                      key={officer.id || index}
-                      label={officer.name}
-                      target={targets.officerTargets[`officer${index + 1}`] || 300}
-                      actual={officerData.followupAttempts + officerData.updateAttempts}
+                      key={officer.id || officer._id || index}
+                      label={label}
+                      target={targetVal}
+                      actual={actualVal}
                     />
                   );
                 })}
                 <TargetRow
                   label="Customer Success Manager"
                   target={targets.officerTargets.manager}
-                  actual={interactionPerformance.reduce(
-                    (sum, officer) => sum + officer.followupAttempts + officer.updateAttempts, 
-                    0
+                  actual={getActualValue(
+                    "Customer Success Manager",
+                    interactionPerformance.reduce(
+                      (sum, officer) => sum + officer.followupAttempts + officer.updateAttempts, 
+                      0
+                    )
                   )}
                 />
               </Tbody>
@@ -883,43 +1132,93 @@ const CustomerReport = () => {
                 <QualityMetricRow
                   label="Satisfaction Score"
                   target={`${targets.qualityMetrics.satisfaction}%`}
-                  actual="85%"
+                  actual={`${getActualValue("Satisfaction Score", 85)}%`}
                 />
                 <QualityMetricRow
                   label="Service Delivery Accuracy"
                   target={`${targets.qualityMetrics.deliveryAccuracy}%`}
-                  actual="92%"
+                  actual={`${getActualValue("Service Delivery Accuracy", 92)}%`}
                 />
                 <QualityMetricRow
                   label="Policy Compliance"
                   target={`${targets.qualityMetrics.policyCompliance}%`}
-                  actual="98%"
+                  actual={`${getActualValue("Policy Compliance", 98)}%`}
                 />
                 <QualityMetricRow
                   label="Cross-Department Response"
                   target={`${targets.qualityMetrics.crossDeptResponse}%`}
-                  actual="95%"
+                  actual={`${getActualValue("Cross-Department Response", 95)}%`}
                 />
                 <QualityMetricRow
                   label="Time-to-Resolve"
                   target={`< ${targets.qualityMetrics.timeToResolve} hrs`}
-                  actual="20 hrs"
+                  actual={`${getActualValue("Time-to-Resolve (hrs)", 20)} hrs`}
                   isTime
                 />
                 <QualityMetricRow
                   label="Training-to-B2B Conversions"
                   target={targets.qualityMetrics.trainingToB2B}
-                  actual={Math.min(targets.qualityMetrics.trainingToB2B, 25)}
+                  actual={getActualValue(
+                    "Training-to-B2B Conversions",
+                    Math.min(targets.qualityMetrics.trainingToB2B, 25)
+                  )}
                 />
                 <QualityMetricRow
                   label="Renewals"
                   target={targets.qualityMetrics.renewals}
-                  actual={Math.min(targets.qualityMetrics.renewals, 18)}
+                  actual={getActualValue(
+                    "Renewals",
+                    Math.min(targets.qualityMetrics.renewals, 18)
+                  )}
                 />
               </Tbody>
             </Table>
           </CardBody>
         </Card>
+
+        <Modal
+          isOpen={actualModal.isOpen}
+          onClose={() => setActualModal((prev) => ({ ...prev, isOpen: false }))}
+          isCentered
+        >
+          <ModalOverlay />
+          <ModalContent bg={modalBg}>
+            <ModalHeader>Set Actual Value</ModalHeader>
+            <ModalBody>
+              <FormControl mb={4}>
+                <FormLabel>Metric</FormLabel>
+                <Select
+                  value={actualModal.metricLabel}
+                  onChange={(e) => handleActualChange(e.target.value)}
+                >
+                  {metricOptions().map((opt) => (
+                    <option key={opt.label} value={opt.label}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl>
+                <FormLabel>Actual Value</FormLabel>
+                <NumberInput
+                  value={actualModal.value}
+                  min={0}
+                  onChange={(_, val) => setActualModal((prev) => ({ ...prev, value: val }))}
+                >
+                  <NumberInputField />
+                </NumberInput>
+              </FormControl>
+            </ModalBody>
+            <ModalFooter>
+              <Button mr={3} onClick={() => setActualModal((prev) => ({ ...prev, isOpen: false }))}>
+                Cancel
+              </Button>
+              <Button colorScheme="blue" onClick={saveActualValue}>
+                Save
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </Box>
     </Layout>
   );

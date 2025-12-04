@@ -76,6 +76,7 @@ const CustomerFollowupReport = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedFollowup, setSelectedFollowup] = useState(null);
+  const [usersMap, setUsersMap] = useState({});
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -83,6 +84,7 @@ const CustomerFollowupReport = () => {
     pending: 0,
     overdue: 0
   });
+  const [trainingFollowupsData, setTrainingFollowupsData] = useState([]);
   
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
@@ -98,7 +100,13 @@ const CustomerFollowupReport = () => {
     const fetchFollowups = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`${API_URL}/api/followups`);
+        const token = localStorage.getItem("userToken");
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const [response, trainingRes, usersRes] = await Promise.all([
+          axios.get(`${API_URL}/api/followups`, { headers }),
+          axios.get(`${API_URL}/api/training-followups`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${API_URL}/api/users`, { headers }).catch(() => ({ data: [] }))
+        ]);
         
         if (response.data && Array.isArray(response.data)) {
           setFollowups(response.data);
@@ -106,6 +114,26 @@ const CustomerFollowupReport = () => {
         } else {
           setError("Invalid data format received from server");
         }
+
+        if (Array.isArray(trainingRes.data)) {
+          setTrainingFollowupsData(trainingRes.data);
+        } else {
+          setTrainingFollowupsData([]);
+        }
+
+        const userList = Array.isArray(usersRes.data)
+          ? usersRes.data
+          : Array.isArray(usersRes.data?.users)
+            ? usersRes.data.users
+            : [];
+        const map = {};
+        userList.forEach((u) => {
+          const id = (u._id || u.id || '').toString();
+          if (id) {
+            map[id] = u.name || u.username || u.email || id;
+          }
+        });
+        setUsersMap(map);
       } catch (err) {
         console.error("Error fetching followups:", err);
         setError("Failed to load follow-up data. Please try again later.");
@@ -238,6 +266,17 @@ const CustomerFollowupReport = () => {
     return matchesSearch && matchesStatus;
   });
 
+  // Training-specific slice for reporting
+  const trainingFollowups = [
+    ...trainingFollowupsData,
+    ...filteredFollowups.filter((f) => {
+      const typeMatch = (f.type || '').toLowerCase().includes('training') || (f.trainingType || '').toLowerCase().includes('training');
+      const hasCourse = !!(f.course || f.Course || f.trainingCourse || f.trainingType || f.program);
+      const hasTrainingDates = !!(f.trainingStartDate || f.trainingEndDate || f.startDate || f.endDate);
+      return typeMatch || hasCourse || hasTrainingDates;
+    }),
+  ];
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
@@ -260,6 +299,55 @@ const CustomerFollowupReport = () => {
       return 'Pending';
     }
     return 'Unknown';
+  };
+
+  const getValue = (obj, keys, fallback = 'N/A') => {
+    for (const k of keys) {
+      const parts = k.split('.');
+      let val = obj;
+      for (const p of parts) {
+        val = val ? val[p] : undefined;
+      }
+      if (val !== undefined && val !== null && val !== '') return val;
+    }
+    return fallback;
+  };
+
+  const getAssignedDisplay = (followup) => {
+    const raw = followup.assignedTo;
+    const tryUserMap = (val) => {
+      if (!val) return null;
+      const key = val.toString().trim();
+      return usersMap[key] || null;
+    };
+
+    // Build list of IDs to attempt resolving to a username
+    const candidateIds = [];
+    if (raw && typeof raw === 'object') {
+      candidateIds.push(raw._id, raw.id, raw.toString?.());
+    } else if (typeof raw === 'string') {
+      candidateIds.push(raw);
+    }
+    candidateIds.push(followup.assignedToId, followup.agentId);
+
+    for (const cid of candidateIds) {
+      const mapped = tryUserMap(cid);
+      if (mapped) return mapped;
+    }
+
+    // Try readable fields on assignedTo object
+    if (raw && typeof raw === 'object') {
+      if (raw.name) return raw.name;
+      if (raw.username) return raw.username;
+      if (raw.email) return raw.email;
+    }
+
+    // Fallbacks to agent data or raw string
+    if (followup.agentName) return followup.agentName;
+    if (followup.agentUsername) return followup.agentUsername;
+    if (typeof raw === 'string' && raw.trim().length > 0) return raw;
+    if (typeof followup.agentId === 'string' && followup.agentId.trim().length > 0) return followup.agentId;
+    return 'Unassigned';
   };
 
   if (loading) {
@@ -527,13 +615,14 @@ const CustomerFollowupReport = () => {
         {/* Follow-up Table */}
         <Card 
           bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
+          boxShadow="md" 
+          borderRadius="lg" 
           borderWidth="1px" 
           borderColor={borderColor}
           overflowX="auto"
+          p={2}
         >
-          <CardHeader>
+          <CardHeader py={3}>
             <Flex justify="space-between" align="center">
               <Heading size="md">Follow-up Details</Heading>
               <HStack spacing={3}>
@@ -544,12 +633,13 @@ const CustomerFollowupReport = () => {
             </Flex>
           </CardHeader>
           <CardBody p={0}>
-            <Table variant="simple" size="md">
-              <Thead bg={useColorModeValue('gray.50', 'gray.700')}>
+            <Table variant="simple" size="sm">
+              <Thead bg={useColorModeValue('gray.50', 'gray.700')} fontSize="sm">
                 <Tr>
                   <Th>Customer</Th>
-                  <Th>Type</Th>
-                  <Th>Status</Th>
+                  <Th>Company</Th>
+                  <Th>Package</Th>
+                  <Th>Service</Th>
                   <Th>Due Date</Th>
                   <Th>Assigned To</Th>
                   <Th>Last Updated</Th>
@@ -558,77 +648,76 @@ const CustomerFollowupReport = () => {
               </Thead>
               <Tbody>
                 {filteredFollowups.length > 0 ? (
-                  filteredFollowups.map((followup) => (
-                    <Tr key={followup._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
-                      <Td>
-                        <Text fontWeight="medium">{followup.customerName || 'N/A'}</Text>
-                        <Text fontSize="sm" color={secondaryTextColor}>
-                          {followup.phone || followup.email || 'No contact info'}
-                        </Text>
-                      </Td>
-                      <Td>
-                        <Badge colorScheme="blue" variant="subtle">
-                          {followup.type || 'General'}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        <Badge 
-                          colorScheme={getStatusColor(followup.status)}
-                          variant="subtle"
-                          px={2}
-                          py={1}
-                          borderRadius="full"
-                        >
-                          {getStatusLabel(followup)}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        {followup.dueDate ? (
-                          <>
-                            <Text>{new Date(followup.dueDate).toLocaleDateString()}</Text>
-                            <Text fontSize="xs" color={secondaryTextColor}>
-                              {new Date(followup.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </Text>
-                          </>
-                        ) : (
-                          'Not set'
-                        )}
-                      </Td>
-                      <Td>
-                        <HStack>
-                          <Box
-                            w={3}
-                            h={3}
-                            borderRadius="full"
-                            bg={followup.assignedTo ? 'green.500' : 'gray.300'}
-                          />
-                          <Text>{followup.assignedTo || 'Unassigned'}</Text>
-                        </HStack>
-                      </Td>
-                      <Td>
-                        {followup.updatedAt ? (
-                          <Tooltip label={new Date(followup.updatedAt).toLocaleString()}>
+                  filteredFollowups.map((followup, idx) => {
+                    const customer = getValue(followup, ['customerName', 'clientName', 'name'], 'N/A');
+                    const company = getValue(followup, ['companyName', 'company', 'organization'], 'N/A');
+                    const pkg = getValue(followup, ['packageType', 'package', 'packageNumber', 'packageName'], 'N/A');
+                    const service = getValue(followup, ['service', 'serviceProvided', 'serviceName'], 'N/A');
+                    const dueDate = followup.dueDate ? new Date(followup.dueDate) : null;
+                    const assigned = getAssignedDisplay(followup);
+                    const updated = followup.updatedAt ? new Date(followup.updatedAt) : null;
+                    return (
+                      <Tr key={followup._id || idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+                        <Td>
+                          <Text fontWeight="medium">{customer}</Text>
+                        </Td>
+                        <Td>
+                          <Text>{company}</Text>
+                        </Td>
+                        <Td>
+                          <Text>{pkg}</Text>
+                        </Td>
+                        <Td>
+                          <Text>{service}</Text>
+                        </Td>
+                        <Td>
+                          {dueDate ? (
+                            <>
+                              <Text>{dueDate.toLocaleDateString()}</Text>
+                              <Text fontSize="xs" color={secondaryTextColor}>
+                                {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </Text>
+                            </>
+                          ) : (
+                            'Not set'
+                          )}
+                        </Td>
+                        <Td>
+                          <HStack>
+                            <Box
+                              w={3}
+                              h={3}
+                              borderRadius="full"
+                              bg={assigned !== 'Unassigned' ? 'green.500' : 'gray.300'}
+                            />
+                            <Text>{assigned}</Text>
+                          </HStack>
+                        </Td>
+                        <Td>
+                        {updated ? (
+                          <Tooltip label={updated.toLocaleString()}>
                             <Text>
-                              {new Date(followup.updatedAt).toLocaleDateString()}
+                              {updated.toLocaleDateString()}
                             </Text>
                           </Tooltip>
                         ) : (
                           'N/A'
                         )}
-                      </Td>
-                      <Td>
-                        <Button
-                          size="sm"
-                          leftIcon={<FiEye />}
-                          onClick={() => handleViewDetails(followup)}
-                          colorScheme="blue"
-                          variant="ghost"
-                        >
-                          View
-                        </Button>
-                      </Td>
-                    </Tr>
-                  ))
+                        </Td>
+                        <Td>
+                          <Button
+                            size="sm"
+                            leftIcon={<FiEye />}
+                            onClick={() => handleViewDetails(followup)}
+                            colorScheme="blue"
+                            variant="ghost"
+                          >
+                            View
+                          </Button>
+                        </Td>
+                      </Tr>
+                    );
+                  })
                 ) : (
                   <Tr>
                     <Td colSpan={7} textAlign="center" py={8}>
@@ -683,29 +772,9 @@ const CustomerFollowupReport = () => {
                   <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <Box>
                       <Text fontSize="sm" color={secondaryTextColor} mb={1}>
-                        Type
+                      Assigned To
                       </Text>
-                      <Text>{selectedFollowup.type || 'General'}</Text>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" color={secondaryTextColor} mb={1}>
-                        Status
-                      </Text>
-                      <Badge 
-                        colorScheme={getStatusColor(selectedFollowup.status)}
-                        variant="subtle"
-                        px={2}
-                        py={1}
-                        borderRadius="full"
-                      >
-                        {getStatusLabel(selectedFollowup)}
-                      </Badge>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" color={secondaryTextColor} mb={1}>
-                        Assigned To
-                      </Text>
-                      <Text>{selectedFollowup.assignedTo || 'Unassigned'}</Text>
+                      <Text>{getAssignedDisplay(selectedFollowup)}</Text>
                     </Box>
                     <Box>
                       <Text fontSize="sm" color={secondaryTextColor} mb={1}>
@@ -715,22 +784,30 @@ const CustomerFollowupReport = () => {
                     </Box>
                     <Box>
                       <Text fontSize="sm" color={secondaryTextColor} mb={1}>
-                        Created At
+                        Company
                       </Text>
-                      <Text>
-                        {selectedFollowup.createdAt 
-                          ? new Date(selectedFollowup.createdAt).toLocaleString() 
-                          : 'N/A'}
-                      </Text>
+                      <Text>{getValue(selectedFollowup, ['companyName', 'company', 'organization'], 'N/A')}</Text>
                     </Box>
                     <Box>
                       <Text fontSize="sm" color={secondaryTextColor} mb={1}>
-                        Due Date
+                        Package
+                      </Text>
+                      <Text>{getValue(selectedFollowup, ['packageType', 'package', 'packageNumber', 'packageName'], 'N/A')}</Text>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" color={secondaryTextColor} mb={1}>
+                        Service
+                      </Text>
+                      <Text>{getValue(selectedFollowup, ['service', 'serviceProvided', 'serviceName'], 'N/A')}</Text>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" color={secondaryTextColor} mb={1}>
+                        Last Updated
                       </Text>
                       <Text>
-                        {selectedFollowup.dueDate 
-                          ? new Date(selectedFollowup.dueDate).toLocaleString() 
-                          : 'Not set'}
+                        {selectedFollowup.updatedAt 
+                          ? new Date(selectedFollowup.updatedAt).toLocaleString() 
+                          : 'N/A'}
                       </Text>
                     </Box>
                   </SimpleGrid>
@@ -785,6 +862,105 @@ const CustomerFollowupReport = () => {
             </ModalFooter>
           </ModalContent>
         </Modal>
+
+        {/* Training Follow-Up Details (for reporting) */}
+        <Card
+          bg={cardBg}
+          boxShadow="md"
+          borderRadius="lg"
+          borderWidth="1px"
+          borderColor={borderColor}
+          mt={8}
+        >
+          <CardHeader borderBottomWidth="1px" borderColor={borderColor} py={3}>
+            <Flex justify="space-between" align="center" wrap="wrap" gap={3}>
+              <Heading size="md">Training Follow-Up Details</Heading>
+              <Text color={secondaryTextColor} fontSize="sm">
+                Showing {trainingFollowups.length} training follow-ups
+              </Text>
+            </Flex>
+          </CardHeader>
+          <CardBody p={3}>
+            <Box overflowX="auto">
+              <Table variant="simple" size="sm">
+                <Thead bg={useColorModeValue('gray.50', 'gray.700')} fontSize="sm">
+                  <Tr>
+                    <Th>Customer</Th>
+                    <Th>Course</Th>
+                    <Th>Schedule / Shift</Th>
+                    <Th>Start Date</Th>
+                    <Th>End Date</Th>
+                    <Th>Progress</Th>
+                    <Th>Package Status</Th>
+                    <Th>Material Delivery</Th>
+                    <Th>Updated</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {trainingFollowups.length === 0 && (
+                    <Tr>
+                      <Td colSpan={9} textAlign="center" color={secondaryTextColor}>
+                        No training follow-ups available.
+                      </Td>
+                    </Tr>
+                  )}
+                  {trainingFollowups.map((item, idx) => {
+                    const customer = getValue(item, ['customerName', 'clientName', 'name']);
+                    const course = getValue(item, ['course', 'Course', 'trainingCourse', 'trainingType', 'program'], 'N/A');
+                    const schedule = getValue(item, ['schedule', 'shift', 'scheduleShift'], 'N/A');
+                    const startDate = getValue(item, ['startDate', 'trainingStartDate'], null);
+                    const endDate = getValue(item, ['endDate', 'trainingEndDate'], null);
+                    const progressVal = getValue(item, ['progress', 'trainingProgress', 'status', 'followupStatus'], 'N/A');
+                    const packageStatus = getValue(item, ['packageStatus', 'package_status'], 'N/A');
+                    const material = getValue(item, ['materialStatus', 'materialDeliveryStatus'], 'N/A');
+                    const updated = item.updatedAt ? new Date(item.updatedAt) : null;
+                    const progressLower = (progressVal || '').toString().toLowerCase();
+                    const progressColor =
+                      progressLower === 'completed' ? 'green' :
+                      progressLower === 'in progress' ? 'blue' :
+                      progressLower === 'pending' ? 'orange' :
+                      'gray';
+                    return (
+                      <Tr key={item._id || idx}>
+                        <Td>{customer}</Td>
+                        <Td>{course}</Td>
+                        <Td>{schedule}</Td>
+                        <Td>{startDate ? new Date(startDate).toLocaleDateString() : 'N/A'}</Td>
+                        <Td>{endDate ? new Date(endDate).toLocaleDateString() : 'N/A'}</Td>
+                        <Td>
+                          <Badge colorScheme={progressColor} variant="subtle" px={2} py={1} borderRadius="full">
+                            {progressVal || 'N/A'}
+                          </Badge>
+                        </Td>
+                        <Td>{packageStatus}</Td>
+                        <Td>{material}</Td>
+                        <Td>{updated ? updated.toLocaleDateString() : 'N/A'}</Td>
+                      </Tr>
+                    );
+                  })}
+                </Tbody>
+              </Table>
+            </Box>
+
+            <Box
+              mt={6}
+              p={4}
+              bg={useColorModeValue('gray.50', 'gray.700')}
+              borderRadius="md"
+              borderWidth="1px"
+              borderColor={borderColor}
+            >
+              <Heading size="sm" mb={2}>How to update training follow-up</Heading>
+              <VStack align="start" spacing={2} color={secondaryTextColor} fontSize="sm">
+                <Text>1) Edit schedule/shift, start and end dates in the training follow-up form.</Text>
+                <Text>2) Set progress to the latest status (e.g., In Progress, Completed).</Text>
+                <Text>3) Update package status and material delivery after each milestone.</Text>
+                <Text>4) Log notes/communications for learner interactions to keep an audit trail.</Text>
+                <Text>5) Save the record; the table will show the latest “Updated” timestamp.</Text>
+              </VStack>
+            </Box>
+          </CardBody>
+        </Card>
       </Box>
     </Layout>
   );

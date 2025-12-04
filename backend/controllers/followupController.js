@@ -423,6 +423,46 @@ const importB2BCustomers = async (req, res) => {
   }
 };
 
+// @desc    Get follow-up stats summary
+// @route   GET /api/followups/stats
+// @access  Public
+const getFollowupStats = async (req, res) => {
+  try {
+    const followups = await Followup.find();
+    const now = new Date();
+    const stats = {
+      total: followups.length,
+      completed: 0,
+      pending: 0,
+      active: 0,
+      overdue: 0,
+      callAttempts: 0,
+      messageAttempts: 0,
+      emailAttempts: 0,
+    };
+
+    followups.forEach((f) => {
+      const status = (f.status || "").toLowerCase();
+      if (status === "completed") {
+        stats.completed += 1;
+      } else if (status === "pending") {
+        stats.pending += 1;
+        if (f.dueDate && new Date(f.dueDate) < now) {
+          stats.overdue += 1;
+        }
+      }
+      stats.callAttempts += f.call_count || f.callAttempts || 0;
+      stats.messageAttempts += f.message_count || f.messageAttempts || 0;
+      stats.emailAttempts += f.email_count || f.emailAttempts || 0;
+    });
+
+    stats.active = stats.total - stats.completed;
+    res.status(200).json(stats);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching follow-up stats", error: error.message });
+  }
+};
+
 // @desc    Get all B2B customers that are not yet in follow-up system
 // @route   GET /api/followups/b2b-pending
 // @access  Public
@@ -496,5 +536,6 @@ module.exports = {
   processOrder,
   editCustomer,
   importB2BCustomers,
-  getPendingB2BCustomers
+  getPendingB2BCustomers,
+  getFollowupStats
 };

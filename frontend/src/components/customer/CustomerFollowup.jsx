@@ -1188,8 +1188,13 @@ const saveEnsraEdit = async () => {
         note: activityNote,
       });
       const updated = res.data;
-      updateLocalFollowup(activityTarget._id, () => updated);
-      setActivityTarget(updated);
+      const communications = updated.communicationLogs || updated.communications || [];
+      const normalized = { ...updated, communications };
+      updateLocalFollowup(activityTarget._id, () => normalized);
+      setActivityTarget(normalized);
+      setSelectedClient((prev) =>
+        prev && prev._id === activityTarget._id ? normalized : prev
+      );
       setActivityChannel("");
       setActivityNote("");
       toast({
@@ -1342,8 +1347,16 @@ const saveEnsraEdit = async () => {
           duration: 2000,
           isClosable: true,
         });
+        const notesArray = response.data || [];
         setNote("");
-        fetchData();
+        // Optimistically update local selection and lists
+        setSelectedClient((prev) =>
+          prev && prev._id === selectedClient._id ? { ...prev, notes: notesArray } : prev
+        );
+        setActivityTarget((prev) =>
+          prev && prev._id === selectedClient._id ? { ...prev, notes: notesArray } : prev
+        );
+        updateLocalFollowup(selectedClient._id, (prev) => ({ ...prev, notes: notesArray }));
       } else {
         throw new Error(`Unexpected response status: ${response.status}`);
       }
@@ -2267,7 +2280,7 @@ const saveEnsraEdit = async () => {
             <Tab>
               <HStack spacing={2}>
                 <CheckIcon />
-                <Text>B2B Customers Follow-up</Text>
+                <Text>B2B Customers</Text>
               </HStack>
             </Tab>
             <Tab>
@@ -2279,13 +2292,13 @@ const saveEnsraEdit = async () => {
             <Tab>
               <HStack spacing={2}>
                 <DownloadIcon />
-                <Text>Training</Text>
+                <Text>Pending Training</Text>
               </HStack>
             </Tab>
             <Tab>
               <HStack spacing={2}>
                 <CheckIcon />
-                <Text>Training Follow-Up</Text>
+                <Text>Training</Text>
               </HStack>
             </Tab>
 
@@ -2299,7 +2312,7 @@ const saveEnsraEdit = async () => {
              <Tab>
               <HStack spacing={2}>
                 <DownloadIcon /><CheckIcon />
-                <Text>ENSRA Follow-Up</Text>
+                <Text>ENSRA</Text>
               </HStack>
             </Tab>
             </TabList>
@@ -3232,10 +3245,10 @@ const saveEnsraEdit = async () => {
                 <VStack align="stretch" spacing={2}>
                   <Text fontWeight="bold">Communication Logs</Text>
                   <VStack align="stretch" spacing={1} maxH="200px" overflowY="auto" border="1px solid" borderColor={borderColor} p={2} borderRadius="md">
-                    {(activityTarget.communications || []).length === 0 && (
+                    {((activityTarget.communicationLogs || activityTarget.communications || []).length === 0) && (
                       <Text color="gray.500">No communications logged.</Text>
                     )}
-                    {(activityTarget.communications || []).map((c, idx) => (
+                    {(activityTarget.communicationLogs || activityTarget.communications || []).map((c, idx) => (
                       <Box key={idx} p={2} bg={useColorModeValue("gray.50", "gray.700")} borderRadius="sm">
                         <Text fontWeight="semibold" fontSize="sm">{c.channel}</Text>
                         {c.note && <Text fontSize="sm">{c.note}</Text>}

@@ -127,6 +127,7 @@ return (
                             <option value="admin">Admin</option>
                             <option value="sales">Sales</option>
                             <option value="customerservice">Customer Service</option>
+                            <option value="CustomerSuccessManager">Customer Success Manager</option>
                             <option value="SocialmediaManager">Socialmedia Manager</option>
                             <option value="SalesSupervisor">Sales Supervisor</option>
                             <option value="tradextv">tradextv</option>
