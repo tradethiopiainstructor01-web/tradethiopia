@@ -682,6 +682,16 @@ const FollowupPage = () => {
             </Stat>
           </CardBody>
         </Card>
+
+                <Card bg={cardBg} boxShadow="md" borderRadius="lg" overflow="hidden">
+          <CardBody>
+            <Stat>
+              <StatLabel fontWeight="medium" color={secondaryTextColor}>Total Commission</StatLabel>
+              <StatNumber fontSize="2xl" color="green.500">ETB {typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}</StatNumber>
+              <StatHelpText fontSize="sm" color={secondaryTextColor}>from all sales</StatHelpText>
+            </Stat>
+          </CardBody>
+        </Card>
       </SimpleGrid>
 
       {/* Filters and Search */}

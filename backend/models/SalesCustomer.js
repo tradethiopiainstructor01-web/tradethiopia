@@ -43,9 +43,14 @@ const salesCustomerSchema = new mongoose.Schema({
   },
   supervisorComment: {
     type: String
-<<<<<<< Updated upstream
   }
-=======
+  },
+  // Course information
+  courseName: {
+    type: String
+  },
+  courseId: {
+    type: String
   },
   // Course information
   courseName: {
@@ -73,7 +78,6 @@ const salesCustomerSchema = new mongoose.Schema({
     type: Number
   },
   commission: commissionSchema
->>>>>>> Stashed changes
 }, {
   timestamps: true
 });
