@@ -54,8 +54,10 @@ const FollowupCustomerTable = ({ customers, onDelete, onUpdate, onAdd }) => {
   });
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const { isOpen, onOpen, onClose } = useDisclosure();
+
   const [drawerCustomer, setDrawerCustomer] = useState(null);
   const toast = useToast();
+
   const toast = useToast();
 
   const userToken = localStorage.getItem('userToken');
