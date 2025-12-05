@@ -86,11 +86,29 @@ io.on('connection', (socket) => {
 app.set('io', io);
 app.set('connectedUsers', connectedUsers);
 
-// Middleware
-app.use(cors({
-  origin: '*',
+// CORS configuration
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://tradethiopia-pied.vercel.app',
+  'https://tradethiopia.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000'
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl) or if whitelisted
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
-}));
+};
+
+// Middleware
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(bodyParser.json({ limit: '10mb' }));
 // Removed static uploads directory since we're using Appwrite for file storage
