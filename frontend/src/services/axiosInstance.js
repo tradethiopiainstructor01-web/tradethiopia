@@ -4,8 +4,12 @@ import axios from 'axios';
 import { useUserStore } from '../store/user';
 import { useNavigate } from 'react-router-dom';
 
-// Create axios instance with baseURL and authorization header setup
-const baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+// Create axios instance with baseURL and authorization header setup.
+// Fallback points to production backend so public builds don't hit the frontend host and 404.
+const fallbackApiHost = 'https://tradethiopia-backend.vercel.app';
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : `${fallbackApiHost}/api`;
 const axiosInstance = axios.create({
   baseURL,
 });

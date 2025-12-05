@@ -4,13 +4,9 @@
   "main": "index.js",
   "scripts": {
     "test": "cross-env NODE_ENV=test jest --runInBand",
-<<<<<<< Updated upstream
-    "start": "node server.js"
-=======
     "start": "node server.js",
     "seed:coo": "node scripts/seedCOO.js",
     "seed:tradextv": "node scripts/seedTradexTV.js"
->>>>>>> Stashed changes
   },
   "keywords": [],
   "author": "",
