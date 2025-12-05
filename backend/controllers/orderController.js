@@ -346,6 +346,21 @@ const getOrderStats = asyncHandler(async (req, res) => {
   }
 });
 
+// Placeholder: reserve stock for a followup (allocate regular then buffer)
+const reserveForFollowup = asyncHandler(async (_req, res) => {
+  res.status(501).json({ message: 'reserveForFollowup not implemented' });
+});
+
+// Placeholder: simulate reservation without DB changes
+const simulateReserveForFollowup = asyncHandler(async (_req, res) => {
+  res.status(501).json({ message: 'simulateReserveForFollowup not implemented' });
+});
+
+// Placeholder: fulfill an order associated with a followup
+const fulfillOrder = asyncHandler(async (_req, res) => {
+  res.status(501).json({ message: 'fulfillOrder not implemented' });
+});
+
 module.exports = {
   getOrders,
   getOrderById,
@@ -353,5 +368,8 @@ module.exports = {
   updateOrder,
   deleteOrder,
   getOrdersByCustomerId,
-  getOrderStats
+  getOrderStats,
+  reserveForFollowup,
+  simulateReserveForFollowup,
+  fulfillOrder
 };
