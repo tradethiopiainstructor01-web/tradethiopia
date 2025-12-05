@@ -1,0 +1,1134 @@
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  Box,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Spinner,
+  Text,
+  Card,
+  CardHeader,
+  CardBody,
+  Heading,
+  HStack,
+  Button,
+  Select,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  Icon,
+  Badge,
+  VStack,
+  Stat,
+  StatLabel,
+  StatNumber,
+  SimpleGrid,
+  useColorModeValue,
+  Wrap,
+  WrapItem,
+  Progress,
+  useToast,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  Checkbox,
+  CheckboxGroup,
+  FormControl,
+  FormLabel,
+  Textarea,
+  Divider
+} from '@chakra-ui/react';
+import { FiSearch, FiDownload, FiFilter, FiBarChart2, FiCalendar, FiUser, FiTrendingUp, FiActivity, FiCheckCircle, FiClock, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
+import axios from 'axios';
+import { useUserStore } from '../../store/user';
+import { useNavigate } from 'react-router-dom';
+
+const statusColor = (s) => {
+  switch (s) {
+    case 'done': return 'green';
+    case 'ongoing': return 'blue';
+    case 'pending': return 'yellow';
+    default: return 'gray';
+  }
+
+// Point values for different task types
+const POINT_VALUES = {
+  // All tasks are now 1 point per selected category/platform
+  internal: 1,
+  external: 1
+};
+
+const Reports = () => {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [dateRange, setDateRange] = useState('weekly');
+  const [searchTerm, setSearchTerm] = useState('');
+  // Create report modal state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedInternalTasks, setSelectedInternalTasks] = useState([]);
+  const [selectedExternalTasks, setSelectedExternalTasks] = useState([]);
+  const [reportDescription, setReportDescription] = useState('');
+  const toast = useToast();
+  const navigate = useNavigate();
+  const currentUser = useUserStore((state) => state.currentUser);
+  const token = currentUser?.token || localStorage.getItem('userToken');
+  const initialLoad = useRef(true);
+  const [selectedPerson, setSelectedPerson] = useState('all');
+  
+  // Create report functions
+  const handleCreateReport = () => {
+    setIsCreateModalOpen(true);
+  
+  
+  const handleCloseModal = () => {
+    setIsCreateModalOpen(false);
+    setSelectedInternalTasks([]);
+    setSelectedExternalTasks([]);
+    setReportDescription('');
+  };
+  
+  const handleSubmitReport = async () => {
+    try {
+      const token = currentUser?.token || localStorage.getItem('userToken');
+      if (!token) {
+        toast({
+          title: 'Authentication Error',
+          description: 'You must be logged in to create a report.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+      
+      // Calculate total points
+      const totalPoints = calculateTotalPoints();
+      
+      // Prepare report data
+      const reportData = {
+        projectName: 'Weekly Report',
+        projectType: 'internal',
+        actionType: 'report',
+        description: reportDescription,
+        startDate: new Date(),
+        endDate: new Date(),
+        status: 'completed',
+        completionDate: new Date(),
+        personnelName: [currentUser?.name || 'Unknown'],
+        points: totalPoints
+      };
+      
+      // Submit report
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/it/reports`, reportData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      toast({
+        title: 'Report Created',
+        description: 'Your report has been successfully created.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+      
+      handleCloseModal();
+      fetchTasks(); // Refresh tasks
+    } catch (error) {
+      console.error('Error creating report:', error);
+      toast({
+        title: 'Error Creating Report',
+        description: error.response?.data?.message || 'Failed to create report. Please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      };
+    }
+  };
+  
+  // Calculate total points for selected tasks
+  const calculateTotalPoints = () => {
+    let totalPoints = 0;
+    
+    // Add points for internal tasks (1 point per task)
+    totalPoints += selectedInternalTasks.length * 1;
+    
+    // Add points for external tasks (1 point per task)
+    totalPoints += selectedExternalTasks.length * 1;
+    
+    return totalPoints;
+  };
+  
+  const bg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+
+  useEffect(() => {
+    fetchTasks();
+  }, [dateRange]);
+
+  // Effect to fetch tasks when user or token changes
+  useEffect(() => {
+    if (currentUser || token) {
+      fetchTasks();
+  }, [currentUser, token]);
+
+  // Internal task checklist with point values
+  const INTERNAL_TASKS = [
+    { name: 'tradeethiopian.com', points: 1 },
+    { name: 'tradethiopia.com', points: 1 },
+    { name: 'tradextv', points: 1 },
+    { name: 'ensra.com', points: 1 },
+    { name: 'meetings', points: 1 },
+    { name: 'maintenance', points: 1 },
+    { name: 'tesbinn.com', points: 1 },
+    { name: 'trainings', points: 1 },
+    { name: 'documentation', points: 1 }
+  
+
+  // External task checklist with point values
+  const EXTERNAL_TASKS = [
+    { name: 'website', points: 1 },
+    { name: 'company profile', points: 1 },
+    { name: 'logo', points: 1 },
+    { name: 'banner', points: 1 },
+    { name: 'brochure', points: 1 },
+    { name: 'roll up', points: 1 },
+    { name: 'flyer', points: 1 },
+    { name: 'business card', points: 1 },
+    { name: 'letterhead', points: 1 }
+  
+  
+  // Set initial load ref
+  useEffect(() => {
+    if (loading === false && tasks.length > 0) {
+      initialLoad.current = false;
+  }, [loading, tasks.length]);
+
+  // Fetch tasks
+  const fetchTasks = async () => {
+    setLoading(true);
+    try {
+      // Check if we have a valid token
+      const currentToken = currentUser?.token || localStorage.getItem('userToken');
+      if (!currentToken) {
+        toast({
+          title: 'Authentication Required',
+          description: 'You must be logged in to view reports.',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Fetching tasks with API URL:', import.meta.env.VITE_API_URL);
+      console.log('Using token:', currentToken ? 'Token present' : 'No token');
+      
+      // Add timeout to requests
+      const timeout = 10000; // 10 seconds
+      
+      // Fetch both internal and external tasks sequentially to isolate issues
+      console.log('Fetching internal tasks...');
+      const internalResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/it?projectType=internal`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+        timeout: timeout
+      
+      console.log('Internal tasks response:', internalResponse.data);
+
+      console.log('Fetching external tasks...');
+      const externalResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/it?projectType=external`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+        timeout: timeout
+      
+      console.log('External tasks response:', externalResponse.data);
+
+      const internalTasks = internalResponse.data.data || [];
+      const externalTasks = externalResponse.data.data || [];
+      
+      // Combine tasks
+      const allTasks = [...internalTasks, ...externalTasks];
+      console.log('Combined tasks:', allTasks.length);
+      setTasks(allTasks);
+    } catch (err) {
+      console.error('Error fetching tasks:', err);
+      console.error('Error response:', err.response);
+      
+      let errorMessage = 'Please try again later';
+      if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please check your connection and try again.';
+      } else if (err.response) {
+        if (err.response.status === 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+          // Clear user data and redirect to login page
+          useUserStore.getState().clearUser();
+          setTimeout(() => {
+            navigate('/login');
+          }, 3000);
+        } else {
+          errorMessage = err.response.data.message || `Server error: ${err.response.status}`;
+        }
+      } else if (err.request) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (err.message.includes('No authentication token found')) {
+        errorMessage = 'You must be logged in to view reports. Please log in and try again.';
+      } else {
+        errorMessage = err.message || 'An unexpected error occurred.';
+      }
+      
+      toast({
+        title: 'Failed to load tasks',
+        description: errorMessage,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      
+    } finally {
+      setLoading(false);
+    
+  
+
+  // Calculate points for a task based on totals
+  const calculateTaskPoints = (task) => {
+    // All tasks are now 1 point per selected category/platform
+    if (task.status === 'done') {
+      // For external tasks, count categories
+      if (task.projectType === 'external' && task.category) {
+        const categories = task.category.split(',').map(cat => cat.trim());
+        return categories.length;
+      
+      // For internal tasks, count platforms
+      else if (task.projectType === 'internal' && task.platform) {
+        const platforms = task.platform.split(',').map(plat => plat.trim());
+        return platforms.length;
+      
+      // Default to 1 point if no categories/platforms are specified
+      return 1;
+    
+    return 0;
+  
+
+  // Filter tasks based on date range
+  const filterTasksByDate = (tasks, range) => {
+    const now = new Date();
+    let startDate, endDate;
+    
+    switch (range) {
+      case 'weekly':
+        // Get start of current week (Monday)
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - (now.getDay() + 6) % 7);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+        
+      case 'monthly':
+        // Get start of current month
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+        
+      case 'yearly':
+        // Get start of current year
+        startDate = new Date(now.getFullYear(), 0, 1);
+        endDate = new Date(now.getFullYear(), 11, 31);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+        
+      default:
+        // Return all tasks
+        return tasks;
+    
+    
+    return tasks.filter(task => {
+      const taskDate = new Date(task.createdAt || task.updatedAt || task.date || now);
+      return taskDate >= startDate && taskDate <= endDate;
+    
+  
+
+  // Calculate statistics per person
+  const calculateStats = () => {
+    const filteredTasks = filterTasksByDate(tasks, dateRange);
+    
+    // Only consider completed tasks
+    const finalFilteredTasks = filteredTasks.filter(t => t.status === 'done');
+    
+    // Group tasks by assignee
+    const tasksByPerson = {};
+    finalFilteredTasks.forEach(task => {
+      // Handle multiple assignees by distributing points
+      if (task.assignedTo && task.assignedTo.length > 0) {
+        task.assignedTo.forEach(person => {
+          if (!tasksByPerson[person]) {
+            tasksByPerson[person] = [];
+          
+          tasksByPerson[person].push(task);
+        
+      } else {
+        // For unassigned tasks, group under "Unassigned"
+        if (!tasksByPerson['Unassigned']) {
+          tasksByPerson['Unassigned'] = [];
+        
+        tasksByPerson['Unassigned'].push(task);
+      
+    
+    
+    // Calculate points for each person
+    const personStats = {};
+    let totalPoints = 0;
+    let internalPoints = 0;
+    let externalPoints = 0;
+    let completedTasks = 0;
+    
+    Object.keys(tasksByPerson).forEach(person => {
+      let personPoints = 0;
+      let personInternalPoints = 0;
+      let personExternalPoints = 0;
+      let personCompletedTasks = 0;
+      
+      // Calculate points: All tasks are now 1 point per selected category/platform
+      personInternalPoints = 0;
+      personExternalPoints = 0;
+      
+      tasksByPerson[person]
+        .filter(task => task.status === 'done')
+        .forEach(task => {
+          const taskPoints = calculateTaskPoints(task);
+          if (task.projectType === 'internal') {
+            personInternalPoints += taskPoints;
+          } else if (task.projectType === 'external') {
+            personExternalPoints += taskPoints;
+          
+        
+      
+      personPoints = personInternalPoints + personExternalPoints;
+      personCompletedTasks = tasksByPerson[person].filter(task => task.status === 'done').length;
+      
+      personStats[person] = {
+        totalPoints: personPoints,
+        internalPoints: personInternalPoints,
+        externalPoints: personExternalPoints,
+        completedTasks: personCompletedTasks,
+        totalTasks: tasksByPerson[person].length,
+        // Each person has a 40-point target per week
+        target: dateRange === 'weekly' ? 40 : 
+                dateRange === 'monthly' ? 160 : 
+                dateRange === 'yearly' ? 2080 : 40,
+        delta: personPoints - (dateRange === 'weekly' ? 40 : 
+                               dateRange === 'monthly' ? 160 : 
+                               dateRange === 'yearly' ? 2080 : 40),
+        percentage: (dateRange === 'weekly' ? 40 : 
+                     dateRange === 'monthly' ? 160 : 
+                     dateRange === 'yearly' ? 2080 : 40) > 0 ? 
+                     Math.min(100, Math.round((personPoints / (dateRange === 'weekly' ? 40 : 
+                                                                dateRange === 'monthly' ? 160 : 
+                                                                dateRange === 'yearly' ? 2080 : 40)) * 100)) : 0
+      
+      
+      // Status indicator based on performance
+      personStats[person].statusIndicator = 'red'; // Default to red
+      if (personStats[person].percentage >= 100) {
+        personStats[person].statusIndicator = 'green';
+      } else if (personStats[person].percentage >= 70) {
+        personStats[person].statusIndicator = 'yellow';
+      
+      
+      // Add to totals
+      totalPoints += personPoints;
+      internalPoints += personInternalPoints;
+      externalPoints += personExternalPoints;
+      completedTasks += personCompletedTasks;
+    
+    
+    // Overall target (sum of all individual targets)
+    const totalTarget = Object.keys(personStats).length * (dateRange === 'weekly' ? 40 : 
+                                                           dateRange === 'monthly' ? 160 : 
+                                                           dateRange === 'yearly' ? 2080 : 40) || 40;
+    
+    const overallStats = {
+      totalPoints,
+      internalPoints,
+      externalPoints,
+      completedTasks: finalFilteredTasks.filter(t => t.status === 'done').length,
+      totalTasks: finalFilteredTasks.length,
+      delta: totalPoints - totalTarget,
+      percentage: totalTarget > 0 ? Math.min(100, Math.round((totalPoints / totalTarget) * 100)) : 0,
+      statusIndicator: 'red', // Default to red
+      target: totalTarget,
+      personStats // Include individual stats
+    
+    
+    // Overall status indicator
+    if (overallStats.percentage >= 100) {
+      overallStats.statusIndicator = 'green';
+    } else if (overallStats.percentage >= 70) {
+      overallStats.statusIndicator = 'yellow';
+    
+    
+    return overallStats;
+  
+
+  // Prepare data for charts
+  const prepareChartData = () => {
+    const filteredTasks = filterTasksByDate(tasks, dateRange);
+    const stats = calculateStats();
+    
+    // Internal vs External distribution
+    const distributionData = [
+      { name: 'Internal', value: stats.internalPoints },
+      { name: 'External', value: stats.externalPoints }
+    
+    
+    return { distributionData };
+  
+
+  const stats = calculateStats();
+  const { distributionData } = prepareChartData();
+
+  // Filter tasks for display - only show completed tasks
+  const filteredTasks = filterTasksByDate(tasks, dateRange).filter(task => {
+    // Only show completed tasks
+    if (task.status !== 'done') return false;
+    
+    const matchesSearch = !searchTerm || 
+      task.taskName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      task.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      task.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      task.platform?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Filter by selected person if not 'all'
+    const matchesPerson = selectedPerson === 'all' || 
+      (task.assignedTo && task.assignedTo.includes(selectedPerson)) ||
+      (selectedPerson === 'Unassigned' && (!task.assignedTo || task.assignedTo.length === 0));
+    
+    return matchesSearch && matchesPerson;
+  
+
+  // Get unique assignees for the filter
+  const assignees = [...new Set(tasks.flatMap(task => 
+    task.assignedTo && task.assignedTo.length > 0 ? task.assignedTo : ['Unassigned']
+  ))].sort();
+
+  // Get individual person stats for display
+  const personStatsArray = stats.personStats ? 
+    Object.keys(stats.personStats).map(person => ({
+      name: person,
+      ...stats.personStats[person]
+    })) : [];
+
+  if (loading) return (
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Spinner size="xl" />
+    </Box>
+  
+
+  // Show error message if no tasks loaded and not loading, and we've attempted to fetch
+  if (tasks.length === 0 && !loading && !initialLoad.current) {
+    return (
+      <VStack spacing={8} align="stretch">
+        {/* Header */}
+        <HStack justify="space-between" flexWrap="wrap" gap={4}>
+          <Box>
+            <Heading size="lg" color={useColorModeValue('gray.800', 'white')}>
+              IT Performance Reports
+            </Heading>
+            <Text color={useColorModeValue('gray.600', 'gray.400')}>
+              {dateRange === 'weekly' ? 'Weekly' : dateRange === 'monthly' ? 'Monthly' : 'Yearly'} performance tracking and task completion
+            </Text>
+          </Box>
+          
+          <HStack spacing={3}>
+            <Button 
+              leftIcon={<FiDownload />} 
+              colorScheme="blue" 
+              variant="outline"
+            >
+              Export {dateRange === 'weekly' ? 'Weekly' : dateRange === 'monthly' ? 'Monthly' : 'Yearly'} Report
+            </Button>
+          </HStack>
+        </HStack>
+
+        {/* Time Range Selector */}
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <HStack spacing={4} flexWrap="wrap">
+              <Text fontWeight="medium" color={useColorModeValue('gray.800', 'white')}>
+                View by:
+              </Text>
+              <Button 
+                size="sm"
+                colorScheme={dateRange === 'weekly' ? 'blue' : 'gray'}
+                variant={dateRange === 'weekly' ? 'solid' : 'outline'}
+                onClick={() => setDateRange('weekly')}
+              >
+                Weekly
+              </Button>
+              <Button 
+                size="sm"
+                colorScheme={dateRange === 'monthly' ? 'blue' : 'gray'}
+                variant={dateRange === 'monthly' ? 'solid' : 'outline'}
+                onClick={() => setDateRange('monthly')}
+              >
+                Monthly
+              </Button>
+              <Button 
+                size="sm"
+                colorScheme={dateRange === 'yearly' ? 'blue' : 'gray'}
+                variant={dateRange === 'yearly' ? 'solid' : 'outline'}
+                onClick={() => setDateRange('yearly')}
+              >
+                Yearly
+              </Button>
+              <Button 
+                size="sm"
+                leftIcon={<FiRefreshCw />}
+                variant="outline"
+                onClick={fetchTasks}
+              >
+                Refresh Data
+              </Button>
+            </HStack>
+          </CardBody>
+        </Card>
+
+        {/* Error Message */}
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <Box textAlign="center" py={12}>
+              <Icon as={FiAlertTriangle} boxSize={12} mb={4} color="red.500" />
+              <Heading size="md" mb={2} color={useColorModeValue('gray.800', 'white')}>
+                No Tasks Found
+              </Heading>
+              <Text mb={4} color={useColorModeValue('gray.600', 'gray.400')}>
+                No tasks were found for the selected time period. Try selecting a different time range or refresh the data.
+              </Text>
+              <HStack justify="center" spacing={4}>
+                <Button 
+                  leftIcon={<FiRefreshCw />} 
+                  colorScheme="blue" 
+                  onClick={fetchTasks}
+                >
+                  Refresh Tasks
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    setDateRange('weekly');
+                    setTimeout(fetchTasks, 100);
+                  
+                >
+                  View Weekly Tasks
+                </Button>
+              </HStack>
+            </Box>
+          </CardBody>
+        </Card>
+      </VStack>
+    
+  
+
+  return (
+    <VStack spacing={8} align="stretch">
+      {/* Header */}
+      <HStack justify="space-between" flexWrap="wrap" gap={4}>
+        <Box>
+          <Heading size="lg" color={useColorModeValue('gray.800', 'white')}>
+            IT Performance Reports
+          </Heading>
+          <Text color={useColorModeValue('gray.600', 'gray.400')}>
+            {dateRange === 'weekly' ? 'Weekly' : dateRange === 'monthly' ? 'Monthly' : 'Yearly'} completed task performance tracking
+          </Text>
+        </Box>
+        
+        <HStack spacing={3}>
+          <Button 
+            leftIcon={<FiDownload />} 
+            colorScheme="blue" 
+            variant="outline"
+          >
+            Export {dateRange === 'weekly' ? 'Weekly' : dateRange === 'monthly' ? 'Monthly' : 'Yearly'} Report
+          </Button>
+          <Button 
+            leftIcon={<FiBarChart2 />} 
+            colorScheme="green" 
+            onClick={handleCreateReport}
+          >
+            Create Report
+          </Button>
+        </HStack>
+      </HStack>
+
+      {/* Time Range Selector */}
+      <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+        <CardBody>
+          <HStack spacing={4} flexWrap="wrap">
+            <Text fontWeight="medium" color={useColorModeValue('gray.800', 'white')}>
+              View by:
+            </Text>
+            <Button 
+              size="sm"
+              colorScheme={dateRange === 'weekly' ? 'blue' : 'gray'}
+              variant={dateRange === 'weekly' ? 'solid' : 'outline'}
+              onClick={() => setDateRange('weekly')}
+            >
+              Weekly
+            </Button>
+            <Button 
+              size="sm"
+              colorScheme={dateRange === 'monthly' ? 'blue' : 'gray'}
+              variant={dateRange === 'monthly' ? 'solid' : 'outline'}
+              onClick={() => setDateRange('monthly')}
+            >
+              Monthly
+            </Button>
+            <Button 
+              size="sm"
+              colorScheme={dateRange === 'yearly' ? 'blue' : 'gray'}
+              variant={dateRange === 'yearly' ? 'solid' : 'outline'}
+              onClick={() => setDateRange('yearly')}
+            >
+              Yearly
+            </Button>
+            <Button 
+              size="sm"
+              leftIcon={<FiRefreshCw />}
+              variant="outline"
+              onClick={fetchTasks}
+            >
+              Refresh Data
+            </Button>
+          </HStack>
+        </CardBody>
+      </Card>
+
+      {/* Summary Cards */}
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={6}>
+        {/* Total Points Card */}
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <Stat>
+              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                Total Points
+              </StatLabel>
+              <StatNumber fontSize="2xl" fontWeight="bold" mt={1}>
+                {stats.totalPoints}
+              </StatNumber>
+              <HStack mt={2}>
+                <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
+                  Target: {stats.target}
+                </Text>
+                <Badge colorScheme={stats.statusIndicator}>
+                  {stats.delta >= 0 ? '+' : ''}{stats.delta}
+                </Badge>
+              </HStack>
+            </Stat>
+          </CardBody>
+        </Card>
+        
+        {/* Internal Tasks Card */}
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <Stat>
+              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                Internal Tasks
+              </StatLabel>
+              <StatNumber fontSize="2xl" fontWeight="bold" mt={1} color="blue.500">
+                {stats.internalPoints}
+              </StatNumber>
+              <Text mt={2} fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
+                Based on {stats.internalPoints} selected platforms
+              </Text>
+            </Stat>
+          </CardBody>
+        </Card>
+        
+        {/* External Points Card */}
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <Stat>
+              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                External Points
+              </StatLabel>
+              <StatNumber fontSize="2xl" fontWeight="bold" mt={1} color="purple.500">
+                {stats.externalPoints}
+              </StatNumber>
+              <Text mt={2} fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
+                Based on {stats.externalPoints} selected categories
+              </Text>
+            </Stat>
+          </CardBody>
+        </Card>
+        
+        {/* Total Tasks Card */}
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <Stat>
+              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                Total Tasks
+              </StatLabel>
+              <StatNumber fontSize="2xl" fontWeight="bold" mt={1} color="green.500">
+                {stats.completedTasks}
+              </StatNumber>
+              <Text mt={2} fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
+                Completed tasks
+              </Text>
+            </Stat>
+          </CardBody>
+        </Card>
+        
+        {/* Completion Rate Card */}
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <Stat>
+              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                Completion Rate
+              </StatLabel>
+              <StatNumber fontSize="2xl" fontWeight="bold" mt={1} color="green.500">
+                {stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}%
+              </StatNumber>
+              <HStack mt={2} spacing={2}>
+                <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
+                  {stats.completedTasks}/{stats.totalTasks} tasks
+                </Text>
+              </HStack>
+            </Stat>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
+
+      {/* Individual Performance Cards */}
+      {personStatsArray.length > 0 && (
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardHeader>
+            <Heading size="md" color={useColorModeValue('gray.800', 'white')}>
+              Individual Performance
+            </Heading>
+            <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+              Each person has a {dateRange === 'weekly' ? '40' : dateRange === 'monthly' ? '160' : '2080'} point target
+            </Text>
+          </CardHeader>
+          <CardBody>
+            <SimpleGrid columns={{ base: 1, md: 2, lg: personStatsArray.length > 4 ? 4 : personStatsArray.length }} spacing={4}>
+              {personStatsArray.map((person, index) => (
+                <Card key={index} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="lg" p={4}>
+                  <VStack align="stretch" spacing={2}>
+                    <Text fontWeight="bold" fontSize="md" isTruncated>
+                      {person.name}
+                    </Text>
+                    <HStack justify="space-between">
+                      <Text fontSize="sm">Points:</Text>
+                      <Text fontSize="sm" fontWeight="bold">
+                        {person.totalPoints} / {person.target}
+                      </Text>
+                    </HStack>
+                    <HStack justify="space-between">
+                      <Text fontSize="sm">Tasks:</Text>
+                      <Text fontSize="sm">
+                        Internal: {person.internalPoints} | External: {person.externalPoints} pts
+                      </Text>
+                    </HStack>
+                    <Progress 
+                      value={person.percentage} 
+                      colorScheme={person.statusIndicator} 
+                      size="sm" 
+                      borderRadius="full" 
+                    />
+                    <HStack justify="space-between">
+                      <Text fontSize="xs" color={useColorModeValue('gray.600', 'gray.400')}>
+                        {person.percentage}%
+                      </Text>
+                      <Badge fontSize="xs" colorScheme={person.statusIndicator}>
+                        {person.statusIndicator === 'green' ? 'On Track' : 
+                         person.statusIndicator === 'yellow' ? 'Needs Attention' : 'Behind'}
+                      </Badge>
+                    </HStack>
+                  </VStack>
+                </Card>
+              
+            </SimpleGrid>
+          </CardBody>
+        </Card>
+      
+
+      {/* Performance Indicator */}
+      <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+        <CardBody>
+          <HStack justify="space-between" mb={4}>
+            <Box>
+              <Heading size="md" color={useColorModeValue('gray.800', 'white')}>
+                {dateRange === 'weekly' ? 'Weekly' : dateRange === 'monthly' ? 'Monthly' : 'Yearly'} Target Progress
+              </Heading>
+              <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                {stats.totalPoints} of {stats.target} points ({stats.percentage}%)
+              </Text>
+            </Box>
+            
+            <Badge 
+              fontSize="lg" 
+              px={3} 
+              py={1} 
+              colorScheme={stats.statusIndicator}
+              borderRadius="full"
+            >
+              {stats.statusIndicator === 'green' ? 'On Track' : 
+               stats.statusIndicator === 'yellow' ? 'Needs Attention' : 'Behind'}
+            </Badge>
+          </HStack>
+          
+          <Progress 
+            value={stats.percentage} 
+            colorScheme={stats.statusIndicator} 
+            size="lg" 
+            borderRadius="full" 
+            hasStripe
+          />
+        </CardBody>
+      </Card>
+
+      {/* Filters */}
+      <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+        <CardBody>
+          <HStack spacing={4} flexWrap="wrap">
+            <InputGroup maxW="300px">
+              <InputLeftElement pointerEvents="none">
+                <Icon as={FiSearch} color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Search tasks..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                borderRadius="lg"
+              />
+            </InputGroup>
+            
+            {/* Status filter removed as we only show completed tasks */}
+            <input type="hidden" value="done" />
+            
+            <Select 
+              maxW="200px" 
+              value={selectedPerson} 
+              onChange={(e) => setSelectedPerson(e.target.value)}
+              borderRadius="lg"
+            >
+              <option value="all">All People</option>
+              {assignees.map((person, index) => (
+                <option key={index} value={person}>{person}</option>
+              
+            </Select>
+            
+            <Button 
+              leftIcon={<FiRefreshCw />} 
+              variant="outline"
+              onClick={fetchTasks}
+            >
+              Refresh
+            </Button>
+          </HStack>
+        </CardBody>
+      </Card>
+
+      {/* Tasks Table */}
+      {filteredTasks.length > 0 ? (
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <Table variant="simple">
+              <Thead>
+                <Tr>
+                  <Th>Task</Th>
+                  <Th>Type</Th>
+                  <Th>Category/Platform</Th>
+                  <Th>Points</Th>
+                  
+                </Tr>
+              </Thead>
+              <Tbody>
+                {filteredTasks.map((task) => {
+                  const points = calculateTaskPoints(task);
+                  return (
+                    <Tr key={task._id}>
+                      <Td fontWeight="medium">
+                        {task.taskName || task.client || 'Unnamed Task'}
+                      </Td>
+                      <Td>
+                        <Badge colorScheme={task.projectType === 'internal' ? 'blue' : 'purple'}>
+                          {task.projectType}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <Wrap spacing={2}>
+                          {task.projectType === 'internal' ? (
+                            task.platform ? (
+                              task.platform.split(', ').map((plat, idx) => (
+                                <WrapItem key={idx}>
+                                  <Badge colorScheme="blue" variant="subtle">
+                                    {plat}
+                                  </Badge>
+                                </WrapItem>
+                              
+                            ) : (
+                              <Badge colorScheme="blue" variant="subtle">
+                                N/A
+                              </Badge>
+                            
+                          ) : task.category ? (
+                            task.category.split(', ').map((cat, idx) => (
+                              <WrapItem key={idx}>
+                                <Badge colorScheme="purple" variant="subtle">
+                                  {cat}
+                                </Badge>
+                              </WrapItem>
+                            
+                          ) : (
+                            <Badge colorScheme="purple" variant="subtle">
+                              N/A
+                            </Badge>
+                          
+                        </Wrap>
+                      </Td>
+                      <Td>
+                        <Badge colorScheme={points > 0 ? 'green' : 'gray'}>
+                          {points} pts
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <Wrap spacing={2}>
+                          {task.assignedTo?.map((person, idx) => (
+                            <WrapItem key={idx}>
+                              <HStack spacing={1}>
+                                <Icon as={FiUser} color={useColorModeValue('gray.500', 'gray.400')} boxSize={4} />
+                                <Text fontSize="sm">{person}</Text>
+                              </HStack>
+                            </WrapItem>
+                          
+                        </Wrap>
+                      </Td>
+                    </Tr>
+                  
+                
+              </Tbody>
+            </Table>
+          </CardBody>
+        </Card>
+      ) : (
+        <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+          <CardBody>
+            <Box textAlign="center" py={12} color={useColorModeValue('gray.500', 'gray.400')}>
+              <Icon as={FiSearch} boxSize={12} mb={4} />
+              <Text fontSize="lg" fontWeight="medium" mb={2}>
+                No tasks found
+              </Text>
+              <Text mb={4}>
+                Try adjusting your search or filter criteria
+              </Text>
+              <Button 
+                leftIcon={<FiRefreshCw />} 
+                colorScheme="blue" 
+                onClick={fetchTasks}
+              >
+                Refresh Tasks
+              </Button>
+            </Box>
+          </CardBody>
+        </Card>
+      
+      
+      {/* Create Report Modal */}
+      <Modal isOpen={isCreateModalOpen} onClose={handleCloseModal} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Create Weekly Report</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={6} align="stretch">
+              <Text>
+                Select the tasks you've completed this week. Points will be calculated automatically.
+              </Text>
+              
+              <Divider />
+              
+              <FormControl>
+                <FormLabel fontWeight="bold">Internal Tasks (1 point each)</FormLabel>
+                <CheckboxGroup 
+                  value={selectedInternalTasks} 
+                  onChange={setSelectedInternalTasks}
+                >
+                  <VStack align="stretch" spacing={2}>
+                    {INTERNAL_TASKS.map((task, index) => (
+                      <Checkbox key={index} value={task.name}>
+                        {task.name} ({task.points} point)
+                      </Checkbox>
+                    
+                  </VStack>
+                </CheckboxGroup>
+              </FormControl>
+              
+              <Divider />
+              
+              <FormControl>
+                <FormLabel fontWeight="bold">External Tasks</FormLabel>
+                <CheckboxGroup 
+                  value={selectedExternalTasks} 
+                  onChange={setSelectedExternalTasks}
+                >
+                  <VStack align="stretch" spacing={2}>
+                    {EXTERNAL_TASKS.map((task, index) => (
+                      <Checkbox key={index} value={task.name}>
+                        {task.name} ({task.points} point)
+                      </Checkbox>
+                    
+                  </VStack>
+                </CheckboxGroup>
+              </FormControl>
+              
+              <Divider />
+              
+              <FormControl>
+                <FormLabel fontWeight="bold">Report Description</FormLabel>
+                <Textarea 
+                  placeholder="Add any additional notes or comments about your work this week..."
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  rows={4}
+                />
+              </FormControl>
+              
+              <Box bg="gray.100" p={4} borderRadius="md">
+                <Text fontWeight="bold" mb={2}>Summary:</Text>
+                <Text>Internal Tasks: {selectedInternalTasks.length} × 1 point = {selectedInternalTasks.length} points</Text>
+                <Text>External Tasks: {selectedExternalTasks.length} × 1 point = {selectedExternalTasks.length} points</Text>
+                <Text fontWeight="bold" mt={2}>Total Points: {calculateTotalPoints()} points</Text>
+                <Text color={calculateTotalPoints() >= 40 ? 'green.500' : 'red.500'}>
+                  Target: {calculateTotalPoints() >= 40 ? '✓' : '✗'} {calculateTotalPoints() >= 40 ? 'Target achieved' : `Need ${40 - calculateTotalPoints()} more points`}
+                </Text>
+              </Box>
+            </VStack>
+          </ModalBody>
+          
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={handleCloseModal}>
+              Cancel
+            </Button>
+            <Button 
+              colorScheme="green" 
+              onClick={handleSubmitReport}
+              isDisabled={calculateTotalPoints() === 0}
+            >
+              Submit Report
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </VStack>
+  
+
+
+export default Reports;

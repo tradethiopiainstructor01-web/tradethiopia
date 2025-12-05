@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "start": "vite preview",
-    "postbuild": "ls -la dist",
+    "postbuild": "node -e \"import { existsSync, readdirSync } from 'node:fs'; const dir='dist'; console.log('dist contents:', existsSync(dir)?readdirSync(dir):'missing');\"",
     "lint": "eslint .",
     "preview": "vite preview",
     "postinstall": "echo \"Postinstall completed\""

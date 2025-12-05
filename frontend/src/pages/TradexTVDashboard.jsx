@@ -31,6 +31,7 @@ import {
   useBreakpointValue, 
   IconButton, 
   Divider,
+  HStack,
   Progress,
   Tag,
   Input,
@@ -46,6 +47,7 @@ import {
   MenuOptionGroup,
   MenuItemOption,
   useDisclosure,
+  useToast,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -58,7 +60,7 @@ import {
   Stack,
   Textarea
 } from '@chakra-ui/react';
-import { 
+import {
   FiUsers, 
   FiMessageSquare, 
   FiClock, 
@@ -85,6 +87,7 @@ import {
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import { useUserStore } from '../store/user';
 import axios from 'axios';
+import NotificationsPanel from '../components/NotificationsPanel';
 
 const defaultServiceOptions = ['Promotional video', 'Motion graphics', 'Graphics design', 'Brand promo video'];
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -195,6 +198,7 @@ const TradexTVDashboard = () => {
   ]);
   const { isOpen: isProjectModalOpen, onOpen: onOpenProjectModal, onClose: onCloseProjectModal } = useDisclosure();
   const { isOpen: isNewCustomerOpen, onOpen: onOpenNewCustomer, onClose: onCloseNewCustomer } = useDisclosure();
+  const { isOpen: isBroadcastOpen, onOpen: onOpenBroadcast, onClose: onCloseBroadcast } = useDisclosure();
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer: '',
     subject: '',
@@ -209,6 +213,10 @@ const TradexTVDashboard = () => {
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
   const [isLoadingFollowups, setIsLoadingFollowups] = useState(false);
   const [isSavingFollowup, setIsSavingFollowup] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const toast = useToast();
 
   // Map icon names to actual icon components
   const iconMap = {
@@ -654,6 +662,8 @@ const TradexTVDashboard = () => {
     setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
   };
 
+  // Broadcast sending disabled for TradexTV per request
+
   const handleUpdateActual = async () => {
     const val = Number(actualForm.actual);
     const targetVal =
@@ -900,9 +910,19 @@ const TradexTVDashboard = () => {
                 <Heading size="lg" mb={1}>TradexTV Dashboard</Heading>
                 <Text color="gray.500">Welcome back! Here's what's happening with your customer support.</Text>
               </Box>
-              <Button colorScheme="purple" onClick={onOpenNewCustomer}>
-                New customer
-              </Button>
+              <HStack spacing={3}>
+                <NotificationsPanel
+                  buttonProps={{
+                    colorScheme: 'purple',
+                    variant: 'outline',
+                    size: 'sm',
+                  }}
+                  buttonLabel="Notifications"
+                />
+                <Button colorScheme="purple" onClick={onOpenNewCustomer}>
+                  New customer
+                </Button>
+              </HStack>
             </Flex>
 
       {/* Stats Grid */}
@@ -1984,21 +2004,22 @@ const TradexTVDashboard = () => {
             </VStack>
           </ModalBody>
 
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={handleCloseNewCustomer}>
-              Cancel
-            </Button>
-            <Button
-              colorScheme="purple"
-              onClick={handleNewCustomerSubmit}
-              isDisabled={!newCustomerForm.customer.trim() || isSavingFollowup}
-              isLoading={isSavingFollowup}
-            >
-              Add customer
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ModalFooter>
+        <Button variant="ghost" mr={3} onClick={handleCloseNewCustomer}>
+          Cancel
+        </Button>
+        <Button
+          colorScheme="purple"
+          onClick={handleNewCustomerSubmit}
+          isDisabled={!newCustomerForm.customer.trim() || isSavingFollowup}
+          isLoading={isSavingFollowup}
+        >
+          Add customer
+        </Button>
+      </ModalFooter>
+    </ModalContent>
+  </Modal>
+
     </Box>
   );
 };

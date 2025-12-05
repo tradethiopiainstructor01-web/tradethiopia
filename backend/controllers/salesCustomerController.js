@@ -36,7 +36,6 @@ const createCustomer = asyncHandler(async (req, res) => {
     schedulePreference,
     email,
     note,
-
     supervisorComment,
     courseName,
     courseId,
@@ -54,13 +53,11 @@ const createCustomer = asyncHandler(async (req, res) => {
     schedulePreference,
     email,
     note,
-
     supervisorComment,
-    courseName: contactTitle, // Map contactTitle to courseName for consistency
+    courseName: courseName || contactTitle, // align course name with contact title if missing
     courseId,
     coursePrice,
     commission
-
   });
 
   const createdCustomer = await customer.save();
@@ -85,7 +82,6 @@ const updateCustomer = asyncHandler(async (req, res) => {
     courseId,
     coursePrice,
     commission
-
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -100,7 +96,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
     customer.email = email || customer.email;
     customer.note = note || customer.note;
     customer.supervisorComment = supervisorComment || customer.supervisorComment;
-    customer.courseName = contactTitle || customer.contactTitle; // Update courseName when contactTitle changes
+    customer.courseName = courseName || customer.courseName || contactTitle || customer.contactTitle;
     customer.courseId = courseId || customer.courseId;
     customer.coursePrice = coursePrice || customer.coursePrice;
     customer.commission = commission || customer.commission;

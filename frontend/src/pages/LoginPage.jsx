@@ -34,9 +34,11 @@ const handleLogin = async () => {
                 // If info status is inactive, redirect to /employee-info
                 navigate('/employee-info');
             } else {
+                const normalizedRole = (role || '').toLowerCase();
                 // If both are active, redirect based on user role
-                switch (role) {
+                switch (normalizedRole) {
                     case 'admin':
+                    case 'hr':
                         navigate('/dashboard');
                         break;
                     case 'sales':
@@ -48,20 +50,15 @@ const handleLogin = async () => {
                     case 'customerservice':
                         navigate('/Cdashboard');
                         break;
-                    case 'COO':
                     case 'coo':
                         navigate('/coo-dashboard');
                         break;
-                    case 'TradeXTV':
                     case 'tradextv':
-                    case 'tradexTv':
+                    case 'tetv':
                         navigate('/tradextv-dashboard');
                         break;
-                    case 'HR':
-                        navigate('/dashboard');
-                        break;
-                    case 'tradextv':
-                        navigate('/tradextv');
+                    case 'it':
+                        navigate('/it');
                         break;
                     default:
                         navigate('/ComingSoonPage'); // Optional: handle unknown roles

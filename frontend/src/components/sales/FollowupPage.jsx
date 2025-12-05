@@ -33,6 +33,7 @@ import {
   FiPhone, 
   FiCheckCircle, 
   FiTrendingUp, 
+  FiDollarSign,
   FiClock,
   FiDownload
 } from 'react-icons/fi';
@@ -49,7 +50,8 @@ const FollowupPage = () => {
     new: 0,
     active: 0,
     completedDeals: 0,
-    calledCustomers: 0
+    calledCustomers: 0,
+    totalCommission: 0
   });
   const [filters, setFilters] = useState({
     search: '',
@@ -444,7 +446,7 @@ const FollowupPage = () => {
       
       {/* Stats Overview */}
       <SimpleGrid 
-        columns={{ base: 1, sm: 2, md: 2, lg: 4 }} 
+        columns={{ base: 1, sm: 2, md: 2, lg: 5 }} 
         spacing={{ base: 4, md: 6 }} 
         mb={{ base: 6, md: 8 }}
       >
@@ -512,6 +514,42 @@ const FollowupPage = () => {
                   <StatNumber fontSize="xl" fontWeight="bold" color="green.500" mt={0}>
                     {stats.completedDeals}
                   </StatNumber>
+                </Box>
+              </Flex>
+            </Stat>
+          </CardBody>
+        </Card>
+
+        <Card 
+          bg={cardBg} 
+          boxShadow="lg" 
+          borderRadius="xl" 
+          borderWidth="1px" 
+          borderColor={borderColor}
+          transition="all 0.3s"
+          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
+          h="100%"
+        >
+          <CardBody p={3}>
+            <Stat>
+              <Flex alignItems="center">
+                <Box
+                  p={2}
+                  borderRadius="lg"
+                  bg="yellow.100"
+                  color="yellow.600"
+                  mr={3}
+                >
+                  <Icon as={FiDollarSign} boxSize={5} />
+                </Box>
+                <Box>
+                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
+                    Total Commission
+                  </StatLabel>
+                  <StatNumber fontSize="xl" fontWeight="bold" color="yellow.600" mt={0}>
+                    ETB {typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}
+                  </StatNumber>
+                  <StatHelpText fontSize="xs" color={secondaryTextColor}>from all sales</StatHelpText>
                 </Box>
               </Flex>
             </Stat>

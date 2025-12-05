@@ -2289,17 +2289,19 @@ const saveEnsraEdit = async () => {
               </HStack>
             </Tab>
            
-            <Tab>
-              <HStack spacing={2}>
-                <DownloadIcon /><CheckIcon />
-                <Text>ENSRA Follow-Up</Text>
-              </HStack>
-            </Tab>
+            
 
              <Tab>
               <HStack spacing={2}>
                 <CheckIcon />
                 <Text>All TESBINN Users</Text>
+              </HStack>
+            </Tab>
+
+            <Tab>
+              <HStack spacing={2}>
+                <DownloadIcon /><CheckIcon />
+                <Text>ENSRA Follow-Up</Text>
               </HStack>
             </Tab>
             </TabList>

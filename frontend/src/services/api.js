@@ -45,14 +45,6 @@ export const updateEnsraFollowup = (id, data) =>
   axiosInstance.put(`/ensra-followups/${id}`, data).then(response => response.data);
 
 export const deleteEnsraFollowup = (id) =>
-
-
-
-  API.delete(`/ensra-followups/${id}`).then(response => response.data);
-
-  axiosInstance.delete(`/ensra-followups/${id}`).then(response => response.data);
-
-
   axiosInstance.delete(`/ensra-followups/${id}`).then(response => response.data);
 
 // Courses
@@ -66,15 +58,4 @@ export const updateCourse = (id, data) =>
   axiosInstance.put(`/courses/${id}`, data).then(response => response.data);
 
 export const deleteCourse = (id) =>
-
-
-
-  axiosInstance.delete(`/courses/${id}`).then(response => response.data);
-
-  axiosInstance.delete(`/courses/${id}`).then(response => response.data);
-
-
-  axiosInstance.delete(`/courses/${id}`).then(response => response.data);
-
-
   axiosInstance.delete(`/courses/${id}`).then(response => response.data);

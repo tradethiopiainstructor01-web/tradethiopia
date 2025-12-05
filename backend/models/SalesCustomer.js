@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+const commissionSchema = new mongoose.Schema({
+  grossCommission: { type: Number },
+  commissionTax: { type: Number },
+  netCommission: { type: Number }
+}, { _id: false });
+
 const salesCustomerSchema = new mongoose.Schema({
   agentId: {
     type: String,
@@ -44,28 +50,6 @@ const salesCustomerSchema = new mongoose.Schema({
   supervisorComment: {
     type: String
   },
-  // Course information
-  courseName: {
-    type: String
-  },
-  courseId: {
-    type: String
-  },
-  // Course information
-  courseName: {
-    type: String
-  },
-  courseId: {
-    type: String
-  },
-  // Course information
-  courseName: {
-    type: String
-  },
-  courseId: {
-    type: String
-  },
-  // Course information
   courseName: {
     type: String
   },
@@ -76,10 +60,7 @@ const salesCustomerSchema = new mongoose.Schema({
   coursePrice: {
     type: Number
   },
-  commission: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Commission'
-  }
+  commission: commissionSchema
 }, {
   timestamps: true
 });
