@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Flex,
@@ -310,47 +310,53 @@ const SalesManagerDashboard = () => {
   };
 
   // Debug log when component mounts
+  const applyStatsFallback = () => {
+    setStats({
+      totalAgents: 12,
+      activeAgents: 9,
+      totalCustomers: 1287,
+      newCustomers: 42,
+      totalDeals: 356,
+      closedDeals: 243,
+      totalRevenue: 1256800,
+      revenueTarget: 1500000,
+      monthlyGrowth: 8.5,
+      quarterlyGrowth: 22.3,
+      ytdGrowth: 45.7
+    });
+  };
+
+  const fetchAllData = useCallback(async () => {
+    console.log('Starting data fetch...');
+    console.log('Current timeRange:', timeRange);
+    try {
+      setLoading(true);
+      setError(null);
+      await Promise.all([
+        fetchDashboardStats(),
+        fetchSalesForecast(),
+        fetchTeamPerformance(),
+        fetchRecentActivities()
+      ]);
+    } catch (err) {
+      // soften the failure: use mock data and keep page usable
+      const message = err?.response?.status === 404
+        ? 'Data not available yet; showing sample data.'
+        : 'Failed to load dashboard data. ' + (err.message || '');
+      setError(message);
+      console.error('Error loading dashboard data:', err);
+      applyStatsFallback();
+      setForecastData(generateMockForecast());
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [timeRange]);
+
   useEffect(() => {
     console.log('SalesManagerDashboard mounted or updated');
-    console.log('Current timeRange:', timeRange);
-    
-    const fetchAllData = async () => {
-      console.log('Starting data fetch...');
-      console.log('Starting to fetch all data...');
-      try {
-        setLoading(true);
-        await Promise.all([
-          fetchDashboardStats(),
-          fetchSalesForecast(),
-          fetchTeamPerformance(),
-          fetchRecentActivities()
-        ]);
-      } catch (err) {
-        setError('Failed to load dashboard data. ' + err.message);
-        console.error('Error loading dashboard data:', err);
-        // Fallback to mock data
-        setStats({
-          totalAgents: 12,
-          activeAgents: 9,
-          totalCustomers: 1287,
-          newCustomers: 42,
-          totalDeals: 356,
-          closedDeals: 243,
-          totalRevenue: 1256800,
-          revenueTarget: 1500000,
-          monthlyGrowth: 8.5,
-          quarterlyGrowth: 22.3,
-          ytdGrowth: 45.7
-        });
-        setForecastData(generateMockForecast());
-      } finally {
-        setLoading(false);
-        setIsRefreshing(false);
-      }
-    };
-
     fetchAllData();
-  }, [timeRange]);
+  }, [fetchAllData]);
 
   // Fetch dashboard stats
   const fetchDashboardStats = async () => {
@@ -362,7 +368,11 @@ const SalesManagerDashboard = () => {
       }));
     } catch (err) {
       console.error('Error fetching dashboard stats:', err);
-      throw err;
+      applyStatsFallback();
+      // Propagate only for non-404 to avoid breaking UX when endpoints are missing
+      if (err?.response?.status !== 404) {
+        throw err;
+      }
     }
   };
 
@@ -393,6 +403,9 @@ const SalesManagerDashboard = () => {
         { id: 4, name: 'Emma L.', dealsClosed: 31, target: 40, revenue: 87500 },
         { id: 5, name: 'David K.', dealsClosed: 28, target: 35, revenue: 78500 }
       ]);
+      if (err?.response?.status !== 404) {
+        throw err;
+      }
     }
   };
 

@@ -4,9 +4,11 @@
   "main": "index.js",
   "scripts": {
     "test": "cross-env NODE_ENV=test jest --runInBand",
+
     "start": "node server.js",
     "seed:coo": "node scripts/seedCOO.js",
     "seed:tradextv": "node scripts/seedTradexTV.js"
+
   },
   "keywords": [],
   "author": "",
