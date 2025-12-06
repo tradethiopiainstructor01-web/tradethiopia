@@ -46,7 +46,20 @@ import FollowupCustomerTable from './FollowupCustomerTable';
 import ProductFollowupTable from './ProductFollowupTable';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
 import { getAllProductFollowups, createProductFollowup, updateProductFollowup, deleteProductFollowup } from '../../services/productFollowupService';
+import { fetchCourses as fetchCoursesApi } from '../../services/api';
 import axios from 'axios';
+
+const defaultCourses = [
+  { _id: 'international-trade-import-export', name: 'International Trade Import Export', price: 6917 },
+  { _id: 'stock-market-trading', name: 'Stock Market Trading', price: 5500 },
+  { _id: 'data-science', name: 'Data Science', price: 2000 },
+  { _id: 'coffee-cupping', name: 'Coffee Cupping', price: 29000 },
+  { _id: 'ui-ux-design', name: 'UI/UX Design', price: 1000 },
+  { _id: 'digital-marketing', name: 'Digital Marketing', price: 800 },
+  { _id: 'cybersecurity', name: 'Cybersecurity', price: 1800 },
+  { _id: 'devops-engineering', name: 'DevOps Engineering', price: 2200 },
+  { _id: 'cloud-computing', name: 'Cloud Computing', price: 2100 },
+];
 
 const FollowupPage = () => {
   const [customers, setCustomers] = useState([]);
@@ -88,6 +101,7 @@ const FollowupPage = () => {
   const [endDate, setEndDate] = useState('');
   const [weekValue, setWeekValue] = useState(''); // yyyy-Www
   const [yearValue, setYearValue] = useState('');
+  const [courses, setCourses] = useState(defaultCourses);
 
   const headerColor = useColorModeValue('gray.700', 'white');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -98,8 +112,7 @@ const FollowupPage = () => {
     // Load customers first so client-side prospect count is computed correctly,
     // then fetch server stats to merge, avoiding overwriting with stale local state.
     const init = async () => {
-      await fetchCustomers();
-      await fetchStats();
+      await Promise.all([fetchCustomers(), fetchStats(), loadCourses()]);
     };
     init();
   }, []);
@@ -113,6 +126,27 @@ const FollowupPage = () => {
       fetchProductFollowups();
     }
   }, [activeTab]);
+
+  const loadCourses = async () => {
+    try {
+      const data = await fetchCoursesApi();
+      const normalized = (Array.isArray(data) ? data : []).map(course => {
+        const name = course?.name || course?.title || course?.courseName;
+        if (!name) return null;
+        const priceRaw = course?.price ?? course?.amount ?? course?.cost ?? 0;
+        const price = typeof priceRaw === 'number' ? priceRaw : Number(priceRaw) || 0;
+        return {
+          _id: course?._id || course?.id || name.toLowerCase().replace(/\s+/g, '-'),
+          name,
+          price
+        };
+      }).filter(Boolean);
+      setCourses(normalized.length ? normalized : defaultCourses);
+    } catch (err) {
+      console.error('Error fetching courses for training dropdown:', err);
+      setCourses(defaultCourses);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -141,6 +175,7 @@ const FollowupPage = () => {
       // Map the data to match the expected structure in the table
       const mappedData = data.map(customer => ({
         ...customer,
+        contactTitle: customer.contactTitle || customer.courseName || '',
         _id: customer._id,
         id: customer._id,
         date: customer.date || customer.createdAt || new Date().toISOString(),
@@ -834,6 +869,7 @@ const FollowupPage = () => {
               ) : (
                 <FollowupCustomerTable
                   customers={sortedCustomers}
+                  courses={courses}
                   onDelete={handleDelete}
                   onUpdate={handleUpdate}
                   onAdd={handleAdd}

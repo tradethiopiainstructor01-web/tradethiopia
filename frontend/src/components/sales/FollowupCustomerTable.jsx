@@ -80,7 +80,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     const commissionTaxRate = 0.00075;
     
     // Calculate gross commission
-    const grossCommission = coursePrice * commissionRate;
+    const price = Number(coursePrice) || 0;
+    const grossCommission = price * commissionRate;
     // Calculate commission tax
     const commissionTax = grossCommission * commissionTaxRate;
     // Calculate net commission
@@ -94,11 +95,16 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   };
 
   // Find course by name and get its price
-  const getCourseDetails = (courseName) => {
-    if (!courseName || !Array.isArray(courses)) return null;
-    
-    const course = courses.find(course => course.name === courseName);
-    return course ? { name: course.name, price: course.price } : null;
+  const getCourseDetails = (courseName, courseId) => {
+    if (!Array.isArray(courses)) return null;
+    let course = null;
+    if (courseId) {
+      course = courses.find(c => c._id === courseId);
+    }
+    if (!course && courseName) {
+      course = courses.find(c => c.name === courseName);
+    }
+    return course ? { id: course._id, name: course.name, price: Number(course.price) || 0 } : null;
   };
 
   const handleCellClick = (customer, field) => {
@@ -111,17 +117,31 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const handleSave = (customer) => {
     if (editingCell) {
       const updated = { ...customer, [editingCell.field]: editValue };
-      
+
+      // If course selection changed, sync courseId/price
+      if (editingCell.field === 'contactTitle') {
+        const courseDetails = getCourseDetails(editValue);
+        if (courseDetails) {
+          updated.courseId = courseDetails.id;
+          updated.coursePrice = courseDetails.price;
+          // If already completed, refresh commission using current price
+          if (updated.followupStatus === 'Completed') {
+            updated.commission = calculateCommission(courseDetails.name, courseDetails.price);
+          }
+        }
+      }
+
       // If we're updating the followupStatus to "Completed", calculate commission
       if (editingCell.field === 'followupStatus' && editValue === 'Completed') {
-        const courseDetails = getCourseDetails(customer.contactTitle);
+        const courseDetails = getCourseDetails(customer.contactTitle, customer.courseId);
         if (courseDetails) {
           const commission = calculateCommission(courseDetails.name, courseDetails.price);
           updated.commission = commission;
           updated.coursePrice = courseDetails.price;
+          updated.courseId = courseDetails.id;
         }
       }
-      
+
       onUpdate(customer._id, updated);
       // Track updated customer
       setUpdatedCustomers(prev => new Set(prev).add(customer._id));
@@ -182,12 +202,15 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     // If the new customer has a "Completed" status, calculate commission
     let customerToAdd = { ...newCustomer };
     
-    if (newCustomer.followupStatus === 'Completed' && newCustomer.contactTitle) {
+    if (newCustomer.contactTitle) {
       const courseDetails = getCourseDetails(newCustomer.contactTitle);
       if (courseDetails) {
-        const commission = calculateCommission(courseDetails.name, courseDetails.price);
-        customerToAdd.commission = commission;
         customerToAdd.coursePrice = courseDetails.price;
+        customerToAdd.courseId = courseDetails.id;
+        if (newCustomer.followupStatus === 'Completed') {
+          const commission = calculateCommission(courseDetails.name, courseDetails.price);
+          customerToAdd.commission = commission;
+        }
       }
     }
     
@@ -445,6 +468,17 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       </Box>
     );
   }
+
+  // Resolved course/commission values for drawer (display) fall back to catalog price
+  const resolvedCourseDetails = drawerCustomer ? getCourseDetails(drawerCustomer.contactTitle, drawerCustomer.courseId) : null;
+  const resolvedCoursePrice = drawerCustomer
+    ? (drawerCustomer.coursePrice ?? resolvedCourseDetails?.price ?? null)
+    : null;
+  const resolvedCommission = drawerCustomer
+    ? drawerCustomer.commission || (resolvedCoursePrice != null
+        ? calculateCommission(drawerCustomer.contactTitle, resolvedCoursePrice)
+        : null)
+    : null;
 
   return (
     <Box w="100%">
@@ -732,6 +766,15 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                       <Text fontSize="md">{drawerCustomer.contactTitle || 'N/A'}</Text>
                     </Box>
                     <Box>
+                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Course Price</Text>
+                      <Text fontSize="md">
+                        {resolvedCoursePrice != null ? `ETB ${Number(resolvedCoursePrice).toLocaleString()}` : 'Add price in catalog'}
+                      </Text>
+                      {resolvedCoursePrice == null && (
+                        <Text fontSize="xs" color="orange.600">Set a course price in Finance to enable commission.</Text>
+                      )}
+                    </Box>
+                    <Box>
                       <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Phone</Text>
                       <Text fontSize="md">{drawerCustomer.phone || 'N/A'}</Text>
                     </Box>
@@ -782,30 +825,30 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                         <Box p={4} bg="blue.50" borderRadius="md" border="1px" borderColor="blue.100">
                           <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Course Price</Text>
                           <Text fontSize="xl" fontWeight="bold" color="blue.600">
-                            ETB {drawerCustomer.coursePrice ? drawerCustomer.coursePrice.toFixed(2) : 'N/A'}
+                            {resolvedCoursePrice != null ? `ETB ${Number(resolvedCoursePrice).toFixed(2)}` : 'Add price in catalog'}
                           </Text>
                         </Box>
                         <Box p={4} bg="green.50" borderRadius="md" border="1px" borderColor="green.100">
                           <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Gross Commission (7%)</Text>
                           <Text fontSize="xl" fontWeight="bold" color="green.600">
-                            ETB {drawerCustomer.commission?.grossCommission ? drawerCustomer.commission.grossCommission.toFixed(2) : '0.00'}
+                            ETB {resolvedCommission?.grossCommission ? resolvedCommission.grossCommission.toFixed(2) : '0.00'}
                           </Text>
                         </Box>
                       </SimpleGrid>
                       
-                      {drawerCustomer.commission ? (
+                      {resolvedCommission ? (
                         <>
                           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                             <Box p={4} bg="orange.50" borderRadius="md" border="1px" borderColor="orange.100">
                               <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Commission Tax (0.075%)</Text>
                               <Text fontSize="xl" fontWeight="bold" color="orange.600">
-                                ETB {drawerCustomer.commission.commissionTax ? drawerCustomer.commission.commissionTax.toFixed(2) : '0.00'}
+                                ETB {resolvedCommission?.commissionTax ? resolvedCommission.commissionTax.toFixed(2) : '0.00'}
                               </Text>
                             </Box>
                             <Box p={4} bg="teal.50" borderRadius="md" border="1px" borderColor="teal.100">
                               <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Net Commission</Text>
                               <Text fontSize="2xl" fontWeight="bold" color="teal.600">
-                                ETB {drawerCustomer.commission.netCommission ? drawerCustomer.commission.netCommission.toFixed(2) : '0.00'}
+                                ETB {resolvedCommission?.netCommission ? resolvedCommission.netCommission.toFixed(2) : '0.00'}
                               </Text>
                             </Box>
                           </SimpleGrid>

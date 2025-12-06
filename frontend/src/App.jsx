@@ -47,37 +47,23 @@ import B2BDashboard from './pages/B2BDashboard';
 import CustomerSettings from "./components/customer/CustomerSettings";
 import COODashboard from './pages/COODashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
-import { 
-  SalesManagerLayout, 
-  SalesManagerDashboard,
-  AllSalesPage,
-  TeamManagementPage,
-  PerformancePage,
-  SettingsPage,
-  TaskManagementPage,
-  ReportsPage
-} from "./components/salesmanager";
-import CalendarPage from "./components/salesmanager/CalendarPage";
-import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerProtectedRoute";
-import RoleProtectedRoute from "./components/RoleProtectedRoute";
-import ITDashboard from "./pages/ITDashboard.jsx";
+import PricingPage from './pages/sales/PricingPage.jsx';
 
 function App() {
   const location = useLocation();
-  const isSalesManagerRoute = location.pathname.startsWith('/salesmanager');
 
   // Define the paths where Sidebar and Navbar should not appear
   const noNavSidebarRoutes = [
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
-    "/finance-dashboard/inventory", "/finance-dashboard/orders",
+    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing",
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
     "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/it-dashboard"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings"
   ];
 
   // Check if the current path is a no-sidebar, no-navbar route
-  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname) && !isSalesManagerRoute;
+  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname);
 
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
@@ -111,6 +97,7 @@ function App() {
             <Route path="/finance-dashboard/reports" element={<FinanceReportsPage />} />
             <Route path="/finance-dashboard/inventory" element={<InventoryPage />} />
             <Route path="/finance-dashboard/orders" element={<OrdersPage />} />
+            <Route path="/finance-dashboard/pricing" element={<PricingPage />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />
@@ -144,22 +131,7 @@ function App() {
             <Route path="/coo-dashboard" element={<COODashboard />} />
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
-            <Route path="/it-dashboard" element={<ITDashboard />} />
-            <Route path="/it" element={<ITDashboard />} />
-            <Route path="/salesmanager/*" element={
-              <SalesManagerProtectedRoute>
-                <SalesManagerLayout />
-              </SalesManagerProtectedRoute>
-            }>
-              <Route index element={<SalesManagerDashboard />} />
-              <Route path="all-sales" element={<AllSalesPage />} />
-              <Route path="performance" element={<PerformancePage />} />
-              <Route path="team" element={<TeamManagementPage />} />
-              <Route path="tasks" element={<TaskManagementPage />} />
-              <Route path="reports" element={<ReportsPage />} />
-              <Route path="calendar" element={<CalendarPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
+            <Route path="/it" element={<CustomerSettings />} />
           </Routes>
         </Box>
       </Box>
@@ -168,3 +140,4 @@ function App() {
 }
 
 export default App;
+

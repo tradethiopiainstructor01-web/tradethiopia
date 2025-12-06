@@ -41,6 +41,7 @@ const salesManagerRoutes = require('./routes/salesManagerRoutes.js');
 const salesTargetRoutes = require('./routes/salesTargetRoutes.js');
 const taskRoutes = require('./routes/taskRoutes.js');
 const calendarRoutes = require('./routes/calendarRoutes.js');
+const courseRoutes = require('./routes/courseRoutes.js');
 // Load environment variables
 
 // Initialize Express app
@@ -245,6 +246,7 @@ app.use('/api/sales-manager', salesManagerRoutes);
 app.use('/api/sales-targets', salesTargetRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/courses', courseRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
