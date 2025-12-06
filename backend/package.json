@@ -15,8 +15,8 @@
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
     "axios": "^1.12.2",
-    "bcrypt": "^5.1.1",
-    "bcryptjs": "^2.4.3",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
@@ -31,13 +31,14 @@
     "mongodb": "^6.10.0",
     "mongoose": "^8.9.1",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^6.9.15",
     "node-appwrite": "^20.0.0",
+    "nodemailer": "^6.9.15",
     "nodemon": "^3.1.9",
     "quill": "^2.0.2",
     "react-quill": "^2.0.0",
     "react-router-dom": "^6.28.0",
-    "save": "^2.9.0"
+    "save": "^2.9.0",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
