@@ -25,6 +25,7 @@ import { Bar } from 'react-chartjs-2';
 import { MdPeople, MdCheckCircle, MdPendingActions, MdError, MdNote } from 'react-icons/md';
 import { FiCheckCircle, FiCheck, FiClock } from 'react-icons/fi';
 import axios from 'axios';
+import axiosInstance from '../../services/axiosInstance';
 import { Chart, registerables } from 'chart.js';
 
 // Register Chart.js components
@@ -36,6 +37,7 @@ const Dashboard = () => {
     completed: 0,
     pending: 0,
     rejected: 0,
+    totalCommission: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -78,15 +80,36 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/followup`);
-        const followUps = response.data;
+        setLoading(true);
+        const [followupRes, statsRes, commissionsRes] = await Promise.all([
+          axiosInstance.get('/followup'),
+          axiosInstance.get('/sales-customers/stats'),
+          axiosInstance.get('/sales-customers/commissions'),
+        ]);
+
+        const followUps = followupRes.data || [];
+        const stats = statsRes.data || {};
 
         const totalCustomers = followUps.length;
         const completed = followUps.filter(f => f.status === 'Completed').length;
         const pending = followUps.filter(f => f.status === 'Pending').length;
         const rejected = followUps.filter(f => f.status === 'Rejected').length;
 
-        setData({ totalCustomers, completed, pending, rejected });
+        const commissions = commissionsRes.data || {};
+        const totalCommission =
+          commissions.totalCommissionMonthly ??
+          commissions.totalCommission ??
+          stats.totalCommissionMonthly ??
+          stats.totalCommission ??
+          0;
+
+        setData({
+          totalCustomers,
+          completed,
+          pending,
+          rejected,
+          totalCommission,
+        });
       } catch (error) {
         console.error('Error fetching data:', error);
         setError('Failed to fetch data');
@@ -148,7 +171,7 @@ const Dashboard = () => {
       ) : (
         <>
           {error && <Text color="red.500">{error}</Text>}
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} mb={6}>
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={4} mb={6}>
             <Card 
               boxShadow="md" 
               _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }} 
@@ -202,6 +225,22 @@ const Dashboard = () => {
                 <Icon as={MdError} w={8} h={8} mb={3} />
                 <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">{data.rejected}</Text>
                 <Text>Rejected Follow-ups</Text>
+              </CardBody>
+            </Card>
+
+            <Card 
+              boxShadow="md" 
+              _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }} 
+              bg="purple.500" 
+              color="white"
+              transition="all 0.2s"
+            >
+              <CardBody textAlign="center">
+                <Icon as={FiCheckCircle} w={8} h={8} mb={3} />
+                <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">
+                  ETB {Number(data.totalCommission || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </Text>
+                <Text>Total Commission</Text>
               </CardBody>
             </Card>
           </SimpleGrid>

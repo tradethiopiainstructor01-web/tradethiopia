@@ -43,9 +43,7 @@ import {
   FiDownload
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
-import ProductFollowupTable from './ProductFollowupTable';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
-import { getAllProductFollowups, createProductFollowup, updateProductFollowup, deleteProductFollowup } from '../../services/productFollowupService';
 import { fetchCourses as fetchCoursesApi } from '../../services/api';
 import axios from 'axios';
 
@@ -63,7 +61,6 @@ const defaultCourses = [
 
 const FollowupPage = () => {
   const [customers, setCustomers] = useState([]);
-  const [productFollowups, setProductFollowups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
@@ -117,15 +114,8 @@ const FollowupPage = () => {
     init();
   }, []);
 
-  // active tab: 'customers' or 'products'
+  // active tab: customers only (product followups removed)
   const [activeTab, setActiveTab] = useState('customers');
-
-  useEffect(() => {
-    // when switching to products, load product followups
-    if (activeTab === 'products') {
-      fetchProductFollowups();
-    }
-  }, [activeTab]);
 
   const loadCourses = async () => {
     try {
@@ -329,19 +319,6 @@ const FollowupPage = () => {
     } catch (err) {
       if (previous) setProductFollowups(previous);
       toast({ title: 'Error updating product followup', description: err.message || 'Failed to update', status: 'error', duration: 3000, isClosable: true });
-    }
-  };
-
-  const fetchProductFollowups = async () => {
-    try {
-      setLoading(true);
-      const data = await getAllProductFollowups();
-      const mapped = data.map(item => ({ ...item, _id: item._id, id: item._id, date: item.date || item.createdAt || new Date().toISOString(), schedulePreference: item.schedulePreference || 'Regular' }));
-      setProductFollowups(mapped);
-    } catch (err) {
-      console.error('Error fetching product followups', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -851,10 +828,9 @@ const FollowupPage = () => {
       </Box>
 
       <Box bg="white" p={0} borderRadius="lg" boxShadow="md" w="100%" maxW="100%">
-        <Tabs index={activeTab === 'customers' ? 0 : 1} onChange={(i) => setActiveTab(i === 0 ? 'customers' : 'products')} isFitted variant="enclosed">
+        <Tabs index={0} isFitted variant="enclosed">
           <TabList mb="1em">
             <Tab>Customer Followups</Tab>
-            <Tab>Product Followups</Tab>
           </TabList>
           <TabPanels>
             <TabPanel p={0}>
@@ -873,24 +849,6 @@ const FollowupPage = () => {
                   onDelete={handleDelete}
                   onUpdate={handleUpdate}
                   onAdd={handleAdd}
-                />
-              )}
-            </TabPanel>
-            <TabPanel p={0}>
-              {loading ? (
-                <Flex justify="center" align="center" minH="300px">
-                  <Spinner size="xl" color="teal.500" thickness="4px" />
-                </Flex>
-              ) : error ? (
-                <Box bg="red.50" p={4} borderRadius="lg" mb={4}>
-                  <Text color="red.500" fontWeight="medium">{error}</Text>
-                </Box>
-              ) : (
-                <ProductFollowupTable
-                  items={productFollowups}
-                  onDelete={handleDeleteProduct}
-                  onUpdate={handleUpdateProduct}
-                  onAdd={handleAddProduct}
                 />
               )}
             </TabPanel>

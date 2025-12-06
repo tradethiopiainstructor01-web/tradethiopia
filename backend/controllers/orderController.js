@@ -346,17 +346,152 @@ const getOrderStats = asyncHandler(async (req, res) => {
   }
 });
 
-// Placeholder: reserve stock for a followup (allocate regular then buffer)
-const reserveForFollowup = asyncHandler(async (_req, res) => {
-  res.status(501).json({ message: 'reserveForFollowup not implemented' });
+// Reserve stock for a followup (allocate from on-hand, then buffer and mark reservedBuffer)
+const reserveForFollowup = asyncHandler(async (req, res) => {
+  const { items = [] } = req.body || {};
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: 'No items provided to reserve' });
+  }
+
+  const reservations = [];
+  let totalAmount = 0;
+
+  for (const item of items) {
+    const stockItemId = item?.stockItemId || item?._id || item?.id;
+    const quantity = Number(item?.quantity || item?.qty || 0);
+    if (!stockItemId || quantity <= 0) {
+      return res.status(400).json({ message: 'Each item needs stockItemId (or _id) and positive quantity' });
+    }
+
+    const stockItem = await Stock.findById(stockItemId);
+    if (!stockItem) {
+      // Allow virtual item: reserve without stock deduction but include in response
+      const unitPrice = Number(item.unitPrice || item.price || 0);
+      const lineTotal = unitPrice * quantity;
+      totalAmount += lineTotal;
+      reservations.push({
+        stockItemId,
+        name: item.name || item.productName || 'Item',
+        sku: item.sku || '',
+        quantityReserved: quantity,
+        fromRegular: 0,
+        fromBuffer: 0,
+        unitPrice,
+        lineTotal,
+        stockFound: false,
+      });
+      continue;
+    }
+
+    const availableBuffer = Math.max((stockItem.bufferStock || 0) - (stockItem.reservedBuffer || 0), 0);
+    const totalAvailable = (stockItem.quantity || 0) + availableBuffer;
+    if (totalAvailable < quantity) {
+      return res.status(400).json({
+        message: `Insufficient quantity for ${stockItem.name}. Available: ${totalAvailable}, Requested: ${quantity}`
+      });
+    }
+
+    // Allocate from regular stock first, then buffer (and mark reservedBuffer)
+    const fromRegular = Math.min(stockItem.quantity, quantity);
+    stockItem.quantity -= fromRegular;
+    let remaining = quantity - fromRegular;
+    let fromBuffer = 0;
+    if (remaining > 0) {
+      fromBuffer = remaining;
+      stockItem.bufferStock = Math.max(stockItem.bufferStock - remaining, 0);
+      stockItem.reservedBuffer = (stockItem.reservedBuffer || 0) + remaining;
+      remaining = 0;
+    }
+
+    await stockItem.save();
+
+    const lineTotal = (stockItem.price || 0) * quantity;
+    totalAmount += lineTotal;
+    reservations.push({
+      stockItemId: stockItem._id,
+      name: stockItem.name,
+      sku: stockItem.sku,
+      quantityReserved: quantity,
+      fromRegular,
+      fromBuffer,
+      unitPrice: stockItem.price || 0,
+      lineTotal,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Stock reserved for followup',
+    totalAmount,
+    reservations,
+  });
 });
 
-// Placeholder: simulate reservation without DB changes
-const simulateReserveForFollowup = asyncHandler(async (_req, res) => {
-  res.status(501).json({ message: 'simulateReserveForFollowup not implemented' });
+// Simulate reservation without DB changes
+const simulateReserveForFollowup = asyncHandler(async (req, res) => {
+  const { items = [] } = req.body || {};
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: 'No items provided to reserve' });
+  }
+  const preview = [];
+  let totalAmount = 0;
+
+  for (const item of items) {
+    const stockItemId = item?.stockItemId || item?._id || item?.id;
+    const quantity = Number(item?.quantity || item?.qty || 0);
+    if (!stockItemId || quantity <= 0) {
+      return res.status(400).json({ message: 'Each item needs stockItemId (or _id) and positive quantity' });
+    }
+    const stockItem = await Stock.findById(stockItemId);
+    if (!stockItem) {
+      const unitPrice = Number(item.unitPrice || item.price || 0);
+      const lineTotal = unitPrice * quantity;
+      totalAmount += lineTotal;
+      preview.push({
+        stockItemId,
+        name: item.name || item.productName || 'Item',
+        sku: item.sku || '',
+        quantityRequested: quantity,
+        fromRegular: 0,
+        fromBuffer: 0,
+        unitPrice,
+        lineTotal,
+        stockFound: false,
+      });
+      continue;
+    }
+    const availableBuffer = Math.max((stockItem.bufferStock || 0) - (stockItem.reservedBuffer || 0), 0);
+    const totalAvailable = (stockItem.quantity || 0) + availableBuffer;
+    if (totalAvailable < quantity) {
+      return res.status(400).json({
+        message: `Insufficient quantity for ${stockItem.name}. Available: ${totalAvailable}, Requested: ${quantity}`
+      });
+    }
+    const fromRegular = Math.min(stockItem.quantity, quantity);
+    const fromBuffer = Math.max(quantity - fromRegular, 0);
+    const lineTotal = (stockItem.price || 0) * quantity;
+    totalAmount += lineTotal;
+    preview.push({
+      stockItemId: stockItem._id,
+      name: stockItem.name,
+      sku: stockItem.sku,
+      quantityRequested: quantity,
+      fromRegular,
+      fromBuffer,
+      unitPrice: stockItem.price || 0,
+      lineTotal,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Reservation preview',
+    totalAmount,
+    reservations: preview,
+  });
 });
 
-// Placeholder: fulfill an order associated with a followup
+// Fulfill an order associated with a followup (placeholder)
 const fulfillOrder = asyncHandler(async (_req, res) => {
   res.status(501).json({ message: 'fulfillOrder not implemented' });
 });

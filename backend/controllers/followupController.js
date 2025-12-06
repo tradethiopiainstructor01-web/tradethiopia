@@ -1,5 +1,7 @@
 const User = require("../models/user.model.js");
 const Followup = require("../models/Followup.js");
+const Order = require("../models/Order");
+const OrderCustomer = require("../models/OrderCustomer");
 const mongoose = require("mongoose");
 const nodemailer = require("nodemailer");
 
@@ -344,8 +346,73 @@ const processOrder = async (req, res) => {
   try {
     const followup = await Followup.findById(req.params.id);
     if (!followup) return res.status(404).json({ message: "Follow-up not found" });
-    // Implement business logic for processing the order
-    res.json({ success: true, message: "Order processed for follow-up" });
+
+    const { items = [], paymentType, paymentAmount, notes } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "No items provided for order" });
+    }
+
+    // Ensure we have an OrderCustomer record
+    let orderCustomerId = followup.customerId || null;
+    if (!orderCustomerId) {
+      const email = followup.email || '';
+      const phone = followup.phoneNumber || followup.phone || '';
+      let oc = null;
+      if (email) oc = await OrderCustomer.findOne({ email });
+      if (!oc && phone) oc = await OrderCustomer.findOne({ phone });
+      if (!oc) {
+        oc = await OrderCustomer.create({
+          name: followup.clientName || followup.companyName || 'Follow-up Customer',
+          email,
+          phone,
+        });
+      }
+      orderCustomerId = oc._id;
+    }
+
+    // Build order items and total
+    let totalAmount = 0;
+    const orderItems = items.map((i) => {
+      const stockItemId = i.stockItemId || i._id || i.id;
+      const unitPrice = Number(i.unitPrice || i.price || 0);
+      const qty = Number(i.quantity || i.qty || 0);
+      if (!stockItemId || qty <= 0) {
+        throw new Error('Each item must include stockItemId/_id and positive quantity');
+      }
+      const lineTotal = unitPrice * qty;
+      totalAmount += lineTotal;
+      return {
+        stockItemId,
+        name: i.name || i.productName || "Item",
+        sku: i.sku || "",
+        quantity: qty,
+        unitPrice,
+        totalPrice: lineTotal,
+      };
+    });
+
+    const order = await Order.create({
+      customerId: orderCustomerId,
+      customerName: followup.clientName || followup.companyName || "Follow-up Customer",
+      customerEmail: followup.email || "",
+      customerPhone: followup.phoneNumber || followup.phone || "",
+      followupId: followup._id,
+      items: orderItems,
+      totalAmount,
+      paymentType: paymentType || "Unspecified",
+      paymentAmount: paymentAmount || 0,
+      notes: notes || followup.notes || "",
+      salesAgent: {
+        id: req.user?.id || null,
+        name: req.user?.username || req.user?.name || "",
+        email: req.user?.email || "",
+      },
+      createdBy: req.user?.id || null,
+      status: "Confirmed",
+      confirmedAt: new Date(),
+    });
+
+    res.json({ success: true, message: "Order processed for follow-up", order });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -108,7 +108,8 @@ const COODashboard = () => {
     calledCustomers: 0,
     newProspects: 0,
     totalCommission: 0,
-    grossCommission: 0
+    grossCommission: 0,
+    commissionTax: 0,
   });
   const [loadingSales, setLoadingSales] = useState(false);
   const [revenueBreakdown, setRevenueBreakdown] = useState([]);
@@ -319,20 +320,25 @@ const COODashboard = () => {
     }
   }, [currentUser?.token]);
 
-  const fetchSalesStats = useCallback(async () => {
+  const fetchSalesStats = useCallback(async (range = timeRange) => {
     setLoadingSales(true);
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers/stats`, {
+        params: { range },
         headers: currentUser?.token ? { Authorization: `Bearer ${currentUser.token}` } : {}
       });
       const data = res.data || {};
+      const grossCommission = data.grossCommissionMonthly ?? data.grossCommission ?? 0;
+      const totalCommission = data.totalCommissionMonthly ?? data.totalCommission ?? 0;
+      const commissionTax = data.commissionTaxMonthly ?? data.commissionTax ?? data.tax ?? 0;
       setSalesStats({
         total: data.total || 0,
         completedDeals: data.completedDeals || 0,
         calledCustomers: data.calledCustomers || 0,
         newProspects: data.new || data.active || 0,
-        totalCommission: data.totalCommission || 0,
-        grossCommission: data.grossCommission || 0
+        totalCommission,
+        grossCommission,
+        commissionTax,
       });
     } catch (err) {
       console.warn('Failed to load sales stats', err);
@@ -342,12 +348,13 @@ const COODashboard = () => {
         calledCustomers: 0,
         newProspects: 0,
         totalCommission: 0,
-        grossCommission: 0
+        grossCommission: 0,
+        commissionTax: 0,
       });
     } finally {
       setLoadingSales(false);
     }
-  }, [currentUser?.token]);
+  }, [currentUser?.token, timeRange]);
 
   const fetchCsStats = useCallback(async () => {
     setLoadingCsStats(true);
@@ -486,12 +493,12 @@ const COODashboard = () => {
   useEffect(() => {
     if (isReportsOpen) {
       fetchItSummary();
-      fetchSalesStats();
+      fetchSalesStats(timeRange);
       fetchCsStats();
       fetchFinanceStats();
       fetchFinanceReports();
     }
-  }, [isReportsOpen, fetchItSummary, fetchSalesStats, fetchCsStats, fetchFinanceStats, fetchFinanceReports]);
+  }, [isReportsOpen, fetchItSummary, fetchSalesStats, fetchCsStats, fetchFinanceStats, fetchFinanceReports, timeRange]);
 
   const fetchRevenueAndFollowups = useCallback(async () => {
     if (!import.meta.env.VITE_API_URL) return;
@@ -1606,6 +1613,40 @@ const COODashboard = () => {
                 <Heading size="sm">Sales report</Heading>
                 <Tag size="sm" colorScheme="green" variant="subtle">Live</Tag>
               </Flex>
+              {(() => {
+                const gross = salesStats.grossCommission || 0;
+                const net = salesStats.totalCommission || 0;
+                const tax = salesStats.commissionTax || 0;
+                const rangeLabel = timeRangeLabels[timeRange] || timeRange;
+                return (
+                  <SimpleGrid columns={{ base: 2, md: 4 }} gap={3} mb={3}>
+                    <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="orange.50">
+                      <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Training gross ({rangeLabel})</Text>
+                      <Heading size="md" mt={1} color="orange.600">
+                        {loadingSales ? '...' : etbFormatter.format(gross)}
+                      </Heading>
+                    </Box>
+                    <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="yellow.50">
+                      <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Commission tax ({rangeLabel})</Text>
+                      <Heading size="md" mt={1} color="yellow.600">
+                        {loadingSales ? '...' : etbFormatter.format(tax)}
+                      </Heading>
+                    </Box>
+                    <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="teal.50">
+                      <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Net commission ({rangeLabel})</Text>
+                      <Heading size="md" mt={1} color="teal.600">
+                        {loadingSales ? '...' : etbFormatter.format(net)}
+                      </Heading>
+                    </Box>
+                    <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="blue.50">
+                      <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Commission (reported)</Text>
+                      <Heading size="md" mt={1} color="blue.600">
+                        {loadingSales ? '...' : etbFormatter.format(net)}
+                      </Heading>
+                    </Box>
+                  </SimpleGrid>
+                );
+              })()}
               <SimpleGrid columns={{ base: 2, md: 4 }} gap={3}>
                 <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
                   <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Customers</Text>

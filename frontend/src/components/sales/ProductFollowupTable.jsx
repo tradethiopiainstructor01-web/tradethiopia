@@ -82,13 +82,25 @@ const ProductFollowupTable = ({ items, onDelete, onUpdate, onAdd }) => {
   const [paymentLoading, setPaymentLoading] = useState(false);
 
   const fetchProducts = async () => {
-    // try to fetch inventory from backend, fall back to sample list
+    // fetch inventory from finance (stock API), fall back to sample list
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/inventory`);
+      const token = localStorage.getItem('userToken');
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/stock`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (res.ok) {
         const data = await res.json();
-        // inventory items usually have _id, name, sku, price, quantity, bufferStock, description
-        setProductsList(data.map(i => ({ _id: i._id, name: i.name, sku: i.sku, price: i.price, quantity: i.quantity, bufferStock: i.bufferStock, description: i.description })));
+        setProductsList(
+          (Array.isArray(data) ? data : []).map((i) => ({
+            _id: i._id,
+            name: i.name,
+            sku: i.sku,
+            price: i.price,
+            quantity: i.quantity,
+            bufferStock: i.bufferStock,
+            description: i.description,
+          }))
+        );
         return;
       }
     } catch (err) {
@@ -548,8 +560,8 @@ const ProductFollowupTable = ({ items, onDelete, onUpdate, onAdd }) => {
                 const items = Object.keys(confirmQuantities).map(id => ({ id, qty: confirmQuantities[id] }));
                 const { reserveOrder } = await import('../../services/productFollowupService');
                 const res = await reserveOrder(productsDrawerItem._id, items);
-                // update parent state: set products and mark as processed
-                onUpdate(productsDrawerItem._id, { products: res.followup.products, orderProcessed: res.followup.orderProcessed });
+                // update parent state: mark as processed; backend does not return followup payload here
+                onUpdate(productsDrawerItem._id, { orderProcessed: true, reserved: res?.reservations || [] });
                 setConfirmItems([]);
                 setConfirmQuantities({});
                 onConfirmClose();
