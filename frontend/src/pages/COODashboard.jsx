@@ -119,6 +119,50 @@ const COODashboard = () => {
   const [loadingCsStats, setLoadingCsStats] = useState(false);
   const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0 });
   const [loadingFinance, setLoadingFinance] = useState(false);
+  const [financeReports, setFinanceReports] = useState([]);
+  const [loadingFinanceReports, setLoadingFinanceReports] = useState(false);
+  const [revenueActuals, setRevenueActuals] = useState([]);
+  const monthOrder = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const profitLossReport = useMemo(() => {
+    const match = financeReports.find((r) => {
+      const title = (r?.title || r?.name || '').toLowerCase();
+      return title.includes('profit') || title.includes('loss') || title.includes('p&l');
+    });
+    return match || null;
+  }, [financeReports]);
+
+  const revenueTrend = useMemo(() => {
+    if (Array.isArray(revenueActuals) && revenueActuals.length) {
+      const normalized = revenueActuals.map((row) => {
+        const m = (row.month || '').toString().toLowerCase();
+        const idx = monthOrder.indexOf(m);
+        return {
+          label: `${row.month || 'Mo'} ${row.year || ''}`.trim(),
+          value: Number(row.actual) || 0,
+          order: idx >= 0 ? idx : 99,
+          year: Number(row.year) || 0,
+        };
+      });
+      const sorted = normalized.sort((a, b) => (a.year === b.year ? a.order - b.order : a.year - b.year));
+      return sorted.slice(-6);
+    }
+    return [
+      { label: 'Jan', value: 1200000 },
+      { label: 'Feb', value: 1350000 },
+      { label: 'Mar', value: 1420000 },
+      { label: 'Apr', value: 1500000 },
+      { label: 'May', value: 1580000 },
+      { label: 'Jun', value: 1620000 },
+    ];
+  }, [revenueActuals]);
+
+  const deptMix = useMemo(() => ([
+    { label: 'Sales', value: 38, color: 'blue.500' },
+    { label: 'Finance', value: 22, color: 'purple.500' },
+    { label: 'Customer Success', value: 18, color: 'green.500' },
+    { label: 'IT', value: 12, color: 'orange.400' },
+    { label: 'Ops', value: 10, color: 'pink.400' },
+  ]), []);
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
@@ -348,6 +392,22 @@ const COODashboard = () => {
     }
   }, [currentUser?.token]);
 
+  const fetchFinanceReports = useCallback(async () => {
+    setLoadingFinanceReports(true);
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/finance/reports`, {
+        headers: currentUser?.token ? { Authorization: `Bearer ${currentUser.token}` } : {}
+      });
+      const rows = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : [];
+      setFinanceReports(rows.slice(0, 5));
+    } catch (err) {
+      console.warn('Failed to load finance reports', err);
+      setFinanceReports([]);
+    } finally {
+      setLoadingFinanceReports(false);
+    }
+  }, [currentUser?.token]);
+
   const handleBroadcast = async () => {
     if (!broadcastMessage.trim() && !broadcastTitle.trim()) {
       toast({ title: 'Add a title or message first', status: 'warning', duration: 3000, isClosable: true });
@@ -429,8 +489,9 @@ const COODashboard = () => {
       fetchSalesStats();
       fetchCsStats();
       fetchFinanceStats();
+      fetchFinanceReports();
     }
-  }, [isReportsOpen, fetchItSummary, fetchSalesStats, fetchCsStats, fetchFinanceStats]);
+  }, [isReportsOpen, fetchItSummary, fetchSalesStats, fetchCsStats, fetchFinanceStats, fetchFinanceReports]);
 
   const fetchRevenueAndFollowups = useCallback(async () => {
     if (!import.meta.env.VITE_API_URL) return;
@@ -439,6 +500,7 @@ const COODashboard = () => {
       // Revenue breakdown
       const revRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/revenue-actuals`);
       const rows = Array.isArray(revRes.data) ? revRes.data : Array.isArray(revRes.data?.data) ? revRes.data.data : [];
+      setRevenueActuals(rows);
       const mapped = rows.slice(0, 4).map((row) => ({
         label: row.metric || row.name || 'Metric',
         value: row.actual != null ? currencyFormatter.format(row.actual) : '-',
@@ -456,6 +518,7 @@ const COODashboard = () => {
       ]);
     } catch (err) {
       console.warn('Failed to load revenue breakdown', err);
+      setRevenueActuals([]);
       setRevenueBreakdown([
         { label: 'New Deals', value: '$4.2M', change: '+6.2%', target: '$3.9M' },
         { label: 'Renewals', value: '$3.1M', change: '+3.4%', target: '$3.0M' },
@@ -1251,19 +1314,98 @@ const COODashboard = () => {
               </Box>
             </MotionBox>
 
-          <MotionBox
-            bg="white"
-            p={{ base: 4, md: 5 }}
-            borderRadius="xl"
-            border="1px solid"
-            borderColor="blackAlpha.100"
-            boxShadow="0 20px 50px rgba(15, 23, 42, 0.06)"
-            whileHover={{ scale: 1.01 }}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            display="none"
-          >
+            <MotionBox
+              bg="white"
+              p={{ base: 4, md: 5 }}
+              borderRadius="xl"
+              border="1px solid"
+              borderColor="blackAlpha.100"
+              boxShadow="0 20px 50px rgba(15, 23, 42, 0.06)"
+              whileHover={{ scale: 1.01 }}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              mb={4}
+            >
+              <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={3}>
+                <Box>
+                  <Heading size="md">Executive analysis</Heading>
+                  <Text fontSize="sm" color="gray.600">Revenue trend, P&L pulse, and department mix.</Text>
+                </Box>
+                <Tag colorScheme="purple" variant="subtle">Live + Sample</Tag>
+              </Flex>
+              <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
+                <Box>
+                  <Text fontSize="sm" fontWeight="semibold" color="gray.700" mb={2}>Revenue trend</Text>
+                  <VStack align="stretch" spacing={2}>
+                    {revenueTrend.map((row) => (
+                      <Box key={`rev-${row.label}`}>
+                        <Flex justify="space-between" fontSize="xs" color="gray.600">
+                          <Text>{row.label}</Text>
+                          <Text fontWeight="semibold">{currencyFormatter.format(row.value)}</Text>
+                        </Flex>
+                        <Box h="8px" borderRadius="full" bg="gray.100" overflow="hidden">
+                          <Box h="100%" w={`${Math.min((row.value / (revenueTrend[revenueTrend.length - 1].value || 1)) * 100, 100)}%`} bgGradient="linear(to-r, blue.400, purple.500)" />
+                        </Box>
+                      </Box>
+                    ))}
+                  </VStack>
+                </Box>
+                <Box>
+                  <Text fontSize="sm" fontWeight="semibold" color="gray.700" mb={2}>Profit &amp; Loss snapshot</Text>
+                  <VStack align="stretch" spacing={3} p={3} borderRadius="lg" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
+                    <Flex justify="space-between">
+                      <Text fontSize="xs" color="gray.600">Revenue</Text>
+                      <Text fontWeight="bold" color="blue.600">
+                        {profitLossReport?.revenue != null ? etbFormatter.format(profitLossReport.revenue) : etbFormatter.format(financeStats.revenue || 0)}
+                      </Text>
+                    </Flex>
+                    <Flex justify="space-between">
+                      <Text fontSize="xs" color="gray.600">Expenses</Text>
+                      <Text fontWeight="bold" color="red.500">
+                        {profitLossReport?.expenses != null ? etbFormatter.format(profitLossReport.expenses) : etbFormatter.format(financeStats.expenses || 0)}
+                      </Text>
+                    </Flex>
+                    <Flex justify="space-between">
+                      <Text fontSize="xs" color="gray.600">Net Profit</Text>
+                      <Text fontWeight="bold" color="green.600">
+                        {profitLossReport?.profit != null ? etbFormatter.format(profitLossReport.profit) : etbFormatter.format(financeStats.profit || 0)}
+                      </Text>
+                    </Flex>
+                  </VStack>
+                </Box>
+                <Box>
+                  <Text fontSize="sm" fontWeight="semibold" color="gray.700" mb={2}>Department mix</Text>
+                  <VStack align="stretch" spacing={2}>
+                    {deptMix.map((row) => (
+                      <Box key={`mix-${row.label}`}>
+                        <Flex justify="space-between" fontSize="xs" color="gray.600">
+                          <Text>{row.label}</Text>
+                          <Text fontWeight="semibold">{row.value}%</Text>
+                        </Flex>
+                        <Box h="8px" borderRadius="full" bg="gray.100" overflow="hidden">
+                          <Box h="100%" w={`${row.value}%`} bg={row.color} opacity={0.9} />
+                        </Box>
+                      </Box>
+                    ))}
+                  </VStack>
+                </Box>
+              </SimpleGrid>
+            </MotionBox>
+
+            <MotionBox
+              bg="white"
+              p={{ base: 4, md: 5 }}
+              borderRadius="xl"
+              border="1px solid"
+              borderColor="blackAlpha.100"
+              boxShadow="0 20px 50px rgba(15, 23, 42, 0.06)"
+              whileHover={{ scale: 1.01 }}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              display="none"
+            >
             <Flex align="center" justify="space-between" mb={4} wrap="wrap" gap={3}>
               <Box />
               <Tag size="md" colorScheme="purple" variant="subtle">{selectedDept === 'All' ? 'All departments' : selectedDept}</Tag>
@@ -1392,6 +1534,72 @@ const COODashboard = () => {
                   <Heading size="md" mt={1} color="purple.500">{loadingFinance ? '...' : financeStats.invoices}</Heading>
                 </Box>
               </SimpleGrid>
+              <Box mt={4}>
+                <Heading size="sm" mb={2}>Finance reports (from Finance Dashboard)</Heading>
+                <Box mb={3}>
+                  <Heading size="xs" color="gray.700" mb={1}>Profit & Loss</Heading>
+                  {loadingFinanceReports ? (
+                    <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
+                      <Skeleton height="14px" mb={2} />
+                      <Skeleton height="14px" width="70%" />
+                    </Box>
+                  ) : profitLossReport ? (
+                    <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
+                      <Flex justify="space-between" align="center">
+                        <Text fontWeight="semibold">{profitLossReport.title || profitLossReport.name || 'Profit & Loss'}</Text>
+                        <Tag size="sm" colorScheme="green" variant="subtle">{profitLossReport.status || 'Published'}</Tag>
+                      </Flex>
+                      <Text fontSize="xs" color="gray.600">{profitLossReport.period || profitLossReport.date || profitLossReport.createdAt || ''}</Text>
+                      <SimpleGrid columns={{ base: 1, sm: 3 }} gap={2} mt={2}>
+                        <Box>
+                          <Text fontSize="xs" color="gray.600">Revenue</Text>
+                          <Heading size="sm">{profitLossReport.revenue != null ? etbFormatter.format(profitLossReport.revenue) : '-'}</Heading>
+                        </Box>
+                        <Box>
+                          <Text fontSize="xs" color="gray.600">Expenses</Text>
+                          <Heading size="sm" color="red.500">{profitLossReport.expenses != null ? etbFormatter.format(profitLossReport.expenses) : '-'}</Heading>
+                        </Box>
+                        <Box>
+                          <Text fontSize="xs" color="gray.600">Net Profit</Text>
+                          <Heading size="sm" color="green.600">
+                            {profitLossReport.profit != null ? etbFormatter.format(profitLossReport.profit) : '-'}
+                          </Heading>
+                        </Box>
+                      </SimpleGrid>
+                      {profitLossReport.summary && <Text fontSize="sm" color="gray.700" mt={2}>{profitLossReport.summary}</Text>}
+                    </Box>
+                  ) : (
+                    <Text fontSize="sm" color="gray.500">No Profit & Loss report available.</Text>
+                  )}
+                </Box>
+                <VStack align="stretch" spacing={2}>
+                  {(loadingFinanceReports ? Array.from({ length: 3 }) : financeReports).map((row, idx) => {
+                    if (loadingFinanceReports) {
+                      return (
+                        <Box key={`fin-skel-${idx}`} p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
+                          <Skeleton height="16px" mb={2} />
+                          <Skeleton height="12px" width="60%" />
+                        </Box>
+                      );
+                    }
+                    return (
+                      <Box key={`finance-report-${row?._id || idx}`} p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
+                        <Flex justify="space-between" align="center">
+                          <Box>
+                            <Text fontWeight="semibold">{row?.title || row?.name || 'Report'}</Text>
+                            <Text fontSize="xs" color="gray.600">{row?.period || row?.date || row?.createdAt || ''}</Text>
+                          </Box>
+                          <Tag colorScheme="blue" variant="subtle">{row?.status || 'Published'}</Tag>
+                        </Flex>
+                        {row?.summary && <Text fontSize="sm" color="gray.700" mt={1}>{row.summary}</Text>}
+                      </Box>
+                    );
+                  })}
+                  {!loadingFinanceReports && financeReports.length === 0 && (
+                    <Text fontSize="sm" color="gray.500">No finance reports available.</Text>
+                  )}
+                </VStack>
+              </Box>
             </Box>
             <Box mt={6}>
               <Flex align="center" justify="space-between" mb={3}>

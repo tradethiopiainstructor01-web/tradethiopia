@@ -127,7 +127,7 @@ const KpiCards = ({ department = 'All' }) => {
 
   return (
     <MotionBox variants={containerVariants} initial="hidden" animate="show">
-      <SimpleGrid as={MotionBox} variants={containerVariants} columns={{ base: 1, sm: 2, md: 4 }} spacing={6} p={4}>
+      <SimpleGrid as={MotionBox} variants={containerVariants} columns={{ base: 2, sm: 3, md: 5 }} spacing={{ base: 3, md: 4 }} p={{ base: 2, md: 3 }}>
         <StatCard variants={itemVariants} title="Total Customers" value={totalCustomers} icon={FaUsers} bgColor={bgColor} />
         <StatCard variants={itemVariants} title="Total Employees" value={employees} icon={FaUserPlus} bgColor={bgColor} />
         <StatCard variants={itemVariants} title="Active Employees" value={activeEmployees} icon={FaUserCheck} bgColor={bgColor} />
@@ -140,7 +140,7 @@ const KpiCards = ({ department = 'All' }) => {
 
 const StatCard = ({ title, value, icon: Icon, bgColor, variants }) => (
   <MotionBox
-    p={4}
+    p={{ base: 3, md: 4 }}
     borderWidth="1px"
     borderRadius="lg"
     boxShadow="sm"
@@ -153,10 +153,10 @@ const StatCard = ({ title, value, icon: Icon, bgColor, variants }) => (
   >
     <Stat>
       <Box display="flex" alignItems="center" mb={2}>
-        <Box as={Icon} color="blue.500" mr={2} boxSize={6} />
-        <StatLabel fontWeight="medium">{title}</StatLabel>
+        <Box as={Icon} color="blue.500" mr={2} boxSize={{ base: 5, md: 6 }} />
+        <StatLabel fontWeight="medium" fontSize={{ base: 'sm', md: 'md' }}>{title}</StatLabel>
       </Box>
-      <StatNumber fontSize="2xl" fontWeight="bold">{typeof value === 'number' ? value : '-'}</StatNumber>
+      <StatNumber fontSize={{ base: 'xl', md: '2xl' }} fontWeight="bold">{typeof value === 'number' ? value : '-'}</StatNumber>
       <StatHelpText color="green.500">Total count</StatHelpText>
     </Stat>
   </MotionBox>
