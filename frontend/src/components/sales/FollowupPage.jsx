@@ -26,6 +26,7 @@ import {
   InputLeftElement,
   Icon,
   Text,
+  HStack,
   Tabs,
   TabList,
   TabPanels,
@@ -189,8 +190,20 @@ const FollowupPage = () => {
   };
 
   const handleAdd = async (customerData) => {
+    const payload = { ...customerData };
+    if (!payload.customerName || !payload.customerName.trim()) {
+      payload.customerName = payload.contactTitle || 'New Customer';
+    }
+    payload.callStatus = payload.callStatus || 'Not Called';
+    payload.followupStatus = payload.followupStatus || 'Pending';
+    payload.schedulePreference = payload.schedulePreference || 'Regular';
+    // Backend expects commission to be an ObjectId; drop client-calculated object to avoid cast errors
+    if (payload.commission && typeof payload.commission !== 'string') {
+      delete payload.commission;
+    }
+
     try {
-      const newCustomer = await createCustomer(customerData);
+      const newCustomer = await createCustomer(payload);
       // Map the new customer to match the expected structure
       const mappedCustomer = {
         ...newCustomer,
@@ -802,23 +815,25 @@ const FollowupPage = () => {
           )}
 
           <Menu>
-            <MenuButton as={Button} colorScheme="teal" leftIcon={<Icon as={FiDownload} />}>
+            <MenuButton as={Button} colorScheme="teal" leftIcon={<Icon as={FiDownload} />} type="button">
               Export
             </MenuButton>
             <MenuList minW="220px">
               {Object.keys(exportColumns).map(col => (
-                <MenuItem key={col} minH="40px">
+                <MenuItem key={col} minH="40px" closeOnSelect={false}>
                   <Checkbox isChecked={exportColumns[col]} onChange={(e) => setExportColumns(prev => ({ ...prev, [col]: e.target.checked }))}>
                     {col}
                   </Checkbox>
                 </MenuItem>
               ))}
-              <MenuItem>
-                <Button variant="ghost" size="sm" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=true, acc), {}))}>Select All</Button>
-                <Button variant="ghost" size="sm" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=false, acc), {}))}>Clear</Button>
+              <MenuItem closeOnSelect={false}>
+                <Box display="flex" gap={2}>
+                  <Button variant="ghost" size="sm" type="button" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=true, acc), {}))}>Select All</Button>
+                  <Button variant="ghost" size="sm" type="button" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=false, acc), {}))}>Clear</Button>
+                </Box>
               </MenuItem>
-              <MenuItem>
-                <Button colorScheme="teal" size="sm" onClick={exportVisible}>Download</Button>
+              <MenuItem closeOnSelect={false}>
+                <Button colorScheme="teal" size="sm" type="button" onClick={exportVisible}>Download</Button>
               </MenuItem>
             </MenuList>
           </Menu>

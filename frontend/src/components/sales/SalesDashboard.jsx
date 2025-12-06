@@ -81,11 +81,19 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [followupRes, statsRes, commissionsRes] = await Promise.all([
+        const [followupRes, statsRes] = await Promise.all([
           axiosInstance.get('/followup'),
           axiosInstance.get('/sales-customers/stats'),
-          axiosInstance.get('/sales-customers/commissions'),
         ]);
+
+        // commissions endpoint is best-effort; don't fail overall fetch if it errors
+        let commissions = {};
+        try {
+          const commissionsRes = await axiosInstance.get('/sales-customers/commissions');
+          commissions = commissionsRes.data || {};
+        } catch (err) {
+          console.warn('Commissions endpoint unavailable, falling back to stats only', err?.message || err);
+        }
 
         const followUps = followupRes.data || [];
         const stats = statsRes.data || {};
@@ -95,13 +103,14 @@ const Dashboard = () => {
         const pending = followUps.filter(f => f.status === 'Pending').length;
         const rejected = followUps.filter(f => f.status === 'Rejected').length;
 
-        const commissions = commissionsRes.data || {};
-        const totalCommission =
-          commissions.totalCommissionMonthly ??
-          commissions.totalCommission ??
-          stats.totalCommissionMonthly ??
-          stats.totalCommission ??
-          0;
+        const totalCommission = [
+          commissions.totalCommissionMonthly,
+          commissions.totalCommission,
+          commissions.netCommissionMonthly,
+          commissions.netCommission,
+          stats.totalCommissionMonthly,
+          stats.totalCommission,
+        ].map((v) => Number(v) || 0).find((v) => v > 0) || 0;
 
         setData({
           totalCustomers,
