@@ -48,7 +48,9 @@ const handleLogin = async () => {
                         navigate('/salesmanager');
                         break;
                     case 'customerservice':
-                    case 'CustomerSuccessManager':
+                    case 'customer_service':
+                    case 'customersuccessmanager':
+                    case 'customer_success_manager':
                         navigate('/Cdashboard');
                         break;
                     case 'coo':
