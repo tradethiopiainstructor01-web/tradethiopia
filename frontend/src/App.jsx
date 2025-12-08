@@ -60,10 +60,10 @@ function App() {
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
     "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard",
     "/coo-dashboard", "/tradextv-dashboard", "/customer-settings"
-  ];
+  ].map((path) => path.toLowerCase());
 
-  // Check if the current path is a no-sidebar, no-navbar route
-  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname);
+  // Check if the current path is a no-sidebar, no-navbar route (case-insensitive)
+  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname.toLowerCase());
 
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>

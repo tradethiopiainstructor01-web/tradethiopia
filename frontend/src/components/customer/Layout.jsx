@@ -4,7 +4,7 @@ import Sidebar from "./Sidebar";
 import Cnavbar from "./customNavbar";
 import { useColorModeValue } from "@chakra-ui/react";
 
-const Layout = ({ children }) => {
+const Layout = ({ children, hideSidebar = false }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pageBg = useColorModeValue("#f5f8ff", "#0b1224");
@@ -19,38 +19,42 @@ const Layout = ({ children }) => {
       {/* Main Container */}
       <Box display="flex" flex="1" pt="60px">
         {/* Sidebar for Larger Screens */}
-        <Box
-          position="fixed"
-          top="60px"
-          left={0}
-          width={isSidebarCollapsed ? "72px" : "240px"}
-          height="calc(100vh - 60px)" // Adjust height to account for the navbar
-          transition="width 0.3s"
-          display={{ base: "none", md: "block" }} // Hide on mobile
-          zIndex="900" // Ensure it's below the navbar but above other content
-        >
-          <Sidebar
-            isCollapsed={isSidebarCollapsed}
-            toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
-          />
-        </Box>
-
-        {/* Drawer for Mobile Screens */}
-        <Drawer isOpen={isOpen} onClose={onClose} placement="left">
-          <DrawerOverlay />
-          <DrawerContent>
+        {!hideSidebar && (
+          <Box
+            position="fixed"
+            top="60px"
+            left={0}
+            width={isSidebarCollapsed ? "72px" : "240px"}
+            height="calc(100vh - 60px)" // Adjust height to account for the navbar
+            transition="width 0.3s"
+            display={{ base: "none", md: "block" }} // Hide on mobile
+            zIndex="900" // Ensure it's below the navbar but above other content
+          >
             <Sidebar
               isCollapsed={isSidebarCollapsed}
               toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
             />
-          </DrawerContent>
-        </Drawer>
+          </Box>
+        )}
+
+        {/* Drawer for Mobile Screens */}
+        {!hideSidebar && (
+          <Drawer isOpen={isOpen} onClose={onClose} placement="left">
+            <DrawerOverlay />
+            <DrawerContent>
+              <Sidebar
+                isCollapsed={isSidebarCollapsed}
+                toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
+              />
+            </DrawerContent>
+          </Drawer>
+        )}
 
         {/* Main Content */}
         <Box
           ml={{
             base: 0, // No margin on mobile
-            md: isSidebarCollapsed ? "72px" : "240px", // Adjust for collapsed or expanded sidebar on larger screens
+            md: hideSidebar ? 0 : isSidebarCollapsed ? "72px" : "240px", // Adjust for collapsed or expanded sidebar on larger screens
           }}
           transition="margin-left 0.3s"
           p={4}
