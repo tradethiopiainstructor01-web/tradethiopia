@@ -41,6 +41,9 @@ const handleLogin = async () => {
                     case 'hr':
                         navigate('/dashboard');
                         break;
+                    case 'finance':
+                        navigate('/finance-dashboard');
+                        break;
                     case 'sales':
                         navigate('/sdashboard');
                         break;
