@@ -40,7 +40,7 @@ import { FiInfo, FiUpload } from 'react-icons/fi';
 import axios from 'axios';
 import { useUserStore } from '../../store/user'; // Import the user store
 
-const AddTaskForm = ({ isOpen, onClose, onDone, defaultProjectType }) => {
+const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectType }) => {
   const [projectType, setProjectType] = useState(defaultProjectType || 'internal');
   const [taskName, setTaskName] = useState('');
   const [category, setCategory] = useState([]); // Changed to array for multiple selections
@@ -66,6 +66,7 @@ const AddTaskForm = ({ isOpen, onClose, onDone, defaultProjectType }) => {
   const { currentUser } = useUserStore(); // Get current user from store
   const token = currentUser?.token; // Get token from current user
   const userRole = currentUser?.role; // Get user role
+  const normalizedRole = (userRole || '').toString().toLowerCase();
   
   const bg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -84,7 +85,9 @@ const AddTaskForm = ({ isOpen, onClose, onDone, defaultProjectType }) => {
     }
     
     // Check if user has required role
-    if (userRole !== 'IT' && userRole !== 'admin') {
+    // Allow IT/admin; if role missing but token exists, allow; only block known non-IT roles.
+    const isItOrAdmin = normalizedRole === 'it' || normalizedRole === 'admin';
+    if (userRole && !isItOrAdmin) {
       toast({
         title: 'Insufficient permissions',
         description: 'You do not have permission to create tasks',
@@ -316,13 +319,45 @@ const AddTaskForm = ({ isOpen, onClose, onDone, defaultProjectType }) => {
       });
     } catch (err) {
       console.error(err);
-      toast({
-        title: 'Error creating task',
-        description: err.response?.data?.message || 'Failed to create the task',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
+      // Fallback: create locally if backend endpoint is missing (404) or unreachable
+      const canFallback = err?.response?.status === 404 || !err?.response;
+      if (canFallback && onLocalCreate) {
+        const localTask = {
+          _id: `local-${Date.now()}`,
+          id: `local-${Date.now()}`,
+          projectType,
+          taskName: payloadToSend.taskName || payloadToSend.client || 'Task',
+          category: payloadToSend.category || '',
+          platform: payloadToSend.platform || '',
+          client: payloadToSend.client || '',
+          actionType: payloadToSend.actionType,
+          startDate: payloadToSend.startDate || new Date().toISOString(),
+          endDate: payloadToSend.endDate || new Date().toISOString(),
+          status: payloadToSend.status || 'pending',
+          urgent: payloadToSend.urgent,
+          priority: 'Medium',
+          assignedTo: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        onLocalCreate(localTask);
+        onClose();
+        toast({
+          title: 'Saved locally',
+          description: 'Backend not reachable; task stored locally for now.',
+          status: 'warning',
+          duration: 3500,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'Error creating task',
+          description: err.response?.data?.message || 'Failed to create the task',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      }
     }
   };
 

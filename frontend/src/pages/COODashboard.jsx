@@ -54,8 +54,9 @@ import {
   MenuDivider,
   useToast,
   Textarea,
+  Divider,
 } from '@chakra-ui/react';
-import { DownloadIcon, ExternalLinkIcon, ChevronDownIcon, HamburgerIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
+import { DownloadIcon, ExternalLinkIcon, ChevronDownIcon, HamburgerIcon } from '@chakra-ui/icons';
 import { chakra } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -76,6 +77,43 @@ import {
   DrawerContent,
   DrawerCloseButton,
 } from '@chakra-ui/react';
+
+const buildPolyline = (data, key, width = 260, height = 120) => {
+  if (!Array.isArray(data) || !data.length) return '';
+  const maxY = Math.max(...data.map((d) => Number(d[key]) || 0), 1);
+  const step = data.length > 1 ? width / (data.length - 1) : 0;
+  return data
+    .map((point, idx) => {
+      const x = idx * step;
+      const y = height - (Math.max(Number(point[key]) || 0, 0) / maxY) * height;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+};
+
+const calcBarHeights = (data, key, maxHeight = 140) => {
+  if (!Array.isArray(data) || !data.length) return [];
+  const maxVal = Math.max(...data.map((d) => Number(d[key]) || 0), 1);
+  return data.map((d) => ({
+    ...d,
+    height: Math.max(((Number(d[key]) || 0) / maxVal) * maxHeight, 6),
+  }));
+};
+
+const buildPieSegments = (data, key = 'value', radius = 42) => {
+  if (!Array.isArray(data) || !data.length) return [];
+  const circumference = 2 * Math.PI * radius;
+  const total = data.reduce((sum, item) => sum + (Number(item[key]) || 0), 0) || 1;
+  let cumulative = 0;
+  return data.map((item) => {
+    const value = Number(item[key]) || 0;
+    const pct = value / total;
+    const dash = circumference * pct;
+    const dashOffset = circumference * 0.25 - cumulative * circumference; // start at top, go clockwise
+    cumulative += pct;
+    return { ...item, pct: Math.round(pct * 100), dash, dashOffset, radius, circumference };
+  });
+};
 
 const baseTradexSummary = [
   { label: 'Active follow-ups', value: '-', sublabel: '' },
@@ -113,7 +151,6 @@ const COODashboard = () => {
   });
   const [loadingSales, setLoadingSales] = useState(false);
   const [revenueBreakdown, setRevenueBreakdown] = useState([]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [followupSummary, setFollowupSummary] = useState({ total: 0, active: 0, agents: 0, packages: 0 });
   const [loadingRevenueOps, setLoadingRevenueOps] = useState(false);
   const [csStats, setCsStats] = useState({ total: 0, active: 0, completed: 0, newCustomers: 0, returningCustomers: 0 });
@@ -765,6 +802,120 @@ const COODashboard = () => {
     { queue: 'Social', owner: 'Mekdes', open: 9, sla: '89%', aging: '1 > 48h' },
   ];
 
+  const financialSnapshot = React.useMemo(
+    () => ({
+      revenue: 5400000,
+      netProfit: 1180000,
+      cashflow: 920000,
+      expenses: 4200000,
+      salesGrowth: 12.4,
+      receivables: 310000,
+    }),
+    []
+  );
+
+  const profitabilityTrend = React.useMemo(
+    () => [
+      { month: 'Jan', profit: 780000 },
+      { month: 'Feb', profit: 820000 },
+      { month: 'Mar', profit: 910000 },
+      { month: 'Apr', profit: 960000 },
+      { month: 'May', profit: 1020000 },
+      { month: 'Jun', profit: 1180000 },
+    ],
+    []
+  );
+
+  const revenueExpenseSeries = React.useMemo(
+    () => [
+      { month: 'Jan', revenue: 820000, expense: 630000 },
+      { month: 'Feb', revenue: 880000, expense: 660000 },
+      { month: 'Mar', revenue: 950000, expense: 710000 },
+      { month: 'Apr', revenue: 1010000, expense: 760000 },
+      { month: 'May', revenue: 1090000, expense: 800000 },
+      { month: 'Jun', revenue: 1200000, expense: 820000 },
+    ],
+    []
+  );
+
+  const productPerformance = React.useMemo(
+    () => [
+      { name: 'TradexTV', revenue: 1800000, margin: 32 },
+      { name: 'Training', revenue: 1250000, margin: 28 },
+      { name: 'B2B', revenue: 980000, margin: 24 },
+      { name: 'CX Services', revenue: 720000, margin: 22 },
+    ],
+    []
+  );
+
+  const customerGrowth = React.useMemo(
+    () => [
+      { month: 'Jan', customers: 240 },
+      { month: 'Feb', customers: 265 },
+      { month: 'Mar', customers: 295 },
+      { month: 'Apr', customers: 330 },
+      { month: 'May', customers: 370 },
+      { month: 'Jun', customers: 420 },
+    ],
+    []
+  );
+
+  const businessHealth = React.useMemo(
+    () => ({
+      healthy: 68,
+      watch: 22,
+      risk: 10,
+    }),
+    []
+  );
+
+  const financialCards = React.useMemo(
+    () => [
+      { label: 'Total Revenue', value: etbFormatter.format(financialSnapshot.revenue), detail: '+8.2% MoM', color: 'green.500' },
+      { label: 'Net Profit', value: etbFormatter.format(financialSnapshot.netProfit), detail: '21.9% margin', color: 'blue.500' },
+      { label: 'Cashflow', value: etbFormatter.format(financialSnapshot.cashflow), detail: 'Positive +12%', color: 'teal.500' },
+      { label: 'Expenses', value: etbFormatter.format(financialSnapshot.expenses), detail: 'Ops +8% vs plan', color: 'red.400' },
+      { label: 'Sales Growth', value: `${financialSnapshot.salesGrowth}%`, detail: 'QoQ growth', color: 'purple.500' },
+      { label: 'Outstanding Receivables', value: etbFormatter.format(financialSnapshot.receivables), detail: '14d avg aging', color: 'orange.500' },
+    ],
+    [etbFormatter, financialSnapshot]
+  );
+
+  const productBars = React.useMemo(
+    () => calcBarHeights(productPerformance, 'revenue', 140),
+    [productPerformance]
+  );
+
+  const analyticsCardBg = useColorModeValue('white', 'gray.800');
+  const analyticsBorder = useColorModeValue('blackAlpha.100', 'whiteAlpha.200');
+  const analyticsMuted = useColorModeValue('gray.600', 'gray.300');
+  const donutTrack = useColorModeValue('#e5e7eb', '#1f2937');
+  const donutRadius = 38;
+  const donutCircumference = 2 * Math.PI * donutRadius;
+  const pieSegments = React.useMemo(
+    () => buildPieSegments(productPerformance, 'revenue', 42),
+    [productPerformance]
+  );
+  const pieColors = ['#6366F1', '#0EA5E9', '#22C55E', '#F97316', '#A855F7', '#14B8A6'];
+  const profitLinePoints = React.useMemo(
+    () => buildPolyline(profitabilityTrend, 'profit', 320, 140),
+    [profitabilityTrend]
+  );
+  const revenueLinePoints = React.useMemo(
+    () => buildPolyline(revenueExpenseSeries, 'revenue', 320, 140),
+    [revenueExpenseSeries]
+  );
+  const expenseLinePoints = React.useMemo(
+    () => buildPolyline(revenueExpenseSeries, 'expense', 320, 140),
+    [revenueExpenseSeries]
+  );
+  const customerLinePoints = React.useMemo(
+    () => buildPolyline(customerGrowth, 'customers', 320, 140),
+    [customerGrowth]
+  );
+  const profitCoords = React.useMemo(() => profitLinePoints.split(' '), [profitLinePoints]);
+  const customerCoords = React.useMemo(() => customerLinePoints.split(' '), [customerLinePoints]);
+
   const handleLogout = () => {
     clearUser();
     navigate('/login');
@@ -1146,76 +1297,331 @@ const COODashboard = () => {
           </ModalContent>
         </Modal>
 
-        <Flex align="flex-start" gap={{ base: 4, lg: 6 }} direction={{ base: 'column', lg: 'row' }}>
-          <MotionBox
-            bg="white"
-            p={{ base: sidebarCollapsed ? 2 : 3, md: sidebarCollapsed ? 2 : 4 }}
-            borderRadius="xl"
-            border="1px solid"
-            borderColor="blackAlpha.100"
-            boxShadow="0 18px 40px rgba(15, 23, 42, 0.05)"
-            minW={{ lg: sidebarCollapsed ? '76px' : '260px' }}
-            w={{ base: '100%', lg: sidebarCollapsed ? '76px' : '260px' }}
-            position={{ lg: 'sticky' }}
-            top={{ lg: '100px' }}
-            transition="all 0.2s ease"
-          >
-            <VStack align="stretch" spacing={3}>
-              <Flex justify="flex-end">
-                <IconButton
-                  aria-label="Collapse sidebar"
-                  icon={sidebarCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setSidebarCollapsed((v) => !v)}
-                />
-              </Flex>
-              {departmentReports.map((dept, idx) => {
-                const gradient = accentGradients[idx % accentGradients.length];
-                const isIt = dept.department.toLowerCase() === 'it';
-                const metrics = isIt ? [
-                  { label: 'Total', value: loadingIt ? '...' : itSummary.total },
-                  { label: 'Completed', value: loadingIt ? '...' : itSummary.completed },
-                  { label: 'Open', value: loadingIt ? '...' : itSummary.open },
-                ] : [
-                  { label: 'Tasks', value: dept.tasks },
-                  { label: 'Risks', value: dept.risks },
-                  { label: 'SLA', value: dept.sla },
-                ];
-                return (
-                  <Box
-                    key={`sidebar-dept-${dept.department}`}
-                    bgGradient={gradient}
-                    color="white"
-                    borderRadius="xl"
-                    p={sidebarCollapsed ? 3 : 4}
-                    boxShadow="md"
-                  >
-                    <Flex justify="space-between" align="center" mb={sidebarCollapsed ? 1 : 2}>
-                      <Heading size="sm" noOfLines={1}>{sidebarCollapsed ? dept.department[0] : dept.department}</Heading>
-                      {!sidebarCollapsed && dept.department !== 'IT' && <Badge colorScheme="blackAlpha" variant="subtle">{dept.status}</Badge>}
-                      {!sidebarCollapsed && isIt && <Badge colorScheme="blackAlpha" variant="subtle">IT</Badge>}
-                    </Flex>
-                    {!sidebarCollapsed && (
-                      <VStack align="stretch" spacing={1} fontSize="sm">
-                        {metrics.map((m) => (
-                          <Flex key={m.label} justify="space-between">
-                            <Text>{m.label}</Text>
-                            <Text fontWeight="bold">{m.value}</Text>
-                          </Flex>
-                        ))}
-                      </VStack>
-                    )}
-                  </Box>
-                );
-              })}
-            </VStack>
-          </MotionBox>
+        <VStack spacing={6} align="stretch" w="100%">
+          <Box>
+            <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} wrap="wrap" gap={3} mb={3}>
+              <Box>
+                <Heading size="md">Financial Snapshot</Heading>
+                <Text fontSize="sm" color={analyticsMuted}>COO view across revenue, profit, cash and receivables.</Text>
+              </Box>
+              <Tag colorScheme="blue" variant="subtle">Live + Sample</Tag>
+            </Flex>
+            <SimpleGrid columns={{ base: 2, md: 3 }} gap={3}>
+              {financialCards.map((card) => (
+                <Box
+                  key={card.label}
+                  bg={analyticsCardBg}
+                  border="1px solid"
+                  borderColor={analyticsBorder}
+                  borderRadius="xl"
+                  p={4}
+                  boxShadow="sm"
+                >
+                  <Text fontSize="xs" color={analyticsMuted} textTransform="uppercase" letterSpacing="wide">
+                    {card.label}
+                  </Text>
+                  <Heading size="md" mt={1} color={card.color}>{card.value}</Heading>
+                  <Text fontSize="xs" color={analyticsMuted}>{card.detail}</Text>
+                </Box>
+              ))}
+            </SimpleGrid>
+          </Box>
 
-          <VStack spacing={6} align="stretch" flex="1">
-            <Box>
-              <KpiCards department={effectiveDept} timeRange={timeRange} metrics={metrics} />
+          <SimpleGrid columns={{ base: 1, lg: 2 }} gap={4}>
+            <Box
+              bg={analyticsCardBg}
+              border="1px solid"
+              borderColor={analyticsBorder}
+              borderRadius="xl"
+              p={4}
+              boxShadow="md"
+            >
+              <Flex justify="space-between" align="center" mb={2}>
+                <Heading size="sm">Profitability trend</Heading>
+                <Tag size="sm" colorScheme="green" variant="subtle">6 months</Tag>
+              </Flex>
+              <Text fontSize="xs" color={analyticsMuted} mb={3}>Net profit trajectory with smooth lift.</Text>
+              <Box>
+                <svg viewBox="0 0 320 140" width="100%" height="140">
+                  <polyline
+                    fill="none"
+                    stroke="#22c55e"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    points={profitLinePoints}
+                  />
+                  {profitabilityTrend.map((pt, idx) => {
+                    const [x, y] = profitCoords[idx]?.split(',') || [0, 0];
+                    return <circle key={pt.month} cx={x} cy={y} r="4" fill="#16a34a" />;
+                  })}
+                </svg>
+                <Flex justify="space-between" fontSize="xs" color={analyticsMuted}>
+                  {profitabilityTrend.map((pt) => (
+                    <Text key={`profit-${pt.month}`}>{pt.month}</Text>
+                  ))}
+                </Flex>
+              </Box>
             </Box>
+
+            <Box
+              bg={analyticsCardBg}
+              border="1px solid"
+              borderColor={analyticsBorder}
+              borderRadius="xl"
+              p={4}
+              boxShadow="md"
+            >
+              <Flex justify="space-between" align="center" mb={2}>
+                <Heading size="sm">Revenue vs Expense</Heading>
+                <Tag size="sm" colorScheme="purple" variant="subtle">Line chart</Tag>
+              </Flex>
+              <Text fontSize="xs" color={analyticsMuted} mb={3}>Tracking operating leverage and spend discipline.</Text>
+              <Box>
+                <svg viewBox="0 0 320 140" width="100%" height="140">
+                  <polyline
+                    fill="none"
+                    stroke="#2563EB"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    points={revenueLinePoints}
+                  />
+                  <polyline
+                    fill="none"
+                    stroke="#EA580C"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    points={expenseLinePoints}
+                  />
+                </svg>
+                <Flex justify="space-between" fontSize="xs" color={analyticsMuted}>
+                  {revenueExpenseSeries.map((pt) => (
+                    <Text key={`revexp-${pt.month}`}>{pt.month}</Text>
+                  ))}
+                </Flex>
+                <HStack spacing={4} mt={2} fontSize="xs" color={analyticsMuted}>
+                  <HStack spacing={1}><Box w="10px" h="10px" bg="#2563EB" borderRadius="full" /> <Text>Revenue</Text></HStack>
+                  <HStack spacing={1}><Box w="10px" h="10px" bg="#EA580C" borderRadius="full" /> <Text>Expenses</Text></HStack>
+                </HStack>
+              </Box>
+            </Box>
+          </SimpleGrid>
+
+          <SimpleGrid columns={{ base: 1, lg: 2 }} gap={4}>
+            <Box
+              bg={analyticsCardBg}
+              border="1px solid"
+              borderColor={analyticsBorder}
+              borderRadius="xl"
+              p={4}
+              boxShadow="md"
+            >
+              <Flex justify="space-between" align="center" mb={2}>
+                <Heading size="sm">Product performance</Heading>
+                <Tag size="sm" colorScheme="teal" variant="subtle">Bar chart</Tag>
+              </Flex>
+              <Text fontSize="xs" color={analyticsMuted} mb={3}>Revenue contribution by line of business.</Text>
+              <Flex gap={3} align="flex-end" minH="180px">
+                {productBars.map((item) => (
+                  <Box key={item.name} flex="1">
+                    <Box
+                      h={`${item.height}px`}
+                      bgGradient="linear(to-t, teal.500, blue.400)"
+                      borderRadius="lg"
+                      boxShadow="sm"
+                    />
+                    <Text fontSize="xs" color={analyticsMuted} mt={1} textAlign="center">{item.name}</Text>
+                    <Text fontSize="xs" textAlign="center" color="gray.700" fontWeight="semibold">
+                      {etbFormatter.format(item.revenue)}
+                    </Text>
+                    <Text fontSize="xs" textAlign="center" color={analyticsMuted}>Margin {item.margin}%</Text>
+                  </Box>
+                ))}
+              </Flex>
+            </Box>
+
+            <Box
+              bg={analyticsCardBg}
+              border="1px solid"
+              borderColor={analyticsBorder}
+              borderRadius="xl"
+              p={4}
+              boxShadow="md"
+            >
+              <Flex justify="space-between" align="center" mb={2}>
+                <Heading size="sm">Customer growth</Heading>
+                <Tag size="sm" colorScheme="green" variant="subtle">Growth curve</Tag>
+              </Flex>
+              <Text fontSize="xs" color={analyticsMuted} mb={3}>Compounded acquisition momentum.</Text>
+              <Box>
+                <svg viewBox="0 0 320 140" width="100%" height="140">
+                  <polyline
+                    fill="none"
+                    stroke="#0EA5E9"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    points={customerLinePoints}
+                  />
+                  {customerGrowth.map((pt, idx) => {
+                    const [x, y] = customerCoords[idx]?.split(',') || [0, 0];
+                    return <circle key={pt.month} cx={x} cy={y} r="4" fill="#0EA5E9" />;
+                  })}
+                </svg>
+                <Flex justify="space-between" fontSize="xs" color={analyticsMuted}>
+                  {customerGrowth.map((pt) => (
+                    <Text key={`cust-${pt.month}`}>{pt.month}</Text>
+                  ))}
+                </Flex>
+              </Box>
+            </Box>
+          </SimpleGrid>
+
+          <SimpleGrid columns={{ base: 1, lg: 2 }} gap={4}>
+            <Box
+              bg={analyticsCardBg}
+              border="1px solid"
+              borderColor={analyticsBorder}
+              borderRadius="xl"
+              p={4}
+              boxShadow="md"
+            >
+              <Flex justify="space-between" align="center" mb={2}>
+                <Heading size="sm">Revenue mix</Heading>
+                <Tag size="sm" colorScheme="pink" variant="subtle">Pie chart</Tag>
+              </Flex>
+              <Text fontSize="xs" color={analyticsMuted} mb={3}>Share of revenue by product line.</Text>
+              <Flex align="center" gap={6} wrap="wrap">
+                <Box position="relative" w="140px" h="140px">
+                  <svg viewBox="0 0 140 140" width="140" height="140">
+                    {pieSegments.map((seg, idx) => (
+                      <circle
+                        key={seg.name}
+                        cx="70"
+                        cy="70"
+                        r={seg.radius}
+                        fill="none"
+                        stroke={pieColors[idx % pieColors.length]}
+                        strokeWidth="22"
+                        strokeDasharray={`${seg.dash} ${seg.circumference}`}
+                        strokeDashoffset={seg.dashOffset}
+                        transform="rotate(-90 70 70)"
+                        strokeLinecap="butt"
+                      />
+                    ))}
+                    <text x="70" y="75" textAnchor="middle" fontSize="16" fontWeight="700" fill="currentColor">
+                      100%
+                    </text>
+                  </svg>
+                </Box>
+                <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={2} flex="1" minW="220px">
+                  {pieSegments.map((seg, idx) => (
+                    <HStack key={`pie-legend-${seg.name}`} spacing={2}>
+                      <Box w="10px" h="10px" bg={pieColors[idx % pieColors.length]} borderRadius="full" />
+                      <Box>
+                        <Text fontWeight="semibold">{seg.name}</Text>
+                        <Text fontSize="xs" color={analyticsMuted}>
+                          {etbFormatter.format(seg.revenue || 0)} • {seg.pct}%
+                        </Text>
+                      </Box>
+                    </HStack>
+                  ))}
+                </SimpleGrid>
+              </Flex>
+            </Box>
+
+            <Box
+              bg={analyticsCardBg}
+              border="1px solid"
+              borderColor={analyticsBorder}
+              borderRadius="xl"
+              p={4}
+              boxShadow="md"
+            >
+              <Flex justify="space-between" align="center" mb={2}>
+                <Heading size="sm">Business health</Heading>
+                <Tag size="sm" colorScheme="purple" variant="subtle">Donut</Tag>
+              </Flex>
+              <Text fontSize="xs" color={analyticsMuted} mb={3}>Weighted view of delivery health, watch list, and risk.</Text>
+              <Flex align="center" gap={6} wrap="wrap">
+                <Box position="relative" w="120px" h="120px">
+                  <svg viewBox="0 0 120 120" width="120" height="120">
+                    <circle cx="60" cy="60" r={donutRadius} fill="none" stroke={donutTrack} strokeWidth="12" opacity="0.35" />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={donutRadius}
+                      fill="none"
+                      stroke="#16A34A"
+                      strokeWidth="12"
+                      strokeDasharray={`${(businessHealth.healthy / 100) * donutCircumference} ${donutCircumference}`}
+                      strokeDashoffset={donutCircumference * 0.25}
+                      strokeLinecap="round"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={donutRadius}
+                      fill="none"
+                      stroke="#F59E0B"
+                      strokeWidth="12"
+                      strokeDasharray={`${(businessHealth.watch / 100) * donutCircumference} ${donutCircumference}`}
+                      strokeDashoffset={donutCircumference * (0.25 - businessHealth.healthy / 100)}
+                      strokeLinecap="round"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={donutRadius}
+                      fill="none"
+                      stroke="#EF4444"
+                      strokeWidth="12"
+                      strokeDasharray={`${(businessHealth.risk / 100) * donutCircumference} ${donutCircumference}`}
+                      strokeDashoffset={donutCircumference * (0.25 - (businessHealth.healthy + businessHealth.watch) / 100)}
+                      strokeLinecap="round"
+                    />
+                    <text x="60" y="65" textAnchor="middle" fontSize="16" fontWeight="700" fill="currentColor">
+                      {businessHealth.healthy}%
+                    </text>
+                  </svg>
+                </Box>
+                <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={3} flex="1" minW="240px">
+                  <HStack spacing={2}>
+                    <Box w="10px" h="10px" bg="#16A34A" borderRadius="full" />
+                    <Box>
+                      <Text fontWeight="semibold">Healthy</Text>
+                      <Text fontSize="xs" color={analyticsMuted}>Stable delivery & SLA</Text>
+                    </Box>
+                  </HStack>
+                  <HStack spacing={2}>
+                    <Box w="10px" h="10px" bg="#F59E0B" borderRadius="full" />
+                    <Box>
+                      <Text fontWeight="semibold">Watch</Text>
+                      <Text fontSize="xs" color={analyticsMuted}>Follow-up in flight</Text>
+                    </Box>
+                  </HStack>
+                  <HStack spacing={2}>
+                    <Box w="10px" h="10px" bg="#EF4444" borderRadius="full" />
+                    <Box>
+                      <Text fontWeight="semibold">Risk</Text>
+                      <Text fontSize="xs" color={analyticsMuted}>Escalations tracked</Text>
+                    </Box>
+                  </HStack>
+                </SimpleGrid>
+              </Flex>
+            </Box>
+          </SimpleGrid>
+
+          <Divider my={4} />
+          <Flex align={{ base: 'flex-start', md: 'center' }} justify="space-between" wrap="wrap" gap={3}>
+            <Box>
+              <Heading size="md">Operations & Department Dashboards</Heading>
+              <Text fontSize="sm" color={analyticsMuted}>Team performance, customer service, finance, and sales details.</Text>
+            </Box>
+            <Tag colorScheme="gray" variant="subtle">Live</Tag>
+          </Flex>
+
+          <Box>
+            <KpiCards department={effectiveDept} timeRange={timeRange} metrics={metrics} />
+          </Box>
 
             <MotionBox
               bg="white"
@@ -1707,8 +2113,7 @@ const COODashboard = () => {
             </MotionBox>
           </VStack>
 
-          </VStack>
-        </Flex>
+        </VStack>
     </Container>
 
     {/* Collapsible Sidebar Drawer */}

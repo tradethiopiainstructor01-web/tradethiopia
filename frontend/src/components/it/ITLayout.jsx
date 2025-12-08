@@ -448,8 +448,6 @@ const ITLayout = () => {
         return externalTable;
       case 'internal': 
         return internalTable;
-      case 'add': 
-        return addTaskForm;
       case 'reports': 
         return reports;
       default:
@@ -695,6 +693,7 @@ const ITLayout = () => {
             )}
           </Box>
         </Container>
+        {addTaskForm}
       </Box>
     </Flex>
   );

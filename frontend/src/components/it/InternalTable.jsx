@@ -59,6 +59,10 @@ const InternalTable = ({ search }) => {
   
   const bg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const headingColor = useColorModeValue('gray.800', 'white');
+  const subheadingColor = useColorModeValue('gray.600', 'gray.400');
+  const iconColor = useColorModeValue('gray.500', 'gray.400');
+  const mutedColor = useColorModeValue('gray.500', 'gray.400');
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -169,10 +173,10 @@ const InternalTable = ({ search }) => {
       {/* Header */}
       <HStack justify="space-between" flexWrap="wrap" gap={4}>
         <Box>
-          <Heading size="lg" color={useColorModeValue('gray.800', 'white')}>
+          <Heading size="lg" color={headingColor}>
             Internal Projects
           </Heading>
-          <Text color={useColorModeValue('gray.600', 'gray.400')}>
+          <Text color={subheadingColor}>
             Manage internal IT projects and tasks
           </Text>
         </Box>
@@ -191,7 +195,7 @@ const InternalTable = ({ search }) => {
         <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
           <CardBody>
             <Stat>
-              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+              <StatLabel fontSize="sm" color={subheadingColor}>
                 Total Tasks
               </StatLabel>
               <StatNumber fontSize="2xl" fontWeight="bold" mt={1}>
@@ -204,7 +208,7 @@ const InternalTable = ({ search }) => {
         <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
           <CardBody>
             <Stat>
-              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+              <StatLabel fontSize="sm" color={subheadingColor}>
                 In Progress
               </StatLabel>
               <StatNumber fontSize="2xl" fontWeight="bold" mt={1} color="blue.500">
@@ -217,7 +221,7 @@ const InternalTable = ({ search }) => {
         <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
           <CardBody>
             <Stat>
-              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+              <StatLabel fontSize="sm" color={subheadingColor}>
                 Completed
               </StatLabel>
               <StatNumber fontSize="2xl" fontWeight="bold" mt={1} color="green.500">
@@ -230,7 +234,7 @@ const InternalTable = ({ search }) => {
         <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
           <CardBody>
             <Stat>
-              <StatLabel fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+              <StatLabel fontSize="sm" color={subheadingColor}>
                 High Priority
               </StatLabel>
               <StatNumber fontSize="2xl" fontWeight="bold" mt={1} color="red.500">
@@ -337,7 +341,7 @@ const InternalTable = ({ search }) => {
                     </Td>
                     <Td>
                       <HStack spacing={1}>
-                        <Icon as={FiCalendar} color={useColorModeValue('gray.500', 'gray.400')} boxSize={4} />
+                        <Icon as={FiCalendar} color={iconColor} boxSize={4} />
                         <Text fontSize="sm">
                           {new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()}
                         </Text>
@@ -358,7 +362,7 @@ const InternalTable = ({ search }) => {
                         {task.assignedTo.map((person, idx) => (
                           <WrapItem key={idx}>
                             <HStack spacing={1}>
-                              <Icon as={FiUser} color={useColorModeValue('gray.500', 'gray.400')} boxSize={4} />
+                              <Icon as={FiUser} color={iconColor} boxSize={4} />
                               <Text fontSize="sm">{person}</Text>
                             </HStack>
                           </WrapItem>
@@ -394,7 +398,7 @@ const InternalTable = ({ search }) => {
       ) : (
         <Card bg={bg} borderRadius="2xl" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
           <CardBody>
-            <Box textAlign="center" py={12} color={useColorModeValue('gray.500', 'gray.400')}>
+            <Box textAlign="center" py={12} color={mutedColor}>
               <Icon as={FiSearch} boxSize={12} mb={4} />
               <Text fontSize="lg" fontWeight="medium" mb={2}>
                 No internal tasks found
@@ -412,6 +416,10 @@ const InternalTable = ({ search }) => {
         isOpen={showAdd} 
         onClose={() => setShowAdd(false)} 
         onDone={fetchTasks}
+        onLocalCreate={(task) => {
+          setTasks(prev => [task, ...prev]);
+          setShowAdd(false);
+        }}
         defaultProjectType="internal"
       />
     </VStack>
