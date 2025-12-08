@@ -280,22 +280,40 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
     console.log('BEFORE SENDING - Final actionType type:', typeof payloadToSend.actionType);
     console.log('BEFORE SENDING - Final actionType is array:', Array.isArray(payloadToSend.actionType));
     
-    try {
-      console.log('Sending axios request with:', {
-        url: `${import.meta.env.VITE_API_URL}/api/it`,
-        data: payloadToSend,
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/it`, payloadToSend, { 
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        } 
-      });
+    const apiBase = import.meta.env.VITE_API_URL;
+    const candidateEndpoints = [
+      `${apiBase}/api/it`,
+      `${apiBase}/api/it/tasks`,
+    ];
+
+    let created = false;
+    let lastError = null;
+    for (const url of candidateEndpoints) {
+      try {
+        console.log('Sending axios request with:', {
+          url,
+          data: payloadToSend,
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        await axios.post(url, payloadToSend, { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        });
+        created = true;
+        break;
+      } catch (err) {
+        lastError = err;
+        // Try next endpoint
+        continue;
+      }
+    }
+
+    if (created) {
       if (onDone) onDone();
       onClose();
       
@@ -317,47 +335,48 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
         duration: 3000,
         isClosable: true,
       });
-    } catch (err) {
-      console.error(err);
-      // Fallback: create locally if backend endpoint is missing (404) or unreachable
-      const canFallback = err?.response?.status === 404 || !err?.response;
-      if (canFallback && onLocalCreate) {
-        const localTask = {
-          _id: `local-${Date.now()}`,
-          id: `local-${Date.now()}`,
-          projectType,
-          taskName: payloadToSend.taskName || payloadToSend.client || 'Task',
-          category: payloadToSend.category || '',
-          platform: payloadToSend.platform || '',
-          client: payloadToSend.client || '',
-          actionType: payloadToSend.actionType,
-          startDate: payloadToSend.startDate || new Date().toISOString(),
-          endDate: payloadToSend.endDate || new Date().toISOString(),
-          status: payloadToSend.status || 'pending',
-          urgent: payloadToSend.urgent,
-          priority: 'Medium',
-          assignedTo: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        onLocalCreate(localTask);
-        onClose();
-        toast({
-          title: 'Saved locally',
-          description: 'Backend not reachable; task stored locally for now.',
-          status: 'warning',
-          duration: 3500,
-          isClosable: true,
-        });
-      } else {
-        toast({
-          title: 'Error creating task',
-          description: err.response?.data?.message || 'Failed to create the task',
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
-        });
-      }
+      return;
+    }
+
+    console.error(lastError);
+    // Fallback: create locally if backend endpoint is missing (404) or unreachable
+    const canFallback = lastError?.response?.status === 404 || !lastError?.response;
+    if (canFallback && onLocalCreate) {
+      const localTask = {
+        _id: `local-${Date.now()}`,
+        id: `local-${Date.now()}`,
+        projectType,
+        taskName: payloadToSend.taskName || payloadToSend.client || 'Task',
+        category: payloadToSend.category || '',
+        platform: payloadToSend.platform || '',
+        client: payloadToSend.client || '',
+        actionType: payloadToSend.actionType,
+        startDate: payloadToSend.startDate || new Date().toISOString(),
+        endDate: payloadToSend.endDate || new Date().toISOString(),
+        status: payloadToSend.status || 'pending',
+        urgent: payloadToSend.urgent,
+        priority: 'Medium',
+        assignedTo: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      onLocalCreate(localTask);
+      onClose();
+      toast({
+        title: 'Saved locally',
+        description: 'Backend not reachable; task stored locally for now.',
+        status: 'warning',
+        duration: 3500,
+        isClosable: true,
+      });
+    } else {
+      toast({
+        title: 'Error creating task',
+        description: lastError?.response?.data?.message || 'Failed to create the task',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 

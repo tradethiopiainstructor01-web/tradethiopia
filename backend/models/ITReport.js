@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
-const shortid = require('shortid');
+const { randomUUID } = require('crypto');
 
 const ITReportSchema = new mongoose.Schema({
-  reportId: { type: String, default: () => shortid.generate(), unique: true },
+  reportId: { type: String, default: () => randomUUID(), unique: true },
   projectName: { type: String, required: true },
   projectType: { type: String, enum: ['internal','external'], required: true },
   actionType: { type: String, required: true },

@@ -66,13 +66,29 @@ const ExternalTable = ({ search }) => {
 
   const fetchTasks = async () => {
     setLoading(true);
+    const apiBase = import.meta.env.VITE_API_URL;
+    const endpoints = [
+      `${apiBase}/api/it?projectType=external`,
+      `${apiBase}/api/it/tasks?projectType=external`
+    ];
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/it?projectType=external`, {
-        headers: {
-          Authorization: `Bearer ${token}`
+      let loaded = false;
+      for (const url of endpoints) {
+        try {
+          const response = await axios.get(url, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          setTasks(response.data.data || response.data || []);
+          loaded = true;
+          break;
+        } catch (err) {
+          // try next endpoint
+          continue;
         }
-      });
-      setTasks(response.data.data || []);
+      }
+      if (!loaded) throw new Error('All endpoints failed');
     } catch (err) {
       console.error(err);
       toast({ title: 'Failed to load tasks', status: 'error' });

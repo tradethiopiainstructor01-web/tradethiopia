@@ -66,13 +66,29 @@ const InternalTable = ({ search }) => {
 
   const fetchTasks = async () => {
     setLoading(true);
+    const apiBase = import.meta.env.VITE_API_URL;
+    const endpoints = [
+      `${apiBase}/api/it?projectType=internal`,
+      `${apiBase}/api/it/tasks?projectType=internal`
+    ];
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/it?projectType=internal`, {
-        headers: {
-          Authorization: `Bearer ${token}`
+      let loaded = false;
+      for (const url of endpoints) {
+        try {
+          const response = await axios.get(url, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          setTasks(response.data.data || response.data || []);
+          loaded = true;
+          break;
+        } catch (err) {
+          // try next
+          continue;
         }
-      });
-      setTasks(response.data.data || []);
+      }
+      if (!loaded) throw new Error('All endpoints failed');
     } catch (err) {
       console.error(err);
       toast({ title: 'Failed to load tasks', status: 'error' });
