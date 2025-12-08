@@ -284,7 +284,7 @@ const ITLayout = () => {
     fetchData();
   }, []);
 
-  const renderDashboard = () => (
+  const DashboardSection = () => (
     <VStack spacing={8} align="stretch">
       {/* Stats Overview */}
       <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={6}>
@@ -440,7 +440,7 @@ const ITLayout = () => {
   const internalTable = <InternalTable search={query} />;
   const addTaskForm = <AddTaskForm isOpen={isOpen} onClose={onClose} onDone={() => setActive('dashboard')} />;
   const reports = <Reports />;
-  const dashboard = renderDashboard();
+  const dashboard = <DashboardSection />;
 
   const renderContent = () => {
     switch (active) {
