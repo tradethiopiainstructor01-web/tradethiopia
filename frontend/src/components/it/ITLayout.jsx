@@ -17,6 +17,7 @@ import {
 } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 import ITSidebar from './ITSidebar';
 import ExternalTable from './ExternalTable';
 import InternalTable from './InternalTable';
@@ -234,6 +235,7 @@ const PerformanceChart = ({ data }) => {
 };
 
 const ITLayout = () => {
+  const navigate = useNavigate();
   const [active, setActive] = useState('dashboard');
   const [query, setQuery] = useState('');
   const [stats, setStats] = useState({ 
@@ -255,7 +257,7 @@ const ITLayout = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = async () => {
       setIsLoading(true);
       try {
         // Fetch real data from the backend instead of using mock data
@@ -455,6 +457,14 @@ const ITLayout = () => {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userStatus');
+    localStorage.removeItem('userName');
+    navigate('/login');
+  };
+
   return (
     <Flex minH="100vh" bg={bg}>
       {/* Sidebar */}
@@ -601,7 +611,7 @@ const ITLayout = () => {
                 <MenuItem icon={<FiSettings />}>Settings</MenuItem>
                 <MenuItem icon={<FiActivity />}>Activity Log</MenuItem>
                 <MenuDivider />
-                <MenuItem>Sign Out</MenuItem>
+                <MenuItem onClick={handleLogout}>Sign Out</MenuItem>
               </MenuList>
             </Menu>
           </Box>
