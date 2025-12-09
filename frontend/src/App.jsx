@@ -36,6 +36,7 @@ import CustomerFollowup from "./components/customer/CustomerFollowup.jsx";
 import AddCustomer from "./components/customer/AddCustomer";
 import CDashboard from "./components/customer/Cdashboard";
 import CustomerReport from "./components/customer/CustomerReport";
+import CustomerFollowupReport from "./components/customer/CustomerFollowupReport";
 import VideoList from './components/customer/VideoList';
 import UploadResource from './components/customer/UploadPage';
 import TrainingPage from "./components/customer/TrainingPage";
@@ -69,8 +70,8 @@ function App() {
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
     "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing",
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
-    "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager"
+    "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/followup-report", "/CustomerFollowup", "/b2b-dashboard",
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it"
   ].map((path) => path.toLowerCase());
 
   // Check if the current path is a no-sidebar, no-navbar route (case-insensitive)
@@ -136,6 +137,7 @@ function App() {
             <Route path="/UploadPage" element={<UploadResource />} />
             <Route path="/Cdashboard" element={<CDashboard />} />
             <Route path="/CustomerReport" element={<CustomerReport />} />
+            <Route path="/followup-report" element={<CustomerFollowupReport />} />
             <Route path="/training" element={<TrainingPage />} />
             <Route path="/ComingSoonPage" element={<ComingSoonPage />} />
             <Route path="/admin-training-upload" element={<AdminTrainingUpload />} />

@@ -124,21 +124,37 @@ const ActivityMetric = ({ label, value, icon: Icon }) => (
   </Box>
 );
 
-const TargetRow = ({ label, target, actual, isPercentage = false }) => {
-  const gap = actual - target;
-  const gapColor = gap > 0 ? "green.500" : "red.500";
-  const displayTarget = isPercentage ? `${target}%` : target;
-  const displayActual = isPercentage ? `${actual}%` : actual;
+const TargetRow = ({ label, target, actual, isPercentage = false, onActualChange }) => {
+  const numericTarget = parseFloat(target) || 0;
+  const numericActual = parseFloat(actual) || 0;
+  const gap = numericActual - numericTarget;
+  const gapColor = gap >= 0 ? "green.500" : "red.500";
+  const displayTarget = isPercentage ? `${numericTarget}%` : numericTarget;
+  const displayActual = isPercentage ? `${numericActual}%` : numericActual;
   
   return (
     <Tr _hover={{ bg: useColorModeValue("gray.50", "gray.700") }}>
       <Td fontWeight="medium">{label}</Td>
       <Td isNumeric>{displayTarget}</Td>
-      <Td isNumeric>{displayActual}</Td>
+      <Td isNumeric>
+        {onActualChange ? (
+          <NumberInput
+            size="sm"
+            maxW="120px"
+            value={numericActual}
+            min={0}
+            onChange={(_, val) => onActualChange(val || 0)}
+          >
+            <NumberInputField />
+          </NumberInput>
+        ) : (
+          displayActual
+        )}
+      </Td>
       <Td isNumeric color={gapColor}>
-        {gap > 0 
-          ? `-${isPercentage ? `${gap}%` : gap.toLocaleString()}` 
-          : `+${Math.abs(gap)}${isPercentage ? '%' : ''}`}
+        {gap >= 0
+          ? `+${isPercentage ? gap.toFixed(2) : gap.toLocaleString()}${isPercentage ? '%' : ''}`
+          : `${isPercentage ? gap.toFixed(2) : gap.toLocaleString()}${isPercentage ? '%' : ''}`}
       </Td>
     </Tr>
   );
@@ -270,6 +286,10 @@ const CustomerReport = () => {
     return Number.isNaN(parsed) ? fallback : parsed;
   };
 
+  const setActualValue = (label, value) => {
+    setActualOverrides((prev) => ({ ...prev, [label]: value }));
+  };
+
   const metricOptions = () => {
     const base = [
       { label: "User Manuals Sent", defaultVal: activityTotals.materialUpdates },
@@ -327,39 +347,7 @@ const CustomerReport = () => {
   };
 
   const openActualModal = () => {
-    const opts = metricOptions();
-    const first = opts[0] || { label: "", defaultVal: 0 };
-    setActualModal({
-      isOpen: true,
-      metricLabel: first.label,
-      value: getActualValue(first.label, first.defaultVal),
-    });
-  };
-
-  const handleActualChange = (label) => {
-    const opts = metricOptions();
-    const match = opts.find((o) => o.label === label);
-    const nextVal = getActualValue(label, match ? match.defaultVal : 0);
-    setActualModal((prev) => ({
-      ...prev,
-      metricLabel: label,
-      value: nextVal,
-    }));
-  };
-
-  const saveActualValue = () => {
-    setActualOverrides((prev) => ({
-      ...prev,
-      [actualModal.metricLabel]: actualModal.value,
-    }));
-    setActualModal((prev) => ({ ...prev, isOpen: false }));
-    toast({
-      title: "Actual updated",
-      description: `${actualModal.metricLabel} set to ${actualModal.value}`,
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
+    setActualModal((prev) => ({ ...prev, isOpen: true }));
   };
 
   useEffect(() => {
@@ -1183,38 +1171,53 @@ const CustomerReport = () => {
         >
           <ModalOverlay />
           <ModalContent bg={modalBg}>
-            <ModalHeader>Set Actual Value</ModalHeader>
+            <ModalHeader>Actual Values</ModalHeader>
             <ModalBody>
-              <FormControl mb={4}>
-                <FormLabel>Metric</FormLabel>
-                <Select
-                  value={actualModal.metricLabel}
-                  onChange={(e) => handleActualChange(e.target.value)}
-                >
-                  {metricOptions().map((opt) => (
-                    <option key={opt.label} value={opt.label}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl>
-                <FormLabel>Actual Value</FormLabel>
-                <NumberInput
-                  value={actualModal.value}
-                  min={0}
-                  onChange={(_, val) => setActualModal((prev) => ({ ...prev, value: val }))}
-                >
-                  <NumberInputField />
-                </NumberInput>
-              </FormControl>
+              <Text mb={3} color={secondaryTextColor}>
+                Update actuals inline. Changes save immediately.
+              </Text>
+              <Box
+                borderWidth="1px"
+                borderColor={borderColor}
+                borderRadius="md"
+                overflow="hidden"
+              >
+                <Table size="sm" variant="simple">
+                  <Thead bg={useColorModeValue("gray.50", "gray.700")}>
+                    <Tr>
+                      <Th>Name</Th>
+                      <Th isNumeric>Actual</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {metricOptions().map((opt) => {
+                      const currentVal = getActualValue(opt.label, opt.defaultVal);
+                      return (
+                        <Tr key={opt.label} _hover={{ bg: useColorModeValue("gray.50", "gray.700") }}>
+                          <Td>{opt.label}</Td>
+                          <Td isNumeric>
+                            <NumberInput
+                              size="sm"
+                              maxW="140px"
+                              value={currentVal}
+                              min={0}
+                              onChange={(_, val) =>
+                                setActualOverrides((prev) => ({ ...prev, [opt.label]: val || 0 }))
+                              }
+                            >
+                              <NumberInputField />
+                            </NumberInput>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
+                  </Tbody>
+                </Table>
+              </Box>
             </ModalBody>
             <ModalFooter>
-              <Button mr={3} onClick={() => setActualModal((prev) => ({ ...prev, isOpen: false }))}>
-                Cancel
-              </Button>
-              <Button colorScheme="blue" onClick={saveActualValue}>
-                Save
+              <Button colorScheme="blue" onClick={() => setActualModal((prev) => ({ ...prev, isOpen: false }))}>
+                Close
               </Button>
             </ModalFooter>
           </ModalContent>

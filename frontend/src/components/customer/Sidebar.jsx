@@ -62,6 +62,28 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
   const iconColor = useColorModeValue("gray.600", "white");
   const activeIconColor = useColorModeValue("blue.600", "teal.200");
   const activeTextColor = useColorModeValue("blue.800", "white");
+    const isCSM = (() => {
+    try {
+      const rawUser =
+        localStorage.getItem("user") ||
+        localStorage.getItem("userInfo") ||
+        localStorage.getItem("userData");
+      const roleFieldFromUser = rawUser
+        ? (() => {
+            const parsed = typeof rawUser === "string" ? JSON.parse(rawUser) : rawUser;
+            return parsed?.role || parsed?.user?.role || parsed?.userRole || parsed?.user?.userRole;
+          })()
+        : null;
+
+      const roleFromStore = localStorage.getItem("userRole");
+      const roles = Array.isArray(roleFieldFromUser) ? roleFieldFromUser : [roleFieldFromUser, roleFromStore];
+      return roles.some((r) => (r || "").toString().trim().toLowerCase() === "customersuccessmanager"|"COO");
+    } catch (e) {
+      // fallback: hide restricted links if parsing fails
+    }
+    return false;
+  })();
+
 
   return (
     <Box
@@ -90,14 +112,14 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
         py={4}
         flexShrink={0}
       >
-        {!isCollapsed && (
+        {/* {!isCollapsed && (
           <Flex align="center" gap={2}>
             <Box w="10px" h="32px" bgGradient={useColorModeValue("linear(to-b, blue.400, purple.400)", "linear(to-b, teal.300, cyan.400)")} borderRadius="full" />
             <Text fontWeight="bold" fontSize="lg" letterSpacing="0.5px" color={textColor}>
-              Customer Hub
+              Customer Success
             </Text>
           </Flex>
-        )}
+        )} */}
       </Flex>
       <IconButton
         icon={isCollapsed ? <FiChevronsRight /> : <FiChevronsLeft />}
@@ -161,19 +183,35 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
             textColor={textColor}
             activeTextColor={activeTextColor}
           />
-          <SidebarLink
-            isCollapsed={isCollapsed}
-            to="/CustomerReport"
-            icon={<FiBookOpen />}
-            label="Customer Report"
-            active={isActive("/CustomerReport")}
-            iconColor={iconColor}
-            activeIconColor={activeIconColor}
-            textColor={textColor}
-            activeTextColor={activeTextColor}
-          />
+          {isCSM && (
+            <>
+              <SidebarLink
+                isCollapsed={isCollapsed}
+                to="/CustomerReport"
+                icon={<FiBookOpen />}
+                label="Customer Report"
+                active={isActive("/CustomerReport")}
+                iconColor={iconColor}
+                activeIconColor={activeIconColor}
+                textColor={textColor}
+                activeTextColor={activeTextColor}
+              />
 
-          <SidebarLink
+              <SidebarLink
+                isCollapsed={isCollapsed}
+                to="/followup-report"
+                icon={<FiFileText />}
+                label="Follow-up Report"
+                active={isActive("/followup-report")}
+                iconColor={iconColor}
+                activeIconColor={activeIconColor}
+                textColor={textColor}
+                activeTextColor={activeTextColor}
+              />
+            </>
+          )}
+
+          {/* <SidebarLink
             isCollapsed={isCollapsed}
             to="/followup-report"
             icon={<FiFileText />}
@@ -183,7 +221,7 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
             activeIconColor={activeIconColor}
             textColor={textColor}
             activeTextColor={activeTextColor}
-          />
+          /> */}
 
           <SidebarLink
             isCollapsed={isCollapsed}
@@ -196,17 +234,19 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
             textColor={textColor}
             activeTextColor={activeTextColor}
           />
-          <SidebarLink
-            isCollapsed={isCollapsed}
-            to="/customer-settings"
-            icon={<FiSettings />}
-            label="Customer Settings"
-            active={isActive("/customer-settings")}
-            iconColor={iconColor}
-            activeIconColor={activeIconColor}
-            textColor={textColor}
-            activeTextColor={activeTextColor}
-          />
+          {isCSM && (
+            <SidebarLink
+              isCollapsed={isCollapsed}
+              to="/customer-settings"
+              icon={<FiSettings />}
+              label="Customer Settings"
+              active={isActive("/customer-settings")}
+              iconColor={iconColor}
+              activeIconColor={activeIconColor}
+              textColor={textColor}
+              activeTextColor={activeTextColor}
+            />
+          )}
 
           {/* Removed Resources link as requested */}
         </VStack>
