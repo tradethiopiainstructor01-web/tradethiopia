@@ -20,6 +20,7 @@ import {
   FaMoneyBillWave,
   FaShoppingCart
 } from 'react-icons/fa';
+import { FiCheckCircle } from 'react-icons/fi';
 
 const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) => {
   // Color mode values
@@ -47,7 +48,7 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
       </HStack>
       <Divider mb={4} borderColor={borderColor} />
       <VStack align="stretch" spacing={2} px={2}>
-          {['Home', 'Followup', 'Orders', 'Tutorials'].map((label) => (
+          {['Home', 'Followup', 'Orders', 'Tutorials', 'Tasks'].map((label) => (
           <SidebarItem
             key={label}
             icon={
@@ -59,6 +60,8 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
                 ? FaShoppingCart
                 : label === 'Resources'
                 ? FaChartLine
+                : label === 'Tasks'
+                ? FiCheckCircle
                 : FaVideo
             }
             label={label}
