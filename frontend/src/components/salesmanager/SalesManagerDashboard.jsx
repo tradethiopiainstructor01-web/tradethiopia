@@ -369,13 +369,17 @@ const SalesManagerDashboard = () => {
   // Fetch dashboard stats
   const fetchDashboardStats = async () => {
     try {
+      console.log('🔍 Fetching dashboard stats...');
+      console.log('Token:', localStorage.getItem('userToken')?.substring(0, 20) + '...');
       const data = await getDashboardStats();
+      console.log('✅ Dashboard stats received:', data);
       setStats(prev => ({
         ...prev,
         ...data
       }));
     } catch (err) {
-      console.error('Error fetching dashboard stats:', err);
+      console.error('❌ Error fetching dashboard stats:', err);
+      console.error('Error details:', err.response?.data || err.message);
       applyStatsFallback();
       // Propagate only for non-404 to avoid breaking UX when endpoints are missing
       if (err?.response?.status !== 404) {

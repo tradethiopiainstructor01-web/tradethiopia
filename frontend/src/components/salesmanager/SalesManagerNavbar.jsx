@@ -92,6 +92,36 @@ const SalesManagerNavbar = ({ onMenuClick, onToggleSidebar, isSidebarCollapsed }
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
+  // Fetch initial notifications on mount
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        setLoadingNotifications(true);
+        const data = await getNotifications();
+        
+        // Transform notifications to match our format
+        const formattedNotifications = data.map(notif => ({
+          id: notif._id,
+          message: notif.message,
+          read: notif.read,
+          time: getTimeAgo(notif.createdAt),
+          taskId: notif.taskId
+        }));
+        
+        setNotifications(formattedNotifications);
+        setUnreadCount(formattedNotifications.filter(n => !n.read).length);
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+      } finally {
+        setLoadingNotifications(false);
+      }
+    };
+
+    if (currentUser?._id) {
+      fetchNotifications();
+    }
+  }, [currentUser?._id]);
+
   // Establish Socket.IO connection
   useEffect(() => {
     if (!currentUser?._id) return;
@@ -464,16 +494,15 @@ const SalesManagerNavbar = ({ onMenuClick, onToggleSidebar, isSidebarCollapsed }
               rightIcon={
                 <Box
                   as="span"
+                  display="inline-flex"
                   transition="all 0.2s"
+                  color={iconColor}
                   _groupHover={{ 
                     transform: "rotate(180deg)",
                     color: 'white'
                   }}
                 >
-                  <FiChevronDown 
-                    color={iconColor} 
-                    _groupHover={{ color: 'white' }}
-                  />
+                  <FiChevronDown />
                 </Box>
               }
               _groupHover={{ 

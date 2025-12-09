@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Heading,
@@ -20,10 +20,21 @@ import {
   Stat,
   StatLabel,
   StatNumber,
+  useToast,
+  Spinner,
 } from '@chakra-ui/react';
 import { FiSettings, FiBell, FiLock, FiUser } from 'react-icons/fi';
+import { useUserStore } from '../../store/user';
 
 const SettingsPage = () => {
+  const currentUser = useUserStore((state) => state.currentUser);
+  const toast = useToast();
+  const [loading, setLoading] = useState(true);
+  const [profileData, setProfileData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+  });
   const [settings, setSettings] = useState({
     notifications: true,
     emailReports: true,
@@ -36,6 +47,42 @@ const SettingsPage = () => {
   const headerColor = useColorModeValue('teal.600', 'teal.200');
   const secondaryTextColor = useColorModeValue('gray.600', 'gray.400');
 
+  // Fetch user profile data on mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setLoading(true);
+        if (currentUser) {
+          setProfileData({
+            name: currentUser.name || '',
+            email: currentUser.email || '',
+            phone: currentUser.phone || '',
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        toast({
+          title: 'Error loading profile',
+          description: error.message,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [currentUser, toast]);
+
+  const handleProfileChange = (field, value) => {
+    setProfileData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   const handleChange = (field, value) => {
     setSettings(prev => ({
       ...prev,
@@ -45,9 +92,44 @@ const SettingsPage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // In a real app, you would save settings to the backend here
-    alert('Settings saved successfully!');
+    // TODO: Save settings to backend
+    toast({
+      title: 'Settings saved',
+      description: 'Your settings have been updated successfully.',
+      status: 'success',
+      duration: 3000,
+      isClosable: true,
+    });
   };
+
+  const handleUpdateProfile = async () => {
+    try {
+      // TODO: Implement API call to update profile
+      toast({
+        title: 'Profile updated',
+        description: 'Your profile has been updated successfully.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error updating profile',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box p={{ base: 2, md: 6 }} maxW="100%" display="flex" justifyContent="center" alignItems="center" minH="400px">
+        <Spinner size="xl" color={headerColor} thickness="4px" />
+      </Box>
+    );
+  }
 
   return (
     <Box p={{ base: 2, md: 6 }} maxW="100%">
@@ -74,17 +156,30 @@ const SettingsPage = () => {
             <VStack spacing={4} align="stretch">
               <FormControl>
                 <FormLabel>Name</FormLabel>
-                <Input placeholder="Enter your name" />
+                <Input 
+                  placeholder="Enter your name" 
+                  value={profileData.name}
+                  onChange={(e) => handleProfileChange('name', e.target.value)}
+                />
               </FormControl>
               <FormControl>
                 <FormLabel>Email</FormLabel>
-                <Input type="email" placeholder="Enter your email" />
+                <Input 
+                  type="email" 
+                  placeholder="Enter your email"
+                  value={profileData.email}
+                  onChange={(e) => handleProfileChange('email', e.target.value)}
+                />
               </FormControl>
               <FormControl>
                 <FormLabel>Phone</FormLabel>
-                <Input placeholder="Enter your phone number" />
+                <Input 
+                  placeholder="Enter your phone number"
+                  value={profileData.phone}
+                  onChange={(e) => handleProfileChange('phone', e.target.value)}
+                />
               </FormControl>
-              <Button colorScheme="teal">Update Profile</Button>
+              <Button colorScheme="teal" onClick={handleUpdateProfile}>Update Profile</Button>
             </VStack>
           </CardBody>
         </Card>
