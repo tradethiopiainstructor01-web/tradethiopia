@@ -119,7 +119,8 @@ const getFollowupById = async (req, res) => {
 
 const getFollowups = async (req, res) => {
   try {
-    const followups = await Followup.find();
+    // Populate the agentId field with user information
+    const followups = await Followup.find().populate('agentId', 'username name email');
     res.status(200).json(followups);
   } catch (error) {
     res.status(500).json({ message: error.message });
