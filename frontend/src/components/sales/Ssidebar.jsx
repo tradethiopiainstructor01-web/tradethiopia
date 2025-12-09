@@ -18,7 +18,8 @@ import {
   FaArrowRight,
   FaVideo,
   FaMoneyBillWave,
-  FaShoppingCart
+  FaShoppingCart,
+  FaClipboardList
 } from 'react-icons/fa';
 import { FiCheckCircle } from 'react-icons/fi';
 
@@ -48,7 +49,7 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
       </HStack>
       <Divider mb={4} borderColor={borderColor} />
       <VStack align="stretch" spacing={2} px={2}>
-          {['Home', 'Followup', 'Orders', 'Tutorials', 'Tasks'].map((label) => (
+          {['Home', 'Followup', 'Orders', 'Tutorials', 'Tasks', 'Monthly Report'].map((label) => (
           <SidebarItem
             key={label}
             icon={

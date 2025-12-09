@@ -25,7 +25,11 @@ import {
   HStack,
   VStack,
   Icon,
-  Badge
+  Badge,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription
 } from '@chakra-ui/react';
 import { 
   FaChartBar, 
@@ -40,8 +44,9 @@ import {
   FaBalanceScale,
   FaWarehouse
 } from 'react-icons/fa';
-import FinanceDashboard from '../../components/sales/FinanceDashboard';
+import FinanceDashboard from '../../components/finance/FinanceDashboard';
 import FinanceLayout from './FinanceLayout';
+import MonthlyReport from '../../components/finance/MonthlyReport';
 
 const FinanceDashboardPage = () => {
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -90,35 +95,48 @@ const FinanceDashboardPage = () => {
           ))}
         </SimpleGrid>
 
-        {/* Financial Charts and Reports */}
-        <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={6} mb={8}>
-          <Card bg={cardBg} boxShadow="md">
-            <CardHeader>
-              <Heading as="h2" size="md">Revenue Overview</Heading>
-            </CardHeader>
-            <CardBody>
-              <Box height="300px" display="flex" alignItems="center" justifyContent="center">
-                <Text color="gray.500">Revenue chart visualization would appear here</Text>
-              </Box>
-            </CardBody>
-          </Card>
-          
-          <Card bg={cardBg} boxShadow="md">
-            <CardHeader>
-              <Heading as="h2" size="md">Top Products</Heading>
-            </CardHeader>
-            <CardBody>
-              <VStack align="stretch" spacing={4}>
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <Flex key={item} justify="space-between" align="center">
-                    <Text>Product {item}</Text>
-                    <Text fontWeight="bold">ETB {Math.floor(Math.random() * 10000) + 5000}</Text>
-                  </Flex>
-                ))}
-              </VStack>
-            </CardBody>
-          </Card>
-        </Grid>
+        <Tabs variant="enclosed" colorScheme="teal" mb={8}>
+          <TabList>
+            <Tab>Financial Overview</Tab>
+            <Tab>Monthly Report</Tab>
+          </TabList>
+          <TabPanels>
+            <TabPanel>
+              {/* Financial Charts and Reports */}
+              <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={6} mb={8}>
+                <Card bg={cardBg} boxShadow="md">
+                  <CardHeader>
+                    <Heading as="h2" size="md">Revenue Overview</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <Box height="300px" display="flex" alignItems="center" justifyContent="center">
+                      <Text color="gray.500">Revenue chart visualization would appear here</Text>
+                    </Box>
+                  </CardBody>
+                </Card>
+                
+                <Card bg={cardBg} boxShadow="md">
+                  <CardHeader>
+                    <Heading as="h2" size="md">Top Products</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <VStack align="stretch" spacing={4}>
+                      {[1, 2, 3, 4, 5].map((item) => (
+                        <Flex key={item} justify="space-between" align="center">
+                          <Text>Product {item}</Text>
+                          <Text fontWeight="bold">ETB {Math.floor(Math.random() * 10000) + 5000}</Text>
+                        </Flex>
+                      ))}
+                    </VStack>
+                  </CardBody>
+                </Card>
+              </Grid>
+            </TabPanel>
+            <TabPanel>
+              <MonthlyReport />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
 
         {/* Inventory Management Section */}
         <Card bg={cardBg} boxShadow="md" mb={8}>

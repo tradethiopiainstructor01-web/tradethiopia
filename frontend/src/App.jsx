@@ -49,6 +49,7 @@ import CustomerSettings from "./components/customer/CustomerSettings";
 import COODashboard from './pages/COODashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
 import PricingPage from './pages/sales/PricingPage.jsx';
+import RevenuePage from './pages/sales/RevenuePage.jsx';
 import ITDashboard from "./pages/ITDashboard";
 import SalesManagerLayout from "./components/salesmanager/Layout";
 import SalesManagerDashboard from "./components/salesmanager/SalesManagerDashboard";
@@ -68,7 +69,7 @@ function App() {
   const noNavSidebarRoutes = [
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
-    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing",
+    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue",
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
     "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/followup-report", "/CustomerFollowup", "/b2b-dashboard",
     "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it"
@@ -112,6 +113,7 @@ function App() {
             <Route path="/finance-dashboard/inventory" element={<InventoryPage />} />
             <Route path="/finance-dashboard/orders" element={<OrdersPage />} />
             <Route path="/finance-dashboard/pricing" element={<PricingPage />} />
+            <Route path="/finance-dashboard/revenue" element={<RevenuePage />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />

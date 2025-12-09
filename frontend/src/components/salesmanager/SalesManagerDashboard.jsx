@@ -90,7 +90,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { getDashboardStats, getSalesForecast, getTeamPerformance } from '../../services/salesManagerService';
+import { getDashboardStats, getSalesForecast, getTeamPerformance, getAllAgents } from '../../services/salesManagerService';
 import { getTasksForManager, getTaskStats } from '../../services/taskService';
 import { useUserStore } from '../../store/user';
 
@@ -327,11 +327,11 @@ const SalesManagerDashboard = () => {
 
   // Team performance chart data
   const teamPerformanceData = {
-    labels: teamPerformance?.agentPerformance?.map(agent => agent.name) || [],
+    labels: teamPerformance?.agentPerformance?.map(agent => agent.fullName || agent.username) || [],
     datasets: [
       {
         label: 'Deals Closed',
-        data: teamPerformance?.agentPerformance?.map(agent => agent.dealsClosed) || [],
+        data: teamPerformance?.agentPerformance?.map(agent => agent.completedDeals) || [],
         backgroundColor: [
           'rgba(66, 153, 225, 0.8)',
           'rgba(72, 187, 120, 0.8)',
@@ -360,7 +360,7 @@ const SalesManagerDashboard = () => {
       newCustomers: 42,
       totalDeals: 356,
       closedDeals: 243,
-      totalRevenue: 1256800,
+      totalTeamGrossCommission: 1256800,
       revenueTarget: 1500000,
       monthlyGrowth: 8.5,
       quarterlyGrowth: 22.3,
@@ -378,6 +378,7 @@ const SalesManagerDashboard = () => {
         fetchDashboardStats(),
         fetchSalesForecast(),
         fetchTeamPerformance(),
+        fetchAgentData(),
         fetchRecentActivities(),
         fetchTaskData()
       ]);
@@ -438,7 +439,7 @@ const SalesManagerDashboard = () => {
   // Fetch team performance data
   const fetchTeamPerformance = async () => {
     try {
-      const data = await getTeamPerformance();
+      const data = await getTeamPerformance(timeRange);
       setTeamPerformance(data);
     } catch (err) {
       console.error('Error fetching team performance:', err);
@@ -450,6 +451,23 @@ const SalesManagerDashboard = () => {
         { id: 4, name: 'Emma L.', dealsClosed: 31, target: 40, revenue: 87500 },
         { id: 5, name: 'David K.', dealsClosed: 28, target: 35, revenue: 78500 }
       ]);
+      if (err?.response?.status !== 404) {
+        throw err;
+      }
+    }
+  };
+
+  // Fetch agent data with commissions
+  const fetchAgentData = async () => {
+    try {
+      const agentData = await getTeamPerformance(timeRange);
+      // Update teamPerformance with agent data if it doesn't already contain it
+      setTeamPerformance(prev => ({
+        ...prev,
+        agentPerformance: agentData.agentPerformance
+      }));
+    } catch (err) {
+      console.error('Error fetching agent data:', err);
       if (err?.response?.status !== 404) {
         throw err;
       }
@@ -518,7 +536,7 @@ const SalesManagerDashboard = () => {
   };
 
   // Calculate progress percentage
-  const progressPercentage = Math.min(Math.round((stats.totalRevenue / (stats.revenueTarget || 1)) * 100), 100);
+  const progressPercentage = Math.min(Math.round((stats.totalTeamGrossCommission / (stats.revenueTarget || 1)) * 100), 100);
 
   console.log('Rendering dashboard with state:', { loading, error, stats });
 
@@ -577,8 +595,8 @@ const SalesManagerDashboard = () => {
       color: 'green'
     },
     {
-      title: 'Total Revenue',
-      value: `ETB ${(stats.totalRevenue || 0).toLocaleString()}`,
+      title: 'Total Gross Commission',
+      value: `ETB ${(stats.totalTeamGrossCommission || 0).toLocaleString()}`,
       icon: FiDollarSign,
       color: 'purple'
     }
@@ -800,6 +818,90 @@ const SalesManagerDashboard = () => {
                 </Box>
               </CardBody>
             </Card>
+
+            {/* Sales Report Table */}
+            <Card 
+              bg={cardBg}
+              borderWidth="1px"
+              borderColor={useColorModeValue('gray.100', 'gray.700')}
+              boxShadow="sm"
+              borderRadius="lg"
+              mt={4}
+            >
+              <CardHeader pb={2}>
+                <Flex justify="space-between" align="center">
+                  <Heading size="sm" color={textColor}>
+                    Agent Sales Report
+                  </Heading>
+                  <Select 
+                    size="xs" 
+                    w="fit-content" 
+                    value={timeRange}
+                    onChange={(e) => handleTimeRangeChange(e.target.value)}
+                    variant="filled"
+                  >
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="quarter">This Quarter</option>
+                    <option value="year">This Year</option>
+                    <option value="all">All Time</option>
+                  </Select>
+                </Flex>
+              </CardHeader>
+              <CardBody pt={0}>
+                {teamPerformance?.agentPerformance?.length > 0 ? (
+                  <Box overflowX="auto">
+                    <Table variant="simple" size="sm">
+                      <Thead>
+                        <Tr>
+                          <Th px={2} py={1} fontSize="xs">Agent</Th>
+                          <Th px={2} py={1} fontSize="xs" isNumeric>Total Sales Value</Th>
+                          <Th px={2} py={1} fontSize="xs" isNumeric>Gross Commission</Th>
+                          <Th px={2} py={1} fontSize="xs" isNumeric>Net Commission</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {teamPerformance.agentPerformance.map((agent, index) => (
+                          <Tr key={agent._id || index}>
+                            <Td px={2} py={1}>
+                              <Flex align="center">
+                                <Avatar 
+                                  size="xs" 
+                                  name={agent.fullName || agent.username} 
+                                  mr={2} 
+                                  bg="teal.500"
+                                />
+                                <Text fontSize="sm" fontWeight="medium">
+                                  {agent.fullName || agent.username}
+                                </Text>
+                              </Flex>
+                            </Td>
+                            <Td px={2} py={1} isNumeric>
+                              <Text fontSize="sm">ETB {(agent.totalSales || 0).toLocaleString()}</Text>
+                            </Td>
+                            <Td px={2} py={1} isNumeric>
+                              <Text fontSize="sm">
+                                ETB {(agent.totalGrossCommission || 0).toLocaleString()}
+                              </Text>
+                            </Td>
+                            <Td px={2} py={1} isNumeric>
+                              <Text fontSize="sm" fontWeight="bold">
+                                ETB {(agent.totalNetCommission || 0).toLocaleString()}
+                              </Text>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Text fontSize="sm" color="gray.500" textAlign="center" py={4}>
+                    No agent sales data available
+                  </Text>
+                )}
+              </CardBody>
+            </Card>
+
           </Box>
 
           {/* Right Column */}

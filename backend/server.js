@@ -255,6 +255,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/product-followups', productFollowupRoutes);
 app.use('/api/it', itRoutes);
+app.use('/api/finance', require('./routes/financeRoutes'));
 
 // Global error handler
 app.use((err, req, res, next) => {

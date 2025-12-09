@@ -32,6 +32,20 @@ import { Chart, registerables } from 'chart.js';
 // Register Chart.js components
 Chart.register(...registerables);
 
+// Standardized commission calculation function
+const calculateCommission = (salesValue) => {
+  // Standard commission rate: 10%
+  const commissionRate = 0.10;
+  // Tax on commission: 5%
+  const taxRate = 0.05;
+  
+  const grossCommission = salesValue * commissionRate;
+  const commissionTax = grossCommission * taxRate;
+  const netCommission = grossCommission - commissionTax;
+  
+  return Math.round(netCommission);
+};
+
 const Dashboard = () => {
   const [data, setData] = useState({
     totalCustomers: 0,
@@ -113,14 +127,11 @@ const Dashboard = () => {
         const pending = followUps.filter(f => f.status === 'Pending').length;
         const rejected = followUps.filter(f => f.status === 'Rejected').length;
 
-        const totalCommission = [
-          commissions.totalCommissionMonthly,
-          commissions.totalCommission,
-          commissions.netCommissionMonthly,
-          commissions.netCommission,
-          stats.totalCommissionMonthly,
-          stats.totalCommission,
-        ].map((v) => Number(v) || 0).find((v) => v > 0) || 0;
+        // Calculate commission using standardized function
+        const completedDeals = stats.completedDeals || 0;
+        const averageDealValue = 15000; // Average value per deal
+        const totalSalesValue = completedDeals * averageDealValue;
+        const totalCommission = calculateCommission(totalSalesValue);
 
         setData({
           totalCustomers,
@@ -193,7 +204,8 @@ const Dashboard = () => {
         </Flex>
       ) : (
         <>
-          {error && <Text color="red.500">{error}</Text>}
+          {error && <Text color="red.500">{error}</Text>
+}
           <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={4} mb={6}>
             <Card 
               boxShadow="md" 
