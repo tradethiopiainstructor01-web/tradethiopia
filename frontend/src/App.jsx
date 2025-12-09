@@ -74,7 +74,9 @@ function App() {
   ].map((path) => path.toLowerCase());
 
   // Check if the current path is a no-sidebar, no-navbar route (case-insensitive)
-  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname.toLowerCase());
+  const showNavAndSidebar = !noNavSidebarRoutes.some(route => 
+    location.pathname.toLowerCase().startsWith(route.toLowerCase())
+  );
 
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>

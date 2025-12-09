@@ -135,11 +135,11 @@ const generateMockForecast = () => {
   };
 };
 
-// Debug wrapper component
-const DebugWrapper = ({ children }) => {
-  console.log('DebugWrapper rendered');
-  return children;
-};
+// Debug wrapper component (removed)
+// const DebugWrapper = ({ children }) => {
+//   console.log('DebugWrapper rendered');
+//   return children;
+// };
 
 const SalesManagerDashboard = () => {
   console.log('SalesManagerDashboard component rendering...');
@@ -521,22 +521,7 @@ const SalesManagerDashboard = () => {
   ];
 
   return (
-    <DebugWrapper>
       <Box p={{ base: 3, md: 4 }} bg={bgColor} minHeight="100vh">
-        {/* Debug Info - Shows current user role */}
-        <Alert status="info" mb={4} borderRadius="md">
-          <AlertIcon />
-          <Box flex="1">
-            <Text fontWeight="bold">Current User: {currentUser?.username || currentUser?.email || 'Not logged in'}</Text>
-            <Text fontSize="sm">Role: {currentUser?.role || localStorage.getItem('userRole') || 'No role found'}</Text>
-            {currentUser?.role !== 'salesmanager' && (
-              <Text fontSize="sm" color="red.500" mt={1}>
-                ⚠️ You need to be logged in as a Sales Manager to view this dashboard!
-              </Text>
-            )}
-          </Box>
-        </Alert>
-        
         <Flex justify="space-between" align="center" mb={4}>
           <Heading 
             as="h1" 
@@ -713,7 +698,6 @@ const SalesManagerDashboard = () => {
           </Box>
         </Grid>
       </Box>
-    </DebugWrapper>
   );
 };
 
