@@ -45,6 +45,7 @@ const courseRoutes = require('./routes/courseRoutes.js');
 const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
 const itRoutes = require('./routes/itRoutes.js');
 const demandRoutes = require('./routes/demandRoutes.js');
+const costRoutes = require('./routes/costRoutes.js');
 // Load environment variables
 
 // Initialize Express app
@@ -258,6 +259,7 @@ app.use('/api/product-followups', productFollowupRoutes);
 app.use('/api/it', itRoutes);
 app.use('/api/finance', require('./routes/financeRoutes'));
 app.use('/api/purchases', require('./routes/purchaseRoutes'));
+app.use('/api/costs', costRoutes);
 app.use('/api/demands', demandRoutes);
 
 // Global error handler

@@ -37,6 +37,7 @@ import {
   FaTruck,
   FaUsers,
   FaFileInvoice,
+  FaMoneyBillWave,
   FaCogs,
   FaArrowRight
 } from 'react-icons/fa';
@@ -85,6 +86,7 @@ const FinanceLayout = ({ children }) => {
     { label: 'Pricing', icon: FaDollarSign, path: '/finance-dashboard/pricing' },
     { label: 'Revenue', icon: FaDollarSign, path: '/finance-dashboard/revenue' },
     { label: 'Purchase', icon: FaUsers, path: '/finance-dashboard/purchase' },
+    { label: 'Costs', icon: FaMoneyBillWave, path: '/finance-dashboard/costs' },
     { label: 'Invoices', icon: FaFileInvoice, path: '/finance-dashboard/invoices' },
     { label: 'Settings', icon: FaCogs, path: '/finance-dashboard/settings' }
   ];
