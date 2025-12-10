@@ -18,7 +18,7 @@ import {
 import FinanceLayout from './FinanceLayout';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getFinanceMetrics, getOrders, getDemands } from '../../services/financeService';
+import { getMetrics, getOrders, getDemands } from '../../services/financeService';
 import AgentSalesReport from './AgentSalesReport';
 
 const FinanceDashboard = () => {
@@ -31,7 +31,7 @@ const FinanceDashboard = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await getFinanceMetrics();
+        const data = await getMetrics();
         setMetrics(data);
         // load orders/demands counts
         try {
