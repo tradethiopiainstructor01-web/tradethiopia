@@ -34,6 +34,7 @@ import {
   FaPrint,
   FaIdCard,
   FaCalendarAlt,
+  FaMoneyBillWave,
 } from "react-icons/fa";
 import { useUserStore } from '../store/user';
 
@@ -44,6 +45,18 @@ const UserDetailDrawer = ({ isOpen, onClose, user, onUpdateUser }) => {
   const blinkingStyle = {
     animation: 'blink 1s infinite',
 };
+
+  const formatSalary = (value) => {
+    if (value === undefined || value === null || Number.isNaN(Number(value))) {
+      return "N/A";
+    }
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(Number(value));
+  };
+
+  const salaryLabel = formatSalary(user.salary);
 
 
   // Local state to manage editable fields
@@ -265,6 +278,12 @@ const UserDetailDrawer = ({ isOpen, onClose, user, onUpdateUser }) => {
                 <FaBriefcase />
                 <Text fontSize="sm" color="gray.600">
                   <strong>Job Title:</strong> {user.jobTitle || "N/A"}
+                </Text>
+              </Flex>
+              <Flex direction="row" align="center" gap={4}>
+                <FaMoneyBillWave />
+                <Text fontSize="sm" color="gray.600">
+                  <strong>Salary:</strong> {salaryLabel}
                 </Text>
               </Flex>
               <Flex direction="row" align="center" gap={4}>

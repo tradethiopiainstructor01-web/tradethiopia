@@ -71,16 +71,20 @@ function App() {
   const noNavSidebarRoutes = [
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
-    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase", "/finance-dashboard/costs",
-    "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
-    "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/followup-report", "/CustomerFollowup", "/b2b-dashboard",
+    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
+    "/addcustomer", "/resource", "/videolist", "/uploadpage", 
+    "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
     "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it"
   ].map((path) => path.toLowerCase());
 
-  // Check if the current path is a no-sidebar, no-navbar route (case-insensitive)
-  const showNavAndSidebar = !noNavSidebarRoutes.some(route => 
-    location.pathname.toLowerCase().startsWith(route.toLowerCase())
-  );
+  // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
+  const normalizedPath = location.pathname.toLowerCase();
+  const showNavAndSidebar = !noNavSidebarRoutes.some((route) => {
+    if (route === "/") {
+      return normalizedPath === "/";
+    }
+    return normalizedPath.startsWith(route);
+  });
 
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
