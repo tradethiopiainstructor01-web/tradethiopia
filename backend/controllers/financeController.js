@@ -1,6 +1,7 @@
 const InventoryItem = require('../models/InventoryItem');
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
+const Purchase = require('../models/Purchase');
 
 // Standardized commission calculation function
 const calculateCommission = (salesValue) => {
@@ -112,5 +113,56 @@ exports.getAgentSalesPerformance = async (req, res) => {
   } catch (err) {
     console.error('Error fetching agent sales performance:', err);
     res.status(500).json({ message: 'Failed to fetch agent sales performance' });
+  }
+};
+
+// New function to get purchase data for finance dashboard
+exports.getPurchaseSummary = async (req, res) => {
+  try {
+    const totalPurchases = await Purchase.countDocuments();
+    
+    const stats = await Purchase.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalDeclarationValue: { $sum: '$totalDeclarationValue' },
+          totalOtherCost: { $sum: '$totalOtherCost' },
+          totalProfitMargin: { $sum: '$totalProfitMargin' },
+          totalSellingPrice: { $sum: '$totalSellingPrice' },
+          avgItemsPerPurchase: { $avg: '$totalItems' }
+        }
+      }
+    ]);
+    
+    const purchaseStats = stats.length > 0 ? stats[0] : {
+      totalDeclarationValue: 0,
+      totalOtherCost: 0,
+      totalProfitMargin: 0,
+      totalSellingPrice: 0,
+      avgItemsPerPurchase: 0
+    };
+
+    res.json({
+      totalPurchases,
+      ...purchaseStats
+    });
+  } catch (err) {
+    console.error('Error fetching purchase summary:', err);
+    res.status(500).json({ message: 'Failed to fetch purchase summary' });
+  }
+};
+
+// New function to get recent purchases for finance dashboard
+exports.getRecentPurchases = async (req, res) => {
+  try {
+    const recentPurchases = await Purchase.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('referenceNumber supplier totalDeclarationValue totalOtherCost totalSellingPrice createdAt');
+
+    res.json(recentPurchases);
+  } catch (err) {
+    console.error('Error fetching recent purchases:', err);
+    res.status(500).json({ message: 'Failed to fetch recent purchases' });
   }
 };

@@ -1,57 +1,40 @@
-import axios from 'axios';
+import axiosInstance from './axiosInstance';
 
-const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const API = axios.create({ baseURL });
+const api = axiosInstance;
 
-const setAuthToken = (token) => {
-  if (token) API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  else delete API.defaults.headers.common['Authorization'];
+const extractData = (response) => response?.data;
+
+// Metrics API
+export const getMetrics = () => api.get('/finance/metrics').then(extractData);
+
+// Agent Sales Performance API
+export const getAgentSalesPerformance = (range) => {
+  const params = range ? { range } : undefined;
+  return api.get('/finance/agent-sales-performance', { params }).then(extractData);
 };
 
-export const getFinanceMetrics = async () => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.get('/api/finance/metrics');
-  return res.data;
-};
+// Purchase Summary API
+export const getPurchaseSummary = () => api.get('/finance/purchase-summary').then(extractData);
 
-export const getAgentSalesPerformance = async (timeRange = 'all') => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.get(`/api/finance/agent-sales-performance`);
-  return res.data;
-};
+// Recent Purchases API
+export const getRecentPurchases = () => api.get('/finance/recent-purchases').then(extractData);
 
-export const getOrders = async (opts = {}) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.get('/api/orders', { params: opts });
-  return res.data; // { data, total, page, pages }
-};
+// Purchase CRUD Operations
+export const getPurchases = () => api.get('/purchases').then(extractData);
+export const getPurchase = (id) => api.get(`/purchases/${id}`);
+export const createPurchase = (purchaseData) => api.post('/purchases', purchaseData);
+export const updatePurchase = (id, purchaseData) => api.put(`/purchases/${id}`, purchaseData);
+export const deletePurchase = (id) => api.delete(`/purchases/${id}`);
 
-export const exportOrders = async (opts = {}) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.get('/api/orders/export', { params: opts, responseType: 'blob' });
-  return res.data;
-};
+// Order Management APIs
+export const getOrders = (opts = {}) => api.get('/orders', { params: opts });
+export const exportOrders = (opts = {}) => api.get('/orders/export', { params: opts, responseType: 'blob' });
+export const bulkFulfill = (orderIds = []) => api.post('/orders/bulk-fulfill', { orderIds });
+export const fulfillOrder = (followupId, orderId) => api.post(`/followups/${followupId}/orders/${orderId}/fulfill`);
 
-export const bulkFulfill = async (orderIds = []) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.post('/api/orders/bulk-fulfill', { orderIds });
-  return res.data;
-};
+// Demand Management APIs
+export const getDemands = () => api.get('/demands').then(extractData);
+export const resolveDemand = (id) => api.post(`/demands/${id}/resolve`);
 
-export const fulfillOrder = async (followupId, orderId) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.post(`/api/followups/${followupId}/orders/${orderId}/fulfill`);
-  return res.data;
-};
-
-export const getDemands = async () => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.get('/api/demands');
-  return res.data;
-};
-
-export const resolveDemand = async (id) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.post(`/api/demands/${id}/resolve`);
-  return res.data;
-};
+// Export the shared api instance
+export default api;
