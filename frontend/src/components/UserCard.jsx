@@ -12,6 +12,18 @@ const UserCard = ({ user }) => {
     const textColor = useColorModeValue("gray.600", "gray.200");
     const bg = useColorModeValue("white", "gray.800");
 
+    const formatSalary = (value) => {
+        if (value === undefined || value === null || Number.isNaN(Number(value))) {
+            return "N/A";
+        }
+        return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+        }).format(Number(value));
+    };
+
+    const salaryLabel = formatSalary(user.salary);
+
     const { deleteUser, updateUser, fetchUsers } = useUserStore();
     const toast = useToast();
 
@@ -95,6 +107,9 @@ const UserCard = ({ user }) => {
                 </Text>
                 <Text fontSize="md" color={textColor}>
                     Role: {user.role || "No Role Assigned"}
+                </Text>
+                <Text fontSize="md" color={textColor}>
+                    Salary: {salaryLabel}
                 </Text>
 
                 <HStack
@@ -231,6 +246,13 @@ const UserCard = ({ user }) => {
                             <option value="CustomerSuccessManager">Customer Success Manager</option>
                             <option value="IT">IT</option>
                             </Select>
+                            <Input
+                                placeholder="Salary"
+                                name="salary"
+                                type="number"
+                                value={updatedUser.salary || ''}
+                                onChange={(e) => setUpdatedUser({ ...updatedUser, salary: e.target.value })}
+                            />
                         </VStack>
                     </ModalBody>
                     <ModalFooter>

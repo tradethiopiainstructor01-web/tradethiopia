@@ -9,6 +9,7 @@ const CreateOrUpdatePage = ({ userId }) => {
         email: "",
         password: "",
         role: "",
+        salary: "",
     });
 
     const toast = useToast();
@@ -18,13 +19,14 @@ const CreateOrUpdatePage = ({ userId }) => {
             if (userId) {
                 try {
                     const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/${userId}`);
-                    const userData = response.data.user;
-                    setNewUser({
-                        name: userData.username,
-                        email: userData.email,
-                        password: "", // Don't pre-fill password for security reasons
-                        role: userData.role,
-                    });
+                const userData = response.data.user;
+                setNewUser({
+                    name: userData.username,
+                    email: userData.email,
+                    password: "", // Don't pre-fill password for security reasons
+                    role: userData.role,
+                    salary: userData.salary ?? "",
+                });
                 } catch (error) {
                     toast({
                         title: "Error fetching user data.",
@@ -51,12 +53,15 @@ const CreateOrUpdatePage = ({ userId }) => {
                 status = "active"; // Set to active for admin or HR roles
             }
     
+            const salaryValue = newUser.salary !== "" ? Number(newUser.salary) : undefined;
+
             const dataToSend = {
                 username: newUser.name,
                 email: newUser.email,
                 password: newUser.password,
                 role: newUser.role, // Ensure role is included
                 status: status, // Include status in data being sent
+                salary: salaryValue,
             };
     
             console.log("Data being sent:", dataToSend); // Log the data being sent
@@ -71,7 +76,7 @@ const CreateOrUpdatePage = ({ userId }) => {
                     duration: 5000,
                     isClosable: true,
                 });
-                setNewUser({ name: "", email: "", password: "", role: "" });
+                setNewUser({ name: "", email: "", password: "", role: "", salary: "" });
             }
         } catch (error) {
             toast({
@@ -119,7 +124,7 @@ return (
                             value={newUser.password}
                             onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                         />
-                       <Select
+                        <Select
                             placeholder="Select Role"
                             value={newUser.role}
                             onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
@@ -137,6 +142,13 @@ return (
                             <option value="EventManager">Event Manager</option>
                             <option value="salesmanager">Sales Manager</option>
                         </Select>
+                        <Input
+                            placeholder="Salary"
+                            name="salary"
+                            type="number"
+                            value={newUser.salary}
+                            onChange={(e) => setNewUser({ ...newUser, salary: e.target.value })}
+                        />
                         <Button colorScheme="blue" onClick={handleSubmit} w="full">
                             {userId ? "Update User" : "Add User"}
                         </Button>

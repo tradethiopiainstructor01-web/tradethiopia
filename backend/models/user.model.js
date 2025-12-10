@@ -60,6 +60,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: false, // Optional
     },
+    salary: {
+        type: Number,
+        required: false,
+        default: 0,
+    },
 
     education: {
         type: String,
