@@ -2,24 +2,7 @@ const InventoryItem = require('../models/InventoryItem');
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const Purchase = require('../models/Purchase');
-
-// Standardized commission calculation function
-const calculateCommission = (salesValue) => {
-  // Standard commission rate: 10%
-  const commissionRate = 0.10;
-  // Tax on commission: 5%
-  const taxRate = 0.05;
-  
-  const grossCommission = salesValue * commissionRate;
-  const commissionTax = grossCommission * taxRate;
-  const netCommission = grossCommission - commissionTax;
-  
-  return {
-    grossCommission: Math.round(grossCommission),
-    commissionTax: Math.round(commissionTax),
-    netCommission: Math.round(netCommission)
-  };
-};
+const { calculateCommission } = require('../utils/commission');
 
 exports.getMetrics = async (req, res) => {
   try {

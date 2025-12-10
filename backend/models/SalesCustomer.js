@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
 const commissionSchema = new mongoose.Schema({
-  grossCommission: { type: Number },
-  commissionTax: { type: Number },
-  netCommission: { type: Number }
+  grossCommission: { type: Number, default: 0 },
+  commissionTax: { type: Number, default: 0 },
+  netCommission: { type: Number, default: 0 }
 }, { _id: false });
 
 const salesCustomerSchema = new mongoose.Schema({
@@ -58,11 +58,12 @@ const salesCustomerSchema = new mongoose.Schema({
   },
   // Commission fields
   coursePrice: {
-    type: Number
+    type: Number,
+    default: 0
   },
   commission: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Commission'
+    type: commissionSchema,
+    default: undefined
   }
 }, {
   timestamps: true

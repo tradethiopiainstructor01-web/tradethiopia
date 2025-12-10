@@ -1,16 +1,33 @@
 // src/store/userStore.js
 import { create } from "zustand";
 
+const normalizeRole = (value = "") => {
+    const text = value ? value.toString() : "";
+    return text.trim().toLowerCase().replace(/\s+/g, "");
+};
+
 const loadCurrentUser = () => {
     const token = localStorage.getItem("userToken");
-    const role = localStorage.getItem("userRole");
+    const storedRole = localStorage.getItem("userRole");
+    const normalizedRole = normalizeRole(storedRole);
+    const displayRole = localStorage.getItem("userRoleRaw") || storedRole || normalizedRole;
     const status = localStorage.getItem("userStatus");
     const infoStatus = localStorage.getItem("infoStatus");
     const username = localStorage.getItem("userName");
     const userId = localStorage.getItem("userId"); // Retrieve user ID
-    
 
-    return token ? { username, role, status, infoStatus, token, _id: userId } : null; // Include user ID
+    return token
+        ? {
+              username,
+              role: normalizedRole,
+              normalizedRole,
+              displayRole,
+              status,
+              infoStatus,
+              token,
+              _id: userId,
+          }
+        : null;
 };
 
 
@@ -42,17 +59,31 @@ export const useUserStore = create((set) => ({
 
     // Function to set the current user
     setCurrentUser: (user) => {
-        set({ currentUser: user });
         if (user) {
+            const normalizedRole = normalizeRole(user.role);
+            const displayRole =
+                user.role && user.role.toString().trim()
+                    ? user.role.toString().trim()
+                    : normalizedRole;
+            const sanitizedUser = {
+                ...user,
+                role: normalizedRole,
+                normalizedRole,
+                displayRole,
+            };
+            set({ currentUser: sanitizedUser });
             localStorage.setItem("userToken", user.token);
-            localStorage.setItem("userRole", user.role);
+            localStorage.setItem("userRole", normalizedRole);
+            localStorage.setItem("userRoleRaw", displayRole);
             localStorage.setItem("userName", user.username);
             localStorage.setItem("userStatus", user.status);
             localStorage.setItem("infoStatus", user.infoStatus);
             localStorage.setItem("userId", user._id); // Store user ID
         } else {
+            set({ currentUser: null });
             localStorage.removeItem("userToken");
             localStorage.removeItem("userRole");
+            localStorage.removeItem("userRoleRaw");
             localStorage.removeItem("userName");
             localStorage.removeItem("userStatus");
             localStorage.removeItem("infoStatus");
@@ -65,6 +96,7 @@ export const useUserStore = create((set) => ({
         set({ currentUser: null }); // Clear user state
         localStorage.removeItem("userToken");
         localStorage.removeItem("userRole");
+        localStorage.removeItem("userRoleRaw");
         localStorage.removeItem("userName");
         localStorage.removeItem("userStatus");
         localStorage.removeItem("infoStatus");

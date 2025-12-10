@@ -1,6 +1,7 @@
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
+const { calculateCommission } = require('../utils/commission');
 
 // @desc    Get all customers for logged in agent
 // @route   GET /api/sales-customers
@@ -72,10 +73,10 @@ const createCustomer = asyncHandler(async (req, res) => {
     supervisorComment,
     courseName,
     courseId,
-    coursePrice,
-    commission
+    coursePrice
   } = req.body;
 
+  const normalizedPrice = Number(coursePrice) || 0;
   const customer = new SalesCustomer({
     agentId: req.user.id,
     customerName,
@@ -89,8 +90,8 @@ const createCustomer = asyncHandler(async (req, res) => {
     supervisorComment,
     courseName: courseName || contactTitle, // align course name with contact title if missing
     courseId,
-    coursePrice,
-    commission
+    coursePrice: normalizedPrice,
+    commission: calculateCommission(normalizedPrice)
   });
 
   const createdCustomer = await customer.save();
@@ -113,8 +114,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
     supervisorComment,
     courseName,
     courseId,
-    coursePrice,
-    commission
+    coursePrice
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -131,8 +131,11 @@ const updateCustomer = asyncHandler(async (req, res) => {
     customer.supervisorComment = supervisorComment || customer.supervisorComment;
     customer.courseName = courseName || customer.courseName || contactTitle || customer.contactTitle;
     customer.courseId = courseId || customer.courseId;
-    customer.coursePrice = coursePrice || customer.coursePrice;
-    customer.commission = commission || customer.commission;
+    const finalCoursePrice = coursePrice !== undefined && coursePrice !== null
+      ? Number(coursePrice)
+      : customer.coursePrice;
+    customer.coursePrice = finalCoursePrice || 0;
+    customer.commission = calculateCommission(customer.coursePrice);
 
     const updatedCustomer = await customer.save();
     res.json(updatedCustomer);

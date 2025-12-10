@@ -1,6 +1,27 @@
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
+const { calculateCommission } = require('../utils/commission');
+
+const resolveSaleCommission = (sale) => {
+  if (sale?.commission && typeof sale.commission === 'object') {
+    const {
+      grossCommission = 0,
+      commissionTax = 0,
+      netCommission = 0
+    } = sale.commission;
+
+    if (typeof netCommission === 'number') {
+      return {
+        grossCommission,
+        commissionTax,
+        netCommission
+      };
+    }
+  }
+
+  return calculateCommission(sale?.coursePrice || 0);
+};
 
 // @desc    Get all sales for sales manager (all agents)
 // @route   GET /api/sales-manager/all-sales
@@ -45,7 +66,8 @@ const getAllSales = asyncHandler(async (req, res) => {
 
     // Get all completed sales from all agents with filters
     const sales = await SalesCustomer.find(filter)
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .populate('commission');
 
     // If no sales found, return empty array
     if (sales.length === 0) {
@@ -231,28 +253,15 @@ const getTeamPerformance = asyncHandler(async (req, res) => {
       // Get all completed sales for this agent with date filter
       const sales = await SalesCustomer.find(agentFilter);
 
-      // Calculate gross and net commission for this agent
       let totalGrossCommission = 0;
       let totalNetCommission = 0;
       let totalSales = 0;
       
-      sales.forEach(sale => {
-        // For now, we'll simulate commission calculation
-        // In a real scenario, this would come from actual commission records
-        const coursePrice = sale.coursePrice || 0;
-        
-        // Assuming a 10% commission rate for demonstration
-        const grossCommission = coursePrice * 0.10;
-        
-        // Assuming 5% tax on commission
-        const commissionTax = grossCommission * 0.05;
-        
-        // Net commission is gross minus tax
-        const netCommission = grossCommission - commissionTax;
-        
-        totalGrossCommission += grossCommission;
-        totalNetCommission += netCommission;
-        totalSales += coursePrice;
+      sales.forEach((sale) => {
+        const commissionData = resolveSaleCommission(sale);
+        totalGrossCommission += commissionData.grossCommission;
+        totalNetCommission += commissionData.netCommission;
+        totalSales += sale.coursePrice || 0;
       });
 
       return {
@@ -295,11 +304,8 @@ const getTeamPerformance = asyncHandler(async (req, res) => {
       if (salesTrend[monthKey]) {
         salesTrend[monthKey].sales += 1;
         // Use simulated net commission for revenue calculation
-        const coursePrice = sale.coursePrice || 0;
-        const grossCommission = coursePrice * 0.10;
-        const commissionTax = grossCommission * 0.05;
-        const netCommission = grossCommission - commissionTax;
-        salesTrend[monthKey].revenue += netCommission;
+        const commissionData = resolveSaleCommission(sale);
+        salesTrend[monthKey].revenue += commissionData.netCommission;
       }
     });
     
@@ -407,20 +413,10 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     let totalGrossCommission = 0;
     let totalNetCommission = 0;
     
-    completedSales.forEach(sale => {
-      const coursePrice = sale.coursePrice || 0;
-      
-      // Assuming a 10% commission rate for demonstration
-      const grossCommission = coursePrice * 0.10;
-      
-      // Assuming 5% tax on commission
-      const commissionTax = grossCommission * 0.05;
-      
-      // Net commission is gross minus tax
-      const netCommission = grossCommission - commissionTax;
-      
-      totalGrossCommission += grossCommission;
-      totalNetCommission += netCommission;
+    completedSales.forEach((sale) => {
+      const commissionData = resolveSaleCommission(sale);
+      totalGrossCommission += commissionData.grossCommission;
+      totalNetCommission += commissionData.netCommission;
     });
 
     // Get recent sales (last 30 days)

@@ -74,7 +74,7 @@ function App() {
     "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", 
     "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager"
   ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
