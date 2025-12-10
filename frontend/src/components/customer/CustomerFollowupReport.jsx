@@ -130,7 +130,7 @@ const CustomerFollowupReport = () => {
         userList.forEach((u) => {
           const id = (u._id || u.id || '').toString();
           if (id) {
-            map[id] = u.name || u.username || u.email || id;
+            map[id] = u.username || u.name || u.email || id;
           }
         });
         setUsersMap(map);
@@ -201,7 +201,7 @@ const CustomerFollowupReport = () => {
       followup.type || 'General',
       followup.status || 'pending',
       followup.dueDate ? new Date(followup.dueDate).toLocaleDateString() : 'N/A',
-      followup.assignedTo || 'Unassigned',
+      getAssignedDisplay(followup),
       followup.updatedAt ? new Date(followup.updatedAt).toLocaleString() : 'N/A'
     ]);
 
@@ -313,40 +313,101 @@ const CustomerFollowupReport = () => {
     return fallback;
   };
 
+  const normalizeIdentifier = (value) => {
+    if (value === undefined || value === null) return null;
+    if (typeof value === 'object') {
+      // Handle ObjectId instances specifically
+      if (value._id || value.id) {
+        return normalizeIdentifier(value._id || value.id);
+      }
+      // Handle mongoose ObjectId instances
+      if (typeof value.toString === 'function' && value.toString !== Object.prototype.toString) {
+        const text = value.toString().trim();
+        return text.length > 0 ? text : null;
+      }
+      return null;
+    }
+    const text = String(value).trim();
+    return text.length > 0 ? text : null;
+  };
+
   const getAssignedDisplay = (followup) => {
+    // First, try to get the populated agent information
+    if (followup.agentId && typeof followup.agentId === 'object' && followup.agentId.username) {
+      return followup.agentId.username;
+    }
+    
+    // Also check if agentId has a name field
+    if (followup.agentId && typeof followup.agentId === 'object' && followup.agentId.name) {
+      return followup.agentId.name;
+    }
+    
+    // Also check if agentId has an email field
+    if (followup.agentId && typeof followup.agentId === 'object' && followup.agentId.email) {
+      return followup.agentId.email;
+    }
+    
+    // If agentId is populated but doesn't have username/name/email, try to get the _id
+    const agentObjectId = followup.agentId && typeof followup.agentId === 'object' && followup.agentId._id 
+      ? followup.agentId._id 
+      : null;
+      
+    if (agentObjectId) {
+      const userId = normalizeIdentifier(agentObjectId);
+      if (userId && usersMap[userId]) {
+        return usersMap[userId];
+      }
+    }
+    
+    // Try with the raw agentId field
+    const agentId = followup.agentId;
+    
+    // If we have an agentId, try to find the user in our usersMap
+    if (agentId) {
+      const userId = normalizeIdentifier(agentId);
+      if (userId && usersMap[userId]) {
+        return usersMap[userId];
+      }
+    }
+    
+    // Also try the raw agentId directly as it might be a string already
+    if (agentId && usersMap[agentId]) {
+      return usersMap[agentId];
+    }
+    
+    // Fallback to the existing logic for backward compatibility
     const raw = followup.assignedTo;
     const tryUserMap = (val) => {
-      if (!val) return null;
-      const key = val.toString().trim();
-      return usersMap[key] || null;
+      const normalized = normalizeIdentifier(val);
+      return normalized ? usersMap[normalized] || null : null;
     };
 
-    // Build list of IDs to attempt resolving to a username
-    const candidateIds = [];
-    if (raw && typeof raw === 'object') {
-      candidateIds.push(raw._id, raw.id, raw.toString?.());
-    } else if (typeof raw === 'string') {
-      candidateIds.push(raw);
-    }
-    candidateIds.push(followup.assignedToId, followup.agentId);
+    const candidateSources = new Set([
+      raw,
+      raw?.id,
+      raw?._id,
+      followup.assignedToId,
+      followup.agent?._id,
+      followup.agent?.id,
+      followup.agent,
+      followup.createdBy,
+    ]);
 
-    for (const cid of candidateIds) {
-      const mapped = tryUserMap(cid);
+    for (const candidate of candidateSources) {
+      const mapped = tryUserMap(candidate);
       if (mapped) return mapped;
     }
 
-    // Try readable fields on assignedTo object
     if (raw && typeof raw === 'object') {
-      if (raw.name) return raw.name;
       if (raw.username) return raw.username;
+      if (raw.name) return raw.name;
       if (raw.email) return raw.email;
     }
 
-    // Fallbacks to agent data or raw string
-    if (followup.agentName) return followup.agentName;
     if (followup.agentUsername) return followup.agentUsername;
-    if (typeof raw === 'string' && raw.trim().length > 0) return raw;
-    if (typeof followup.agentId === 'string' && followup.agentId.trim().length > 0) return followup.agentId;
+    if (followup.agentName) return followup.agentName;
+    if (typeof raw === 'string' && raw.trim().length > 0) return raw.trim();
+    if (typeof followup.agentId === 'string' && followup.agentId.trim().length > 0) return followup.agentId.trim();
     return 'Unassigned';
   };
 
@@ -749,19 +810,19 @@ const CustomerFollowupReport = () => {
                       Customer
                     </Text>
                     <Heading size="md" mb={2}>
-                      {selectedFollowup.customerName || 'N/A'}
+                      {getValue(selectedFollowup, ['customerName', 'clientName', 'name'], 'Unnamed Customer')}
                     </Heading>
                     <HStack spacing={4}>
-                      {selectedFollowup.phone && (
+                      {getValue(selectedFollowup, ['phone', 'phoneNumber'], null) && (
                         <HStack>
                           <Icon as={FiPhone} color={secondaryTextColor} />
-                          <Text>{selectedFollowup.phone}</Text>
+                          <Text>{getValue(selectedFollowup, ['phone', 'phoneNumber'], 'N/A')}</Text>
                         </HStack>
                       )}
-                      {selectedFollowup.email && (
+                      {getValue(selectedFollowup, ['email'], null) && (
                         <HStack>
                           <Icon as={FiMail} color={secondaryTextColor} />
-                          <Text>{selectedFollowup.email}</Text>
+                          <Text>{getValue(selectedFollowup, ['email'], 'N/A')}</Text>
                         </HStack>
                       )}
                     </HStack>
@@ -772,7 +833,7 @@ const CustomerFollowupReport = () => {
                   <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <Box>
                       <Text fontSize="sm" color={secondaryTextColor} mb={1}>
-                      Assigned To
+                        Assigned To
                       </Text>
                       <Text>{getAssignedDisplay(selectedFollowup)}</Text>
                     </Box>
@@ -812,6 +873,64 @@ const CustomerFollowupReport = () => {
                     </Box>
                   </SimpleGrid>
 
+                  {/* Contact Attempts Section */}
+                  <Box p={4} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="md">
+                    <Heading size="sm" mb={3}>Contact Attempts</Heading>
+                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
+                      <Box>
+                        <Text fontSize="sm" color={secondaryTextColor}>Calls</Text>
+                        <Text fontSize="xl" fontWeight="bold">{selectedFollowup.call_count || selectedFollowup.callAttempts || 0}</Text>
+                      </Box>
+                      <Box>
+                        <Text fontSize="sm" color={secondaryTextColor}>Messages</Text>
+                        <Text fontSize="xl" fontWeight="bold">{selectedFollowup.message_count || selectedFollowup.messageAttempts || 0}</Text>
+                      </Box>
+                      <Box>
+                        <Text fontSize="sm" color={secondaryTextColor}>Emails</Text>
+                        <Text fontSize="xl" fontWeight="bold">{selectedFollowup.email_count || selectedFollowup.emailAttempts || 0}</Text>
+                      </Box>
+                    </SimpleGrid>
+                    <Box mt={3}>
+                      <Text fontSize="sm" color={secondaryTextColor} mb={1}>Assigned Agent</Text>
+                      <HStack>
+                        <Box
+                          w={3}
+                          h={3}
+                          borderRadius="full"
+                          bg={getAssignedDisplay(selectedFollowup) !== 'Unassigned' ? 'green.500' : 'gray.300'}
+                        />
+                        <Text>{getAssignedDisplay(selectedFollowup)}</Text>
+                      </HStack>
+                    </Box>
+                  </Box>
+
+                  {/* Communication Logs Section */}
+                  {selectedFollowup.communications && selectedFollowup.communications.length > 0 && (
+                    <Box>
+                      <Heading size="sm" mb={3}>Communication Logs</Heading>
+                      <VStack align="stretch" spacing={3}>
+                        {selectedFollowup.communications.map((log, index) => (
+                          <Box 
+                            key={index} 
+                            p={3} 
+                            bg={useColorModeValue('white', 'gray.600')} 
+                            borderRadius="md"
+                            borderWidth="1px"
+                            borderColor={useColorModeValue('gray.200', 'gray.600')}
+                          >
+                            <Flex justify="space-between" mb={2}>
+                              <Badge colorScheme="blue">{log.channel || 'N/A'}</Badge>
+                              <Text fontSize="sm" color={secondaryTextColor}>
+                                {log.createdAt ? new Date(log.createdAt).toLocaleString() : 'N/A'}
+                              </Text>
+                            </Flex>
+                            <Text>{log.note || log.text || 'No details provided'}</Text>
+                          </Box>
+                        ))}
+                      </VStack>
+                    </Box>
+                  )}
+
                   <Box>
                     <Text fontSize="sm" color={secondaryTextColor} mb={1}>
                       Description
@@ -841,9 +960,9 @@ const CustomerFollowupReport = () => {
                             borderLeft="4px"
                             borderLeftColor="blue.500"
                           >
-                            <Text>{note.content}</Text>
+                            <Text>{note.content || note.text || 'No content'}</Text>
                             <Text fontSize="xs" color={secondaryTextColor} mt={1}>
-                              {note.createdBy} • {new Date(note.createdAt).toLocaleString()}
+                              {note.createdBy || note.author || 'Unknown'} • {note.createdAt ? new Date(note.createdAt).toLocaleString() : 'N/A'}
                             </Text>
                           </Box>
                         ))}

@@ -40,6 +40,7 @@ import { AddIcon, SmallCloseIcon, StarIcon } from "@chakra-ui/icons";
 
 const AddCustomer = ({ onSuccess }) => {
   const [customerType, setCustomerType] = useState("buyer"); // Changed default to "buyer"
+  const [packages, setPackages] = useState([]);
   const [formData, setFormData] = useState({
     clientName: "",
     companyName: "",
@@ -98,6 +99,38 @@ const AddCustomer = ({ onSuccess }) => {
     };
 
     fetchUsers();
+  }, [toast]);
+
+  // Fetch packages
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/packages`);
+        setPackages(Array.isArray(response.data) ? response.data : []);
+      } catch (error) {
+        console.error("Error fetching packages:", error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch packages. Using default options.",
+          status: "warning",
+          duration: 3000,
+          isClosable: true,
+        });
+        // Set default packages if fetch fails
+        setPackages([
+          { _id: "1", packageNumber: 1, price: 100 },
+          { _id: "2", packageNumber: 2, price: 200 },
+          { _id: "3", packageNumber: 3, price: 300 },
+          { _id: "4", packageNumber: 4, price: 400 },
+          { _id: "5", packageNumber: 5, price: 500 },
+          { _id: "6", packageNumber: 6, price: 600 },
+          { _id: "7", packageNumber: 7, price: 700 },
+          { _id: "8", packageNumber: 8, price: 800 }
+        ]);
+      }
+    };
+
+    fetchPackages();
   }, [toast]);
 
   const handleChange = (e) => {
@@ -333,6 +366,13 @@ const AddCustomer = ({ onSuccess }) => {
     </GridItem>
   );
 
+  // Get selected package price
+  const getSelectedPackagePrice = () => {
+    if (!formData.packageType) return 0;
+    const selectedPackage = packages.find(pkg => pkg.packageNumber.toString() === formData.packageType);
+    return selectedPackage ? selectedPackage.price : 0;
+  };
+
   return (
     <Box p={2}>
       <VStack spacing={4} align="stretch">
@@ -472,15 +512,17 @@ const AddCustomer = ({ onSuccess }) => {
                           bg={inputBg}
                           size="md"
                         >
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                          <option value="4">4</option>
-                          <option value="5">5</option>
-                          <option value="6">6</option>
-                          <option value="7">7</option>
-                          <option value="8">8</option>
+                          {packages.map(pkg => (
+                            <option key={pkg._id || pkg.packageNumber} value={pkg.packageNumber}>
+                              {pkg.packageNumber} - ${pkg.price}
+                            </option>
+                          ))}
                         </Select>
+                        {formData.packageType && (
+                          <Text mt={2} fontSize="sm" color="green.500">
+                            Selected Package Price: ${getSelectedPackagePrice()}
+                          </Text>
+                        )}
                       </FormControl>
                     </ResponsiveGridItem>
                     
@@ -664,15 +706,17 @@ const AddCustomer = ({ onSuccess }) => {
                           bg={inputBg}
                           size="md"
                         >
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                          <option value="4">4</option>
-                          <option value="5">5</option>
-                          <option value="6">6</option>
-                          <option value="7">7</option>
-                          <option value="8">8</option>
+                          {packages.map(pkg => (
+                            <option key={pkg._id || pkg.packageNumber} value={pkg.packageNumber}>
+                              {pkg.packageNumber} - ${pkg.price}
+                            </option>
+                          ))}
                         </Select>
+                        {formData.packageType && (
+                          <Text mt={2} fontSize="sm" color="green.500">
+                            Selected Package Price: ${getSelectedPackagePrice()}
+                          </Text>
+                        )}
                       </FormControl>
                     </ResponsiveGridItem>
                     

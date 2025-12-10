@@ -77,7 +77,7 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
 
       const roleFromStore = localStorage.getItem("userRole");
       const roles = Array.isArray(roleFieldFromUser) ? roleFieldFromUser : [roleFieldFromUser, roleFromStore];
-      return roles.some((r) => (r || "").toString().trim().toLowerCase() === "customersuccessmanager"|"COO");
+      return roles.some((r) => (r || "").toString().trim().toLowerCase() === "customersuccessmanager");
     } catch (e) {
       // fallback: hide restricted links if parsing fails
     }

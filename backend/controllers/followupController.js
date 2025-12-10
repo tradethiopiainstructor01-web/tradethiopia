@@ -5,6 +5,63 @@ const OrderCustomer = require("../models/OrderCustomer");
 const mongoose = require("mongoose");
 const nodemailer = require("nodemailer");
 
+// @desc    Get analytics data for dashboard
+// @route   GET /api/followups/analytics
+// @access  Public
+const getFollowupAnalytics = async (req, res) => {
+  try {
+    // Get package distribution data
+    const packageDistribution = await Followup.aggregate([
+      {
+        $group: {
+          _id: "$packageType",
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      },
+      {
+        $project: {
+          _id: 0,
+          package: "$_id",
+          count: 1
+        }
+      }
+    ]);
+
+    // Get industry distribution data
+    const industryData = await Followup.aggregate([
+      {
+        $group: {
+          _id: "$industry",
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      },
+      {
+        $limit: 10 // Limit to top 10 industries
+      },
+      {
+        $project: {
+          _id: 0,
+          industry: "$_id",
+          count: 1
+        }
+      }
+    ]);
+
+    res.json({
+      packageDistribution,
+      industryData
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error generating analytics", error: error.message });
+  }
+};
+
 // @desc    Get report for customer service users
 // @route   GET /api/followups/report
 // @access  Public
@@ -119,7 +176,8 @@ const getFollowupById = async (req, res) => {
 
 const getFollowups = async (req, res) => {
   try {
-    const followups = await Followup.find();
+    // Populate the agentId field with user information
+    const followups = await Followup.find().populate('agentId', 'username name email');
     res.status(200).json(followups);
   } catch (error) {
     res.status(500).json({ message: error.message });

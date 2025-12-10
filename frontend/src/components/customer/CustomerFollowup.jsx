@@ -2283,12 +2283,12 @@ const saveEnsraEdit = async () => {
                 <Text>B2B Customers</Text>
               </HStack>
             </Tab>
-            <Tab>
+            {/* <Tab>
               <HStack spacing={2}>
                 <DownloadIcon />
                 <Text>Pending B2B Customers</Text>
               </HStack>
-            </Tab>
+            </Tab> */}
             <Tab>
               <HStack spacing={2}>
                 <DownloadIcon />
