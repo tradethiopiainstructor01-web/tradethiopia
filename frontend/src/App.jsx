@@ -49,7 +49,18 @@ import CustomerSettings from "./components/customer/CustomerSettings";
 import COODashboard from './pages/COODashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
 import PricingPage from './pages/sales/PricingPage.jsx';
+import RevenuePage from './pages/sales/RevenuePage.jsx';
 import ITDashboard from "./pages/ITDashboard";
+import SalesManagerLayout from "./components/salesmanager/Layout";
+import SalesManagerDashboard from "./components/salesmanager/SalesManagerDashboard";
+import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerProtectedRoute";
+import AllSalesPage from "./components/salesmanager/AllSalesPage";
+import PerformancePage from "./components/salesmanager/PerformancePage";
+import TeamManagementPage from "./components/salesmanager/TeamManagementPage";
+import TaskManagementPage from "./components/salesmanager/TaskManagementPage";
+import ReportsPage from "./components/salesmanager/ReportsPage";
+import CalendarPage from "./components/salesmanager/CalendarPage";
+import SettingsPage from "./components/salesmanager/SettingsPage";
 
 function App() {
   const location = useLocation();
@@ -58,14 +69,16 @@ function App() {
   const noNavSidebarRoutes = [
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
-    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing",
+    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue",
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
     "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/followup-report", "/CustomerFollowup", "/b2b-dashboard",
     "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it"
   ].map((path) => path.toLowerCase());
 
   // Check if the current path is a no-sidebar, no-navbar route (case-insensitive)
-  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname.toLowerCase());
+  const showNavAndSidebar = !noNavSidebarRoutes.some(route => 
+    location.pathname.toLowerCase().startsWith(route.toLowerCase())
+  );
 
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
@@ -100,6 +113,7 @@ function App() {
             <Route path="/finance-dashboard/inventory" element={<InventoryPage />} />
             <Route path="/finance-dashboard/orders" element={<OrdersPage />} />
             <Route path="/finance-dashboard/pricing" element={<PricingPage />} />
+            <Route path="/finance-dashboard/revenue" element={<RevenuePage />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />
@@ -135,6 +149,24 @@ function App() {
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
             <Route path="/it" element={<ITDashboard />} />
+            <Route
+              path="/salesmanager/*"
+              element={
+                <SalesManagerProtectedRoute>
+                  <SalesManagerLayout />
+                </SalesManagerProtectedRoute>
+              }
+            >
+              <Route index element={<SalesManagerDashboard />} />
+              <Route path="dashboard" element={<SalesManagerDashboard />} />
+              <Route path="all-sales" element={<AllSalesPage />} />
+              <Route path="performance" element={<PerformancePage />} />
+              <Route path="team" element={<TeamManagementPage />} />
+              <Route path="tasks" element={<TaskManagementPage />} />
+              <Route path="reports" element={<ReportsPage />} />
+              <Route path="calendar" element={<CalendarPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
           </Routes>
         </Box>
       </Box>

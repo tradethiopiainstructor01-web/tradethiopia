@@ -14,6 +14,12 @@ export const getFinanceMetrics = async () => {
   return res.data;
 };
 
+export const getAgentSalesPerformance = async (timeRange = 'all') => {
+  setAuthToken(localStorage.getItem('userToken'));
+  const res = await API.get(`/api/finance/agent-sales-performance`);
+  return res.data;
+};
+
 export const getOrders = async (opts = {}) => {
   setAuthToken(localStorage.getItem('userToken'));
   const res = await API.get('/api/orders', { params: opts });

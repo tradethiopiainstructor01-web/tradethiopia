@@ -95,15 +95,19 @@ const allowedOrigins = [
   'https://tradethiopia-pied.vercel.app',
   'https://tradethiopia.vercel.app',
   'http://localhost:5173',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'http://localhost:3001'
 ].filter(Boolean);
 
 const corsOptions = {
   origin: (origin, callback) => {
+    console.log('CORS check - Origin:', origin);
+    console.log('Allowed origins:', allowedOrigins);
     // Allow requests with no origin (mobile apps, curl) or if whitelisted
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
+    console.warn('CORS blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true
@@ -251,6 +255,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/product-followups', productFollowupRoutes);
 app.use('/api/it', itRoutes);
+app.use('/api/finance', require('./routes/financeRoutes'));
 
 // Global error handler
 app.use((err, req, res, next) => {

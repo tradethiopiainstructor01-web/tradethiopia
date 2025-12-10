@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Flex,
@@ -70,7 +71,10 @@ import {
   FiMoreVertical,
   FiDownload,
   FiShare2,
-  FiPrinter
+  FiPrinter,
+  FiClock,
+  FiAlertTriangle,
+  FiCheck
 } from 'react-icons/fi';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
@@ -86,7 +90,9 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { getDashboardStats, getSalesForecast, getTeamPerformance } from '../../services/salesManagerService';
+import { getDashboardStats, getSalesForecast, getTeamPerformance, getAllAgents } from '../../services/salesManagerService';
+import { getTasksForManager, getTaskStats } from '../../services/taskService';
+import { useUserStore } from '../../store/user';
 
 // Register ChartJS components
 ChartJS.register(
@@ -112,6 +118,27 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
+// Get priority color
+const getPriorityColor = (priority) => {
+  switch (priority) {
+    case 'High': return 'red';
+    case 'Medium': return 'orange';
+    case 'Low': return 'green';
+    default: return 'gray';
+  }
+};
+
+// Get status color
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'Completed': return 'green';
+    case 'In Progress': return 'blue';
+    case 'Pending': return 'yellow';
+    case 'Cancelled': return 'red';
+    default: return 'gray';
+  }
+};
+
 // Generate mock forecast data if API fails
 const generateMockForecast = () => {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -134,15 +161,22 @@ const generateMockForecast = () => {
   };
 };
 
-// Debug wrapper component
-const DebugWrapper = ({ children }) => {
-  console.log('DebugWrapper rendered');
-  return children;
-};
+// Debug wrapper component (removed)
+// const DebugWrapper = ({ children }) => {
+//   console.log('DebugWrapper rendered');
+//   return children;
+// };
 
 const SalesManagerDashboard = () => {
   console.log('SalesManagerDashboard component rendering...');
   console.log('Environment:', process.env.NODE_ENV);
+  
+  // Get current user from store
+  const currentUser = useUserStore((state) => state.currentUser);
+  console.log('Current user in dashboard:', currentUser);
+  console.log('User role:', currentUser?.role);
+  console.log('LocalStorage userRole:', localStorage.getItem('userRole'));
+  
   const [activeTab, setActiveTab] = useState(0);
   const [timeRange, setTimeRange] = useState('month');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -169,10 +203,18 @@ const SalesManagerDashboard = () => {
   
   const [teamPerformance, setTeamPerformance] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [taskStats, setTaskStats] = useState({
+    totalTasks: 0,
+    completedTasks: 0,
+    pendingTasks: 0,
+    overdueTasks: 0
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const chartRef = useRef(null);
+  const navigate = useNavigate();
 
   // Responsive breakpoints
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -285,11 +327,11 @@ const SalesManagerDashboard = () => {
 
   // Team performance chart data
   const teamPerformanceData = {
-    labels: teamPerformance?.agentPerformance?.map(agent => agent.name) || [],
+    labels: teamPerformance?.agentPerformance?.map(agent => agent.fullName || agent.username) || [],
     datasets: [
       {
         label: 'Deals Closed',
-        data: teamPerformance?.agentPerformance?.map(agent => agent.dealsClosed) || [],
+        data: teamPerformance?.agentPerformance?.map(agent => agent.completedDeals) || [],
         backgroundColor: [
           'rgba(66, 153, 225, 0.8)',
           'rgba(72, 187, 120, 0.8)',
@@ -318,7 +360,7 @@ const SalesManagerDashboard = () => {
       newCustomers: 42,
       totalDeals: 356,
       closedDeals: 243,
-      totalRevenue: 1256800,
+      totalTeamGrossCommission: 1256800,
       revenueTarget: 1500000,
       monthlyGrowth: 8.5,
       quarterlyGrowth: 22.3,
@@ -336,7 +378,9 @@ const SalesManagerDashboard = () => {
         fetchDashboardStats(),
         fetchSalesForecast(),
         fetchTeamPerformance(),
-        fetchRecentActivities()
+        fetchAgentData(),
+        fetchRecentActivities(),
+        fetchTaskData()
       ]);
     } catch (err) {
       // soften the failure: use mock data and keep page usable
@@ -361,13 +405,17 @@ const SalesManagerDashboard = () => {
   // Fetch dashboard stats
   const fetchDashboardStats = async () => {
     try {
+      console.log('🔍 Fetching dashboard stats...');
+      console.log('Token:', localStorage.getItem('userToken')?.substring(0, 20) + '...');
       const data = await getDashboardStats();
+      console.log('✅ Dashboard stats received:', data);
       setStats(prev => ({
         ...prev,
         ...data
       }));
     } catch (err) {
-      console.error('Error fetching dashboard stats:', err);
+      console.error('❌ Error fetching dashboard stats:', err);
+      console.error('Error details:', err.response?.data || err.message);
       applyStatsFallback();
       // Propagate only for non-404 to avoid breaking UX when endpoints are missing
       if (err?.response?.status !== 404) {
@@ -391,7 +439,7 @@ const SalesManagerDashboard = () => {
   // Fetch team performance data
   const fetchTeamPerformance = async () => {
     try {
-      const data = await getTeamPerformance();
+      const data = await getTeamPerformance(timeRange);
       setTeamPerformance(data);
     } catch (err) {
       console.error('Error fetching team performance:', err);
@@ -403,6 +451,23 @@ const SalesManagerDashboard = () => {
         { id: 4, name: 'Emma L.', dealsClosed: 31, target: 40, revenue: 87500 },
         { id: 5, name: 'David K.', dealsClosed: 28, target: 35, revenue: 78500 }
       ]);
+      if (err?.response?.status !== 404) {
+        throw err;
+      }
+    }
+  };
+
+  // Fetch agent data with commissions
+  const fetchAgentData = async () => {
+    try {
+      const agentData = await getTeamPerformance(timeRange);
+      // Update teamPerformance with agent data if it doesn't already contain it
+      setTeamPerformance(prev => ({
+        ...prev,
+        agentPerformance: agentData.agentPerformance
+      }));
+    } catch (err) {
+      console.error('Error fetching agent data:', err);
       if (err?.response?.status !== 404) {
         throw err;
       }
@@ -430,7 +495,36 @@ const SalesManagerDashboard = () => {
     }
   };
 
-  // Handle refresh
+  // Fetch task data
+  const fetchTaskData = async () => {
+    try {
+      // Fetch tasks assigned by the current sales manager
+      const tasksResponse = await getTasksForManager();
+      
+      // Process tasks to include agent names
+      const processedTasks = tasksResponse.map(task => ({
+        ...task,
+        assignedToName: task.assignedTo?.username || 'Unknown Agent',
+        assignedByName: task.assignedBy?.username || 'Unknown Manager'
+      }));
+      
+      setTasks(processedTasks);
+      
+      // Get task statistics
+      const statsResponse = await getTaskStats();
+      setTaskStats(statsResponse);
+    } catch (err) {
+      console.error('Error fetching task data:', err);
+      // Set default empty values
+      setTasks([]);
+      setTaskStats({
+        totalTasks: 0,
+        completedTasks: 0,
+        pendingTasks: 0,
+        overdueTasks: 0
+      });
+    }
+  };
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchAllData();
@@ -442,7 +536,7 @@ const SalesManagerDashboard = () => {
   };
 
   // Calculate progress percentage
-  const progressPercentage = Math.min(Math.round((stats.totalRevenue / (stats.revenueTarget || 1)) * 100), 100);
+  const progressPercentage = Math.min(Math.round((stats.totalTeamGrossCommission / (stats.revenueTarget || 1)) * 100), 100);
 
   console.log('Rendering dashboard with state:', { loading, error, stats });
 
@@ -501,15 +595,14 @@ const SalesManagerDashboard = () => {
       color: 'green'
     },
     {
-      title: 'Total Revenue',
-      value: `ETB ${(stats.totalRevenue || 0).toLocaleString()}`,
+      title: 'Total Gross Commission',
+      value: `ETB ${(stats.totalTeamGrossCommission || 0).toLocaleString()}`,
       icon: FiDollarSign,
       color: 'purple'
     }
   ];
 
   return (
-    <DebugWrapper>
       <Box p={{ base: 3, md: 4 }} bg={bgColor} minHeight="100vh">
         <Flex justify="space-between" align="center" mb={4}>
           <Heading 
@@ -583,6 +676,90 @@ const SalesManagerDashboard = () => {
           ))}
         </SimpleGrid>
 
+        {/* Task Summary Section */}
+        <Card 
+          bg={cardBg}
+          borderWidth="1px"
+          borderColor={useColorModeValue('gray.100', 'gray.700')}
+          boxShadow="sm"
+          borderRadius="lg"
+          mb={4}
+        >
+          <CardHeader pb={2}>
+            <Flex justify="space-between" align="center">
+              <Heading size="sm" color={textColor}>
+                Task Overview
+              </Heading>
+              <Button size="xs" variant="ghost" colorScheme="teal" onClick={() => navigate('/salesmanager/tasks')}>
+                View All Tasks
+              </Button>
+            </Flex>
+          </CardHeader>
+          <CardBody pt={0}>
+            <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3} mb={4}>
+              <Stat>
+                <StatLabel fontSize="xs">Total Tasks</StatLabel>
+                <StatNumber fontSize="xl" fontWeight="bold">{taskStats.totalTasks}</StatNumber>
+              </Stat>
+              <Stat>
+                <StatLabel fontSize="xs">Completed</StatLabel>
+                <StatNumber fontSize="xl" fontWeight="bold" color="green.500">{taskStats.completedTasks}</StatNumber>
+              </Stat>
+              <Stat>
+                <StatLabel fontSize="xs">Pending</StatLabel>
+                <StatNumber fontSize="xl" fontWeight="bold" color="yellow.500">{taskStats.pendingTasks}</StatNumber>
+              </Stat>
+              <Stat>
+                <StatLabel fontSize="xs">Overdue</StatLabel>
+                <StatNumber fontSize="xl" fontWeight="bold" color="red.500">{taskStats.overdueTasks}</StatNumber>
+              </Stat>
+            </SimpleGrid>
+            
+            {tasks.length > 0 ? (
+              <Box maxH="200px" overflowY="auto">
+                <Table variant="simple" size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th px={2} py={1} fontSize="xs">Task</Th>
+                      <Th px={2} py={1} fontSize="xs">Assigned To</Th>
+                      <Th px={2} py={1} fontSize="xs">Status</Th>
+                      <Th px={2} py={1} fontSize="xs">Due Date</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {tasks.slice(0, 5).map((task) => (
+                      <Tr key={task._id}>
+                        <Td px={2} py={1}>
+                          <Text fontSize="sm" fontWeight="medium" noOfLines={1}>{task.title}</Text>
+                        </Td>
+                        <Td px={2} py={1}>
+                          <Text fontSize="sm">{task.assignedToName}</Text>
+                        </Td>
+                        <Td px={2} py={1}>
+                          <Badge fontSize="xs" colorScheme={
+                            task.status === 'Completed' ? 'green' : 
+                            task.status === 'In Progress' ? 'blue' : 
+                            task.status === 'Pending' ? 'yellow' : 'red'
+                          }>
+                            {task.status}
+                          </Badge>
+                        </Td>
+                        <Td px={2} py={1}>
+                          <Text fontSize="sm">{new Date(task.dueDate).toLocaleDateString()}</Text>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </Box>
+            ) : (
+              <Text fontSize="sm" color="gray.500" textAlign="center" py={4}>
+                No tasks assigned yet
+              </Text>
+            )}
+          </CardBody>
+        </Card>
+
         {/* Main Content Area */}
         <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={4}>
           {/* Left Column */}
@@ -641,6 +818,90 @@ const SalesManagerDashboard = () => {
                 </Box>
               </CardBody>
             </Card>
+
+            {/* Sales Report Table */}
+            <Card 
+              bg={cardBg}
+              borderWidth="1px"
+              borderColor={useColorModeValue('gray.100', 'gray.700')}
+              boxShadow="sm"
+              borderRadius="lg"
+              mt={4}
+            >
+              <CardHeader pb={2}>
+                <Flex justify="space-between" align="center">
+                  <Heading size="sm" color={textColor}>
+                    Agent Sales Report
+                  </Heading>
+                  <Select 
+                    size="xs" 
+                    w="fit-content" 
+                    value={timeRange}
+                    onChange={(e) => handleTimeRangeChange(e.target.value)}
+                    variant="filled"
+                  >
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="quarter">This Quarter</option>
+                    <option value="year">This Year</option>
+                    <option value="all">All Time</option>
+                  </Select>
+                </Flex>
+              </CardHeader>
+              <CardBody pt={0}>
+                {teamPerformance?.agentPerformance?.length > 0 ? (
+                  <Box overflowX="auto">
+                    <Table variant="simple" size="sm">
+                      <Thead>
+                        <Tr>
+                          <Th px={2} py={1} fontSize="xs">Agent</Th>
+                          <Th px={2} py={1} fontSize="xs" isNumeric>Total Sales Value</Th>
+                          <Th px={2} py={1} fontSize="xs" isNumeric>Gross Commission</Th>
+                          <Th px={2} py={1} fontSize="xs" isNumeric>Net Commission</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {teamPerformance.agentPerformance.map((agent, index) => (
+                          <Tr key={agent._id || index}>
+                            <Td px={2} py={1}>
+                              <Flex align="center">
+                                <Avatar 
+                                  size="xs" 
+                                  name={agent.fullName || agent.username} 
+                                  mr={2} 
+                                  bg="teal.500"
+                                />
+                                <Text fontSize="sm" fontWeight="medium">
+                                  {agent.fullName || agent.username}
+                                </Text>
+                              </Flex>
+                            </Td>
+                            <Td px={2} py={1} isNumeric>
+                              <Text fontSize="sm">ETB {(agent.totalSales || 0).toLocaleString()}</Text>
+                            </Td>
+                            <Td px={2} py={1} isNumeric>
+                              <Text fontSize="sm">
+                                ETB {(agent.totalGrossCommission || 0).toLocaleString()}
+                              </Text>
+                            </Td>
+                            <Td px={2} py={1} isNumeric>
+                              <Text fontSize="sm" fontWeight="bold">
+                                ETB {(agent.totalNetCommission || 0).toLocaleString()}
+                              </Text>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Text fontSize="sm" color="gray.500" textAlign="center" py={4}>
+                    No agent sales data available
+                  </Text>
+                )}
+              </CardBody>
+            </Card>
+
           </Box>
 
           {/* Right Column */}
@@ -687,7 +948,6 @@ const SalesManagerDashboard = () => {
           </Box>
         </Grid>
       </Box>
-    </DebugWrapper>
   );
 };
 

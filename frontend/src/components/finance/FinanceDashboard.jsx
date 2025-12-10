@@ -19,6 +19,7 @@ import FinanceLayout from './FinanceLayout';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getFinanceMetrics, getOrders, getDemands } from '../../services/financeService';
+import AgentSalesReport from './AgentSalesReport';
 
 const FinanceDashboard = () => {
   const [metrics, setMetrics] = useState(null);
@@ -104,6 +105,11 @@ const FinanceDashboard = () => {
           <Button colorScheme="blue">Create Invoice</Button>
           <Button colorScheme="gray">View Reports</Button>
         </HStack>
+      </Box>
+
+      {/* Agent Sales Report Section */}
+      <Box mb={8}>
+        <AgentSalesReport />
       </Box>
 
       <Box>
