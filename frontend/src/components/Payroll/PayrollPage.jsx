@@ -65,10 +65,13 @@ const PayrollPage = () => {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [hrFormData, setHrFormData] = useState({
     userId: '',
-    date: '',
-    overtimeHours: 0,
-    lateMinutes: 0,
-    absence: false
+    daytimeOvertimeHours: 0,
+    nightOvertimeHours: 0,
+    restDayOvertimeHours: 0,
+    holidayOvertimeHours: 0,
+    lateDays: 0,
+    absenceDays: 0,
+    hrAllowances: 0
   });
   const [financeFormData, setFinanceFormData] = useState({
     userId: '',
@@ -164,6 +167,15 @@ const PayrollPage = () => {
     }
   };
   
+  // Handle HR form change
+  const handleHrFormChange = (e) => {
+    const { name, value } = e.target;
+    setHrFormData(prev => ({
+      ...prev,
+      [name]: parseFloat(value) || 0
+    }));
+  };
+
   // Submit HR adjustment
   const submitHrAdjustmentHandler = async () => {
     try {
@@ -276,6 +288,30 @@ const PayrollPage = () => {
     navigate(`/my-payroll?userId=${employee.userId._id || employee.userId}&month=${selectedMonth}&year=${selectedYear}`);
   };
 
+  // Get current user role
+  const getCurrentUserRole = () => {
+    const role = localStorage.getItem('userRole');
+    return role ? role.toLowerCase() : '';
+  };
+
+  // Check if user has HR permissions
+  const isHrUser = () => {
+    const role = getCurrentUserRole();
+    return role === 'hr' || role === 'admin';
+  };
+
+  // Check if user has Finance permissions
+  const isFinanceUser = () => {
+    const role = getCurrentUserRole();
+    return role === 'finance' || role === 'admin';
+  };
+
+  // Check if user has Admin permissions
+  const isAdminUser = () => {
+    const role = getCurrentUserRole();
+    return role === 'admin';
+  };
+
   // Export to CSV
   const exportToCSV = () => {
     // Implementation for CSV export
@@ -305,10 +341,13 @@ const PayrollPage = () => {
     setSelectedEmployee(employee);
     setHrFormData({
       userId: employee.userId._id || employee.userId,
-      date: new Date().toISOString().split('T')[0],
-      overtimeHours: 0,
-      lateMinutes: 0,
-      absence: false
+      daytimeOvertimeHours: 0,
+      nightOvertimeHours: 0,
+      restDayOvertimeHours: 0,
+      holidayOvertimeHours: 0,
+      lateDays: 0,
+      absenceDays: 0,
+      hrAllowances: 0
     });
     setIsHrModalOpen(true);
   };
@@ -323,15 +362,6 @@ const PayrollPage = () => {
       hrAllowances: employee.hrAllowances || 0
     });
     setIsFinanceModalOpen(true);
-  };
-  
-  // Handle HR form change
-  const handleHrFormChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setHrFormData({
-      ...hrFormData,
-      [name]: type === 'checkbox' ? checked : value
-    });
   };
   
   // Handle Finance form change
@@ -467,7 +497,7 @@ const PayrollPage = () => {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'ETB',
     }).format(amount);
   };
   
@@ -677,19 +707,19 @@ const PayrollPage = () => {
             color="blue.500" 
           />
           <StatCard 
-            title="Total Payroll" 
-            value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.finalSalary || 0), 0))} 
+            title="Total Gross Salary" 
+            value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.grossSalary || emp.basicSalary || 0), 0))} 
             color="green.500" 
           />
           <StatCard 
-            title="Pending Approval" 
-            value={payrollData.filter(emp => emp.status === 'finance_reviewed').length} 
+            title="Total Deductions" 
+            value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.incomeTax || 0) + (emp.pension || 0) + (emp.lateDeduction || 0) + (emp.absenceDeduction || 0) + (emp.financeDeductions || 0), 0))} 
             color="orange.500" 
           />
           <StatCard 
-            title="Locked Records" 
-            value={payrollData.filter(emp => emp.status === 'locked').length} 
-            color="red.500" 
+            title="Total Net Salary" 
+            value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.netSalary || emp.finalSalary || 0), 0))} 
+            color="teal.500" 
           />
         </Grid>
 
@@ -743,7 +773,7 @@ const PayrollPage = () => {
                       boxShadow="sm"
                       borderColor={borderColor}
                     >
-                      Basic Salary
+                      Gross Salary
                     </Th>
                     <Th 
                       py={{ base: 2, md: 3 }}
@@ -758,7 +788,37 @@ const PayrollPage = () => {
                       boxShadow="sm"
                       borderColor={borderColor}
                     >
-                      Adjustments
+                      Tax
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Pension
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Overtime
                     </Th>
                     <Th 
                       py={{ base: 2, md: 3 }}
@@ -788,7 +848,37 @@ const PayrollPage = () => {
                       boxShadow="sm"
                       borderColor={borderColor}
                     >
-                      Final Salary
+                      Fin. Allowances
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Fin. Deductions
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Net Salary
                     </Th>
                     <Th 
                       py={{ base: 2, md: 3 }}
@@ -840,23 +930,28 @@ const PayrollPage = () => {
                         </Badge>
                       </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        {formatCurrency(employee.basicSalary)}
+                        {formatCurrency(employee.grossSalary || employee.basicSalary || 0)}
                       </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        {formatCurrency(
-                          (employee.overtimePay || 0) +
-                          (employee.hrAllowances || 0) +
-                          (employee.financeAllowances || 0) -
-                          (employee.lateDeduction || 0) -
-                          (employee.absenceDeduction || 0) -
-                          (employee.financeDeductions || 0)
-                        )}
+                        {formatCurrency(employee.incomeTax || 0)}
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {formatCurrency(employee.pension || 0)}
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {formatCurrency(employee.overtimePay || 0)}
                       </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.salesCommission || 0)}
                       </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {formatCurrency(employee.financeAllowances || 0)}
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {formatCurrency(employee.financeDeductions || 0)}
+                      </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} fontWeight="bold" color="teal.500">
-                        {formatCurrency(employee.finalSalary)}
+                        {formatCurrency(employee.netSalary || employee.finalSalary || 0)}
                       </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
                         <Badge colorScheme={getStatusColor(employee.status)} fontSize="xs" px={2} py={1} borderRadius="full">
@@ -887,25 +982,29 @@ const PayrollPage = () => {
                           
                           {employee.status !== 'locked' && (
                             <>
-                              <Tooltip label="HR Adjustment">
-                                <IconButton
-                                  icon={<AddIcon />}
-                                  size="xs"
-                                  colorScheme="orange"
-                                  onClick={() => openHrModal(employee)}
-                                />
-                              </Tooltip>
+                              {isHrUser() && (
+                                <Tooltip label="HR Adjustment">
+                                  <IconButton
+                                    icon={<AddIcon />}
+                                    size="xs"
+                                    colorScheme="orange"
+                                    onClick={() => openHrModal(employee)}
+                                  />
+                                </Tooltip>
+                              )}
                               
-                              <Tooltip label="Finance Adjustment">
-                                <IconButton
-                                  icon={<AddIcon />}
-                                  size="xs"
-                                  colorScheme="purple"
-                                  onClick={() => openFinanceModal(employee)}
-                                />
-                              </Tooltip>
+                              {isFinanceUser() && (
+                                <Tooltip label="Finance Adjustment">
+                                  <IconButton
+                                    icon={<AddIcon />}
+                                    size="xs"
+                                    colorScheme="purple"
+                                    onClick={() => openFinanceModal(employee)}
+                                  />
+                                </Tooltip>
+                              )}
                               
-                              {employee.status === 'finance_reviewed' && (
+                              {isAdminUser() && employee.status === 'finance_reviewed' && (
                                 <Tooltip label="Approve">
                                   <IconButton
                                     icon={<CheckIcon />}
@@ -916,7 +1015,7 @@ const PayrollPage = () => {
                                 </Tooltip>
                               )}
                               
-                              {employee.status === 'approved' && (
+                              {isAdminUser() && employee.status === 'approved' && (
                                 <Tooltip label="Lock">
                                   <IconButton
                                     icon={<LockIcon />}
@@ -945,9 +1044,9 @@ const PayrollPage = () => {
         </Card>
         
         {/* HR Adjustment Modal */}
-        <Modal isOpen={isHrModalOpen} onClose={() => setIsHrModalOpen(false)} size="md">
+        <Modal isOpen={isHrModalOpen} onClose={() => setIsHrModalOpen(false)} size="xl">
           <ModalOverlay />
-          <ModalContent>
+          <ModalContent maxW={{ base: "95%", md: "800px" }}>
             <ModalHeader fontSize="lg" fontWeight="bold" bg={headerBg} color="white" borderTopRadius="lg">
               HR Attendance Adjustment
             </ModalHeader>
@@ -960,52 +1059,102 @@ const PayrollPage = () => {
                 </Box>
               )}
               
-              <FormControl mb={4}>
-                <FormLabel fontSize="sm">Date</FormLabel>
-                <Input
-                  type="date"
-                  name="date"
-                  value={hrFormData.date}
-                  onChange={handleHrFormChange}
-                  size="sm"
-                  borderRadius="md"
-                />
-              </FormControl>
-              
-              <FormControl mb={4}>
-                <FormLabel fontSize="sm">Overtime Hours</FormLabel>
-                <Input
-                  type="number"
-                  name="overtimeHours"
-                  value={hrFormData.overtimeHours}
-                  onChange={handleHrFormChange}
-                  size="sm"
-                  borderRadius="md"
-                />
-              </FormControl>
-              
-              <FormControl mb={4}>
-                <FormLabel fontSize="sm">Late Minutes</FormLabel>
-                <Input
-                  type="number"
-                  name="lateMinutes"
-                  value={hrFormData.lateMinutes}
-                  onChange={handleHrFormChange}
-                  size="sm"
-                  borderRadius="md"
-                />
-              </FormControl>
-              
-              <FormControl mb={4}>
-                <FormLabel fontSize="sm">Absence</FormLabel>
-                <Input
-                  type="checkbox"
-                  name="absence"
-                  isChecked={hrFormData.absence}
-                  onChange={handleHrFormChange}
-                  size="sm"
-                />
-              </FormControl>
+              <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={4} mb={4}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Daytime Overtime Hours (6am–10pm)</FormLabel>
+                  <Input
+                    type="number"
+                    name="daytimeOvertimeHours"
+                    value={hrFormData.daytimeOvertimeHours}
+                    onChange={handleHrFormChange}
+                    size="sm"
+                    borderRadius="md"
+                    min="0"
+                    step="0.5"
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel fontSize="sm">Night Overtime Hours (10pm–6am)</FormLabel>
+                  <Input
+                    type="number"
+                    name="nightOvertimeHours"
+                    value={hrFormData.nightOvertimeHours}
+                    onChange={handleHrFormChange}
+                    size="sm"
+                    borderRadius="md"
+                    min="0"
+                    step="0.5"
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel fontSize="sm">Rest Day Overtime Hours</FormLabel>
+                  <Input
+                    type="number"
+                    name="restDayOvertimeHours"
+                    value={hrFormData.restDayOvertimeHours}
+                    onChange={handleHrFormChange}
+                    size="sm"
+                    borderRadius="md"
+                    min="0"
+                    step="0.5"
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel fontSize="sm">Public Holiday Overtime Hours</FormLabel>
+                  <Input
+                    type="number"
+                    name="holidayOvertimeHours"
+                    value={hrFormData.holidayOvertimeHours}
+                    onChange={handleHrFormChange}
+                    size="sm"
+                    borderRadius="md"
+                    min="0"
+                    step="0.5"
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel fontSize="sm">Late Days</FormLabel>
+                  <Input
+                    type="number"
+                    name="lateDays"
+                    value={hrFormData.lateDays}
+                    onChange={handleHrFormChange}
+                    size="sm"
+                    borderRadius="md"
+                    min="0"
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel fontSize="sm">Absence Days</FormLabel>
+                  <Input
+                    type="number"
+                    name="absenceDays"
+                    value={hrFormData.absenceDays}
+                    onChange={handleHrFormChange}
+                    size="sm"
+                    borderRadius="md"
+                    min="0"
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel fontSize="sm">HR Allowances</FormLabel>
+                  <Input
+                    type="number"
+                    name="hrAllowances"
+                    value={hrFormData.hrAllowances}
+                    onChange={handleHrFormChange}
+                    size="sm"
+                    borderRadius="md"
+                    min="0"
+                  />
+                </FormControl>
+              </Grid>
             </ModalBody>
             
             <ModalFooter bg={cardBg} borderBottomRadius="lg">
@@ -1016,7 +1165,7 @@ const PayrollPage = () => {
                 size="sm"
                 px={6}
               >
-                Submit
+                Submit Adjustment
               </Button>
               <Button 
                 variant="ghost" 

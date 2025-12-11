@@ -28,6 +28,11 @@ const payrollSchema = new mongoose.Schema({
     required: true,
     default: 0
   },
+  grossSalary: {
+    type: Number,
+    required: true,
+    default: 0
+  },
   age: {
     type: Number
   },
@@ -35,12 +40,17 @@ const payrollSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  // Attendance Adjustments
-  overtimeHours: {
+  // Tax and Pension
+  incomeTax: {
     type: Number,
     default: 0
   },
-  overtimeRate: {
+  pension: {
+    type: Number,
+    default: 0
+  },
+  // Overtime Components
+  overtimeHours: {
     type: Number,
     default: 0
   },
@@ -48,11 +58,8 @@ const payrollSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  lateMinutes: {
-    type: Number,
-    default: 0
-  },
-  lateRate: {
+  // Late and Absence Deductions
+  lateDays: {
     type: Number,
     default: 0
   },
@@ -61,10 +68,6 @@ const payrollSchema = new mongoose.Schema({
     default: 0
   },
   absenceDays: {
-    type: Number,
-    default: 0
-  },
-  dailyRate: {
     type: Number,
     default: 0
   },
@@ -96,7 +99,7 @@ const payrollSchema = new mongoose.Schema({
     default: 0
   },
   // Final Calculation
-  finalSalary: {
+  netSalary: {
     type: Number,
     required: true,
     default: 0
@@ -159,9 +162,10 @@ const payrollSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
+// Indexes for efficient querying
 payrollSchema.index({ userId: 1, month: 1, year: 1 });
 payrollSchema.index({ department: 1 });
 payrollSchema.index({ status: 1 });
+payrollSchema.index({ createdAt: 1 });
 
 module.exports = mongoose.model('Payroll', payrollSchema);
