@@ -47,6 +47,7 @@ import {
   Legend
 } from 'chart.js';
 import { Link } from 'react-router-dom';
+import CustomerMessagesPage from '../../pages/CustomerMessagesPage';
 
 // Register Chart.js components
 ChartJS.register(
@@ -58,7 +59,7 @@ ChartJS.register(
   Legend
 );
 
-const CDashboard = () => {
+const CDashboard = ({ initialTab = 'dashboard' }) => {
   const [customerData, setCustomerData] = useState({
     total: 0,
     new: 0,
@@ -78,6 +79,7 @@ const CDashboard = () => {
       popularPackages: []
     }
   });
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   // Responsive breakpoints
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -228,6 +230,10 @@ const CDashboard = () => {
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
   // Package distribution data with validation (packages 1-8)
   const packageChartData = {
     labels: Array.isArray(analyticsData.packageDistribution) ? analyticsData.packageDistribution.map(item => item?.package || '') : [],
@@ -348,9 +354,14 @@ const CDashboard = () => {
     return `$${amount.toLocaleString()}`;
   };
 
-  if (loading) {
+  const layoutProps = {
+    activeSection: activeTab,
+    onSelectSection: setActiveTab,
+  };
+
+  if (loading && activeTab !== 'notice-board') {
     return (
-      <Layout>
+      <Layout {...layoutProps}>
         <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
           <Skeleton height="40px" width="300px" mb={6} />
           
@@ -384,9 +395,9 @@ const CDashboard = () => {
     );
   }
 
-  if (error) {
+  if (error && activeTab !== 'notice-board') {
     return (
-      <Layout>
+      <Layout {...layoutProps}>
         <Box p={6} bg={bgColor} minHeight="100vh">
           <Alert
             status="error"
@@ -412,160 +423,164 @@ const CDashboard = () => {
   }
 
   return (
-    <Layout>
-      <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
-        <Heading 
-          as="h1" 
-          size={{ base: "lg", md: "xl" }} 
-          color={headerColor}
-          textAlign={{ base: "center", md: "left" }}
-          fontWeight="bold"
-          mb={6}
-        >
-          Customer Dashboard
-        </Heading>
+    <Layout {...layoutProps}>
+      {activeTab === 'notice-board' ? (
+        <CustomerMessagesPage embedded />
+      ) : (
+        <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
+          <Heading 
+            as="h1" 
+            size={{ base: "lg", md: "xl" }} 
+            color={headerColor}
+            textAlign={{ base: "center", md: "left" }}
+            fontWeight="bold"
+            mb={6}
+          >
+            Customer Dashboard
+          </Heading>
 
-        {/* Stats Cards */}
-        <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4} mb={6}>
-          {statCards.map((card, index) => (
+          {/* Stats Cards */}
+          <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4} mb={6}>
+            {statCards.map((card, index) => (
+              <Card 
+                key={index} 
+                bg={cardBg} 
+                boxShadow="md" 
+                borderRadius="xl"
+                transition="all 0.2s"
+                _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }}
+              >
+                <CardBody>
+                  <Flex direction="column" align="center" justify="center">
+                    <Icon 
+                      as={card.icon} 
+                      boxSize={8} 
+                      color={`${card.color}.500`} 
+                      mb={2}
+                    />
+                    <Stat textAlign="center">
+                      <StatLabel 
+                        fontSize="sm" 
+                        fontWeight="medium" 
+                        color={textColor}
+                        mb={1}
+                      >
+                        {card.title}
+                      </StatLabel>
+                      <StatNumber 
+                        fontSize={{ base: "xl", md: "2xl" }} 
+                        fontWeight="bold" 
+                        color={`${card.color}.500`}
+                      >
+                        {card.value}
+                      </StatNumber>
+                    </Stat>
+                  </Flex>
+                </CardBody>
+              </Card>
+            ))}
+          </SimpleGrid>
+
+          {/* Revenue Summary Card */}
+          <Card 
+            bg={cardBg} 
+            boxShadow="md" 
+            borderRadius="xl"
+            mb={6}
+            p={4}
+          >
+            <CardBody>
+              <Flex direction={{ base: "column", md: "row" }} align="center" justify="space-between">
+                <Flex align="center">
+                  <Icon as={FaDollarSign} boxSize={8} color="green.500" mr={4} />
+                  <Stat>
+                    <StatLabel fontSize="lg" fontWeight="bold" color={textColor}>
+                      Total Revenue from Packages
+                    </StatLabel>
+                    <StatNumber fontSize="3xl" fontWeight="bold" color="green.500">
+                      {formatCurrency(analyticsData.packageAnalytics.totalRevenue)}
+                    </StatNumber>
+                  </Stat>
+                </Flex>
+                <Text fontSize="sm" color="gray.500" textAlign="right">
+                  Based on {analyticsData.packageAnalytics.popularPackages.reduce((total, pkg) => total + (pkg.count || 0), 0)} package purchases
+                </Text>
+              </Flex>
+            </CardBody>
+          </Card>
+
+          {/* Charts */}
+          <Grid templateColumns={{ base: "1fr", md: "1fr 1fr 1fr" }} gap={4}>
             <Card 
-              key={index} 
               bg={cardBg} 
               boxShadow="md" 
               borderRadius="xl"
               transition="all 0.2s"
-              _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }}
+              _hover={{ boxShadow: 'lg' }}
             >
-              <CardBody>
-                <Flex direction="column" align="center" justify="center">
-                  <Icon 
-                    as={card.icon} 
-                    boxSize={8} 
-                    color={`${card.color}.500`} 
-                    mb={2}
-                  />
-                  <Stat textAlign="center">
-                    <StatLabel 
-                      fontSize="sm" 
-                      fontWeight="medium" 
-                      color={textColor}
-                      mb={1}
-                    >
-                      {card.title}
-                    </StatLabel>
-                    <StatNumber 
-                      fontSize={{ base: "xl", md: "2xl" }} 
-                      fontWeight="bold" 
-                      color={`${card.color}.500`}
-                    >
-                      {card.value}
-                    </StatNumber>
-                  </Stat>
-                </Flex>
+              <CardBody p={4}>
+                <Text fontWeight="bold" color={headerColor} mb={3} textAlign="center">
+                  Package Distribution (1-8)
+                </Text>
+                <Box height={chartHeight}>
+                  <Doughnut data={packageChartData} options={chartOptions} />
+                </Box>
               </CardBody>
             </Card>
-          ))}
-        </SimpleGrid>
 
-        {/* Revenue Summary Card */}
-        <Card 
-          bg={cardBg} 
-          boxShadow="md" 
-          borderRadius="xl"
-          mb={6}
-          p={4}
-        >
-          <CardBody>
-            <Flex direction={{ base: "column", md: "row" }} align="center" justify="space-between">
-              <Flex align="center">
-                <Icon as={FaDollarSign} boxSize={8} color="green.500" mr={4} />
-                <Stat>
-                  <StatLabel fontSize="lg" fontWeight="bold" color={textColor}>
-                    Total Revenue from Packages
-                  </StatLabel>
-                  <StatNumber fontSize="3xl" fontWeight="bold" color="green.500">
-                    {formatCurrency(analyticsData.packageAnalytics.totalRevenue)}
-                  </StatNumber>
-                </Stat>
-              </Flex>
-              <Text fontSize="sm" color="gray.500" textAlign="right">
-                Based on {analyticsData.packageAnalytics.popularPackages.reduce((total, pkg) => total + (pkg.count || 0), 0)} package purchases
-              </Text>
-            </Flex>
-          </CardBody>
-        </Card>
+            <Card 
+              bg={cardBg} 
+              boxShadow="md" 
+              borderRadius="xl"
+              transition="all 0.2s"
+              _hover={{ boxShadow: 'lg' }}
+            >
+              <CardBody p={4}>
+                <Text fontWeight="bold" color={headerColor} mb={3} textAlign="center">
+                  Top Industries
+                </Text>
+                <Box height={chartHeight}>
+                  <Doughnut data={industryChartData} options={chartOptions} />
+                </Box>
+              </CardBody>
+            </Card>
 
-        {/* Charts */}
-        <Grid templateColumns={{ base: "1fr", md: "1fr 1fr 1fr" }} gap={4}>
-          <Card 
-            bg={cardBg} 
-            boxShadow="md" 
-            borderRadius="xl"
-            transition="all 0.2s"
-            _hover={{ boxShadow: 'lg' }}
-          >
-            <CardBody p={4}>
-              <Text fontWeight="bold" color={headerColor} mb={3} textAlign="center">
-                Package Distribution (1-8)
-              </Text>
-              <Box height={chartHeight}>
-                <Doughnut data={packageChartData} options={chartOptions} />
-              </Box>
-            </CardBody>
-          </Card>
+            <Card 
+              bg={cardBg} 
+              boxShadow="md" 
+              borderRadius="xl"
+              transition="all 0.2s"
+              _hover={{ boxShadow: 'lg' }}
+            >
+              <CardBody p={4}>
+                <Text fontWeight="bold" color={headerColor} mb={3} textAlign="center">
+                  Popular Training Programs This Week
+                </Text>
+                <Box height={chartHeight}>
+                  <Doughnut data={weeklyTrainingsChartData} options={chartOptions} />
+                </Box>
+              </CardBody>
+            </Card>
 
-          <Card 
-            bg={cardBg} 
-            boxShadow="md" 
-            borderRadius="xl"
-            transition="all 0.2s"
-            _hover={{ boxShadow: 'lg' }}
-          >
-            <CardBody p={4}>
-              <Text fontWeight="bold" color={headerColor} mb={3} textAlign="center">
-                Top Industries
-              </Text>
-              <Box height={chartHeight}>
-                <Doughnut data={industryChartData} options={chartOptions} />
-              </Box>
-            </CardBody>
-          </Card>
-
-          <Card 
-            bg={cardBg} 
-            boxShadow="md" 
-            borderRadius="xl"
-            transition="all 0.2s"
-            _hover={{ boxShadow: 'lg' }}
-          >
-            <CardBody p={4}>
-              <Text fontWeight="bold" color={headerColor} mb={3} textAlign="center">
-                Popular Training Programs This Week
-              </Text>
-              <Box height={chartHeight}>
-                <Doughnut data={weeklyTrainingsChartData} options={chartOptions} />
-              </Box>
-            </CardBody>
-          </Card>
-
-          <Card 
-            bg={cardBg} 
-            boxShadow="md" 
-            borderRadius="xl"
-            transition="all 0.2s"
-            _hover={{ boxShadow: 'lg' }}
-          >
-            <CardBody p={4}>
-              <Text fontWeight="bold" color={headerColor} mb={3} textAlign="center">
-                Popular Packages
-              </Text>
-              <Box height={chartHeight}>
-                <Doughnut data={popularPackagesChartData} options={chartOptions} />
-              </Box>
-            </CardBody>
-          </Card>
-        </Grid>
-      </Box>
+            <Card 
+              bg={cardBg} 
+              boxShadow="md" 
+              borderRadius="xl"
+              transition="all 0.2s"
+              _hover={{ boxShadow: 'lg' }}
+            >
+              <CardBody p={4}>
+                <Text fontWeight="bold" color={headerColor} mb={3} textAlign="center">
+                  Popular Packages
+                </Text>
+                <Box height={chartHeight}>
+                  <Doughnut data={popularPackagesChartData} options={chartOptions} />
+                </Box>
+              </CardBody>
+            </Card>
+          </Grid>
+        </Box>
+      )}
     </Layout>
   );
 };

@@ -11,7 +11,7 @@ import {
 import { 
   FiSearch, FiPlus, FiExternalLink, FiClock, 
   FiCheckCircle, FiAlertTriangle, FiInbox, FiBarChart2,
-  FiHome, FiList, FiFileText, FiSettings, FiUser, FiBell,
+  FiHome, FiList, FiMessageSquare, FiFileText, FiSettings, FiUser, FiBell,
   FiChevronDown, FiCalendar, FiTrendingUp, FiActivity, FiFilter,
   FiMoreVertical, FiInfo
 } from 'react-icons/fi';
@@ -24,6 +24,7 @@ import InternalTable from './InternalTable';
 import AddTaskForm from './AddTaskForm';
 import Reports from './Reports';
 import axios from 'axios';
+import ITMessagesPage from '../../pages/ITMessagesPage';
 
 const MotionBox = motion.div;
 
@@ -234,9 +235,9 @@ const PerformanceChart = ({ data }) => {
   );
 };
 
-const ITLayout = () => {
+const ITLayout = ({ initialTab = 'dashboard' }) => {
   const navigate = useNavigate();
-  const [active, setActive] = useState('dashboard');
+  const [active, setActive] = useState(initialTab);
   const [query, setQuery] = useState('');
   const [stats, setStats] = useState({ 
     total: 0, 
@@ -257,7 +258,7 @@ const ITLayout = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   useEffect(() => {
-  const fetchData = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
         // Fetch real data from the backend instead of using mock data
@@ -285,6 +286,10 @@ const ITLayout = () => {
     
     fetchData();
   }, []);
+
+  useEffect(() => {
+    setActive(initialTab);
+  }, [initialTab]);
 
   const DashboardSection = () => (
     <VStack spacing={8} align="stretch">
@@ -443,6 +448,7 @@ const ITLayout = () => {
   const addTaskForm = <AddTaskForm isOpen={isOpen} onClose={onClose} onDone={() => setActive('dashboard')} />;
   const reports = <Reports />;
   const dashboard = <DashboardSection />;
+  const noticeBoard = <ITMessagesPage />;
 
   const renderContent = () => {
     switch (active) {
@@ -452,6 +458,8 @@ const ITLayout = () => {
         return internalTable;
       case 'reports': 
         return reports;
+      case 'notice-board':
+        return noticeBoard;
       default:
         return dashboard;
     }
@@ -573,6 +581,21 @@ const ITLayout = () => {
                 borderRadius="lg"
               >
                 <Text display={{ base: 'none', lg: 'block' }}>Reports</Text>
+              </Button>
+            </Tooltip>
+            
+            <Tooltip label="Notice Board" placement="right" hasArrow>
+              <Button
+                leftIcon={<FiMessageSquare />}
+                justifyContent={{ base: 'center', lg: 'flex-start' }}
+                variant={active === 'notice-board' ? 'solid' : 'ghost'}
+                colorScheme={active === 'notice-board' ? 'teal' : 'gray'}
+                onClick={() => setActive('notice-board')}
+                w="full"
+                size={{ base: 'md', lg: 'lg' }}
+                borderRadius="lg"
+              >
+                <Text display={{ base: 'none', lg: 'block' }}>Notice Board</Text>
               </Button>
             </Tooltip>
           </VStack>

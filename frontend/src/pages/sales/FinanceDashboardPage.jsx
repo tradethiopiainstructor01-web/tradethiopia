@@ -47,6 +47,7 @@ import {
 import FinanceDashboard from '../../components/finance/FinanceDashboard';
 import FinanceLayout from './FinanceLayout';
 import MonthlyReport from '../../components/finance/MonthlyReport';
+import FinanceMessagesPage from '../FinanceMessagesPage';
 
 const FinanceDashboardPage = () => {
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -137,6 +138,18 @@ const FinanceDashboardPage = () => {
             </TabPanel>
           </TabPanels>
         </Tabs>
+
+        <Box 
+          bg={cardBg} 
+          boxShadow="md" 
+          borderRadius="lg" 
+          mb={8} 
+          p={{ base: 3, md: 4 }} 
+          maxH="600px" 
+          overflow="hidden"
+        >
+          <FinanceMessagesPage embedded />
+        </Box>
 
         {/* Inventory Management Section */}
         <Card bg={cardBg} boxShadow="md" mb={8}>

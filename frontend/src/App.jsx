@@ -17,6 +17,7 @@ import FourthPage from "./pages/FourthPage";
 import FifthPage from "./pages/FifthPage.jsx";
 import QuizPage from "./pages/quizPage.jsx";
 import Sdashboard from "./pages/sales/Sdashboard.jsx";
+import FinanceLayout from "./pages/sales/FinanceLayout.jsx";
 import FinanceDashboardPage from "./pages/sales/FinanceDashboardPage.jsx";
 import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
 import InventoryPage from "./pages/sales/InventoryPage.jsx";
@@ -63,6 +64,11 @@ import TaskManagementPage from "./components/salesmanager/TaskManagementPage";
 import ReportsPage from "./components/salesmanager/ReportsPage";
 import CalendarPage from "./components/salesmanager/CalendarPage";
 import SettingsPage from "./components/salesmanager/SettingsPage";
+import MessagesPage from "./pages/MessagesPage";
+import SalesMessagesPage from "./pages/SalesMessagesPage";
+import FinanceMessagesPage from "./pages/FinanceMessagesPage";
+import ITMessagesPage from "./pages/ITMessagesPage";
+import RedirectMessagesPage from "./pages/RedirectMessagesPage";
 
 function App() {
   const location = useLocation();
@@ -72,6 +78,7 @@ function App() {
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
     "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
+    "/finance/messages",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", 
     "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
     "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager"
@@ -157,6 +164,17 @@ function App() {
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
             <Route path="/it" element={<ITDashboard />} />
+            {/* Generic message page that redirects to dashboard-specific pages */}
+            <Route path="/messages" element={<RedirectMessagesPage />} />
+            {/* Dashboard-specific message pages */}
+            <Route path="/sales/messages" element={<SalesMessagesPage />} />
+            <Route path="/finance/messages" element={
+              <FinanceLayout>
+                <FinanceMessagesPage embedded />
+              </FinanceLayout>
+            } />
+            <Route path="/it/messages" element={<ITDashboard initialTab="notice-board" />} />
+            <Route path="/customer/messages" element={<CDashboard initialTab="notice-board" />} />
             <Route
               path="/salesmanager/*"
               element={
@@ -174,6 +192,7 @@ function App() {
               <Route path="reports" element={<ReportsPage />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="messages" element={<MessagesPage />} />
             </Route>
           </Routes>
         </Box>
@@ -183,4 +202,3 @@ function App() {
 }
 
 export default App;
-
