@@ -46,6 +46,7 @@ import {
   AlertDescription
 } from '@chakra-ui/react';
 import { AddIcon, DownloadIcon, ViewIcon, LockIcon, CheckIcon } from '@chakra-ui/icons';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../Layout';
 import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll, fetchCommissionData, submitCommission, fetchSalesDataForCommission } from '../../services/payrollService';
 
@@ -85,6 +86,7 @@ const PayrollPage = () => {
   const [loadingSales, setLoadingSales] = useState(false);
   
   const toast = useToast();
+  const navigate = useNavigate();
   
   // Color mode values
   const bgColor = useColorModeValue('gray.50', 'gray.900');
@@ -268,6 +270,12 @@ const PayrollPage = () => {
     }
   };
   
+  // View employee details
+  const viewEmployeeDetails = (employee) => {
+    // Navigate to the employee's payroll details page
+    navigate(`/my-payroll?userId=${employee.userId._id || employee.userId}&month=${selectedMonth}&year=${selectedYear}`);
+  };
+
   // Export to CSV
   const exportToCSV = () => {
     // Implementation for CSV export
@@ -516,34 +524,61 @@ const PayrollPage = () => {
   
   return (
     <Layout>
-      <Box p={6} bg={bgColor} minHeight="100vh">
-        <Heading 
-          as="h1" 
-          size="xl" 
-          color={headerColor}
+      <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
+        <Flex 
+          direction={{ base: 'column', sm: 'row' }} 
+          justify="space-between" 
+          align={{ base: 'start', sm: 'center' }} 
           mb={6}
-          pb={2}
-          borderBottom="2px solid"
-          borderBottomColor={headerColor}
-          display="inline-block"
+          gap={4}
         >
-          Payroll Management
-        </Heading>
-        
-        {/* Filters and Actions */}
+          <Heading 
+            as="h1" 
+            size={{ base: 'lg', md: 'xl' }} 
+            color={headerColor}
+            pb={2}
+            borderBottom="2px solid"
+            borderBottomColor={headerColor}
+            display="inline-block"
+          >
+            Payroll Management
+          </Heading>
+          
+          <Flex 
+            direction={{ base: 'column', sm: 'row' }} 
+            gap={2}
+          >
+            <Button
+              leftIcon={<DownloadIcon />}
+              colorScheme="teal"
+              size={{ base: 'sm', md: 'md' }}
+              onClick={exportToCSV}
+            >
+              Export CSV
+            </Button>
+            <Button
+              leftIcon={<DownloadIcon />}
+              colorScheme="blue"
+              size={{ base: 'sm', md: 'md' }}
+              onClick={exportToPDF}
+            >
+              Export PDF
+            </Button>
+          </Flex>
+        </Flex>
+
+        {/* Filters */}
         <Card mb={6} bg={cardBg} boxShadow="md" borderRadius="lg">
           <CardBody py={4} px={5}>
-            <Flex 
-              direction={{ base: 'column', md: 'row' }} 
-              justify="space-between" 
-              align={{ base: 'start', md: 'center' }}
+            <Grid 
+              templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }} 
               gap={4}
             >
-              <Flex direction={{ base: 'column', md: 'row' }} gap={3}>
+              <Box>
+                <Text fontSize="sm" fontWeight="medium" mb={1}>Month</Text>
                 <Select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  width={{ base: '100%', md: '140px' }}
                   size="sm"
                   borderRadius="md"
                 >
@@ -553,366 +588,353 @@ const PayrollPage = () => {
                     const month = date.toISOString().slice(0, 7);
                     return (
                       <option key={month} value={month}>
-                        {date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        {date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                       </option>
                     );
                   })}
                 </Select>
-                
+              </Box>
+              
+              <Box>
+                <Text fontSize="sm" fontWeight="medium" mb={1}>Year</Text>
+                <Select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  size="sm"
+                  borderRadius="md"
+                >
+                  {Array.from({ length: 5 }, (_, i) => {
+                    const year = new Date().getFullYear() - i;
+                    return (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    );
+                  })}
+                </Select>
+              </Box>
+              
+              <Box>
+                <Text fontSize="sm" fontWeight="medium" mb={1}>Department</Text>
                 <Select
                   value={selectedDepartment}
                   onChange={(e) => setSelectedDepartment(e.target.value)}
                   placeholder="All Departments"
-                  width={{ base: '100%', md: '140px' }}
                   size="sm"
                   borderRadius="md"
                 >
-                  {departments.map(dept => (
+                  {departments.map((dept) => (
                     <option key={dept} value={dept}>
                       {dept.charAt(0).toUpperCase() + dept.slice(1)}
                     </option>
                   ))}
                 </Select>
-                
+              </Box>
+              
+              <Box>
+                <Text fontSize="sm" fontWeight="medium" mb={1}>Role</Text>
                 <Select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
                   placeholder="All Roles"
-                  width={{ base: '100%', md: '140px' }}
                   size="sm"
                   borderRadius="md"
                 >
-                  <option value="sales">Sales</option>
+                  <option value="admin">Admin</option>
                   <option value="HR">HR</option>
                   <option value="finance">Finance</option>
+                  <option value="sales">Sales</option>
                   <option value="IT">IT</option>
-                  <option value="admin">Admin</option>
                 </Select>
-              </Flex>
-              
-              <Flex gap={2}>
-                <Button
-                  leftIcon={<AddIcon />}
-                  colorScheme="teal"
-                  onClick={calculatePayrollHandler}
-                  size="sm"
-                  px={4}
-                >
-                  Calculate
-                </Button>
-                
-                <Button
-                  leftIcon={<DownloadIcon />}
-                  colorScheme="blue"
-                  onClick={exportToCSV}
-                  size="sm"
-                  px={4}
-                >
-                  CSV
-                </Button>
-                
-                <Button
-                  leftIcon={<DownloadIcon />}
-                  colorScheme="purple"
-                  onClick={exportToPDF}
-                  size="sm"
-                  px={4}
-                >
-                  PDF
-                </Button>
-              </Flex>
+              </Box>
+            </Grid>
+            
+            <Flex 
+              justify="flex-end" 
+              mt={4}
+            >
+              <Button
+                colorScheme="teal"
+                size="sm"
+                onClick={calculatePayrollHandler}
+                leftIcon={<AddIcon />}
+              >
+                Calculate Payroll
+              </Button>
             </Flex>
           </CardBody>
         </Card>
-        
-        {/* Payroll Summary */}
-        <Grid templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }} gap={4} mb={6}>
-          <Card bg={cardBg} boxShadow="md" borderRadius="lg" borderLeft="4px solid" borderLeftColor="teal.500">
-            <CardBody py={3} px={4}>
-              <Stat>
-                <StatLabel fontSize="sm" color="gray.500">Total Employees</StatLabel>
-                <StatNumber fontSize="xl" fontWeight="bold" color="teal.600">{payrollData.length}</StatNumber>
-              </Stat>
-            </CardBody>
-          </Card>
-          
-          <Card bg={cardBg} boxShadow="md" borderRadius="lg" borderLeft="4px solid" borderLeftColor="blue.500">
-            <CardBody py={3} px={4}>
-              <Stat>
-                <StatLabel fontSize="sm" color="gray.500">Total Payroll</StatLabel>
-                <StatNumber fontSize="xl" fontWeight="bold" color="blue.600">
-                  {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.finalSalary || 0), 0))}
-                </StatNumber>
-              </Stat>
-            </CardBody>
-          </Card>
-          
-          <Card bg={cardBg} boxShadow="md" borderRadius="lg" borderLeft="4px solid" borderLeftColor="purple.500">
-            <CardBody py={3} px={4}>
-              <Stat>
-                <StatLabel fontSize="sm" color="gray.500">Avg. Salary</StatLabel>
-                <StatNumber fontSize="xl" fontWeight="bold" color="purple.600">
-                  {payrollData.length > 0 
-                    ? formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.finalSalary || 0), 0) / payrollData.length)
-                    : formatCurrency(0)}
-                </StatNumber>
-              </Stat>
-            </CardBody>
-          </Card>
-          
-          <Card bg={cardBg} boxShadow="md" borderRadius="lg" borderLeft="4px solid" borderLeftColor="red.500">
-            <CardBody py={3} px={4}>
-              <Stat>
-                <StatLabel fontSize="sm" color="gray.500">Locked Payrolls</StatLabel>
-                <StatNumber fontSize="xl" fontWeight="bold" color="red.600">
-                  {payrollData.filter(emp => emp.status === 'locked').length}
-                </StatNumber>
-              </Stat>
-            </CardBody>
-          </Card>
+
+        {/* Stats Cards */}
+        <Grid 
+          templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }} 
+          gap={6} 
+          mb={6}
+        >
+          <StatCard 
+            title="Total Employees" 
+            value={payrollData.length} 
+            color="blue.500" 
+          />
+          <StatCard 
+            title="Total Payroll" 
+            value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.finalSalary || 0), 0))} 
+            color="green.500" 
+          />
+          <StatCard 
+            title="Pending Approval" 
+            value={payrollData.filter(emp => emp.status === 'finance_reviewed').length} 
+            color="orange.500" 
+          />
+          <StatCard 
+            title="Locked Records" 
+            value={payrollData.filter(emp => emp.status === 'locked').length} 
+            color="red.500" 
+          />
         </Grid>
-        
+
         {/* Payroll Table */}
         <Card bg={cardBg} boxShadow="md" borderRadius="lg">
-          <CardBody>
-            <Table variant="simple" size="sm">
-              <Thead>
-                <Tr>
-                  <Th 
-                    py={3}
-                    px={3}
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color="white"
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={1}
-                    boxShadow="sm"
-                    borderColor={borderColor}
-                  >
-                    Employee
-                  </Th>
-                  <Th 
-                    py={3}
-                    px={3}
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color="white"
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={1}
-                    boxShadow="sm"
-                    borderColor={borderColor}
-                  >
-                    Department
-                  </Th>
-                  <Th 
-                    py={3}
-                    px={3}
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color="white"
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={1}
-                    boxShadow="sm"
-                    borderColor={borderColor}
-                  >
-                    Basic Salary
-                  </Th>
-                  <Th 
-                    py={3}
-                    px={3}
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color="white"
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={1}
-                    boxShadow="sm"
-                    borderColor={borderColor}
-                  >
-                    Adjustments
-                  </Th>
-                  <Th 
-                    py={3}
-                    px={3}
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color="white"
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={1}
-                    boxShadow="sm"
-                    borderColor={borderColor}
-                  >
-                    Commission
-                  </Th>
-                  <Th 
-                    py={3}
-                    px={3}
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color="white"
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={1}
-                    boxShadow="sm"
-                    borderColor={borderColor}
-                  >
-                    Final Salary
-                  </Th>
-                  <Th 
-                    py={3}
-                    px={3}
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color="white"
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={1}
-                    boxShadow="sm"
-                    borderColor={borderColor}
-                  >
-                    Status
-                  </Th>
-                  <Th 
-                    py={3}
-                    px={3}
-                    fontSize="sm"
-                    fontWeight="bold"
-                    color="white"
-                    position="sticky"
-                    top={0}
-                    bg={headerBg}
-                    zIndex={1}
-                    boxShadow="sm"
-                    borderColor={borderColor}
-                  >
-                    Actions
-                  </Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {payrollData.map((employee) => (
-                  <Tr 
-                    key={employee._id}
-                    _hover={{ bg: rowHoverBg }}
-                    transition="background-color 0.2s"
-                  >
-                    <Td py={2} px={3} fontSize="sm" borderBottom="1px solid" borderColor={borderColor}>
-                      <Text fontWeight="bold">
-                        {employee.employeeName || employee.userId?.fullName || employee.userId?.username}
-                      </Text>
-                    </Td>
-                    <Td py={2} px={3} fontSize="sm" borderBottom="1px solid" borderColor={borderColor}>
-                      <Badge colorScheme="blue" fontSize="xs" px={2} py={1} borderRadius="full">
-                        {employee.department}
-                      </Badge>
-                    </Td>
-                    <Td py={2} px={3} fontSize="sm" borderBottom="1px solid" borderColor={borderColor}>
-                      {formatCurrency(employee.basicSalary)}
-                    </Td>
-                    <Td py={2} px={3} fontSize="sm" borderBottom="1px solid" borderColor={borderColor}>
-                      {formatCurrency(
-                        (employee.overtimePay || 0) +
-                        (employee.hrAllowances || 0) +
-                        (employee.financeAllowances || 0) -
-                        (employee.lateDeduction || 0) -
-                        (employee.absenceDeduction || 0) -
-                        (employee.financeDeductions || 0)
-                      )}
-                    </Td>
-                    <Td py={2} px={3} fontSize="sm" borderBottom="1px solid" borderColor={borderColor}>
-                      {formatCurrency(employee.salesCommission || 0)}
-                    </Td>
-                    <Td py={2} px={3} fontSize="sm" borderBottom="1px solid" borderColor={borderColor} fontWeight="bold" color="teal.500">
-                      {formatCurrency(employee.finalSalary)}
-                    </Td>
-                    <Td py={2} px={3} fontSize="sm" borderBottom="1px solid" borderColor={borderColor}>
-                      <Badge colorScheme={getStatusColor(employee.status)} fontSize="xs" px={2} py={1} borderRadius="full">
-                        {employee.status?.replace('_', ' ')}
-                      </Badge>
-                    </Td>
-                    <Td py={2} px={3} fontSize="sm" borderBottom="1px solid" borderColor={borderColor}>
-                      <Flex gap={1}>
-                        <Tooltip label="View Details">
-                          <IconButton
-                            icon={<ViewIcon />}
-                            size="xs"
-                            colorScheme="blue"
-                            // onClick={() => viewEmployeeDetails(employee)}
-                          />
-                        </Tooltip>
-                        
-                        {employee.department === 'sales' && (
-                          <Tooltip label="Manage Commission">
+          <CardBody py={4} px={{ base: 2, md: 5 }}>
+            <Box overflowX="auto">
+              <Table variant="simple" size={{ base: "sm", md: "sm" }}>
+                <Thead>
+                  <Tr>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Employee
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Department
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Basic Salary
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Adjustments
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Commission
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Final Salary
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Status
+                    </Th>
+                    <Th 
+                      py={{ base: 2, md: 3 }}
+                      px={{ base: 2, md: 3 }}
+                      fontSize={{ base: "xs", md: "sm" }}
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Actions
+                    </Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {payrollData.map((employee) => (
+                    <Tr 
+                      key={employee._id}
+                      _hover={{ bg: rowHoverBg }}
+                      transition="background-color 0.2s"
+                    >
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">
+                          {employee.employeeName || employee.userId?.fullName || employee.userId?.username}
+                        </Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Badge colorScheme="blue" fontSize="xs" px={2} py={1} borderRadius="full">
+                          {employee.department}
+                        </Badge>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {formatCurrency(employee.basicSalary)}
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {formatCurrency(
+                          (employee.overtimePay || 0) +
+                          (employee.hrAllowances || 0) +
+                          (employee.financeAllowances || 0) -
+                          (employee.lateDeduction || 0) -
+                          (employee.absenceDeduction || 0) -
+                          (employee.financeDeductions || 0)
+                        )}
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {formatCurrency(employee.salesCommission || 0)}
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} fontWeight="bold" color="teal.500">
+                        {formatCurrency(employee.finalSalary)}
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Badge colorScheme={getStatusColor(employee.status)} fontSize="xs" px={2} py={1} borderRadius="full">
+                          {employee.status?.replace('_', ' ')}
+                        </Badge>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Flex gap={1}>
+                          <Tooltip label="View Details">
                             <IconButton
-                              icon={<AddIcon />}
+                              icon={<ViewIcon />}
                               size="xs"
-                              colorScheme="green"
-                              onClick={() => openCommissionModal(employee)}
+                              colorScheme="blue"
+                              onClick={() => viewEmployeeDetails(employee)}
                             />
                           </Tooltip>
-                        )}
-                        
-                        {employee.status !== 'locked' && (
-                          <>
-                            <Tooltip label="HR Adjustment">
+                          
+                          {employee.department === 'sales' && (
+                            <Tooltip label="Manage Commission">
                               <IconButton
                                 icon={<AddIcon />}
                                 size="xs"
-                                colorScheme="orange"
-                                onClick={() => openHrModal(employee)}
+                                colorScheme="green"
+                                onClick={() => openCommissionModal(employee)}
                               />
                             </Tooltip>
-                            
-                            <Tooltip label="Finance Adjustment">
-                              <IconButton
-                                icon={<AddIcon />}
-                                size="xs"
-                                colorScheme="purple"
-                                onClick={() => openFinanceModal(employee)}
-                              />
-                            </Tooltip>
-                            
-                            {employee.status === 'finance_reviewed' && (
-                              <Tooltip label="Approve">
+                          )}
+                          
+                          {employee.status !== 'locked' && (
+                            <>
+                              <Tooltip label="HR Adjustment">
                                 <IconButton
-                                  icon={<CheckIcon />}
+                                  icon={<AddIcon />}
                                   size="xs"
-                                  colorScheme="green"
-                                  onClick={() => approvePayrollHandler(employee._id)}
+                                  colorScheme="orange"
+                                  onClick={() => openHrModal(employee)}
                                 />
                               </Tooltip>
-                            )}
-                            
-                            {employee.status === 'approved' && (
-                              <Tooltip label="Lock">
+                              
+                              <Tooltip label="Finance Adjustment">
                                 <IconButton
-                                  icon={<LockIcon />}
+                                  icon={<AddIcon />}
                                   size="xs"
-                                  colorScheme="red"
-                                  onClick={() => lockPayrollHandler(employee._id)}
+                                  colorScheme="purple"
+                                  onClick={() => openFinanceModal(employee)}
                                 />
                               </Tooltip>
-                            )}
-                          </>
-                        )}
-                      </Flex>
-                    </Td>
-
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
+                              
+                              {employee.status === 'finance_reviewed' && (
+                                <Tooltip label="Approve">
+                                  <IconButton
+                                    icon={<CheckIcon />}
+                                    size="xs"
+                                    colorScheme="green"
+                                    onClick={() => approvePayrollHandler(employee._id)}
+                                  />
+                                </Tooltip>
+                              )}
+                              
+                              {employee.status === 'approved' && (
+                                <Tooltip label="Lock">
+                                  <IconButton
+                                    icon={<LockIcon />}
+                                    size="xs"
+                                    colorScheme="red"
+                                    onClick={() => lockPayrollHandler(employee._id)}
+                                  />
+                                </Tooltip>
+                              )}
+                            </>
+                          )}
+                        </Flex>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
             
             {payrollData.length === 0 && (
               <Flex justify="center" align="center" py={10}>
@@ -1221,6 +1243,31 @@ const PayrollPage = () => {
         </Modal>
       </Box>
     </Layout>
+  );
+};
+
+// Stat Card Component
+const StatCard = ({ title, value, color, isBold = false }) => {
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  
+  return (
+    <Card bg={cardBg} boxShadow="md" borderRadius="lg" border="1px solid" borderColor={borderColor}>
+      <CardBody py={4} px={5}>
+        <Stat>
+          <StatLabel fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={1}>
+            {title}
+          </StatLabel>
+          <StatNumber 
+            fontSize={{ base: "md", md: "lg" }} 
+            color={color} 
+            fontWeight={isBold ? "bold" : "normal"}
+          >
+            {value}
+          </StatNumber>
+        </Stat>
+      </CardBody>
+    </Card>
   );
 };
 

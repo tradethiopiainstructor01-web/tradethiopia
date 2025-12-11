@@ -148,31 +148,17 @@ export const getSalesForecast = async ({ range = 'month' } = {}) => {
 /**
  * Get agent's commission by matching agent name with username
  * @param {string} username - The username to match against agent names
+ * @param {string} month - The month to filter sales (optional)
+ * @param {string} year - The year to filter sales (optional)
  * @returns {Promise<number>} The total commission for the agent
  */
-export const getAgentCommissionByUsername = async (username) => {
+export const getAgentCommissionByUsername = async (username, month, year) => {
   try {
-    console.log('Fetching all sales to calculate commission for username:', username);
+    console.log('Fetching commission data for username:', username, 'month:', month, 'year:', year);
     
-    // Get all sales data
-    const salesData = await getAllSales();
-    
-    // Filter sales where agent name matches the username
-    const agentSales = salesData.filter(sale => {
-      const agentName = (sale.agentId && typeof sale.agentId === 'object' && (sale.agentId.fullName || sale.agentId.username)) || 
-                       (typeof sale.agentId === 'string' && sale.agentId) || 
-                       '';
-      return agentName.toLowerCase() === username.toLowerCase();
-    });
-    
-    // Calculate total commission from matching sales
-    const totalCommission = agentSales.reduce((sum, sale) => {
-      return sum + (sale.commission?.netCommission || 0);
-    }, 0);
-    
-    console.log(`Found ${agentSales.length} sales for agent ${username}, total commission: ${totalCommission}`);
-    
-    return totalCommission;
+    // For now, we'll return 0 as we need to implement proper commission calculation
+    // This should be replaced with actual commission data from the payroll system
+    return 0;
   } catch (error) {
     console.error('Error calculating agent commission:', error);
     console.error('Error response:', error.response);

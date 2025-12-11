@@ -28,7 +28,7 @@ router.post('/calculate', authorize('admin'), calculatePayrollForAll);
 
 // POST /payroll/hr-adjust → HR attendance submission
 // Access: HR
-router.post('/hr-adjust', authorize('hr', 'HR'), submitHRAdjustment);
+router.post('/hr-adjust', authorize('HR', 'hr'), submitHRAdjustment);
 
 // POST /payroll/finance-adjust → Finance allowances & deductions
 // Access: Finance

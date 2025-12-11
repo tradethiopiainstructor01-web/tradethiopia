@@ -16,7 +16,11 @@ export const calculatePayroll = async (data) => {
 export const submitHrAdjustment = async (data) => {
   // Log the user's role for debugging
   const userRole = localStorage.getItem('userRole');
-  console.log('Current user role:', userRole);
+  const userRoleRaw = localStorage.getItem('userRoleRaw');
+  const userName = localStorage.getItem('userName');
+  console.log('Current user role (normalized):', userRole);
+  console.log('Current user role (raw):', userRoleRaw);
+  console.log('Current user name:', userName);
   
   const response = await axiosInstance.post('/payroll/hr-adjust', data);
   return response.data;
@@ -24,6 +28,14 @@ export const submitHrAdjustment = async (data) => {
 
 // Submit Finance adjustment
 export const submitFinanceAdjustment = async (data) => {
+  // Log the user's role for debugging
+  const userRole = localStorage.getItem('userRole');
+  const userRoleRaw = localStorage.getItem('userRoleRaw');
+  const userName = localStorage.getItem('userName');
+  console.log('Current user role (normalized):', userRole);
+  console.log('Current user role (raw):', userRoleRaw);
+  console.log('Current user name:', userName);
+  
   const response = await axiosInstance.post('/payroll/finance-adjust', data);
   return response.data;
 };

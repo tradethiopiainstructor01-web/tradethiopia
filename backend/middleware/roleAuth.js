@@ -7,11 +7,21 @@ const authorize = (...roles) => {
       });
     }
 
-    // Convert roles to lowercase for case-insensitive comparison
-    const normalizedRoles = roles.map(role => role.toLowerCase());
-    const userRole = (req.user.role || '').toLowerCase();
+    // Log for debugging
+    console.log('User role:', req.user.role);
+    console.log('Required roles:', roles);
     
-    if (!normalizedRoles.includes(userRole)) {
+    // Simple case-insensitive check
+    const userRoleLower = (req.user.role || '').toLowerCase();
+    const requiredRolesLower = roles.map(role => role.toLowerCase());
+    
+    const hasAccess = requiredRolesLower.includes(userRoleLower);
+    
+    console.log('User role (lowercase):', userRoleLower);
+    console.log('Required roles (lowercase):', requiredRolesLower);
+    console.log('Access granted:', hasAccess);
+    
+    if (!hasAccess) {
       return res.status(403).json({ 
         success: false, 
         message: `Access denied. Requires one of these roles: ${roles.join(', ')}.` 
