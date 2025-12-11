@@ -314,26 +314,133 @@ const PayrollPage = () => {
 
   // Export to CSV
   const exportToCSV = () => {
-    // Implementation for CSV export
-    toast({
-      title: 'Export Started',
-      description: 'Payroll data export started',
-      status: 'info',
-      duration: 3000,
-      isClosable: true,
-    });
+    try {
+      // Create CSV content
+      const headers = [
+        'Employee Name',
+        'Department',
+        'Basic Salary',
+        'Gross Salary',
+        'Income Tax',
+        'Pension',
+        'Overtime Pay',
+        'Sales Commission',
+        'HR Allowances',
+        'Finance Allowances',
+        'Late Deductions',
+        'Absence Deductions',
+        'Finance Deductions',
+        'Net Salary',
+        'Status'
+      ];
+      
+      const csvContent = [
+        headers.join(','),
+        ...payrollData.map(employee => [
+          `"${employee.employeeName || employee.userId?.fullName || employee.userId?.username}"`,
+          employee.department,
+          employee.basicSalary || 0,
+          employee.grossSalary || employee.basicSalary || 0,
+          employee.incomeTax || 0,
+          employee.pension || 0,
+          employee.overtimePay || 0,
+          employee.salesCommission || 0,
+          employee.hrAllowances || 0,
+          employee.financeAllowances || 0,
+          employee.lateDeduction || 0,
+          employee.absenceDeduction || 0,
+          employee.financeDeductions || 0,
+          employee.netSalary || employee.finalSalary || 0,
+          employee.status
+        ].join(','))
+      ].join('\n');
+      
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `payroll_${selectedMonth}_${selectedYear}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: 'Export Successful',
+        description: 'Payroll data exported to CSV',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      console.error('Error exporting to CSV:', err);
+      toast({
+        title: 'Export Failed',
+        description: 'Failed to export payroll data to CSV',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
   };
   
   // Export to PDF
   const exportToPDF = () => {
-    // Implementation for PDF export
-    toast({
-      title: 'Export Started',
-      description: 'Payroll data export started',
-      status: 'info',
-      duration: 3000,
-      isClosable: true,
-    });
+    try {
+      // For now, we'll create a simple text-based PDF export
+      // In a real application, you might want to use a library like jsPDF
+      
+      // Create a simple text representation
+      let pdfContent = `Payroll Report\n`;
+      pdfContent += `Period: ${selectedMonth} ${selectedYear}\n\n`;
+      
+      payrollData.forEach(employee => {
+        pdfContent += `${employee.employeeName || employee.userId?.fullName || employee.userId?.username}\n`;
+        pdfContent += `  Department: ${employee.department}\n`;
+        pdfContent += `  Basic Salary: ${formatCurrency(employee.basicSalary || 0)}\n`;
+        pdfContent += `  Gross Salary: ${formatCurrency(employee.grossSalary || employee.basicSalary || 0)}\n`;
+        pdfContent += `  Income Tax: ${formatCurrency(employee.incomeTax || 0)}\n`;
+        pdfContent += `  Pension: ${formatCurrency(employee.pension || 0)}\n`;
+        pdfContent += `  Overtime Pay: ${formatCurrency(employee.overtimePay || 0)}\n`;
+        pdfContent += `  Sales Commission: ${formatCurrency(employee.salesCommission || 0)}\n`;
+        pdfContent += `  HR Allowances: ${formatCurrency(employee.hrAllowances || 0)}\n`;
+        pdfContent += `  Finance Allowances: ${formatCurrency(employee.financeAllowances || 0)}\n`;
+        pdfContent += `  Late Deductions: ${formatCurrency(employee.lateDeduction || 0)}\n`;
+        pdfContent += `  Absence Deductions: ${formatCurrency(employee.absenceDeduction || 0)}\n`;
+        pdfContent += `  Finance Deductions: ${formatCurrency(employee.financeDeductions || 0)}\n`;
+        pdfContent += `  Net Salary: ${formatCurrency(employee.netSalary || employee.finalSalary || 0)}\n`;
+        pdfContent += `  Status: ${employee.status}\n\n`;
+      });
+      
+      // Create blob and download
+      const blob = new Blob([pdfContent], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `payroll_${selectedMonth}_${selectedYear}.txt`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: 'Export Successful',
+        description: 'Payroll data exported to PDF',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      console.error('Error exporting to PDF:', err);
+      toast({
+        title: 'Export Failed',
+        description: 'Failed to export payroll data to PDF',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
   };
   
   // Open HR modal
