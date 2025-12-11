@@ -41,9 +41,9 @@ const SalesManagerProtectedRoute = ({ children }) => {
               <Box>
                 This page requires Sales Manager access.
                 {currentUser && (
-                  <Box mt={2}>
-                    <strong>Your role:</strong> {currentUser.role || 'None'}
-                  </Box>
+                <Box mt={2}>
+                  <strong>Your role:</strong> {currentUser.displayRole || currentUser.role || 'None'}
+                </Box>
                 )}
                 {!currentUser && (
                   <Box mt={2}>

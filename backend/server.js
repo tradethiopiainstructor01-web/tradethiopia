@@ -47,6 +47,7 @@ const itRoutes = require('./routes/itRoutes.js');
 const demandRoutes = require('./routes/demandRoutes.js');
 const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
 
+const costRoutes = require('./routes/costRoutes.js');
 // Load environment variables
 
 // Initialize Express app
@@ -260,6 +261,7 @@ app.use('/api/product-followups', productFollowupRoutes);
 app.use('/api/it', itRoutes);
 app.use('/api/finance', require('./routes/financeRoutes'));
 app.use('/api/purchases', require('./routes/purchaseRoutes'));
+app.use('/api/costs', costRoutes);
 app.use('/api/demands', demandRoutes);
 app.use('/api/payroll', payrollRoutes); // Add this line
 

@@ -49,6 +49,7 @@ import TradexTVDashboard from './pages/TradexTVDashboard';
 import PricingPage from './pages/sales/PricingPage.jsx';
 import RevenuePage from './pages/sales/RevenuePage.jsx';
 import PurchasePage from './pages/sales/PurchasePage.jsx';
+import CostManagementPage from './pages/sales/CostManagementPage.jsx';
 import ITDashboard from "./pages/ITDashboard";
 import SalesManagerLayout from "./components/salesmanager/Layout";
 import SalesManagerDashboard from "./components/salesmanager/SalesManagerDashboard";
@@ -73,7 +74,7 @@ function App() {
     "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", 
     "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager"
   ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
@@ -105,6 +106,7 @@ function App() {
             <Route path="/finance-dashboard/pricing" element={<PricingPage />} />
             <Route path="/finance-dashboard/revenue" element={<RevenuePage />} />
             <Route path="/finance-dashboard/purchase" element={<PurchasePage />} />
+            <Route path="/finance-dashboard/costs" element={<CostManagementPage />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />

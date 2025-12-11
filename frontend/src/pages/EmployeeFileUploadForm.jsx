@@ -15,6 +15,9 @@ import {
 import { useUserStore } from '../store/user';
 import { useNavigate } from 'react-router-dom';
 
+const normalizeRoleValue = (value = '') =>
+    value?.toString().trim().toLowerCase().replace(/\s+/g, '');
+
 const EmployeeFileUploadForm = () => {
     const currentUser = useUserStore((status) => status.currentUser);
     const toast = useToast();
@@ -137,31 +140,34 @@ const EmployeeFileUploadForm = () => {
                     
                     if (currentUser.status === 'inactive') {
                         navigate('/secondpage');
-                    }
-                    else { 
-
-                        if(currentUser.infoStatus === 'active') {
-                        const role = currentUser.role; // Declare the role attribute from currentUser
-                        // If both are active, redirect based on user role
-                        switch (role) {
-                            case 'admin':
-                                navigate('/dashboard');
-                                break;
-                            case 'sales':
-                                navigate('/sdashboard');
-                                break;
-                            case 'customerservice':
-                                navigate('/Cdashboard');
-                                break;
-                            case 'HR':
-                                navigate('/hdashboard');
-                                break;
-                            default:
-                                navigate('/home'); // Optional: handle unknown roles
-                                break;
-                        }
                     } else {
-                        navigate('/waitingForApproval');}
+                        if (currentUser.infoStatus === 'active') {
+                            const normalizedRole =
+                                currentUser.normalizedRole || normalizeRoleValue(currentUser.role);
+                            // Redirect based on normalized user role
+                            switch (normalizedRole) {
+                                case 'admin':
+                                    navigate('/dashboard');
+                                    break;
+                                case 'sales':
+                                    navigate('/sdashboard');
+                                    break;
+                                case 'salesmanager':
+                                    navigate('/salesmanager');
+                                    break;
+                                case 'customerservice':
+                                    navigate('/Cdashboard');
+                                    break;
+                                case 'hr':
+                                    navigate('/hdashboard');
+                                    break;
+                                default:
+                                    navigate('/home'); // Optional: handle unknown roles
+                                    break;
+                            }
+                        } else {
+                            navigate('/waitingForApproval');
+                        }
                     }
                 }
             } else {
