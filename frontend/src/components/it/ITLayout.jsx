@@ -115,7 +115,7 @@ const EXTERNAL_SUBTASKS = ['New', 'Update', 'Comment', 'Renewal'];
 const WEEKLY_TARGET_POINTS = 40;
 const TASK_STORAGE_KEY = 'tradethiopia_it_tasks';
 const TARGET_STORAGE_KEY = 'tradethiopia_weekly_target';
-import ITMessagesPage from '../../pages/ITMessagesPage';
+import NoticeBoardPanel from '../NoticeBoardPanel';
 
 const STATUS_PROGRESS = {
   pending: 25,
@@ -531,8 +531,7 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
   const { colorMode, toggleColorMode } = useColorMode();
   const navigate = useNavigate();
   const clearUser = useUserStore((state) => state.clearUser);
-  const [activeView, setActiveView] = useState('dashboard');
-  const [active, setActive] = useState('notice-board');
+  const [activeSection, setActiveSection] = useState(initialTab);
   const [tasks, setTasks] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -1252,32 +1251,32 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
             <SidebarButton
               label="Overview"
               icon={FiHome}
-              isActive={activeView === 'dashboard'}
-              onClick={() => setActiveView('dashboard')}
+              isActive={activeSection === 'dashboard'}
+              onClick={() => setActiveSection('dashboard')}
             />
             <SidebarButton
               label="Internal Tasks"
               icon={FiLayers}
-              isActive={activeView === 'internal'}
-              onClick={() => setActiveView('internal')}
+              isActive={activeSection === 'internal'}
+              onClick={() => setActiveSection('internal')}
             />
             <SidebarButton
               label="External Tasks"
               icon={FiList}
-              isActive={activeView === 'external'}
-              onClick={() => setActiveView('external')}
+              isActive={activeSection === 'external'}
+              onClick={() => setActiveSection('external')}
             />
             <SidebarButton
               label="Performance"
               icon={FiBarChart2}
-              isActive={activeView === 'performance'}
-              onClick={() => setActiveView('performance')}
+              isActive={activeSection === 'performance'}
+              onClick={() => setActiveSection('performance')}
             />
             <SidebarButton
               label="Reports"
               icon={FiFileText}
-              isActive={activeView === 'reports'}
-              onClick={() => setActiveView('reports')}
+              isActive={activeSection === 'reports'}
+              onClick={() => setActiveSection('reports')}
             />
           </VStack>
           <Divider />
@@ -1313,9 +1312,9 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
               <Button
                 leftIcon={<FiMessageSquare />}
                 justifyContent={{ base: 'center', lg: 'flex-start' }}
-                variant={active === 'notice-board' ? 'solid' : 'ghost'}
-                colorScheme={active === 'notice-board' ? 'teal' : 'gray'}
-                onClick={() => setActive('notice-board')}
+                variant={activeSection === 'notice-board' ? 'solid' : 'ghost'}
+                colorScheme={activeSection === 'notice-board' ? 'teal' : 'gray'}
+                onClick={() => setActiveSection('notice-board')}
                 w="full"
                 size={{ base: 'md', lg: 'lg' }}
                 borderRadius="lg"
@@ -1328,22 +1327,28 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
       </Box>
 
       <Box flex="1" p={{ base: 4, lg: 8 }} minW={0}>
-        <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
-          <Heading size="xl">IT Department Dashboard</Heading>
-          <Button colorScheme="blue" leftIcon={<FiPlus />} onClick={() => setModalOpen(true)}>
-            New Task
-          </Button>
-        </Flex>
-        <Box
-          bg={cardBg}
-          borderRadius="2xl"
-          p={{ base: 4, md: 6 }}
-          border="1px solid"
-          borderColor={borderColor}
-          boxShadow="sm"
-        >
-          {contentMap[activeView]}
-        </Box>
+        {activeSection === 'notice-board' ? (
+          <NoticeBoardPanel title="IT Notice Board" subtitle="Internal announcements and alerts" />
+        ) : (
+          <>
+            <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
+              <Heading size="xl">IT Department Dashboard</Heading>
+              <Button colorScheme="blue" leftIcon={<FiPlus />} onClick={() => setModalOpen(true)}>
+                New Task
+              </Button>
+            </Flex>
+            <Box
+              bg={cardBg}
+              borderRadius="2xl"
+              p={{ base: 4, md: 6 }}
+              border="1px solid"
+              borderColor={borderColor}
+              boxShadow="sm"
+            >
+              {contentMap[activeSection]}
+            </Box>
+          </>
+        )}
       </Box>
 
       <TaskModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask} />
