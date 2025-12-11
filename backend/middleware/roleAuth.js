@@ -7,7 +7,11 @@ const authorize = (...roles) => {
       });
     }
 
-    if (!roles.includes(req.user.role)) {
+    // Convert roles to lowercase for case-insensitive comparison
+    const normalizedRoles = roles.map(role => role.toLowerCase());
+    const userRole = (req.user.role || '').toLowerCase();
+    
+    if (!normalizedRoles.includes(userRole)) {
       return res.status(403).json({ 
         success: false, 
         message: `Access denied. Requires one of these roles: ${roles.join(', ')}.` 

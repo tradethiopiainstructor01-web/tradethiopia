@@ -144,3 +144,38 @@ export const getSalesForecast = async ({ range = 'month' } = {}) => {
     throw error;
   }
 };
+
+/**
+ * Get agent's commission by matching agent name with username
+ * @param {string} username - The username to match against agent names
+ * @returns {Promise<number>} The total commission for the agent
+ */
+export const getAgentCommissionByUsername = async (username) => {
+  try {
+    console.log('Fetching all sales to calculate commission for username:', username);
+    
+    // Get all sales data
+    const salesData = await getAllSales();
+    
+    // Filter sales where agent name matches the username
+    const agentSales = salesData.filter(sale => {
+      const agentName = (sale.agentId && typeof sale.agentId === 'object' && (sale.agentId.fullName || sale.agentId.username)) || 
+                       (typeof sale.agentId === 'string' && sale.agentId) || 
+                       '';
+      return agentName.toLowerCase() === username.toLowerCase();
+    });
+    
+    // Calculate total commission from matching sales
+    const totalCommission = agentSales.reduce((sum, sale) => {
+      return sum + (sale.commission?.netCommission || 0);
+    }, 0);
+    
+    console.log(`Found ${agentSales.length} sales for agent ${username}, total commission: ${totalCommission}`);
+    
+    return totalCommission;
+  } catch (error) {
+    console.error('Error calculating agent commission:', error);
+    console.error('Error response:', error.response);
+    throw error;
+  }
+};

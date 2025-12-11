@@ -1,7 +1,5 @@
-import { Box, useColorModeValue } from "@chakra-ui/react";
 import { Route, Routes, useLocation } from "react-router-dom";
-import Sidebar from "./components/Sidebar";
-import NavbarPage from "./components/Navbar";
+import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import CreatePage from "./pages/CreatePage";
 import CreateQuiz from "./pages/CreateQuiz";
@@ -64,6 +62,8 @@ import TaskManagementPage from "./components/salesmanager/TaskManagementPage";
 import ReportsPage from "./components/salesmanager/ReportsPage";
 import CalendarPage from "./components/salesmanager/CalendarPage";
 import SettingsPage from "./components/salesmanager/SettingsPage";
+import PayrollPage from "./components/Payroll/PayrollPage";
+import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
 import MessagesPage from "./pages/MessagesPage";
 import SalesMessagesPage from "./pages/SalesMessagesPage";
 import FinanceMessagesPage from "./pages/FinanceMessagesPage";
@@ -94,23 +94,8 @@ function App() {
   });
 
   return (
-    <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
-      {showNavAndSidebar && <NavbarPage />}
-      <Box 
-        display="flex" 
-        flexDirection="row" 
-        width="100%"
-        pt={showNavAndSidebar ? "80px" : "0"}
-      >
-        {showNavAndSidebar && <Sidebar />}
-        <Box
-          flex="1"
-          p={showNavAndSidebar ? { base: 2, md: 5 } : 0}
-          ml={showNavAndSidebar ? { base: "70px", md: "250px" } : 0}
-          transition="margin-left 0.3s ease"
-          width="100%"
-        >
-          <Routes>
+    <AppLayout showNav={showNavAndSidebar}>
+      <Routes>
             <Route path="/" element={<WelcomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/InfoForm" element={<InfoForm />} />
@@ -164,6 +149,8 @@ function App() {
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
             <Route path="/it" element={<ITDashboard />} />
+            <Route path="/payroll" element={<PayrollPage />} />
+            <Route path="/my-payroll" element={<EmployeePayrollView />} />
             {/* Generic message page that redirects to dashboard-specific pages */}
             <Route path="/messages" element={<RedirectMessagesPage />} />
             {/* Dashboard-specific message pages */}
@@ -195,9 +182,7 @@ function App() {
               <Route path="messages" element={<MessagesPage />} />
             </Route>
           </Routes>
-        </Box>
-      </Box>
-    </Box>
+        </AppLayout>
   );
 }
 

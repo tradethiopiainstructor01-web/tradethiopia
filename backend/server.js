@@ -45,6 +45,8 @@ const courseRoutes = require('./routes/courseRoutes.js');
 const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
 const itRoutes = require('./routes/itRoutes.js');
 const demandRoutes = require('./routes/demandRoutes.js');
+const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
+
 const costRoutes = require('./routes/costRoutes.js');
 // Load environment variables
 
@@ -261,6 +263,7 @@ app.use('/api/finance', require('./routes/financeRoutes'));
 app.use('/api/purchases', require('./routes/purchaseRoutes'));
 app.use('/api/costs', costRoutes);
 app.use('/api/demands', demandRoutes);
+app.use('/api/payroll', payrollRoutes); // Add this line
 
 // Global error handler
 app.use((err, req, res, next) => {
