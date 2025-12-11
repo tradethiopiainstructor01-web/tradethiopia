@@ -15,7 +15,6 @@ import {
   Card,
   CardBody
 } from '@chakra-ui/react';
-import FinanceLayout from './FinanceLayout';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getMetrics, getOrders, getDemands } from '../../services/financeService';
@@ -52,7 +51,7 @@ const FinanceDashboard = () => {
     load();
   }, []);
   return (
-    <FinanceLayout>
+    <>
       <Box mb={6}>
         <Heading size="lg">Finance Overview</Heading>
         <Text color="gray.600">Key finance metrics and quick actions</Text>
@@ -130,7 +129,7 @@ const FinanceDashboard = () => {
           </Card>
         </VStack>
       </Box>
-    </FinanceLayout>
+    </>
   );
 };
 
