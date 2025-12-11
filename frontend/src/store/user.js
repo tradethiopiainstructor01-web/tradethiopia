@@ -18,7 +18,17 @@ const loadCurrentUser = () => {
     const email = localStorage.getItem("userEmail");
 
     return token
-        ? { username, role, status, infoStatus, token, _id: userId, email }
+        ? {
+              username,
+              role: normalizedRole,
+              normalizedRole,
+              displayRole,
+              status,
+              infoStatus,
+              token,
+              _id: userId,
+              email,
+          }
         : null;
 };
 

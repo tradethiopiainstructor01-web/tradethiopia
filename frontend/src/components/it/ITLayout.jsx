@@ -65,6 +65,7 @@ import {
   FiSearch,
   FiSun,
   FiTarget,
+  FiMessageSquare,
 } from 'react-icons/fi';
 import {
   Bar,
