@@ -124,6 +124,19 @@ const updateTask = async (req, res) => {
     const updated = await ITTask.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!updated) return res.status(404).json({ success: false, message: 'Task not found' });
 
+    // If task is already completed and featureCount is being updated, also update the corresponding report
+    if (updated.status === 'done' && updateData.featureCount !== undefined) {
+      try {
+        const report = await ITReport.findOne({ taskRef: updated._id });
+        if (report) {
+          report.points = updated.featureCount || 1;
+          await report.save();
+        }
+      } catch (err) {
+        console.error('Failed to sync report points with task featureCount', err);
+      }
+    }
+
     // If status changed to Completed, generate report
     if (req.body.status && req.body.status === 'done') {
       try {

@@ -49,6 +49,8 @@ import COODashboard from './pages/COODashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
 import PricingPage from './pages/sales/PricingPage.jsx';
 import ITDashboard from "./pages/ITDashboard";
+import SocialMediaDashboardPage from "./pages/socialmedia/SocialMediaDashboardPage";
+import SocialMediaRequestPage from "./pages/socialmedia/SocialMediaRequestPage";
 
 function App() {
   const location = useLocation();
@@ -60,7 +62,7 @@ function App() {
     "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing",
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
     "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/social-media", "/social-media/request"
   ].map((path) => path.toLowerCase());
 
   // Check if the current path is a no-sidebar, no-navbar route (case-insensitive)
@@ -132,6 +134,8 @@ function App() {
             <Route path="/coo-dashboard" element={<COODashboard />} />
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
+            <Route path="/social-media" element={<SocialMediaDashboardPage />} />
+            <Route path="/social-media/request" element={<SocialMediaRequestPage />} />
             <Route path="/it" element={<ITDashboard />} />
           </Routes>
         </Box>

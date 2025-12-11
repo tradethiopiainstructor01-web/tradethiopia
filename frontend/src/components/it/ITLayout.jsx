@@ -1,710 +1,1334 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, Flex, HStack, VStack, Heading, Text, 
-  Input, InputGroup, InputLeftElement, useColorModeValue, 
-  SimpleGrid, Stat, StatLabel, StatNumber, StatHelpText, 
-  Container, IconButton, useDisclosure, Badge, Progress,
-  Card, CardHeader, CardBody, CardFooter, Button, Divider,
-  Avatar, Menu, MenuButton, MenuList, MenuItem, MenuDivider,
-  Icon, Tooltip, Skeleton, SkeletonText
-} from '@chakra-ui/react';
-import { 
-  FiSearch, FiPlus, FiExternalLink, FiClock, 
-  FiCheckCircle, FiAlertTriangle, FiInbox, FiBarChart2,
-  FiHome, FiList, FiFileText, FiSettings, FiUser, FiBell,
-  FiChevronDown, FiCalendar, FiTrendingUp, FiActivity, FiFilter,
-  FiMoreVertical, FiInfo
-} from 'react-icons/fi';
-import { motion } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ITSidebar from './ITSidebar';
-import ExternalTable from './ExternalTable';
-import InternalTable from './InternalTable';
-import AddTaskForm from './AddTaskForm';
-import Reports from './Reports';
-import axios from 'axios';
+import { useUserStore } from '../../store/user';
+import RequestPanel from '../RequestPanel';
+import {
+  Avatar,
+  Badge,
+  Box,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Flex,
+  FormControl,
+  FormLabel,
+  Heading,
+  HStack,
+  IconButton,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
+  Progress,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+  TableContainer,
+  Tag,
+  Tbody,
+  Td,
+  Text,
+  Th,
+  Thead,
+  Tr,
+  useColorMode,
+  useColorModeValue,
+  VStack,
+  Tooltip,
+} from '@chakra-ui/react';
+import {
+  FiBarChart2,
+  FiChevronRight,
+  FiFileText,
+  FiHome,
+  FiLayers,
+  FiList,
+  FiLogOut,
+  FiMoon,
+  FiPlus,
+  FiPlusCircle,
+  FiPieChart,
+  FiSearch,
+  FiSun,
+  FiTarget,
+} from 'react-icons/fi';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
-const MotionBox = motion.div;
+const INTERNAL_PROJECTS = [
+  'Tradeethiopian.com',
+  'Tradethiopia.com',
+  'TESBINN',
+  'TRADEXTV.com',
+  'Trainings',
+  'Documentation',
+  'Meetings',
+  'Maintenance',
+];
+const INTERNAL_SUBTASKS = [
+  'Functionality',
+  'Features',
+  'Update',
+  'Troubleshoot',
+  'Renewal',
+  'AI/ML',
+];
+const EXTERNAL_DELIVERABLES = [
+  'Website',
+  'Logo',
+  'Company Profile',
+  'Banner',
+  'Brochure',
+  'Roll-up',
+  'Flyers',
+  'Business Cards',
+  'Letterheads',
+];
+const EXTERNAL_SUBTASKS = ['New', 'Update', 'Comment', 'Renewal'];
+const WEEKLY_TARGET_POINTS = 40;
+const TASK_STORAGE_KEY = 'tradethiopia_it_tasks';
+const TARGET_STORAGE_KEY = 'tradethiopia_weekly_target';
 
-// Enhanced Stat Card Component
-const StatCard = ({ label, value, icon: Icon, colorScheme, helpText, trend, ...rest }) => (
-  <MotionBox
-    bg={useColorModeValue('white', 'gray.800')}
-    p={6}
-    borderRadius="2xl"
-    boxShadow="0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03)"
-    borderWidth="1px"
-    borderColor={useColorModeValue('gray.100', 'gray.700')}
-    whileHover={{ y: -5, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}
-    transition={{ duration: 0.3 }}
-    position="relative"
-    overflow="hidden"
-    {...rest}
-  >
-    {/* Decorative Element */}
-    <Box 
-      position="absolute" 
-      top="-20px" 
-      right="-20px" 
-      w="100px" 
-      h="100px" 
-      borderRadius="full" 
-      bg={`${colorScheme}.50`}
-      opacity="0.3"
-    />
-    
-    <HStack spacing={4} align="center" position="relative" zIndex="1">
-      <Box 
-        p={3} 
-        bg={`linear-gradient(135deg, ${colorScheme}.400, ${colorScheme}.600)`} 
-        color="white" 
+const STATUS_PROGRESS = {
+  pending: 25,
+  ongoing: 65,
+  done: 100,
+};
+
+const INITIAL_TASKS = [
+  {
+    id: 'int-1',
+    type: 'internal',
+    target: 'Tradeethiopian.com',
+    category: 'Functionality',
+    title: 'Finalize checkout reconciliation audit',
+    assignee: 'Selam Desta',
+    status: 'done',
+    points: 8,
+    progress: 100,
+    dueDate: '2025-12-05',
+    notes: 'Validated payment gateway and refund logic.',
+  },
+  {
+    id: 'int-2',
+    type: 'internal',
+    target: 'Tradethiopia.com',
+    category: 'AI/ML',
+    title: 'Prototype intent-driven chatbot',
+    assignee: 'Amanuel Bekele',
+    status: 'ongoing',
+    points: 5,
+    progress: 70,
+    dueDate: '2025-12-10',
+    notes: 'Currently tuning dialog states.',
+  },
+  {
+    id: 'int-3',
+    type: 'internal',
+    target: 'TESBINN',
+    category: 'Troubleshoot',
+    title: 'Investigate streaming latency',
+    assignee: 'Lemlem Gashaw',
+    status: 'pending',
+    points: 4,
+    progress: 20,
+    dueDate: '2025-12-14',
+    notes: 'Needs edge cache review.',
+  },
+  {
+    id: 'ext-1',
+    type: 'external',
+    target: 'Logo',
+    category: 'New',
+    title: 'Create brand mark for Tradethiopia TV',
+    assignee: 'Martha Tadesse',
+    status: 'done',
+    points: 3,
+    progress: 100,
+    dueDate: '2025-12-04',
+    notes: 'Delivered vector asset and style sheet.',
+  },
+  {
+    id: 'ext-2',
+    type: 'external',
+    target: 'Website',
+    category: 'Update',
+    title: 'Refresh Tradeethiopian.com hero assets',
+    assignee: 'Kebede Dagnachew',
+    status: 'ongoing',
+    points: 6,
+    progress: 55,
+    dueDate: '2025-12-08',
+    notes: 'Awaiting graphics sign-off.',
+  },
+  {
+    id: 'ext-3',
+    type: 'external',
+    target: 'Brochure',
+    category: 'Renewal',
+    title: 'Deliver updated hit-rate brochure',
+    assignee: 'Selam Desta',
+    status: 'ongoing',
+    points: 4,
+    progress: 45,
+    dueDate: '2025-12-12',
+    notes: 'Working with content team.',
+  },
+];
+
+const SidebarButton = ({ label, icon: Icon, isActive, onClick, tooltip }) => {
+  const activeBg = useColorModeValue('blue.50', 'blue.900');
+  const color = isActive ? 'blue.500' : useColorModeValue('gray.600', 'gray.300');
+  return (
+    <Tooltip label={tooltip || label} placement="right" hasArrow>
+      <Button
+        onClick={onClick}
+        leftIcon={<Icon />}
+        justifyContent="flex-start"
+        variant="ghost"
+        color={color}
+        fontWeight={isActive ? 'bold' : 'medium'}
+        bg={isActive ? activeBg : 'transparent'}
         borderRadius="xl"
-        boxShadow="0 4px 6px rgba(0, 0, 0, 0.1)"
+        w="100%"
+        _hover={{ bg: useColorModeValue('gray.100', 'whiteAlpha.100') }}
       >
-        <Icon size={24} />
-      </Box>
-      <Box flex="1">
-        <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')} fontWeight="medium">
-          {label}
-        </Text>
-        <HStack alignItems="flex-end" spacing={2}>
-          <Heading size="lg" mt={1} color={useColorModeValue('gray.800', 'white')}>
-            {value}
-          </Heading>
-          {trend && (
-            <Badge colorScheme={trend > 0 ? 'green' : 'red'} variant="subtle" fontSize="xs">
-              {trend > 0 ? '+' : ''}{trend}%
-            </Badge>
+        <Text display={{ base: 'none', lg: 'inline' }}>{label}</Text>
+      </Button>
+    </Tooltip>
+  );
+};
+
+const TaskTable = ({ tasks, onToggleStatus, onUpdatePoints, emptyMessage, isCompact }) => {
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingPoints, setEditingPoints] = useState(1);
+
+  const statusColor = (status) => {
+    if (status === 'done') return 'green';
+    if (status === 'ongoing') return 'blue';
+    return 'yellow';
+  };
+
+  const startEditing = (taskId, currentPoints) => {
+    setEditingTaskId(taskId);
+    setEditingPoints(currentPoints || 1);
+  };
+
+  const savePoints = (taskId) => {
+    const points = parseInt(editingPoints);
+    if (!isNaN(points) && points >= 1 && onUpdatePoints) {
+      onUpdatePoints(taskId, points);
+      setEditingTaskId(null);
+      setEditingPoints(1);
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditingTaskId(null);
+    setEditingPoints(1);
+  };
+
+  return (
+    <TableContainer>
+      <Table variant="simple" size={isCompact ? 'sm' : 'md'}>
+        <Thead>
+          <Tr>
+            <Th>Task</Th>
+            <Th>Type</Th>
+            <Th>Category</Th>
+            <Th>Points</Th>
+            <Th>Status</Th>
+            <Th>Assignee</Th>
+            <Th>Due</Th>
+            <Th textAlign="right">Actions</Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {tasks.length === 0 ? (
+            <Tr>
+              <Td colSpan={8} textAlign="center" py={10}>
+                <Text color="gray.500">{emptyMessage}</Text>
+              </Td>
+            </Tr>
+          ) : (
+            tasks.map((task) => (
+              <Tr key={task.id}>
+                <Td>
+                  <Text fontWeight="semibold">{task.title}</Text>
+                  <Text fontSize="xs" color="gray.500">
+                    {task.target}
+                  </Text>
+                </Td>
+                <Td>
+                  <Tag size="sm" colorScheme={task.type === 'internal' ? 'blue' : 'purple'}>
+                    {task.type === 'internal' ? 'Internal' : 'External'}
+                  </Tag>
+                </Td>
+                <Td>{task.category}</Td>
+                <Td>
+                  {editingTaskId === task.id && task.status === 'done' ? (
+                    <HStack spacing={2}>
+                      <NumberInput
+                        size="sm"
+                        value={editingPoints}
+                        min={1}
+                        max={100}
+                        w="80px"
+                        onChange={(_, valueAsNumber) => setEditingPoints(valueAsNumber || 1)}
+                      >
+                        <NumberInputField />
+                      </NumberInput>
+                      <Button size="xs" colorScheme="green" onClick={() => savePoints(task.id)}>
+                        Save
+                      </Button>
+                      <Button size="xs" variant="ghost" onClick={cancelEditing}>
+                        Cancel
+                      </Button>
+                    </HStack>
+                  ) : (
+                    <>
+                      <Text fontWeight="bold">{task.points}</Text>
+                      <Text fontSize="xs" color="gray.500">
+                        {task.progress}% done
+                      </Text>
+                      {task.status === 'done' && onUpdatePoints && (
+                        <Button
+                          size="xs"
+                          variant="link"
+                          colorScheme="blue"
+                          mt={1}
+                          onClick={() => startEditing(task.id, task.points)}
+                        >
+                          Edit
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </Td>
+                <Td>
+                  <Badge colorScheme={statusColor(task.status)}>{task.status}</Badge>
+                </Td>
+                <Td>
+                  <HStack spacing={2}>
+                    <Avatar size="xs" name={task.assignee} />
+                    <Text fontSize="sm">{task.assignee}</Text>
+                  </HStack>
+                </Td>
+                <Td>{task.dueDate}</Td>
+                <Td textAlign="right">
+                  <Button
+                    size="sm"
+                    colorScheme={task.status === 'done' ? 'gray' : 'green'}
+                    variant="outline"
+                    rightIcon={<FiChevronRight />}
+                    onClick={() => onToggleStatus(task.id)}
+                  >
+                    {task.status === 'done' ? 'Reopen' : 'Mark Done'}
+                  </Button>
+                </Td>
+              </Tr>
+            ))
           )}
-        </HStack>
-        {helpText && (
-          <Text mt={1} fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')}>
-            {helpText}
-          </Text>
-        )}
-      </Box>
-    </HStack>
-  </MotionBox>
-);
-
-// Task Card Component
-const TaskCard = ({ task, onClick }) => {
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'done': return 'green';
-      case 'ongoing': return 'blue';
-      case 'pending': return 'yellow';
-      default: return 'gray';
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High': return 'red';
-      case 'Medium': return 'orange';
-      case 'Low': return 'green';
-      default: return 'gray';
-    }
-  };
-
-  return (
-    <MotionBox
-      bg={useColorModeValue('white', 'gray.800')}
-      borderRadius="xl"
-      boxShadow="0 4px 6px rgba(0, 0, 0, 0.05)"
-      p={5}
-      cursor="pointer"
-      whileHover={{ y: -3, boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-      transition={{ duration: 0.2 }}
-      onClick={onClick}
-      borderWidth="1px"
-      borderColor={useColorModeValue('gray.100', 'gray.700')}
-    >
-      <HStack justify="space-between" mb={3}>
-        <Badge colorScheme={getStatusColor(task.status)} fontSize="xs">
-          {task.status}
-        </Badge>
-        <Badge colorScheme={getPriorityColor(task.priority)} variant="subtle" fontSize="xs">
-          {task.priority}
-        </Badge>
-      </HStack>
-      
-      <Text fontWeight="semibold" mb={2} noOfLines={1}>
-        {task.title}
-      </Text>
-      
-      <HStack spacing={2} mb={3}>
-        <Icon as={FiCalendar} color={useColorModeValue('gray.500', 'gray.400')} boxSize={4} />
-        <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
-          {new Date(task.updatedAt).toLocaleDateString()}
-        </Text>
-      </HStack>
-      
-      <HStack justify="space-between">
-        <HStack spacing={2}>
-          <Avatar size="xs" name={task.assignee} src="" />
-          <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.300')}>
-            {task.assignee}
-          </Text>
-        </HStack>
-        <Icon as={FiExternalLink} color={useColorModeValue('gray.500', 'gray.400')} boxSize={4} />
-      </HStack>
-    </MotionBox>
+        </Tbody>
+      </Table>
+    </TableContainer>
   );
 };
 
-// Project Distribution Chart
-const ProjectDistributionChart = ({ data }) => {
-  const COLORS = ['#4299E1', '#9F7AEA'];
-  
-  return (
-    <Box h="300px">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={60}
-            outerRadius={100}
-            paddingAngle={5}
-            dataKey="value"
-            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <RechartsTooltip 
-            contentStyle={{ 
-              backgroundColor: useColorModeValue('white', 'gray.800'),
-              borderColor: useColorModeValue('gray.200', 'gray.600'),
-              borderRadius: '8px'
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-    </Box>
-  );
-};
+const TaskModal = ({ isOpen, onClose, onSubmit }) => {
+  const [formState, setFormState] = useState({
+    type: 'internal',
+    target: INTERNAL_PROJECTS[0],
+    category: INTERNAL_SUBTASKS[0],
+    assignee: '',
+    points: 1,
+    status: 'pending',
+    dueDate: '',
+  });
 
-// Performance Chart
-const PerformanceChart = ({ data }) => {
+  useEffect(() => {
+    if (!isOpen) {
+      setFormState({
+        type: 'internal',
+        target: INTERNAL_PROJECTS[0],
+        category: INTERNAL_SUBTASKS[0],
+        assignee: '',
+        points: 1,
+        status: 'pending',
+        dueDate: '',
+      });
+    }
+  }, [isOpen]);
+
+  const handleTypeChange = (value) => {
+    setFormState((prev) => ({
+      ...prev,
+      type: value,
+      target: value === 'internal' ? INTERNAL_PROJECTS[0] : EXTERNAL_DELIVERABLES[0],
+      category: value === 'internal' ? INTERNAL_SUBTASKS[0] : EXTERNAL_SUBTASKS[0],
+    }));
+  };
+
+  const handleSubmit = () => {
+    if (!formState.assignee.trim() || !formState.dueDate) {
+      return;
+    }
+
+    const derivedTitle = `${formState.target} • ${formState.category}`;
+    const newTask = {
+      id: `task-${Date.now()}`,
+      ...formState,
+      progress: STATUS_PROGRESS[formState.status] || 30,
+      points: Number(formState.points) || 1,
+      title: derivedTitle,
+    };
+
+    onSubmit(newTask);
+    onClose();
+  };
+
+  const currentTargets = formState.type === 'internal' ? INTERNAL_PROJECTS : EXTERNAL_DELIVERABLES;
+  const categoryOptions = formState.type === 'internal' ? INTERNAL_SUBTASKS : EXTERNAL_SUBTASKS;
+
   return (
-    <Box h="300px">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke={useColorModeValue('gray.200', 'gray.600')} />
-          <XAxis 
-            dataKey="name" 
-            stroke={useColorModeValue('gray.500', 'gray.400')} 
-            tick={{ fontSize: 12 }}
-          />
-          <YAxis 
-            stroke={useColorModeValue('gray.500', 'gray.400')} 
-            tick={{ fontSize: 12 }}
-          />
-          <RechartsTooltip 
-            contentStyle={{ 
-              backgroundColor: useColorModeValue('white', 'gray.800'),
-              borderColor: useColorModeValue('gray.200', 'gray.600'),
-              borderRadius: '8px'
-            }}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="completed" 
-            stroke="#48BB78" 
-            strokeWidth={2}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="inProgress" 
-            stroke="#4299E1" 
-            strokeWidth={2}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </Box>
+    <Modal isOpen={isOpen} onClose={onClose} size="xl">
+      <ModalOverlay />
+      <ModalContent borderRadius="2xl" bg={useColorModeValue('white', 'gray.800')}>
+        <ModalHeader>
+          <Heading size="lg">Add New Task</Heading>
+          <Text fontSize="sm" color="gray.500">
+            Capture the task focus, responsible owner, and delivery expectations.
+          </Text>
+        </ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          <Stack spacing={4}>
+            <FormControl>
+              <FormLabel>Task Type</FormLabel>
+              <Select value={formState.type} onChange={(e) => handleTypeChange(e.target.value)}>
+                <option value="internal">Internal</option>
+                <option value="external">External</option>
+              </Select>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>{formState.type === 'internal' ? 'Project' : 'Deliverable'}</FormLabel>
+              <Select
+                value={formState.target}
+                onChange={(e) => setFormState((prev) => ({ ...prev, target: e.target.value }))}
+              >
+                {currentTargets.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Sub-task Category</FormLabel>
+              <Select
+                value={formState.category}
+                onChange={(e) => setFormState((prev) => ({ ...prev, category: e.target.value }))}
+              >
+                {categoryOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Assignee</FormLabel>
+              <Input
+                value={formState.assignee}
+                onChange={(e) => setFormState((prev) => ({ ...prev, assignee: e.target.value }))}
+                placeholder="Who will complete this?"
+              />
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Points (default 1)</FormLabel>
+              <NumberInput
+                value={formState.points}
+                min={1}
+                max={20}
+                onChange={(_, valueAsNumber) =>
+                  setFormState((prev) => ({ ...prev, points: valueAsNumber || 1 }))
+                }
+              >
+                <NumberInputField />
+              </NumberInput>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Status</FormLabel>
+              <Select
+                value={formState.status}
+                onChange={(e) => setFormState((prev) => ({ ...prev, status: e.target.value }))}
+              >
+                <option value="pending">Pending</option>
+                <option value="ongoing">Ongoing</option>
+                <option value="done">Done</option>
+              </Select>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Due Date</FormLabel>
+              <Input
+                type="date"
+                value={formState.dueDate}
+                onChange={(e) => setFormState((prev) => ({ ...prev, dueDate: e.target.value }))}
+              />
+            </FormControl>
+
+          </Stack>
+        </ModalBody>
+
+        <ModalFooter>
+          <Button variant="ghost" mr={3} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button colorScheme="blue" onClick={handleSubmit} leftIcon={<FiPlus />}>
+            Save Task
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   );
 };
 
 const ITLayout = () => {
+  const { colorMode, toggleColorMode } = useColorMode();
   const navigate = useNavigate();
-  const [active, setActive] = useState('dashboard');
-  const [query, setQuery] = useState('');
-  const [stats, setStats] = useState({ 
-    total: 0, 
-    internal: 0, 
-    external: 0, 
-    completed: 0,
-    inProgress: 0,
-    pending: 0,
-    highPriority: 0
+  const clearUser = useUserStore((state) => state.clearUser);
+  const [activeView, setActiveView] = useState('dashboard');
+  const [tasks, setTasks] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.localStorage.getItem(TASK_STORAGE_KEY);
+        if (stored) {
+          return JSON.parse(stored);
+        }
+      } catch (err) {
+        console.warn('Failed to parse stored IT tasks', err);
+      }
+    }
+    return INITIAL_TASKS;
   });
-  const [recentTasks, setRecentTasks] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [performanceData, setPerformanceData] = useState([]);
-  const [distributionData, setDistributionData] = useState([]);
-  
-  const bg = useColorModeValue('gray.50', 'gray.900');
+  const [filters, setFilters] = useState({
+    type: 'all',
+    category: 'all',
+    progress: 'all',
+    query: '',
+  });
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [weeklyTarget, setWeeklyTarget] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem(TARGET_STORAGE_KEY);
+      if (stored) {
+        const parsed = Number(stored);
+        if (!Number.isNaN(parsed)) {
+          return parsed;
+        }
+      }
+    }
+    return WEEKLY_TARGET_POINTS;
+  });
+
   const cardBg = useColorModeValue('white', 'gray.800');
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const pageBg = useColorModeValue('gray.50', 'gray.900');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+
+  const handleAddTask = (payload) => {
+    setTasks((prev) => [payload, ...prev]);
+  };
 
   useEffect(() => {
-  const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        // Fetch real data from the backend instead of using mock data
-        // For now, we'll initialize with empty data
-        setRecentTasks([]);
-        setStats({
-          total: 0,
-          internal: 0,
-          external: 0,
-          completed: 0,
-          inProgress: 0,
-          pending: 0,
-          highPriority: 0
-        });
-        
-        // Initialize charts with empty data
-        setPerformanceData([]);
-        setDistributionData([]);
-      } catch (err) {
-        console.warn('Failed to fetch IT data', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, []);
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(tasks));
+    } catch (err) {
+      console.warn('Unable to persist IT tasks', err);
+    }
+  }, [tasks]);
 
-  const DashboardSection = () => (
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(TARGET_STORAGE_KEY, String(weeklyTarget));
+    } catch (err) {
+      console.warn('Unable to persist weekly target', err);
+    }
+  }, [weeklyTarget]);
+
+  const handleToggleStatus = (taskId) => {
+    setTasks((prev) =>
+      prev.map((task) => {
+        if (task.id !== taskId) return task;
+        const isDone = task.status === 'done';
+        const nextStatus = isDone ? 'ongoing' : 'done';
+        return {
+          ...task,
+          status: nextStatus,
+          progress: STATUS_PROGRESS[nextStatus],
+          points: isDone ? task.points : Math.max(task.points, 1),
+        };
+      })
+    );
+  };
+
+  const handleUpdatePoints = (taskId, newPoints) => {
+    setTasks((prev) =>
+      prev.map((task) => {
+        if (task.id !== taskId) return task;
+        return {
+          ...task,
+          points: newPoints,
+        };
+      })
+    );
+  };
+
+  const handleLogout = () => {
+    clearUser();
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userStatus');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('infoStatus');
+    localStorage.removeItem('userId');
+    navigate('/login');
+  };
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesType = filters.type === 'all' || task.type === filters.type;
+      const matchesCategory = filters.category === 'all' || task.category === filters.category;
+      const matchesProgress =
+        filters.progress === 'all' ||
+        (filters.progress === 'low' && task.progress < 50) ||
+        (filters.progress === 'mid' && task.progress >= 50 && task.progress < 100) ||
+        (filters.progress === 'complete' && task.progress === 100);
+      const query = filters.query.trim().toLowerCase();
+      const matchesQuery =
+        query === '' ||
+        task.title.toLowerCase().includes(query) ||
+        task.target.toLowerCase().includes(query) ||
+        task.assignee.toLowerCase().includes(query);
+      return matchesType && matchesCategory && matchesProgress && matchesQuery;
+    });
+  }, [filters, tasks]);
+
+  const doneTasks = tasks.filter((task) => task.status === 'done');
+  const internalPoints = doneTasks
+    .filter((task) => task.type === 'internal')
+    .reduce((sum, task) => sum + task.points, 0);
+  const externalPoints = doneTasks
+    .filter((task) => task.type === 'external')
+    .reduce((sum, task) => sum + task.points, 0);
+  const totalPoints = internalPoints + externalPoints;
+  const safeTarget = Math.max(weeklyTarget, 1);
+  const progressPercent = Math.min((totalPoints / safeTarget) * 100, 100);
+  const targetAchieved = totalPoints >= weeklyTarget;
+  const remainingGap = Math.max(weeklyTarget - totalPoints, 0);
+
+  const summaryCards = [
+    {
+      label: 'Active Tasks',
+      value: tasks.length,
+      helper: `${doneTasks.length} completed`,
+      icon: FiList,
+    },
+    {
+      label: 'Weekly Points',
+      value: `${totalPoints}/${weeklyTarget}`,
+      helper: targetAchieved ? 'Target achieved' : `${remainingGap} points to go`,
+      icon: FiTarget,
+    },
+    {
+      label: 'Internal Focus',
+      value: internalPoints,
+      helper: 'Internal contributions',
+      icon: FiLayers,
+    },
+    {
+      label: 'External Focus',
+      value: externalPoints,
+      helper: 'External deliveries',
+      icon: FiPieChart,
+    },
+  ];
+
+  const internalTasks = tasks.filter((task) => task.type === 'internal');
+  const externalTasks = tasks.filter((task) => task.type === 'external');
+
+  // Dynamic staff pool: Start with default names, then add any unique assignees from tasks
+  const defaultStaffPool = ['Selam Desta', 'Amanuel Bekele', 'Martha Tadesse', 'Lemlem Gashaw', 'Kebede Dagnachew'];
+  const staffPool = useMemo(() => {
+    // Extract unique assignee names from all tasks
+    const assigneesFromTasks = [...new Set(tasks.map((task) => task.assignee).filter(Boolean))];
+    // Combine default pool with assignees from tasks, remove duplicates, and sort
+    const combinedPool = [...new Set([...defaultStaffPool, ...assigneesFromTasks])].sort();
+    return combinedPool;
+  }, [tasks]);
+
+  const staffPerformance = useMemo(() => {
+    const stats = staffPool.map((name) => {
+      const assigned = tasks.filter((task) => task.assignee === name);
+      const completed = assigned.filter((task) => task.status === 'done');
+      const internal = completed
+        .filter((task) => task.type === 'internal')
+        .reduce((sum, t) => sum + t.points, 0);
+      const external = completed
+        .filter((task) => task.type === 'external')
+        .reduce((sum, t) => sum + t.points, 0);
+      const points = internal + external;
+      const performanceScore = Math.min(Math.round((points / WEEKLY_TARGET_POINTS) * 100), 120);
+      const contribution =
+        internal + external === 0
+          ? '0% / 0%'
+          : `${Math.round((internal / Math.max(points, 1)) * 100)}% / ${Math.round(
+              (external / Math.max(points, 1)) * 100
+            )}%`;
+      return {
+        name,
+        assigned: assigned.length,
+        completed: completed.length,
+        internal,
+        external,
+        points,
+        performanceScore,
+        contribution,
+      };
+    });
+    return stats
+      .sort((a, b) => b.points - a.points)
+      .map((stat, index) => ({ ...stat, rank: index + 1 }));
+  }, [tasks, staffPool]);
+
+  const categoryBreakdown = useMemo(() => {
+    const tally = {};
+    tasks.forEach((task) => {
+      const key = `${task.category} (${task.type === 'internal' ? 'Internal' : 'External'})`;
+      tally[key] = (tally[key] || 0) + task.points;
+    });
+    return Object.entries(tally).map(([name, points]) => ({ name, points }));
+  }, [tasks]);
+
+  const weeklySeries = [
+    { label: 'Mon', points: 4 },
+    { label: 'Tue', points: 6 },
+    { label: 'Wed', points: 5 },
+    { label: 'Thu', points: 7 },
+    { label: 'Fri', points: 8 },
+    { label: 'Sat', points: 3 },
+    { label: 'Sun', points: totalPoints - 33 > 0 ? totalPoints - 33 : 6 },
+  ];
+
+  const pieSeries = [
+    { name: 'Internal', value: internalPoints },
+    { name: 'External', value: externalPoints },
+  ];
+
+  const chartColors = ['#3182ce', '#805ad5', '#48bb78', '#ed8936', '#9f7aea'];
+
+  const renderDashboard = () => (
     <VStack spacing={8} align="stretch">
-      {/* Stats Overview */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={6}>
-        <StatCard 
-          label="Total Tasks" 
-          value={stats.total}
-          icon={FiInbox}
-          colorScheme="blue"
-          helpText={`${stats.completed} completed`}
-          trend={stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) - 50 : 0}
-        />
-        <StatCard 
-          label="In Progress" 
-          value={stats.inProgress}
-          icon={FiClock}
-          colorScheme="yellow"
-          helpText={`${stats.pending} pending`}
-          trend={stats.inProgress > 0 ? Math.round((stats.inProgress / (stats.inProgress + stats.pending)) * 100) - 50 : 0}
-        />
-        <StatCard 
-          label="High Priority" 
-          value={stats.highPriority}
-          icon={FiAlertTriangle}
-          colorScheme="red"
-          helpText="Needs attention"
-          trend={stats.highPriority > 0 ? Math.round((stats.highPriority / stats.total) * 100) : 0}
-        />
-        <StatCard 
-          label="Completed" 
-          value={stats.completed}
-          icon={FiCheckCircle}
-          colorScheme="green"
-          helpText={`${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}% success rate`}
-          trend={stats.completed > 0 ? Math.round((stats.completed / stats.total) * 100) - 50 : 0}
-        />
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap={4}>
+        {summaryCards.map((card) => {
+          const IconComponent = card.icon;
+          return (
+            <Card key={card.label} borderRadius="2xl" boxShadow="md" bg={cardBg}>
+              <CardBody>
+                <HStack justify="space-between">
+                  <VStack align="start">
+                    <Text fontSize="sm" color="gray.500">
+                      {card.label}
+                    </Text>
+                    <Heading size="md">{card.value}</Heading>
+                    <Text fontSize="xs" color="gray.500">
+                      {card.helper}
+                    </Text>
+                  </VStack>
+                  <IconButton
+                    aria-label={card.label}
+                    icon={<IconComponent />}
+                    variant="ghost"
+                    size="md"
+                    isRound
+                    color="blue.500"
+                  />
+                </HStack>
+              </CardBody>
+            </Card>
+          );
+        })}
       </SimpleGrid>
 
-      <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-        {/* Performance Chart */}
-        <Card bg={cardBg} borderRadius="2xl" boxShadow="sm" borderWidth="1px">
-          <CardHeader pb={2}>
-            <HStack justify="space-between">
-              <Box>
-                <Heading size="md" color={useColorModeValue('gray.800', 'white')}>
-                  Performance Overview
-                </Heading>
-                <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
-                  Tasks completed vs in progress
-                </Text>
-              </Box>
-              <Button size="sm" variant="outline" leftIcon={<FiBarChart2 />}>
-                View Details
-              </Button>
-            </HStack>
-          </CardHeader>
-          <CardBody pt={2}>
-            <PerformanceChart data={performanceData} />
-          </CardBody>
-        </Card>
-
-        {/* Project Distribution */}
-        <Card bg={cardBg} borderRadius="2xl" boxShadow="sm" borderWidth="1px">
-          <CardHeader pb={2}>
-            <HStack justify="space-between">
-              <Box>
-                <Heading size="md" color={useColorModeValue('gray.800', 'white')}>
-                  Project Distribution
-                </Heading>
-                <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
-                  Internal vs External
-                </Text>
-              </Box>
-              <IconButton 
-                icon={<FiMoreVertical />} 
-                aria-label="More options"
-                variant="ghost"
-                size="sm"
-              />
-            </HStack>
-          </CardHeader>
-          <CardBody pt={2}>
-            <ProjectDistributionChart data={distributionData} />
-          </CardBody>
-        </Card>
-      </SimpleGrid>
-
-      {/* Recent Activity */}
-      <Card bg={cardBg} borderRadius="2xl" boxShadow="sm" borderWidth="1px">
-        <CardHeader pb={4}>
-          <HStack justify="space-between">
+      <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+        <CardBody>
+          <Flex direction={{ base: 'column', md: 'row' }} align="center" justify="space-between" gap={4}>
             <Box>
-              <Heading size="md" color={useColorModeValue('gray.800', 'white')}>
-                Recent Activity
+              <Text fontSize="sm" color="gray.500">
+                Weekly target ({weeklyTarget} points)
+              </Text>
+              <Heading size="lg">
+                {totalPoints}/{weeklyTarget} points
               </Heading>
-              <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')}>
-                Latest updates and tasks
+              <Text fontSize="sm" color={targetAchieved ? 'green.400' : 'orange.400'}>
+                Target achieved: {targetAchieved ? 'Yes' : 'No'}
+              </Text>
+              <Text fontSize="xs" color="gray.500">
+                Remaining gap: {remainingGap}
+              </Text>
+              <HStack spacing={2} mt={2}>
+                <NumberInput
+                  size="sm"
+                  w="120px"
+                  min={5}
+                  max={200}
+                  value={weeklyTarget}
+                  onChange={(_, value) => setWeeklyTarget(value || 0)}
+                  clampValueOnBlur
+                  borderRadius="lg"
+                >
+                  <NumberInputField />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+                <Text fontSize="xs" color="gray.500">
+                  Adjust weekly goal
+                </Text>
+              </HStack>
+            </Box>
+            <Progress
+              value={progressPercent}
+              colorScheme={targetAchieved ? 'green' : 'orange'}
+              borderRadius="xl"
+              size="lg"
+              w={{ base: '100%', md: '40%' }}
+              hasStripe={!targetAchieved}
+            />
+          </Flex>
+        </CardBody>
+      </Card>
+
+      <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text color="gray.500" fontSize="sm">
+              Internal Achievements
+            </Text>
+            <Heading size="md">{internalTasks.length} tasks</Heading>
+            <Text fontSize="xs" color="gray.500">
+              {internalPoints} points captured
+            </Text>
+          </CardBody>
+        </Card>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text color="gray.500" fontSize="sm">
+              External Deliverables
+            </Text>
+            <Heading size="md">{externalTasks.length} tasks</Heading>
+            <Text fontSize="xs" color="gray.500">
+              {externalPoints} points captured
+            </Text>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
+
+      <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+        <CardHeader pb={2} px={6}>
+          <Flex direction={{ base: 'column', md: 'row' }} align="center" justify="space-between" gap={4}>
+            <Box>
+              <Heading size="md">Task System</Heading>
+              <Text fontSize="sm" color="gray.500">
+                Filter and manage open requests with auto-calculated scores.
               </Text>
             </Box>
-            <HStack>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                leftIcon={<FiFilter />}
-              >
-                Filter
-              </Button>
-              <Button 
-                size="sm" 
-                colorScheme="blue" 
-                leftIcon={<FiPlus />}
-                onClick={onOpen}
-              >
-                New Task
-              </Button>
-            </HStack>
-          </HStack>
-        </CardHeader>
-        <CardBody pt={2}>
-          {isLoading ? (
-            <VStack spacing={4}>
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} height="120px" borderRadius="xl" />
-              ))}
-            </VStack>
-          ) : recentTasks.length > 0 ? (
-            <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={6}>
-              {recentTasks.map((task) => (
-                <TaskCard 
-                  key={task.id} 
-                  task={task} 
-                  onClick={() => console.log('Task clicked:', task.id)}
+            <HStack spacing={2}>
+              <InputGroup>
+                <InputLeftElement pointerEvents="none" children={<FiSearch color="gray" />} />
+                <Input
+                  placeholder="Search tasks"
+                  value={filters.query}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, query: e.target.value }))}
+                  bg={useColorModeValue('gray.50', 'gray.700')}
+                  borderRadius="lg"
                 />
-              ))}
-            </SimpleGrid>
-          ) : (
-            <Box textAlign="center" py={12} color={useColorModeValue('gray.500', 'gray.400')}>
-              <Icon as={FiInbox} boxSize={12} mb={4} />
-              <Text fontSize="lg" fontWeight="medium" mb={2}>
-                No recent activities
-              </Text>
-              <Text>
-                There are no tasks to display at the moment.
-              </Text>
-            </Box>
-          )}
+              </InputGroup>
+              <Select
+                value={filters.type}
+                onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
+                variant="filled"
+                w="150px"
+                borderRadius="lg"
+              >
+                <option value="all">All Types</option>
+                <option value="internal">Internal</option>
+                <option value="external">External</option>
+              </Select>
+              <Select
+                value={filters.category}
+                onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))}
+                variant="filled"
+                w="180px"
+                borderRadius="lg"
+              >
+                <option value="all">All Categories</option>
+                {[...new Set([...INTERNAL_SUBTASKS, ...EXTERNAL_SUBTASKS])].map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={filters.progress}
+                onChange={(e) => setFilters((prev) => ({ ...prev, progress: e.target.value }))}
+                variant="filled"
+                w="170px"
+                borderRadius="lg"
+              >
+                <option value="all">All Progress</option>
+                <option value="low">&lt; 50% progress</option>
+                <option value="mid">50-99% progress</option>
+                <option value="complete">100% done</option>
+              </Select>
+            </HStack>
+          </Flex>
+        </CardHeader>
+        <CardBody px={6} pt={0}>
+          <TaskTable
+            tasks={filteredTasks}
+            onToggleStatus={handleToggleStatus}
+            onUpdatePoints={handleUpdatePoints}
+            emptyMessage="No tasks match the filters"
+          />
         </CardBody>
       </Card>
     </VStack>
   );
 
-  // Pre-render all components to maintain consistent hook order
-  const externalTable = <ExternalTable search={query} />;
-  const internalTable = <InternalTable search={query} />;
-  const addTaskForm = <AddTaskForm isOpen={isOpen} onClose={onClose} onDone={() => setActive('dashboard')} />;
-  const reports = <Reports />;
-  const dashboard = <DashboardSection />;
+  const renderInternal = () => (
+    <VStack spacing={6} align="stretch">
+      <Heading size="lg">Internal Tasks</Heading>
+      <TaskTable
+        tasks={internalTasks}
+        onToggleStatus={handleToggleStatus}
+        onUpdatePoints={handleUpdatePoints}
+        emptyMessage="No internal work yet."
+        isCompact
+      />
+    </VStack>
+  );
 
-  const renderContent = () => {
-    switch (active) {
-      case 'external': 
-        return externalTable;
-      case 'internal': 
-        return internalTable;
-      case 'reports': 
-        return reports;
-      default:
-        return dashboard;
-    }
-  };
+  const renderExternal = () => (
+    <VStack spacing={6} align="stretch">
+      <Heading size="lg">External Tasks</Heading>
+      <TaskTable
+        tasks={externalTasks}
+        onToggleStatus={handleToggleStatus}
+        onUpdatePoints={handleUpdatePoints}
+        emptyMessage="No external work yet."
+        isCompact
+      />
+    </VStack>
+  );
 
-  const handleLogout = () => {
-    localStorage.removeItem('userToken');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userStatus');
-    localStorage.removeItem('userName');
-    navigate('/login');
+  const renderPerformance = () => (
+    <VStack spacing={6} align="stretch">
+      <Flex align="center" justify="space-between" wrap="wrap" gap={4}>
+        <Heading size="lg">Individual Performance</Heading>
+        <Button leftIcon={<FiBarChart2 />} colorScheme="green" variant="outline">
+          Share Snapshot
+        </Button>
+      </Flex>
+
+      <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text fontSize="sm" color="gray.500">
+              Completion Trend
+            </Text>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={staffPerformance}>
+                <CartesianGrid strokeDasharray="3 3" stroke={useColorModeValue('#E2E8F0', '#2D3748')} />
+                <XAxis dataKey="name" stroke={useColorModeValue('#4A5568', '#A0AEC0')} />
+                <YAxis stroke={useColorModeValue('#4A5568', '#A0AEC0')} />
+                <RechartsTooltip
+                  contentStyle={{ borderRadius: 8, borderColor: borderColor }}
+                  cursor={{ strokeDasharray: '3 3' }}
+                />
+                <Line type="monotone" dataKey="completed" stroke="#48BB78" strokeWidth={3} />
+                <Line type="monotone" dataKey="assigned" stroke="#4299E1" strokeWidth={2} strokeDasharray="3 3" />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardBody>
+        </Card>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text fontSize="sm" color="gray.500">
+              Achievement Points by Staff
+            </Text>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={staffPerformance}>
+                <CartesianGrid strokeDasharray="3 3" stroke={useColorModeValue('#E2E8F0', '#2D3748')} />
+                <XAxis dataKey="name" stroke={useColorModeValue('#4A5568', '#A0AEC0')} />
+                <YAxis stroke={useColorModeValue('#4A5568', '#A0AEC0')} />
+                <RechartsTooltip
+                  contentStyle={{ borderRadius: 8, borderColor: borderColor }}
+                />
+                <Bar dataKey="points" fill="#805ad5" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
+
+      <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+        <CardHeader>
+          <Heading size="md">Team Breakdown</Heading>
+          <Text fontSize="sm" color="gray.500">
+            Ranking, assignment health, and self-driven points.
+          </Text>
+        </CardHeader>
+        <CardBody>
+          <TableContainer>
+            <Table variant="simple" size="sm">
+              <Thead>
+                <Tr>
+                  <Th>Rank</Th>
+                  <Th>Name</Th>
+                  <Th>Assigned</Th>
+                  <Th>Completed</Th>
+                  <Th>Points</Th>
+                  <Th>Internal/External</Th>
+                  <Th>Score</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {staffPerformance.map((member) => (
+                  <Tr key={member.name}>
+                    <Td>{member.rank}</Td>
+                    <Td>{member.name}</Td>
+                    <Td>{member.assigned}</Td>
+                    <Td>{member.completed}</Td>
+                    <Td>{member.points}</Td>
+                    <Td>
+                      <Text fontSize="xs">{member.contribution}</Text>
+                    </Td>
+                    <Td>
+                      <Badge colorScheme={member.performanceScore >= 80 ? 'green' : 'yellow'}>
+                        {member.performanceScore}%
+                      </Badge>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </TableContainer>
+        </CardBody>
+      </Card>
+    </VStack>
+  );
+
+  const renderReports = () => (
+    <VStack spacing={6} align="stretch">
+      <Flex justify="space-between" align="center" wrap="wrap" gap={4}>
+        <VStack align="start" spacing={1}>
+          <Heading size="lg">Weekly IT Report</Heading>
+          <Text color="gray.500">
+            Snapshot ready for management review with completion detail and charts.
+          </Text>
+        </VStack>
+        <Button leftIcon={<FiFileText />} colorScheme="blue" variant="outline">
+          Export Report
+        </Button>
+      </Flex>
+
+      <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text fontSize="sm" color="gray.500">
+              Completed Tasks
+            </Text>
+            <Heading size="md">{doneTasks.length}</Heading>
+            <Text fontSize="xs" color="gray.500">
+              Internal: {internalPoints} pts, External: {externalPoints} pts
+            </Text>
+          </CardBody>
+        </Card>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text fontSize="sm" color="gray.500">
+              Weekly Target Status
+            </Text>
+            <Heading size="md">{targetAchieved ? 'Yes' : 'No'}</Heading>
+            <Text fontSize="xs" color="gray.500">
+              {targetAchieved ? 'Target met' : `${remainingGap} points short`}
+            </Text>
+          </CardBody>
+        </Card>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text fontSize="sm" color="gray.500">
+              Performance Gap
+            </Text>
+            <Heading size="md">{remainingGap}</Heading>
+            <Text fontSize="xs" color="gray.500">
+              Points still required to hit 40.
+            </Text>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
+
+      <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+        <CardHeader>
+          <Heading size="md">Completed Work</Heading>
+          <Text fontSize="sm" color="gray.500">
+            Internal & external tasks concluded during the week.
+          </Text>
+        </CardHeader>
+        <CardBody>
+          <TaskTable
+            tasks={doneTasks}
+            onToggleStatus={handleToggleStatus}
+            onUpdatePoints={handleUpdatePoints}
+            emptyMessage="No completed tasks yet."
+          />
+        </CardBody>
+      </Card>
+
+      <SimpleGrid columns={{ base: 1, lg: 3 }} gap={4}>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardHeader>
+            <Heading size="md">Sub-task Categories</Heading>
+          </CardHeader>
+          <CardBody>
+            {categoryBreakdown.slice(0, 5).map((item) => (
+              <Flex key={item.name} justify="space-between" py={2}>
+                <Text>{item.name}</Text>
+                <Text fontWeight="semibold">{item.points}</Text>
+              </Flex>
+            ))}
+            {categoryBreakdown.length === 0 && <Text color="gray.500">No breakdown yet.</Text>}
+          </CardBody>
+        </Card>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text fontSize="sm" color="gray.500">
+              Internal vs External Points
+            </Text>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={pieSeries} dataKey="value" innerRadius={60} outerRadius={90} label>
+                  {pieSeries.map((entry, index) => (
+                    <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                  ))}
+                </Pie>
+                <RechartsTooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardBody>
+        </Card>
+        <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+          <CardBody>
+            <Text fontSize="sm" color="gray.500">
+              Weekly Progress Line
+            </Text>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={weeklySeries}>
+                <CartesianGrid strokeDasharray="3 3" stroke={useColorModeValue('#E2E8F0', '#2D3748')} />
+                <XAxis dataKey="label" stroke={useColorModeValue('#4A5568', '#A0AEC0')} />
+                <YAxis stroke={useColorModeValue('#4A5568', '#A0AEC0')} />
+                <RechartsTooltip />
+                <Line type="monotone" dataKey="points" stroke="#38b2ac" strokeWidth={3} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
+
+      <Card borderRadius="2xl" boxShadow="md" bg={cardBg}>
+        <CardHeader>
+          <Heading size="md">Individual Breakdown</Heading>
+        </CardHeader>
+        <CardBody>
+          <TableContainer>
+            <Table variant="simple" size="sm">
+              <Thead>
+                <Tr>
+                  <Th>Name</Th>
+                  <Th>Completed</Th>
+                  <Th>Points</Th>
+                  <Th>Internal</Th>
+                  <Th>External</Th>
+                  <Th>Score</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {staffPerformance.map((member) => (
+                  <Tr key={`report-${member.name}`}>
+                    <Td>{member.name}</Td>
+                    <Td>{member.completed}</Td>
+                    <Td>{member.points}</Td>
+                    <Td>{member.internal}</Td>
+                    <Td>{member.external}</Td>
+                    <Td>
+                      <Badge colorScheme="green">{member.performanceScore}%</Badge>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </TableContainer>
+        </CardBody>
+      </Card>
+    </VStack>
+  );
+
+  const contentMap = {
+    dashboard: renderDashboard(),
+    internal: renderInternal(),
+    external: renderExternal(),
+    performance: renderPerformance(),
+    reports: renderReports(),
   };
 
   return (
-    <Flex minH="100vh" bg={bg}>
-      {/* Sidebar */}
-      <Box 
-        as="aside" 
-        width={{ base: '80px', lg: '280px' }} 
-        p={{ base: 3, lg: 6 }}
-        borderRight="1px solid" 
-        borderColor={useColorModeValue('gray.100', 'gray.700')}
+    <Flex minH="100vh" bg={pageBg}>
+      <Box
+        as="aside"
+        w={{ base: '80px', lg: '260px' }}
         bg={useColorModeValue('white', 'gray.800')}
-        position="relative"
-        zIndex="docked"
+        borderRight="1px solid"
+        borderColor={borderColor}
+        p={{ base: 3, lg: 6 }}
       >
-        <VStack align="stretch" spacing={8} h="full">
-          {/* Logo/Brand */}
-          <Box px={{ base: 0, lg: 2 }} py={4} textAlign={{ base: 'center', lg: 'left' }}>
-            <Text 
-              fontWeight="bold" 
-              fontSize={{ base: 'lg', lg: '2xl' }} 
-              display={{ base: 'none', lg: 'block' }}
-              bgGradient="linear(to-r, blue.500, purple.500)"
-              bgClip="text"
-            >
-              IT Dashboard
-            </Text>
-            <Text 
-              fontWeight="bold" 
-              fontSize="lg" 
-              display={{ base: 'block', lg: 'none' }}
-              bgGradient="linear(to-r, blue.500, purple.500)"
-              bgClip="text"
-            >
-              IT
+        <VStack spacing={6} align="stretch" h="full">
+          <Box textAlign="center">
+            <Heading size="md" color="blue.500">
+              IT Ops
+            </Heading>
+            <Text fontSize="xs" color="gray.500">
+              Dashboard
             </Text>
           </Box>
-
-          {/* Navigation */}
-          <VStack spacing={2} align={{ base: 'center', lg: 'stretch' }} px={{ lg: 2 }} flex="1">
-            <Tooltip label="Dashboard" placement="right" hasArrow>
-              <Button
-                leftIcon={<FiHome />}
-                justifyContent={{ base: 'center', lg: 'flex-start' }}
-                variant={active === 'dashboard' ? 'solid' : 'ghost'}
-                colorScheme={active === 'dashboard' ? 'blue' : 'gray'}
-                onClick={() => setActive('dashboard')}
-                w="full"
-                size={{ base: 'md', lg: 'lg' }}
-                borderRadius="lg"
-              >
-                <Text display={{ base: 'none', lg: 'block' }}>Dashboard</Text>
-              </Button>
-            </Tooltip>
-            
-            <Box w="full">
-              <Text 
-                display={{ base: 'none', lg: 'block' }} 
-                px={4} 
-                py={2} 
-                color="gray.500" 
-                fontSize="sm" 
-                fontWeight="medium"
-              >
-                PROJECTS
-              </Text>
-            </Box>
-            
-            <Tooltip label="External Tasks" placement="right" hasArrow>
-              <Button
-                leftIcon={<FiList />}
-                justifyContent={{ base: 'center', lg: 'flex-start' }}
-                variant={active === 'external' ? 'solid' : 'ghost'}
-                colorScheme={active === 'external' ? 'purple' : 'gray'}
-                onClick={() => setActive('external')}
-                w="full"
-                size={{ base: 'md', lg: 'lg' }}
-                borderRadius="lg"
-              >
-                <Text display={{ base: 'none', lg: 'block' }}>External Tasks</Text>
-              </Button>
-            </Tooltip>
-            
-            <Tooltip label="Internal Tasks" placement="right" hasArrow>
-              <Button
-                leftIcon={<FiList />}
-                justifyContent={{ base: 'center', lg: 'flex-start' }}
-                variant={active === 'internal' ? 'solid' : 'ghost'}
-                colorScheme={active === 'internal' ? 'blue' : 'gray'}
-                onClick={() => setActive('internal')}
-                w="full"
-                size={{ base: 'md', lg: 'lg' }}
-                borderRadius="lg"
-              >
-                <Text display={{ base: 'none', lg: 'block' }}>Internal Tasks</Text>
-              </Button>
-            </Tooltip>
-            
-            <Tooltip label="Reports" placement="right" hasArrow>
-              <Button
-                leftIcon={<FiFileText />}
-                justifyContent={{ base: 'center', lg: 'flex-start' }}
-                variant={active === 'reports' ? 'solid' : 'ghost'}
-                colorScheme={active === 'reports' ? 'green' : 'gray'}
-                onClick={() => setActive('reports')}
-                w="full"
-                size={{ base: 'md', lg: 'lg' }}
-                borderRadius="lg"
-              >
-                <Text display={{ base: 'none', lg: 'block' }}>Reports</Text>
-              </Button>
-            </Tooltip>
+          <VStack spacing={2} align="stretch">
+            <SidebarButton
+              label="Overview"
+              icon={FiHome}
+              isActive={activeView === 'dashboard'}
+              onClick={() => setActiveView('dashboard')}
+            />
+            <SidebarButton
+              label="Internal Tasks"
+              icon={FiLayers}
+              isActive={activeView === 'internal'}
+              onClick={() => setActiveView('internal')}
+            />
+            <SidebarButton
+              label="External Tasks"
+              icon={FiList}
+              isActive={activeView === 'external'}
+              onClick={() => setActiveView('external')}
+            />
+            <SidebarButton
+              label="Performance"
+              icon={FiBarChart2}
+              isActive={activeView === 'performance'}
+              onClick={() => setActiveView('performance')}
+            />
+            <SidebarButton
+              label="Reports"
+              icon={FiFileText}
+              isActive={activeView === 'reports'}
+              onClick={() => setActiveView('reports')}
+            />
           </VStack>
-
-          {/* User Profile */}
-          <Box>
-            <Divider mb={4} display={{ base: 'none', lg: 'block' }} />
-            <Menu>
-              <MenuButton
-                as={Button}
-                variant="ghost"
-                w="full"
-                py={4}
-                borderRadius="xl"
-                _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
-              >
-                <HStack justify="space-between">
-                  <HStack spacing={3}>
-                    <Avatar size="sm" name="User Name" src="" />
-                    <Box display={{ base: 'none', lg: 'block' }} textAlign="left">
-                      <Text fontWeight="medium" fontSize="sm">Admin User</Text>
-                      <Text fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')}>
-                        IT Administrator
-                      </Text>
-                    </Box>
-                  </HStack>
-                  <Icon 
-                    as={FiChevronDown} 
-                    display={{ base: 'none', lg: 'block' }} 
-                    color={useColorModeValue('gray.500', 'gray.400')} 
-                  />
-                </HStack>
-              </MenuButton>
-              <MenuList>
-                <MenuItem icon={<FiUser />}>Profile</MenuItem>
-                <MenuItem icon={<FiSettings />}>Settings</MenuItem>
-                <MenuItem icon={<FiActivity />}>Activity Log</MenuItem>
-                <MenuDivider />
-                <MenuItem onClick={handleLogout}>Sign Out</MenuItem>
-              </MenuList>
-            </Menu>
-          </Box>
+          <Divider />
+          <VStack>
+            <Button
+              leftIcon={<FiPlusCircle />}
+              colorScheme="blue"
+              w="full"
+              borderRadius="xl"
+              onClick={() => setModalOpen(true)}
+            >
+              Add Task
+            </Button>
+            <IconButton
+              aria-label="Toggle color mode"
+              icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
+              onClick={toggleColorMode}
+              borderRadius="xl"
+              w="full"
+            />
+            <Button
+              leftIcon={<FiLogOut />}
+              colorScheme="red"
+              variant="outline"
+              w="full"
+              borderRadius="xl"
+              onClick={handleLogout}
+            >
+              Logout
+            </Button>
+          </VStack>
         </VStack>
       </Box>
 
-      {/* Main Content */}
-      <Box as="main" flex="1" overflowY="auto" p={{ base: 4, lg: 8 }}>
-        <Container maxW="container.xl" px={{ base: 0, lg: 4 }}>
-          {/* Header */}
-          <Box 
-            bg={cardBg}
-            p={{ base: 4, lg: 6 }}
-            borderRadius="2xl"
-            boxShadow="0 4px 6px rgba(0, 0, 0, 0.05)"
-            mb={8}
-            position="sticky"
-            top={0}
-            zIndex="sticky"
-            borderBottom="1px solid"
-            borderColor={useColorModeValue('gray.100', 'gray.700')}
-          >
-            <Flex direction={{ base: 'column', lg: 'row' }} justify="space-between" align={{ base: 'stretch', lg: 'center' }} gap={4}>
-              <Box>
-                <Heading size="lg" mb={1} color={useColorModeValue('gray.800', 'white')}>
-                  IT Operations Dashboard
-                </Heading>
-                <Text color={useColorModeValue('gray.600', 'gray.300')} fontSize="sm">
-                  Manage and monitor all IT projects and tasks
-                </Text>
-              </Box>
-
-              <HStack spacing={4} w={{ base: 'full', lg: 'auto' }}>
-                <InputGroup maxW={{ base: '100%', lg: '300px' }}>
-                  <InputLeftElement pointerEvents="none" color="gray.400">
-                    <FiSearch />
-                  </InputLeftElement>
-                  <Input 
-                    placeholder="Search tasks, projects..." 
-                    value={query} 
-                    onChange={(e) => setQuery(e.target.value)} 
-                    bg={useColorModeValue('white', 'gray.700')}
-                    borderColor={useColorModeValue('gray.200', 'gray.600')}
-                    _hover={{ borderColor: useColorModeValue('gray.300', 'gray.500') }}
-                    _focus={{
-                      borderColor: 'blue.500',
-                      boxShadow: '0 0 0 1px var(--chakra-colors-blue-500)',
-                    }}
-                    borderRadius="lg"
-                    transition="all 0.2s"
-                  />
-                </InputGroup>
-                
-                <IconButton 
-                  icon={<FiBell />} 
-                  aria-label="Notifications"
-                  variant="ghost"
-                  borderRadius="full"
-                  position="relative"
-                >
-                  <Box 
-                    position="absolute" 
-                    top="0" 
-                    right="0" 
-                    w={2} 
-                    h={2} 
-                    bg="red.500" 
-                    borderRadius="full" 
-                  />
-                </IconButton>
-              </HStack>
-            </Flex>
-          </Box>
-
-          {/* Main Content */}
-          <Box>
-            {isLoading ? (
-              <Box textAlign="center" py={20}>
-                <SkeletonText mt="4" noOfLines={4} spacing="4" skeletonHeight="2" />
-              </Box>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                {renderContent()}
-              </motion.div>
-            )}
-          </Box>
-        </Container>
-        {addTaskForm}
+      <Box flex="1" p={{ base: 4, lg: 8 }}>
+        <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
+          <Heading size="xl">IT Department Dashboard</Heading>
+          <Button colorScheme="blue" leftIcon={<FiPlus />} onClick={() => setModalOpen(true)}>
+            New Task
+          </Button>
+        </Flex>
+        <Box
+          bg={cardBg}
+          borderRadius="2xl"
+          p={{ base: 4, md: 6 }}
+          border="1px solid"
+          borderColor={borderColor}
+          boxShadow="sm"
+        >
+          {contentMap[activeView]}
+        </Box>
       </Box>
+
+      <TaskModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask} />
     </Flex>
   );
 };

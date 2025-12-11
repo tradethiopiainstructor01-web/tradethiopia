@@ -8,9 +8,11 @@ const loadCurrentUser = () => {
     const infoStatus = localStorage.getItem("infoStatus");
     const username = localStorage.getItem("userName");
     const userId = localStorage.getItem("userId"); // Retrieve user ID
-    
+    const email = localStorage.getItem("userEmail");
 
-    return token ? { username, role, status, infoStatus, token, _id: userId } : null; // Include user ID
+    return token
+        ? { username, role, status, infoStatus, token, _id: userId, email }
+        : null;
 };
 
 
@@ -44,13 +46,18 @@ export const useUserStore = create((set) => ({
     setCurrentUser: (user) => {
         set({ currentUser: user });
         if (user) {
-            localStorage.setItem("userToken", user.token);
-            localStorage.setItem("userRole", user.role);
-            localStorage.setItem("userName", user.username);
-            localStorage.setItem("userStatus", user.status);
-            localStorage.setItem("infoStatus", user.infoStatus);
-            localStorage.setItem("userId", user._id); // Store user ID
+        localStorage.setItem("userToken", user.token);
+        localStorage.setItem("userRole", user.role);
+        localStorage.setItem("userName", user.username);
+        localStorage.setItem("userStatus", user.status);
+        localStorage.setItem("infoStatus", user.infoStatus);
+        localStorage.setItem("userId", user._id); // Store user ID
+        if (user.email) {
+            localStorage.setItem("userEmail", user.email);
         } else {
+            localStorage.removeItem("userEmail");
+        }
+    } else {
             localStorage.removeItem("userToken");
             localStorage.removeItem("userRole");
             localStorage.removeItem("userName");
@@ -69,6 +76,7 @@ export const useUserStore = create((set) => ({
         localStorage.removeItem("userStatus");
         localStorage.removeItem("infoStatus");
         localStorage.removeItem("userId"); // Remove user ID
+        localStorage.removeItem("userEmail");
     },
 
     deleteUser: async (uid) => {

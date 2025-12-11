@@ -21,10 +21,10 @@ const handleLogin = async () => {
         if (response.data.success) {
             // Extract user data and token correctly
             const { user, token } = response.data;
-            const { _id, role, status, infoStatus, username } = user;
+            const { _id, role, status, infoStatus, username, email } = user;
 
             // Save token and user information in local storage
-            setCurrentUser({ username, role, status, infoStatus, token, _id });
+            setCurrentUser({ username, role, status, infoStatus, token, _id, email });
 
             // Check user and info statuses
             if (status === 'inactive' && infoStatus === 'active') {
@@ -37,6 +37,7 @@ const handleLogin = async () => {
                 const normalizedRole = (role || '').toLowerCase();
                 // If both are active, redirect based on user role
                 switch (normalizedRole) {
+                   
                     case 'admin':
                     case 'hr':
                         navigate('/dashboard');
@@ -66,6 +67,9 @@ const handleLogin = async () => {
                         break;
                     case 'IT':
                         navigate('/it'); // Add IT role navigation
+                        break;
+                    case 'socialmediamanager':
+                        navigate('/social-media'); // Add social media role navigation
                         break;
                     default:
                         navigate('/ComingSoonPage'); // Optional: handle unknown roles
