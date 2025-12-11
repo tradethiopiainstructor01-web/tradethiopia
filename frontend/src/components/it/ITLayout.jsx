@@ -114,6 +114,7 @@ const EXTERNAL_SUBTASKS = ['New', 'Update', 'Comment', 'Renewal'];
 const WEEKLY_TARGET_POINTS = 40;
 const TASK_STORAGE_KEY = 'tradethiopia_it_tasks';
 const TARGET_STORAGE_KEY = 'tradethiopia_weekly_target';
+import ITMessagesPage from '../../pages/ITMessagesPage';
 
 const STATUS_PROGRESS = {
   pending: 25,
@@ -525,7 +526,7 @@ const TaskModal = ({ isOpen, onClose, onSubmit }) => {
   );
 };
 
-const ITLayout = () => {
+const ITLayout = ({ initialTab = 'dashboard' }) => {
   const { colorMode, toggleColorMode } = useColorMode();
   const navigate = useNavigate();
   const clearUser = useUserStore((state) => state.clearUser);
@@ -1305,6 +1306,21 @@ const ITLayout = () => {
             >
               Logout
             </Button>
+            
+            <Tooltip label="Notice Board" placement="right" hasArrow>
+              <Button
+                leftIcon={<FiMessageSquare />}
+                justifyContent={{ base: 'center', lg: 'flex-start' }}
+                variant={active === 'notice-board' ? 'solid' : 'ghost'}
+                colorScheme={active === 'notice-board' ? 'teal' : 'gray'}
+                onClick={() => setActive('notice-board')}
+                w="full"
+                size={{ base: 'md', lg: 'lg' }}
+                borderRadius="lg"
+              >
+                <Text display={{ base: 'none', lg: 'block' }}>Notice Board</Text>
+              </Button>
+            </Tooltip>
           </VStack>
         </VStack>
       </Box>

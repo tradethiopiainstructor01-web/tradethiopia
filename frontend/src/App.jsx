@@ -1,7 +1,5 @@
-import { Box, useColorModeValue } from "@chakra-ui/react";
 import { Route, Routes, useLocation } from "react-router-dom";
-import Sidebar from "./components/Sidebar";
-import NavbarPage from "./components/Navbar";
+import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import CreatePage from "./pages/CreatePage";
 import CreateQuiz from "./pages/CreateQuiz";
@@ -17,6 +15,7 @@ import FourthPage from "./pages/FourthPage";
 import FifthPage from "./pages/FifthPage.jsx";
 import QuizPage from "./pages/quizPage.jsx";
 import Sdashboard from "./pages/sales/Sdashboard.jsx";
+import FinanceLayout from "./pages/sales/FinanceLayout.jsx";
 import FinanceDashboardPage from "./pages/sales/FinanceDashboardPage.jsx";
 import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
 import InventoryPage from "./pages/sales/InventoryPage.jsx";
@@ -36,6 +35,7 @@ import CustomerFollowup from "./components/customer/CustomerFollowup.jsx";
 import AddCustomer from "./components/customer/AddCustomer";
 import CDashboard from "./components/customer/Cdashboard";
 import CustomerReport from "./components/customer/CustomerReport";
+import CustomerFollowupReport from "./components/customer/CustomerFollowupReport";
 import VideoList from './components/customer/VideoList';
 import UploadResource from './components/customer/UploadPage';
 import TrainingPage from "./components/customer/TrainingPage";
@@ -48,7 +48,27 @@ import CustomerSettings from "./components/customer/CustomerSettings";
 import COODashboard from './pages/COODashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
 import PricingPage from './pages/sales/PricingPage.jsx';
+import RevenuePage from './pages/sales/RevenuePage.jsx';
+import PurchasePage from './pages/sales/PurchasePage.jsx';
+import CostManagementPage from './pages/sales/CostManagementPage.jsx';
 import ITDashboard from "./pages/ITDashboard";
+import SalesManagerLayout from "./components/salesmanager/Layout";
+import SalesManagerDashboard from "./components/salesmanager/SalesManagerDashboard";
+import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerProtectedRoute";
+import AllSalesPage from "./components/salesmanager/AllSalesPage";
+import PerformancePage from "./components/salesmanager/PerformancePage";
+import TeamManagementPage from "./components/salesmanager/TeamManagementPage";
+import TaskManagementPage from "./components/salesmanager/TaskManagementPage";
+import ReportsPage from "./components/salesmanager/ReportsPage";
+import CalendarPage from "./components/salesmanager/CalendarPage";
+import SettingsPage from "./components/salesmanager/SettingsPage";
+import PayrollPage from "./components/Payroll/PayrollPage";
+import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
+import MessagesPage from "./pages/MessagesPage";
+import SalesMessagesPage from "./pages/SalesMessagesPage";
+import FinanceMessagesPage from "./pages/FinanceMessagesPage";
+import ITMessagesPage from "./pages/ITMessagesPage";
+import RedirectMessagesPage from "./pages/RedirectMessagesPage";
 import SocialMediaDashboardPage from "./pages/socialmedia/SocialMediaDashboardPage";
 import SocialMediaRequestPage from "./pages/socialmedia/SocialMediaRequestPage";
 
@@ -59,33 +79,25 @@ function App() {
   const noNavSidebarRoutes = [
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
-    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing",
-    "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
-    "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/social-media", "/social-media/request"
+    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
+    "/finance/messages",
+    "/addcustomer", "/resource", "/videolist", "/uploadpage", 
+    "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/social-media/request"
   ].map((path) => path.toLowerCase());
 
-  // Check if the current path is a no-sidebar, no-navbar route (case-insensitive)
-  const showNavAndSidebar = !noNavSidebarRoutes.includes(location.pathname.toLowerCase());
+  // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
+  const normalizedPath = location.pathname.toLowerCase();
+  const showNavAndSidebar = !noNavSidebarRoutes.some((route) => {
+    if (route === "/") {
+      return normalizedPath === "/";
+    }
+    return normalizedPath.startsWith(route);
+  });
 
   return (
-    <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
-      {showNavAndSidebar && <NavbarPage />}
-      <Box 
-        display="flex" 
-        flexDirection="row" 
-        width="100%"
-        pt={showNavAndSidebar ? "80px" : "0"}
-      >
-        {showNavAndSidebar && <Sidebar />}
-        <Box
-          flex="1"
-          p={showNavAndSidebar ? { base: 2, md: 5 } : 0}
-          ml={showNavAndSidebar ? { base: "70px", md: "250px" } : 0}
-          transition="margin-left 0.3s ease"
-          width="100%"
-        >
-          <Routes>
+    <AppLayout showNav={showNavAndSidebar}>
+      <Routes>
             <Route path="/" element={<WelcomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/InfoForm" element={<InfoForm />} />
@@ -101,6 +113,9 @@ function App() {
             <Route path="/finance-dashboard/inventory" element={<InventoryPage />} />
             <Route path="/finance-dashboard/orders" element={<OrdersPage />} />
             <Route path="/finance-dashboard/pricing" element={<PricingPage />} />
+            <Route path="/finance-dashboard/revenue" element={<RevenuePage />} />
+            <Route path="/finance-dashboard/purchase" element={<PurchasePage />} />
+            <Route path="/finance-dashboard/costs" element={<CostManagementPage />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />
@@ -126,6 +141,7 @@ function App() {
             <Route path="/UploadPage" element={<UploadResource />} />
             <Route path="/Cdashboard" element={<CDashboard />} />
             <Route path="/CustomerReport" element={<CustomerReport />} />
+            <Route path="/followup-report" element={<CustomerFollowupReport />} />
             <Route path="/training" element={<TrainingPage />} />
             <Route path="/ComingSoonPage" element={<ComingSoonPage />} />
             <Route path="/admin-training-upload" element={<AdminTrainingUpload />} />
@@ -137,12 +153,41 @@ function App() {
             <Route path="/social-media" element={<SocialMediaDashboardPage />} />
             <Route path="/social-media/request" element={<SocialMediaRequestPage />} />
             <Route path="/it" element={<ITDashboard />} />
+            <Route path="/payroll" element={<PayrollPage />} />
+            <Route path="/my-payroll" element={<EmployeePayrollView />} />
+            {/* Generic message page that redirects to dashboard-specific pages */}
+            <Route path="/messages" element={<RedirectMessagesPage />} />
+            {/* Dashboard-specific message pages */}
+            <Route path="/sales/messages" element={<SalesMessagesPage />} />
+            <Route path="/finance/messages" element={
+              <FinanceLayout>
+                <FinanceMessagesPage embedded />
+              </FinanceLayout>
+            } />
+            <Route path="/it/messages" element={<ITDashboard initialTab="notice-board" />} />
+            <Route path="/customer/messages" element={<CDashboard initialTab="notice-board" />} />
+            <Route
+              path="/salesmanager/*"
+              element={
+                <SalesManagerProtectedRoute>
+                  <SalesManagerLayout />
+                </SalesManagerProtectedRoute>
+              }
+            >
+              <Route index element={<SalesManagerDashboard />} />
+              <Route path="dashboard" element={<SalesManagerDashboard />} />
+              <Route path="all-sales" element={<AllSalesPage />} />
+              <Route path="performance" element={<PerformancePage />} />
+              <Route path="team" element={<TeamManagementPage />} />
+              <Route path="tasks" element={<TaskManagementPage />} />
+              <Route path="reports" element={<ReportsPage />} />
+              <Route path="calendar" element={<CalendarPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="messages" element={<MessagesPage />} />
+            </Route>
           </Routes>
-        </Box>
-      </Box>
-    </Box>
+        </AppLayout>
   );
 }
 
 export default App;
-

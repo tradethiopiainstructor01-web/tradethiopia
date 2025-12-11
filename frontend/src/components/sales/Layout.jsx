@@ -10,6 +10,8 @@ import Dashboard from './SalesDashboard.jsx';
 import OrderFollowup from './OrderFollowup.jsx';
 import SalesTargetsPage from './SalesTargetsPage.jsx';
 import TaskDashboard from './TaskDashboard.jsx';
+import MonthlyReport from './MonthlyReport.jsx';
+import SalesMessagesPage from '../../pages/SalesMessagesPage';
 
 const Layout = ({ children }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
@@ -50,6 +52,10 @@ const Layout = ({ children }) => {
         return <SalesTargetsPage />;
       case 'Tasks':
         return <TaskDashboard />;
+      case 'Monthly Report':
+        return <MonthlyReport />;
+      case 'Notice Board':
+        return <SalesMessagesPage />;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }

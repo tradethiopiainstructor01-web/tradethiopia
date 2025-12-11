@@ -63,6 +63,7 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
     { name: 'Task Management', icon: FiCheckCircle, path: '/salesmanager/tasks' },
     { name: 'Reports', icon: FiPieChart, path: '/salesmanager/reports' },
     { name: 'Calendar', icon: FiCalendar, path: '/salesmanager/calendar' },
+    { name: 'Notice Board', icon: FiMessageSquare, path: '/salesmanager/messages' },
     { name: 'Settings', icon: FiSettings, path: '/salesmanager/settings' },
   ];
 

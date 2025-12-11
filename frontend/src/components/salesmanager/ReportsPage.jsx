@@ -116,11 +116,11 @@ const ReportsPage = () => {
       
       // Process agent performance data for charts
       const processedAgentPerformance = data.agentPerformance.map(agent => ({
-        name: agent.agentName,
+        name: agent.fullName || agent.username,
         sales: agent.completedDeals,
-        revenue: agent.totalCommission,
-        id: agent.agentId
-      })).sort((a, b) => b.sales - a.sales); // Sort by sales descending
+        revenue: agent.totalNetCommission,
+        id: agent._id
+      })).sort((a, b) => b.sales - a.sales);
 
       // Ensure we have at least some data for display
       if (processedAgentPerformance.length === 0) {
@@ -184,8 +184,8 @@ const ReportsPage = () => {
         teamStats: {
           totalAgents: data.teamStats?.totalAgents || 0,
           totalTeamSales: data.teamStats?.totalTeamSales || 0,
-          totalTeamCommission: data.teamStats?.totalTeamCommission || 0,
-          averageCommissionPerAgent: data.teamStats?.averageCommissionPerAgent || 0,
+          totalTeamCommission: data.teamStats?.totalTeamNetCommission || 0,
+          averageCommissionPerAgent: data.teamStats?.averageGrossCommissionPerAgent || 0,
         },
         agentPerformance: processedAgentPerformance,
         salesTrend: salesTrendData,

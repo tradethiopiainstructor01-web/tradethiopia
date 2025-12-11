@@ -12,6 +12,8 @@ import {
   TabList,
   Tab,
   TabIndicator,
+  TabPanels,
+  TabPanel,
   Grid,
   Container,
   Badge,
@@ -246,6 +248,57 @@ const COODashboard = () => {
       }),
     []
   );
+  const revenueHighlights = useMemo(
+    () => [
+      {
+        label: 'Revenue',
+        value: etbFormatter.format(financeStats.revenue || 0),
+        color: 'blue.600',
+        tag: revenueSummary.change,
+        subtitle: 'MTD total',
+      },
+      {
+        label: 'Expenses',
+        value: etbFormatter.format(financeStats.expenses || 0),
+        color: 'red.500',
+        tag: 'Actuals',
+        subtitle: 'Operational spend',
+      },
+      {
+        label: 'Profit',
+        value: etbFormatter.format(financeStats.profit || 0),
+        color: 'green.500',
+        tag: 'Net',
+        subtitle: 'Revenue minus costs',
+      },
+      {
+        label: 'Invoices',
+        value: `${financeStats.invoices || 0}`,
+        color: 'purple.500',
+        tag: 'Open',
+        subtitle: 'Outstanding bills',
+      },
+    ],
+    [financeStats, etbFormatter, revenueSummary.change]
+  );
+  const tabBorderColor = useColorModeValue('gray.200', 'gray.700');
+  const tabBg = useColorModeValue('white', 'gray.800');
+  const deptCardBg = useColorModeValue('gray.50', 'gray.700');
+  const purchaseOrders = useMemo(
+    () => [
+      { id: 'PO-1124', department: 'Finance', vendor: 'Dembel Traders', amount: 1250000, status: 'Approved', eta: 'Arrives in 2 days' },
+      { id: 'PO-1131', department: 'IT', vendor: 'Sena Technologies', amount: 820000, status: 'Pending', eta: 'Review by tomorrow' },
+      { id: 'PO-1140', department: 'Operations', vendor: 'Blue Nile Supplies', amount: 430000, status: 'Approved', eta: 'Dispatching' },
+      { id: 'PO-1155', department: 'Customer Succes', vendor: 'Awash Hardware', amount: 215000, status: 'Draft', eta: 'Finalize requisition' },
+    ],
+    []
+  );
+  const purchaseStatusColors = {
+    Approved: 'green',
+    Pending: 'orange',
+    Draft: 'purple',
+    Cancelled: 'red',
+  };
 
   const fixedDepartments = ['All', 'TradexTV', 'Customer Succes', 'Finance', 'Sales Manager', 'IT'];
   const isDraggingRef = React.useRef(false);
@@ -924,23 +977,7 @@ const COODashboard = () => {
 
   return (
     <Box bg={useColorModeValue('gray.50', 'gray.900')} minH="100vh" py={{ base: 5, md: 7 }}>
-    <Container maxW="8xl">
-      {/* Department tabs at top */}
-      <Flex align="center" gap={3} mb={4} wrap="wrap">
-        <IconButton
-          aria-label="Open reports sidebar"
-          icon={<HamburgerIcon />}
-          onClick={onOpenSidePanel}
-          size="sm"
-          variant="outline"
-          colorScheme="purple"
-          boxShadow="0 8px 20px rgba(88,28,135,0.25)"
-          _hover={{ transform: 'translateY(-1px)' }}
-        />
-        <Button size="sm" variant="ghost" onClick={onOpenDeptDrawer}>Departments</Button>
-        {/* Tabs removed; use drawer for navigation */}
-      </Flex>
-
+      <Container maxW="8xl">
         <MotionBox
           bgGradient="linear(to-r, #dbeafe, #bfdbfe)"
           color="blue.900"
@@ -952,7 +989,7 @@ const COODashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Flex align={{ base: 'flex-start', md: 'center' }} gap={4} wrap="wrap">
+        <Flex align={{ base: 'flex-start', md: 'center' }} gap={4} wrap="wrap">
             <Box>
               <Text fontSize="xs" opacity={0.7}>Operations Control</Text>
               <Heading fontSize={{ base: 'xl', md: '2xl' }} color="blue.900">COO Dashboard</Heading>
@@ -1008,7 +1045,215 @@ const COODashboard = () => {
           </Flex>
         </MotionBox>
 
-        {/* Department tabs moved to top; block removed here */}
+        <Flex align="center" gap={3} mb={4} wrap="wrap">
+          <IconButton
+            aria-label="Open reports sidebar"
+            icon={<HamburgerIcon />}
+            onClick={onOpenSidePanel}
+            size="sm"
+            variant="outline"
+            colorScheme="purple"
+            boxShadow="0 8px 20px rgba(88,28,135,0.25)"
+            _hover={{ transform: 'translateY(-1px)' }}
+          />
+          <Button size="sm" variant="ghost" onClick={onOpenDeptDrawer}>Departments</Button>
+          {/* Drawer opens legacy department list */}
+        </Flex>
+
+        <Box mb={4}>
+          <Heading size="md">Operations & Department Dashboards</Heading>
+          <Text fontSize="sm" color="gray.600">
+            Toggle between department performance, purchase activity, and revenue insight panels.
+          </Text>
+        </Box>
+
+        <Tabs
+          variant="soft-rounded"
+          colorScheme="blue"
+          mb={{ base: 6, md: 8 }}
+          isLazy
+        >
+          <TabList
+            bg={tabBg}
+            borderRadius="2xl"
+            border="1px solid"
+            borderColor={tabBorderColor}
+            px={1}
+            py={1}
+            position="relative"
+          >
+            <Tab flex="1">Departments</Tab>
+            <Tab flex="1">Purchase</Tab>
+            <Tab flex="1">Revenue</Tab>
+            <TabIndicator
+              height="3px"
+              borderRadius="full"
+              bg="blue.500"
+              mt="-1px"
+            />
+          </TabList>
+          <TabPanels mt={4}>
+            <TabPanel px={0} py={0}>
+              <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={4}>
+                {orderedDepartments
+                  .filter((dept) => dept !== 'All')
+                  .map((dept) => {
+                    const route = deptRouteMap[dept.toLowerCase()];
+                    const isDisabled = dept === 'Sales Manager' && !isCoo;
+                    return (
+                      <Box
+                        key={`tab-${dept}`}
+                        p={4}
+                        borderRadius="xl"
+                        border="1px solid"
+                        borderColor={borderColor}
+                        bg={deptCardBg}
+                        minH="150px"
+                      >
+                        <Flex justify="space-between" align="center">
+                          <Heading size="sm">{dept}</Heading>
+                          <Badge variant="subtle" colorScheme="blue">
+                            Team
+                          </Badge>
+                        </Flex>
+                        <Text fontSize="sm" color="gray.500" mt={2}>
+                          Live analytics and requests for the {dept} team.
+                        </Text>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          colorScheme="blue"
+                          mt={4}
+                          isDisabled={isDisabled || !route}
+                          onClick={() => {
+                            if (!route) return;
+                            if (isDisabled) return;
+                            navigate(route);
+                          }}
+                        >
+                          Open view
+                        </Button>
+                      </Box>
+                    );
+                  })}
+              </SimpleGrid>
+            </TabPanel>
+            <TabPanel px={0} py={0}>
+              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4} mb={4}>
+                {revenueHighlights.map((item) => (
+                  <Box
+                    key={item.label}
+                    p={4}
+                    borderRadius="xl"
+                    border="1px solid"
+                    borderColor={borderColor}
+                    bg={deptCardBg}
+                  >
+                    <Flex justify="space-between" align="baseline">
+                      <Heading size="sm">{item.label}</Heading>
+                      <Text fontSize="xs" color="gray.500">
+                        {item.tag}
+                      </Text>
+                    </Flex>
+                    <Heading size="lg" mt={2} color={item.color || 'blue.500'}>
+                      {item.value}
+                    </Heading>
+                    {item.subtitle && (
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        {item.subtitle}
+                      </Text>
+                    )}
+                  </Box>
+                ))}
+              </SimpleGrid>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <Box
+                  borderWidth="1px"
+                  borderRadius="xl"
+                  borderColor={borderColor}
+                  bg={deptCardBg}
+                  p={4}
+                >
+                  <Heading size="sm" mb={2}>Revenue trend</Heading>
+                  <VStack align="stretch" spacing={2}>
+                    {revenueTrend.map((row) => (
+                      <Flex key={`rev-${row.label}`} justify="space-between" fontSize="sm">
+                        <Text color="gray.600">{row.label}</Text>
+                        <Text fontWeight="semibold">{currencyFormatter.format(row.value)}</Text>
+                      </Flex>
+                    ))}
+                  </VStack>
+                </Box>
+                <Box
+                  borderWidth="1px"
+                  borderRadius="xl"
+                  borderColor={borderColor}
+                  bg={deptCardBg}
+                  p={4}
+                >
+                  <Heading size="sm" mb={2}>Revenue mix</Heading>
+                  <VStack spacing={2} align="stretch">
+                    {(revenueBreakdown.length ? revenueBreakdown : fallbackTradexRevenueRows).map((row) => {
+                      const pct = row.target ? Math.min(Math.round((row.actual / row.target) * 100), 180) : 100;
+                      return (
+                        <Flex key={`mix-${row.metric}`} justify="space-between" align="center">
+                          <Box>
+                            <Text fontSize="xs" color="gray.600">{row.metric}</Text>
+                            <Text fontWeight="semibold">{row.actual ? etbFormatter.format(row.actual) : '-'}</Text>
+                          </Box>
+                          <Tag size="sm" colorScheme={pct > 100 ? 'green' : 'purple'}>{`${pct}%`}</Tag>
+                        </Flex>
+                      );
+                    })}
+                  </VStack>
+                </Box>
+              </SimpleGrid>
+            </TabPanel>
+            <TabPanel px={0} py={0}>
+              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                {purchaseOrders.map((order) => (
+                  <Box
+                    key={order.id}
+                    borderWidth="1px"
+                    borderRadius="xl"
+                    borderColor={borderColor}
+                    bg={deptCardBg}
+                    p={4}
+                    minH="180px"
+                  >
+                    <Flex justify="space-between" align="center" mb={2}>
+                      <Heading size="sm">{order.id}</Heading>
+                      <Badge
+                        colorScheme={purchaseStatusColors[order.status] || 'gray'}
+                      >
+                        {order.status}
+                      </Badge>
+                    </Flex>
+                    <Text fontSize="xs" color="gray.500">
+                      {order.department} - {order.vendor}
+                    </Text>
+                    <Heading size="md" mt={3}>
+                      {etbFormatter.format(order.amount)}
+                    </Heading>
+                    <Flex mt={4} justify="space-between" align="center">
+                      <Text fontSize="xs" color="gray.500">
+                        {order.eta}
+                      </Text>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        colorScheme="blue"
+                        onClick={() => navigate('/finance-dashboard/purchase')}
+                      >
+                        View purchases
+                      </Button>
+                    </Flex>
+                  </Box>
+                ))}
+              </SimpleGrid>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
 
         {/* Filter metrics removed per request */}
 
@@ -2105,9 +2350,9 @@ const COODashboard = () => {
                 </Tbody>
               </Table>
             </Box>
-          </MotionBox>
+        </MotionBox>
 
-          <VStack spacing={5} align="stretch">
+        <VStack spacing={5} align="stretch">
             <MotionBox bg="white" p={4} borderRadius="md" boxShadow="sm" whileHover={{ scale: 1.01 }} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
                 <DailyFollowupSuccess department={effectiveDept} />
             </MotionBox>
@@ -2117,7 +2362,7 @@ const COODashboard = () => {
           </VStack>
 
         </VStack>
-    </Container>
+      </Container>
 
     {/* Collapsible Sidebar Drawer */}
     <Drawer isOpen={isSidePanelOpen} placement="left" onClose={onCloseSidePanel} size="xs">
@@ -2224,7 +2469,7 @@ const COODashboard = () => {
       </DrawerContent>
     </Drawer>
 
-  </Box>
+    </Box>
   );
 };
 

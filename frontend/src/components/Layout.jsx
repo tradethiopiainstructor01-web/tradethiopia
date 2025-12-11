@@ -1,20 +1,10 @@
-import Sidebar from "./Sidebar"; // Import Sidebar component
-import { Box, Flex } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
 
 const Layout = ({ children }) => {
   return (
-    <Flex>
-      <Sidebar />
-      <Box
-        ml={{ base: "70px", md: "250px" }} // This ensures content is pushed right if the sidebar is visible
-        p={{ base: 2, md: 5 }}
-        w="full"
-        minHeight="100vh"
-        pt="80px" // Account for navbar height
-      >
-        {children}
-      </Box>
-    </Flex>
+    <Box width="100%" pt={{ base: 4, md: 6 }} pb={6}>
+      {children}
+    </Box>
   );
 };
 

@@ -44,6 +44,10 @@ const calendarRoutes = require('./routes/calendarRoutes.js');
 const courseRoutes = require('./routes/courseRoutes.js');
 const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
 const itRoutes = require('./routes/itRoutes.js');
+const demandRoutes = require('./routes/demandRoutes.js');
+const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
+
+const costRoutes = require('./routes/costRoutes.js');
 const socialRequestRoutes = require('./routes/socialRequestRoutes.js');
 // Load environment variables
 
@@ -96,15 +100,19 @@ const allowedOrigins = [
   'https://tradethiopia-pied.vercel.app',
   'https://tradethiopia.vercel.app',
   'http://localhost:5173',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'http://localhost:3001'
 ].filter(Boolean);
 
 const corsOptions = {
   origin: (origin, callback) => {
+    console.log('CORS check - Origin:', origin);
+    console.log('Allowed origins:', allowedOrigins);
     // Allow requests with no origin (mobile apps, curl) or if whitelisted
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
+    console.warn('CORS blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true
@@ -252,6 +260,11 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/product-followups', productFollowupRoutes);
 app.use('/api/it', itRoutes);
+app.use('/api/finance', require('./routes/financeRoutes'));
+app.use('/api/purchases', require('./routes/purchaseRoutes'));
+app.use('/api/costs', costRoutes);
+app.use('/api/demands', demandRoutes);
+app.use('/api/payroll', payrollRoutes); // Add this line
 app.use('/api/requests', socialRequestRoutes);
 app.use('/api/social-requests', socialRequestRoutes);
 

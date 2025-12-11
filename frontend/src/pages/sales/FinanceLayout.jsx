@@ -37,8 +37,10 @@ import {
   FaTruck,
   FaUsers,
   FaFileInvoice,
+  FaMoneyBillWave,
   FaCogs,
-  FaArrowRight
+  FaArrowRight,
+  FaCommentDots
 } from 'react-icons/fa';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUserStore } from '../../store/user';
@@ -83,9 +85,11 @@ const FinanceLayout = ({ children }) => {
     { label: 'Inventory', icon: FaBoxes, path: '/finance-dashboard/inventory' },
     { label: 'Orders', icon: FaShoppingCart, path: '/finance-dashboard/orders' },
     { label: 'Pricing', icon: FaDollarSign, path: '/finance-dashboard/pricing' },
-    { label: 'Suppliers', icon: FaTruck, path: '/finance-dashboard/suppliers' },
-    { label: 'Customers', icon: FaUsers, path: '/finance-dashboard/customers' },
+    { label: 'Revenue', icon: FaDollarSign, path: '/finance-dashboard/revenue' },
+    { label: 'Purchase', icon: FaUsers, path: '/finance-dashboard/purchase' },
+    { label: 'Costs', icon: FaMoneyBillWave, path: '/finance-dashboard/costs' },
     { label: 'Invoices', icon: FaFileInvoice, path: '/finance-dashboard/invoices' },
+    { label: 'Notice Board', icon: FaCommentDots, path: '/finance/messages' },
     { label: 'Settings', icon: FaCogs, path: '/finance-dashboard/settings' }
   ];
 

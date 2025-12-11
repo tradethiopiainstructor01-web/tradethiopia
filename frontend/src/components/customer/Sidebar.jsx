@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Box,
   Flex,
@@ -8,8 +8,10 @@ import {
   Text,
   Tooltip,
   useColorModeValue,
+  Badge,
+  HStack,
 } from "@chakra-ui/react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   FiHome,
   FiPlusCircle,
@@ -25,12 +27,16 @@ import { Link as RouterLink } from "react-router-dom";
 import { MdLibraryBooks } from "react-icons/md";
 import { FiChevronsLeft, FiChevronsRight } from "react-icons/fi";
 import { FiSettings } from "react-icons/fi";
+import { FiMessageSquare } from "react-icons/fi";
+import { getNotifications } from "../../services/notificationService";
 
-const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) => {
+const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, activeSection, onSelectSection }) => {
   // Allow the sidebar to be controlled by a parent while preserving a local fallback.
   const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const scrollBoxRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isControlled = typeof collapsedProp === "boolean" && typeof toggleProp === "function";
   const isCollapsed = isControlled ? collapsedProp : internalCollapsed;
@@ -41,6 +47,28 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
       setInternalCollapsed((prevState) => !prevState);
     }
   };
+
+  // Fetch notifications to count unread messages
+  const fetchUnreadCount = async () => {
+    try {
+      const data = await getNotifications();
+      // Filter for general notifications (broadcast messages) and count unread
+      const broadcastMessages = data.filter(msg => msg.type === 'general');
+      const unread = broadcastMessages.filter(msg => !msg.read).length;
+      setUnreadCount(unread);
+    } catch (err) {
+      console.error('Error fetching notification count:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+    
+    // Set up interval to periodically refresh the count
+    const interval = setInterval(fetchUnreadCount, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Scroll up/down functions
   const scrollUp = () => {
@@ -55,6 +83,8 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
   };
 
   const isActive = (path) => location.pathname === path;
+  const isDashboardActive = activeSection === 'dashboard' || (location.pathname === '/Cdashboard' && activeSection !== 'notice-board');
+  const isNoticeBoardActive = activeSection === 'notice-board' || isActive("/customer/messages");
 
   const sidebarBg = useColorModeValue("linear-gradient(180deg, #f9fbff, #f1f5ff)", "linear-gradient(180deg, #0b1224, #0f1e3a)");
   const textColor = useColorModeValue("gray.800", "white");
@@ -62,6 +92,28 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
   const iconColor = useColorModeValue("gray.600", "white");
   const activeIconColor = useColorModeValue("blue.600", "teal.200");
   const activeTextColor = useColorModeValue("blue.800", "white");
+    const isCSM = (() => {
+    try {
+      const rawUser =
+        localStorage.getItem("user") ||
+        localStorage.getItem("userInfo") ||
+        localStorage.getItem("userData");
+      const roleFieldFromUser = rawUser
+        ? (() => {
+            const parsed = typeof rawUser === "string" ? JSON.parse(rawUser) : rawUser;
+            return parsed?.role || parsed?.user?.role || parsed?.userRole || parsed?.user?.userRole;
+          })()
+        : null;
+
+      const roleFromStore = localStorage.getItem("userRole");
+      const roles = Array.isArray(roleFieldFromUser) ? roleFieldFromUser : [roleFieldFromUser, roleFromStore];
+      return roles.some((r) => (r || "").toString().trim().toLowerCase() === "customersuccessmanager");
+    } catch (e) {
+      // fallback: hide restricted links if parsing fails
+    }
+    return false;
+  })();
+
 
   return (
     <Box
@@ -90,14 +142,14 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
         py={4}
         flexShrink={0}
       >
-        {!isCollapsed && (
+        {/* {!isCollapsed && (
           <Flex align="center" gap={2}>
             <Box w="10px" h="32px" bgGradient={useColorModeValue("linear(to-b, blue.400, purple.400)", "linear(to-b, teal.300, cyan.400)")} borderRadius="full" />
             <Text fontWeight="bold" fontSize="lg" letterSpacing="0.5px" color={textColor}>
-              Customer Hub
+              Customer Success
             </Text>
           </Flex>
-        )}
+        )} */}
       </Flex>
       <IconButton
         icon={isCollapsed ? <FiChevronsRight /> : <FiChevronsLeft />}
@@ -133,11 +185,16 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
             to="/Cdashboard"
             icon={<FiHome />}
             label="Dashboard"
-            active={isActive("/Cdashboard")}
+            active={isDashboardActive}
             iconColor={iconColor}
             activeIconColor={activeIconColor}
             textColor={textColor}
             activeTextColor={activeTextColor}
+            onClick={() => {
+              if (typeof onSelectSection === 'function') {
+                onSelectSection('dashboard');
+              }
+            }}
           />
                     <SidebarLink
             isCollapsed={isCollapsed}
@@ -152,10 +209,10 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
           />
           <SidebarLink
             isCollapsed={isCollapsed}
-            to="/CustomerFollowup"
+            to="/customerfollowup"
             icon={<FiUsers />}
-            label="Follow Up"
-            active={isActive("/CustomerFollowup")}
+            label="Customer Followup"
+            active={isActive("/customerfollowup")}
             iconColor={iconColor}
             activeIconColor={activeIconColor}
             textColor={textColor}
@@ -163,32 +220,73 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
           />
           <SidebarLink
             isCollapsed={isCollapsed}
-            to="/CustomerReport"
-            icon={<FiBookOpen />}
-            label="Customer Report"
-            active={isActive("/CustomerReport")}
+            to="/addcustomer"
+            icon={<FiPlusCircle />}
+            label="Add Customer"
+            active={isActive("/addcustomer")}
             iconColor={iconColor}
             activeIconColor={activeIconColor}
             textColor={textColor}
             activeTextColor={activeTextColor}
           />
-
           <SidebarLink
             isCollapsed={isCollapsed}
-            to="/followup-report"
+            to="/customer/messages"
+            icon={<FiMessageSquare />}
+            label="Notice Board"
+            active={isNoticeBoardActive}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
+            unreadCount={unreadCount}
+            onClick={(e) => {
+              e.preventDefault();
+              if (typeof onSelectSection === 'function') {
+                onSelectSection('notice-board');
+              } else {
+                navigate('/customer/messages');
+              }
+              fetchUnreadCount();
+            }}
+          />
+          <SidebarLink
+            isCollapsed={isCollapsed}
+            to="/resource"
+            icon={<FiBook />}
+            label="Resources"
+            active={isActive("/resource")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
+          />
+          <SidebarLink
+            isCollapsed={isCollapsed}
+            to="/videolist"
+            icon={<MdLibraryBooks />}
+            label="Videos"
+            active={isActive("/videolist")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
+          />
+          <SidebarLink
+            isCollapsed={isCollapsed}
+            to="/uploadpage"
             icon={<FiFileText />}
-            label="Follow-up Report"
-            active={isActive("/followup-report")}
+            label="Upload"
+            active={isActive("/uploadpage")}
             iconColor={iconColor}
             activeIconColor={activeIconColor}
             textColor={textColor}
             activeTextColor={activeTextColor}
           />
-
           <SidebarLink
             isCollapsed={isCollapsed}
             to="/training"
-            icon={<FiBook />}
+            icon={<FiBookOpen />}
             label="Training"
             active={isActive("/training")}
             iconColor={iconColor}
@@ -200,20 +298,18 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
             isCollapsed={isCollapsed}
             to="/customer-settings"
             icon={<FiSettings />}
-            label="Customer Settings"
+            label="Settings"
             active={isActive("/customer-settings")}
             iconColor={iconColor}
             activeIconColor={activeIconColor}
             textColor={textColor}
             activeTextColor={activeTextColor}
           />
-
-          {/* Removed Resources link as requested */}
         </VStack>
       </Box>
 
       {/* Scroll Down Button */}
-      <Flex justify="center" align="center" p={1}>
+      {/* <Flex justify="center" align="center" p={1}>
         <IconButton
           icon={<span style={{fontSize:18}}>&darr;</span>}
           variant="ghost"
@@ -222,21 +318,22 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp }) =>
           onClick={scrollDown}
           size="sm"
         />
-      </Flex>
+      </Flex> */}
     </Box>
   );
 };
 
 /* Sidebar Link Component */
-const SidebarLink = ({ isCollapsed, to, icon, label, active, iconColor, activeIconColor, textColor, activeTextColor }) => (
+const SidebarLink = ({ isCollapsed, to, icon, label, active, iconColor, activeIconColor, textColor, activeTextColor, unreadCount = 0, onClick }) => (
   <Tooltip label={label} isDisabled={!isCollapsed} placement="right" hasArrow>
     <Link
       as={RouterLink}
       to={to}
       _hover={{ textDecoration: "none" }}
       aria-label={label}
+      onClick={onClick}
     >
-      <Flex
+      <HStack
         align="center"
         p={2}
         borderRadius="md"
@@ -244,16 +341,37 @@ const SidebarLink = ({ isCollapsed, to, icon, label, active, iconColor, activeIc
         border={active ? "1px solid rgba(56, 189, 248, 0.4)" : "1px solid transparent"}
         _hover={{ bg: "rgba(56, 189, 248, 0.08)", borderColor: "rgba(56, 189, 248, 0.3)" }}
         transition="all 0.2s ease"
+        position="relative"
+        spacing={3}
       >
         <Box color={active ? activeIconColor : iconColor} fontSize="18px">
           {icon}
         </Box>
         {!isCollapsed && (
-          <Text ml={3} whiteSpace="nowrap" fontSize="14px" color={active ? activeTextColor : textColor}>
-            {label}
-          </Text>
+          <>
+            <Text whiteSpace="nowrap" fontSize="14px" color={active ? activeTextColor : textColor}>
+              {label}
+            </Text>
+            {unreadCount > 0 && label === 'Notice Board' && (
+              <Badge
+                colorScheme="red"
+                borderRadius="full"
+                position="absolute"
+                top="8px"
+                right="8px"
+                fontSize="10px"
+                w="18px"
+                h="18px"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+              >
+                {unreadCount}
+              </Badge>
+            )}
+          </>
         )}
-      </Flex>
+      </HStack>
     </Link>
   </Tooltip>
 );

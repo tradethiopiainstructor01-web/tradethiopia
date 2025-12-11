@@ -13,6 +13,7 @@ import {
   NumberInput,
   NumberInputField,
   Stack,
+  VStack,
   Table,
   TableContainer,
   Tbody,
@@ -49,32 +50,15 @@ const CustomerSettings = () => {
     description: "",
   });
   const [editingId, setEditingId] = useState(null);
-  const weeklyTargetsKey = "customerWeeklyTargets";
-  const [weeklyTargets, setWeeklyTargets] = useState({
-    education: {
-      userManuals: 300,
-      trainingVideos: 300,
-      faqGuides: 200,
-      telegramGuidance: 200,
-      followupReminders: 600,
-    },
-    officers: {
-      officer1: 300,
-      officer2: 300,
-      officer3: 300,
-      officer4: 300,
-      manager: 800,
-    },
-    quality: {
-      satisfaction: 90,
-      serviceAccuracy: 95,
-      compliance: 100,
-      crossResponse: 100,
-      timeToResolveHours: 24,
-      trainingToB2B: 30,
-      renewals: 20,
-    },
-  });
+  const servicePalette = ["blue", "green", "purple", "orange", "teal", "pink", "cyan", "red", "yellow"];
+  const getServiceColor = (name = "") => {
+    const key = name.toString();
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+      hash = (hash + key.charCodeAt(i) * (i + 1)) % 9973;
+    }
+    return servicePalette[hash % servicePalette.length];
+  };
 
   useEffect(() => {
     const fetchPackages = async () => {
@@ -91,17 +75,6 @@ const CustomerSettings = () => {
     };
     fetchPackages();
 
-    try {
-      const saved = localStorage.getItem(weeklyTargetsKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === "object") {
-          setWeeklyTargets((prev) => ({ ...prev, ...parsed }));
-        }
-      }
-    } catch {
-      /* ignore */
-    }
   }, [toast]);
 
   useEffect(() => {
@@ -266,18 +239,7 @@ const CustomerSettings = () => {
       });
   };
 
-  const saveWeeklyTargets = () => {
-    try {
-      localStorage.setItem(weeklyTargetsKey, JSON.stringify(weeklyTargets));
-      toast({ title: "Weekly targets saved", status: "success" });
-    } catch (err) {
-      toast({
-        title: "Could not save targets",
-        description: err.message,
-        status: "error",
-      });
-    }
-  };
+  // Weekly targets functionality removed
 
   const handleAssignB2B = async (customer) => {
     const token = localStorage.getItem("userToken");
@@ -310,6 +272,8 @@ const CustomerSettings = () => {
     }
   };
 
+  
+
   return (
     <Layout>
       <Box bgGradient="linear(to-b, gray.50, white)" minH="100vh" p={{ base: 4, md: 8 }}>
@@ -317,11 +281,86 @@ const CustomerSettings = () => {
           <Box>
             <Heading size="lg">Customer Settings</Heading>
             <Text color="gray.500" fontSize="sm">
-              Manage packages, services, pricing, and weekly targets in one place.
+              Manage packages, services, pricing, and Assign Customers to Agents in one place.
             </Text>
           </Box>
           {loading && <Text color="gray.500" fontSize="sm">Loading...</Text>}
         </Flex>
+
+<Card border="1px solid" borderColor="gray.200" rounded="2xl" boxShadow="xl" mb={6}>
+          <CardHeader pb={2}>
+            <Heading size="md">Assign B2B Customers</Heading>
+            <Text color="gray.500" fontSize="sm">
+              Select a customer service agent for each pending B2B customer.
+            </Text>
+          </CardHeader>
+          <CardBody>
+            <TableContainer>
+              <Table size="sm" variant="simple">
+                <Thead bg="gray.50">
+                  <Tr>
+                    <Th>Client</Th>
+                    <Th>Company</Th>
+                    <Th>Email</Th>
+                    <Th>Phone</Th>
+                    <Th>Type</Th>
+                    <Th>Assign to Agent</Th>
+                    <Th></Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {pendingB2B.length === 0 ? (
+                    <Tr>
+                      <Td colSpan={7} textAlign="center" py={6}>
+                        <Text color="gray.500">No pending B2B customers.</Text>
+                      </Td>
+                    </Tr>
+                  ) : (
+                    pendingB2B.map((cust) => (
+                      <Tr key={cust._id}>
+                        <Td>{cust.clientName}</Td>
+                        <Td>{cust.companyName}</Td>
+                        <Td>{cust.email}</Td>
+                        <Td>{cust.phoneNumber}</Td>
+                        <Td>
+                          <Badge colorScheme={cust.type === "buyer" ? "green" : "purple"}>
+                            {cust.type}
+                          </Badge>
+                        </Td>
+                        <Td>
+                          <Select
+                            placeholder="Select agent"
+                            size="sm"
+                            value={selectedAgent[cust._id] || ""}
+                            onChange={(e) =>
+                              setSelectedAgent((prev) => ({ ...prev, [cust._id]: e.target.value }))
+                            }
+                          >
+                            {csUsers.map((u) => (
+                              <option key={u._id} value={u._id}>
+                                {u.username || u.email || u._id}
+                              </option>
+                            ))}
+                          </Select>
+                        </Td>
+                        <Td textAlign="right">
+                          <Button
+                            size="sm"
+                            colorScheme="teal"
+                            isLoading={assigningId === cust._id}
+                            onClick={() => handleAssignB2B(cust)}
+                          >
+                            Assign
+                          </Button>
+                        </Td>
+                      </Tr>
+                    ))
+                  )}
+                </Tbody>
+              </Table>
+            </TableContainer>
+          </CardBody>
+        </Card>
 
         <Card
           mb={6}
@@ -493,13 +532,25 @@ const CustomerSettings = () => {
                       <Tr key={pkg._id} _hover={{ bg: "gray.50" }}>
                         <Td fontWeight="bold">{pkg.packageNumber}</Td>
                         <Td>
-                          <Flex gap={2} wrap="wrap">
+                          <VStack align="start" spacing={1}>
                             {(pkg.services || []).map((svc, idx) => (
-                              <Tag key={idx} size="sm" variant="solid" colorScheme="purple">
-                                <TagLabel>{svc}</TagLabel>
-                              </Tag>
+                              <HStack key={idx} spacing={2}>
+                                <Box
+                                  w="10px"
+                                  h="10px"
+                                  borderRadius="full"
+                                  bg={`${getServiceColor(svc)}.400`}
+                                  boxShadow="sm"
+                                />
+                                <Text fontSize="sm" color="gray.700">
+                                  {svc}
+                                </Text>
+                              </HStack>
                             ))}
-                          </Flex>
+                            {(pkg.services || []).length === 0 && (
+                              <Text fontSize="sm" color="gray.400">No services listed</Text>
+                            )}
+                          </VStack>
                         </Td>
                         <Td fontWeight="semibold">${Number(pkg.price || 0).toFixed(2)}</Td>
                         <Td maxW="300px">
@@ -535,217 +586,9 @@ const CustomerSettings = () => {
           </CardBody>
         </Card>
 
-        <Card border="1px solid" borderColor="gray.200" rounded="2xl" boxShadow="xl">
-          <CardHeader pb={2}>
-            <Heading size="md">Weekly Targets</Heading>
-            <Text color="gray.500" fontSize="sm">
-              Set weekly targets here; reports compare actuals against these numbers.
-            </Text>
-          </CardHeader>
-          <CardBody>
-            <Stack spacing={5}>
-              <Box>
-                <Heading size="sm" mb={2}>Customer Education Targets</Heading>
-                <Stack spacing={3}>
-                  {[
-                    { key: "userManuals", label: "User Manuals Sent" },
-                    { key: "trainingVideos", label: "Training Videos Shared" },
-                    { key: "faqGuides", label: "FAQ Guides Sent" },
-                    { key: "telegramGuidance", label: "Telegram Guidance Messages" },
-                    { key: "followupReminders", label: "Follow-up Reminders" },
-                  ].map((row) => (
-                    <HStack key={row.key}>
-                      <Text flex={1}>{row.label}</Text>
-                      <NumberInput
-                        value={weeklyTargets.education[row.key]}
-                        min={0}
-                        onChange={(val) =>
-                          setWeeklyTargets((prev) => ({
-                            ...prev,
-                            education: { ...prev.education, [row.key]: Number(val) || 0 },
-                          }))
-                        }
-                        maxW="140px"
-                      >
-                        <NumberInputField />
-                      </NumberInput>
-                    </HStack>
-                  ))}
-                </Stack>
-              </Box>
+        
 
-              <Box>
-                <Heading size="sm" mb={2}>Individual Customer Success Officer Targets</Heading>
-                <Stack spacing={3}>
-                  {[
-                    { key: "officer1", label: "Officer 1" },
-                    { key: "officer2", label: "Officer 2" },
-                    { key: "officer3", label: "Officer 3" },
-                    { key: "officer4", label: "Officer 4" },
-                    { key: "manager", label: "Customer Success Manager" },
-                  ].map((row) => (
-                    <HStack key={row.key}>
-                      <Text flex={1}>{row.label}</Text>
-                      <NumberInput
-                        value={weeklyTargets.officers[row.key]}
-                        min={0}
-                        onChange={(val) =>
-                          setWeeklyTargets((prev) => ({
-                            ...prev,
-                            officers: { ...prev.officers, [row.key]: Number(val) || 0 },
-                          }))
-                        }
-                        maxW="140px"
-                      >
-                        <NumberInputField />
-                      </NumberInput>
-                    </HStack>
-                  ))}
-                </Stack>
-              </Box>
-
-              <Box>
-                <Heading size="sm" mb={2}>Team Quality Metrics</Heading>
-                <Stack spacing={3}>
-                  {[
-                    { key: "satisfaction", label: "Satisfaction Score (%)" },
-                    { key: "serviceAccuracy", label: "Service Delivery Accuracy (%)" },
-                    { key: "compliance", label: "Policy Compliance (%)" },
-                    { key: "crossResponse", label: "Cross-Department Response (%)" },
-                    { key: "timeToResolveHours", label: "Time-to-Resolve (hours)" },
-                    { key: "trainingToB2B", label: "Training-to-B2B Conversions" },
-                    { key: "renewals", label: "Renewals" },
-                  ].map((row) => (
-                    <HStack key={row.key}>
-                      <Text flex={1}>{row.label}</Text>
-                      <NumberInput
-                        value={weeklyTargets.quality[row.key]}
-                        min={0}
-                        onChange={(val) =>
-                          setWeeklyTargets((prev) => ({
-                            ...prev,
-                            quality: { ...prev.quality, [row.key]: Number(val) || 0 },
-                          }))
-                        }
-                        maxW="140px"
-                      >
-                        <NumberInputField />
-                      </NumberInput>
-                    </HStack>
-                  ))}
-                </Stack>
-              </Box>
-
-              <HStack>
-                <Button colorScheme="teal" onClick={saveWeeklyTargets} leftIcon={<CheckIcon />}>
-                  Save Weekly Targets
-                </Button>
-                <Button variant="ghost" onClick={() => setWeeklyTargets({
-                  education: {
-                    userManuals: 300,
-                    trainingVideos: 300,
-                    faqGuides: 200,
-                    telegramGuidance: 200,
-                    followupReminders: 600,
-                  },
-                  officers: {
-                    officer1: 300,
-                    officer2: 300,
-                    officer3: 300,
-                    officer4: 300,
-                    manager: 800,
-                  },
-                  quality: {
-                    satisfaction: 90,
-                    serviceAccuracy: 95,
-                    compliance: 100,
-                    crossResponse: 100,
-                    timeToResolveHours: 24,
-                    trainingToB2B: 30,
-                    renewals: 20,
-                  },
-                })} leftIcon={<CloseIcon />}>
-                  Reset to defaults
-                </Button>
-              </HStack>
-            </Stack>
-          </CardBody>
-        </Card>
-
-        <Card border="1px solid" borderColor="gray.200" rounded="2xl" boxShadow="xl" mb={6}>
-          <CardHeader pb={2}>
-            <Heading size="md">Assign B2B Customers</Heading>
-            <Text color="gray.500" fontSize="sm">
-              Select a customer service agent for each pending B2B customer.
-            </Text>
-          </CardHeader>
-          <CardBody>
-            <TableContainer>
-              <Table size="sm" variant="simple">
-                <Thead bg="gray.50">
-                  <Tr>
-                    <Th>Client</Th>
-                    <Th>Company</Th>
-                    <Th>Email</Th>
-                    <Th>Phone</Th>
-                    <Th>Type</Th>
-                    <Th>Assign to Agent</Th>
-                    <Th></Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {pendingB2B.length === 0 ? (
-                    <Tr>
-                      <Td colSpan={7} textAlign="center" py={6}>
-                        <Text color="gray.500">No pending B2B customers.</Text>
-                      </Td>
-                    </Tr>
-                  ) : (
-                    pendingB2B.map((cust) => (
-                      <Tr key={cust._id}>
-                        <Td>{cust.clientName}</Td>
-                        <Td>{cust.companyName}</Td>
-                        <Td>{cust.email}</Td>
-                        <Td>{cust.phoneNumber}</Td>
-                        <Td>
-                          <Badge colorScheme={cust.type === "buyer" ? "green" : "purple"}>
-                            {cust.type}
-                          </Badge>
-                        </Td>
-                        <Td>
-                          <Select
-                            placeholder="Select agent"
-                            size="sm"
-                            value={selectedAgent[cust._id] || ""}
-                            onChange={(e) =>
-                              setSelectedAgent((prev) => ({ ...prev, [cust._id]: e.target.value }))
-                            }
-                          >
-                            {csUsers.map((u) => (
-                              <option key={u._id} value={u._id}>
-                                {u.username || u.email || u._id}
-                              </option>
-                            ))}
-                          </Select>
-                        </Td>
-                        <Td textAlign="right">
-                          <Button
-                            size="sm"
-                            colorScheme="teal"
-                            isLoading={assigningId === cust._id}
-                            onClick={() => handleAssignB2B(cust)}
-                          >
-                            Assign
-                          </Button>
-                        </Td>
-                      </Tr>
-                    ))
-                  )}
-                </Tbody>
-              </Table>
-            </TableContainer>
-          </CardBody>
-        </Card>
+  
       </Box>
     </Layout>
   );

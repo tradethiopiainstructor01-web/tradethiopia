@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['admin', 'sales', 'tradextv', 'customerservice', 'SocialmediaManager', 'CustomerSuccessManager', 'TETV', 'IT', 'HR', 'SalesSupervisor', 'Instructor', 'EventManager', 'COO', 'TradeXTV', 'finance'],
+        enum: ['admin', 'sales', 'salesmanager', 'tradextv', 'customerservice', 'SocialmediaManager', 'CustomerSuccessManager', 'TETV', 'IT', 'HR', 'SalesSupervisor', 'Instructor', 'EventManager', 'COO', 'TradeXTV', 'finance'],
         default: 'sales',
     },
     status: {
@@ -59,6 +59,11 @@ const userSchema = new mongoose.Schema({
     jobTitle: {
         type: String,
         required: false, // Optional
+    },
+    salary: {
+        type: Number,
+        required: false,
+        default: 0,
     },
 
     education: {

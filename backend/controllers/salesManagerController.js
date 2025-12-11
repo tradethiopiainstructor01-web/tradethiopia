@@ -1,6 +1,27 @@
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
+const { calculateCommission } = require('../utils/commission');
+
+const resolveSaleCommission = (sale) => {
+  if (sale?.commission && typeof sale.commission === 'object') {
+    const {
+      grossCommission = 0,
+      commissionTax = 0,
+      netCommission = 0
+    } = sale.commission;
+
+    if (typeof netCommission === 'number') {
+      return {
+        grossCommission,
+        commissionTax,
+        netCommission
+      };
+    }
+  }
+
+  return calculateCommission(sale?.coursePrice || 0);
+};
 
 // @desc    Get all sales for sales manager (all agents)
 // @route   GET /api/sales-manager/all-sales
@@ -45,7 +66,8 @@ const getAllSales = asyncHandler(async (req, res) => {
 
     // Get all completed sales from all agents with filters
     const sales = await SalesCustomer.find(filter)
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .populate('commission');
 
     // If no sales found, return empty array
     if (sales.length === 0) {
@@ -186,37 +208,6 @@ const getTeamPerformance = asyncHandler(async (req, res) => {
       throw new Error('Access denied. Sales managers only.');
     }
 
-    // Get all sales agents
-    const agents = await User.find({ role: 'sales' });
-
-    // Calculate performance metrics for each agent
-    const agentPerformance = await Promise.all(agents.map(async (agent) => {
-      const completedDeals = await SalesCustomer.countDocuments({
-        agentId: agent._id,
-        followupStatus: 'Completed'
-      });
-
-      // Calculate total commission for this agent
-      const salesWithCommission = await SalesCustomer.find({
-        agentId: agent._id,
-        followupStatus: 'Completed',
-        'commission.netCommission': { $exists: true }
-      });
-
-      const totalCommission = salesWithCommission.reduce((sum, sale) => {
-        return sum + (sale.commission?.netCommission || 0);
-      }, 0);
-
-      return {
-        agentId: agent._id,
-        agentName: agent.fullName || agent.username,
-        agentEmail: agent.email,
-        completedDeals,
-        totalCommission
-      };
-    }));
-
-    // Calculate course distribution
     // Build date filter based on time range
     const dateFilter = {};
     const now = new Date();
@@ -226,19 +217,66 @@ const getTeamPerformance = asyncHandler(async (req, res) => {
         dateFilter.createdAt = { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) };
         break;
       case 'month':
-        dateFilter.createdAt = { $gte: new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) };
+        dateFilter.createdAt = { $gte: new Date(now.getFullYear(), now.getMonth(), 1) };
         break;
       case 'quarter':
-        dateFilter.createdAt = { $gte: new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()) };
+        // Calculate start of quarter
+        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+        dateFilter.createdAt = { $gte: new Date(now.getFullYear(), quarterStartMonth, 1) };
         break;
       case 'year':
-        dateFilter.createdAt = { $gte: new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()) };
+        dateFilter.createdAt = { $gte: new Date(now.getFullYear(), 0, 1) };
         break;
       default:
         // No date filter for 'all' or unspecified
         break;
     }
-    
+
+    // Get all sales agents
+    const agents = await User.find({ role: 'sales' });
+
+    // Calculate performance metrics for each agent
+    const agentPerformance = await Promise.all(agents.map(async (agent) => {
+      // Apply date filter to agent calculations as well
+      const agentFilter = {
+        agentId: agent._id,
+        followupStatus: 'Completed'
+      };
+      
+      // Add date filter if specified
+      if (Object.keys(dateFilter).length > 0) {
+        agentFilter.createdAt = dateFilter.createdAt;
+      }
+      
+      const completedDeals = await SalesCustomer.countDocuments(agentFilter);
+
+      // Get all completed sales for this agent with date filter
+      const sales = await SalesCustomer.find(agentFilter);
+
+      let totalGrossCommission = 0;
+      let totalNetCommission = 0;
+      let totalSales = 0;
+      
+      sales.forEach((sale) => {
+        const commissionData = resolveSaleCommission(sale);
+        totalGrossCommission += commissionData.grossCommission;
+        totalNetCommission += commissionData.netCommission;
+        totalSales += sale.coursePrice || 0;
+      });
+
+      return {
+        _id: agent._id,
+        fullName: agent.fullName || agent.username,
+        username: agent.username,
+        email: agent.email,
+        completedDeals,
+        totalGrossCommission: Math.round(totalGrossCommission),
+        totalNetCommission: Math.round(totalNetCommission),
+        totalSales: Math.round(totalSales)
+      };
+    }));
+
+    // Get all completed sales with date filter
     const allCompletedSales = await SalesCustomer.find({
       followupStatus: 'Completed',
       ...dateFilter
@@ -265,7 +303,9 @@ const getTeamPerformance = asyncHandler(async (req, res) => {
       
       if (salesTrend[monthKey]) {
         salesTrend[monthKey].sales += 1;
-        salesTrend[monthKey].revenue += sale.commission?.netCommission || 0;
+        // Use simulated net commission for revenue calculation
+        const commissionData = resolveSaleCommission(sale);
+        salesTrend[monthKey].revenue += commissionData.netCommission;
       }
     });
     
@@ -321,15 +361,17 @@ const getTeamPerformance = asyncHandler(async (req, res) => {
 
     // Calculate overall team stats
     const totalTeamSales = agentPerformance.reduce((sum, agent) => sum + agent.completedDeals, 0);
-    const totalTeamCommission = agentPerformance.reduce((sum, agent) => sum + agent.totalCommission, 0);
-    const averageCommission = agentPerformance.length > 0 ? totalTeamCommission / agentPerformance.length : 0;
+    const totalTeamGrossCommission = agentPerformance.reduce((sum, agent) => sum + agent.totalGrossCommission, 0);
+    const totalTeamNetCommission = agentPerformance.reduce((sum, agent) => sum + agent.totalNetCommission, 0);
+    const averageGrossCommission = agentPerformance.length > 0 ? totalTeamGrossCommission / agentPerformance.length : 0;
 
     res.json({
       teamStats: {
         totalAgents: agents.length,
         totalTeamSales,
-        totalTeamCommission,
-        averageCommissionPerAgent: averageCommission
+        totalTeamGrossCommission,
+        totalTeamNetCommission,
+        averageGrossCommissionPerAgent: averageGrossCommission
       },
       agentPerformance,
       salesTrend: salesTrendArray,
@@ -364,27 +406,31 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     // Get all completed deals from all agents
     const totalCompletedDeals = await SalesCustomer.countDocuments({ followupStatus: 'Completed' });
 
-    // Calculate total revenue (sum of all commissions)
-    const salesWithCommission = await SalesCustomer.find({
-      followupStatus: 'Completed',
-      'commission.netCommission': { $exists: true }
-    });
+    // Get all completed sales to calculate revenue
+    const completedSales = await SalesCustomer.find({ followupStatus: 'Completed' });
 
-    const totalRevenue = salesWithCommission.reduce((sum, sale) => {
-      return sum + (sale.commission?.netCommission || 0);
-    }, 0);
+    // Calculate total gross and net commission
+    let totalGrossCommission = 0;
+    let totalNetCommission = 0;
+    
+    completedSales.forEach((sale) => {
+      const commissionData = resolveSaleCommission(sale);
+      totalGrossCommission += commissionData.grossCommission;
+      totalNetCommission += commissionData.netCommission;
+    });
 
     // Get recent sales (last 30 days)
     const recentSales = await SalesCustomer.countDocuments({
       followupStatus: 'Completed',
-      date: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     });
 
     res.json({
       totalAgents,
       totalCustomers,
       totalCompletedDeals,
-      totalRevenue,
+      totalTeamGrossCommission: Math.round(totalGrossCommission),
+      totalTeamNetCommission: Math.round(totalNetCommission),
       recentSales
     });
   } catch (error) {
@@ -395,10 +441,55 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Get sales data for a specific agent
+// @route   GET /api/sales-manager/agent-sales/:agentId
+// @access  Private (Sales Manager only)
+const getAgentSales = asyncHandler(async (req, res) => {
+  try {
+    // Only sales managers can access this
+    if (req.user.role !== 'salesmanager') {
+      res.status(403);
+      throw new Error('Access denied. Sales managers only.');
+    }
+
+    const { agentId } = req.params;
+    const { month, year } = req.query;
+
+    // Build filter object
+    let filter = {
+      agentId: agentId,
+      followupStatus: 'Completed'
+    };
+
+    // Date filtering
+    if (month && year) {
+      const startDate = new Date(year, month.split('-')[1] - 1, 1);
+      const endDate = new Date(year, month.split('-')[1], 0);
+      
+      filter.date = {
+        $gte: startDate,
+        $lte: endDate
+      };
+    }
+
+    // Get sales for this agent with filters
+    const sales = await SalesCustomer.find(filter)
+      .sort({ date: -1 });
+
+    res.json(sales);
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Error fetching agent sales", 
+      error: error.message 
+    });
+  }
+});
+
 module.exports = {
   getAllSales,
   updateSupervisorComment,
   getAllAgents,
   getTeamPerformance,
-  getDashboardStats
+  getDashboardStats,
+  getAgentSales
 };

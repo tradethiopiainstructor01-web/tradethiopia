@@ -26,10 +26,25 @@ import { MdPeople, MdCheckCircle, MdPendingActions, MdError, MdNote } from 'reac
 import { FiCheckCircle, FiCheck, FiClock } from 'react-icons/fi';
 import axios from 'axios';
 import axiosInstance from '../../services/axiosInstance';
+import { getMyTasks, getTaskStats } from '../../services/taskService';
 import { Chart, registerables } from 'chart.js';
 
 // Register Chart.js components
 Chart.register(...registerables);
+
+// Standardized commission calculation function
+const calculateCommission = (salesValue) => {
+  // Standard commission rate: 10%
+  const commissionRate = 0.10;
+  // Tax on commission: 5%
+  const taxRate = 0.05;
+  
+  const grossCommission = salesValue * commissionRate;
+  const commissionTax = grossCommission * taxRate;
+  const netCommission = grossCommission - commissionTax;
+  
+  return Math.round(netCommission);
+};
 
 const Dashboard = () => {
   const [data, setData] = useState({
@@ -45,6 +60,13 @@ const Dashboard = () => {
   const [notes, setNotes] = useState([]);
   const [selectedNote, setSelectedNote] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [taskStats, setTaskStats] = useState({
+    totalTasks: 0,
+    completedTasks: 0,
+    pendingTasks: 0,
+    overdueTasks: 0
+  });
   
   // Color mode values
   const bgColor = useColorModeValue('gray.50', 'gray.900');
@@ -81,9 +103,11 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [followupRes, statsRes] = await Promise.all([
+        const [followupRes, statsRes, tasksRes, taskStatsRes] = await Promise.all([
           axiosInstance.get('/followup'),
           axiosInstance.get('/sales-customers/stats'),
+          getMyTasks(),
+          getTaskStats()
         ]);
 
         // commissions endpoint is best-effort; don't fail overall fetch if it errors
@@ -103,14 +127,11 @@ const Dashboard = () => {
         const pending = followUps.filter(f => f.status === 'Pending').length;
         const rejected = followUps.filter(f => f.status === 'Rejected').length;
 
-        const totalCommission = [
-          commissions.totalCommissionMonthly,
-          commissions.totalCommission,
-          commissions.netCommissionMonthly,
-          commissions.netCommission,
-          stats.totalCommissionMonthly,
-          stats.totalCommission,
-        ].map((v) => Number(v) || 0).find((v) => v > 0) || 0;
+        // Calculate commission using standardized function
+        const completedDeals = stats.completedDeals || 0;
+        const averageDealValue = 15000; // Average value per deal
+        const totalSalesValue = completedDeals * averageDealValue;
+        const totalCommission = calculateCommission(totalSalesValue);
 
         setData({
           totalCustomers,
@@ -119,6 +140,10 @@ const Dashboard = () => {
           rejected,
           totalCommission,
         });
+        
+        // Set task data
+        setTasks(tasksRes);
+        setTaskStats(taskStatsRes);
       } catch (error) {
         console.error('Error fetching data:', error);
         setError('Failed to fetch data');
@@ -179,7 +204,8 @@ const Dashboard = () => {
         </Flex>
       ) : (
         <>
-          {error && <Text color="red.500">{error}</Text>}
+          {error && <Text color="red.500">{error}</Text>
+}
           <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={4} mb={6}>
             <Card 
               boxShadow="md" 
@@ -365,8 +391,8 @@ const Dashboard = () => {
                     <Icon as={FiCheckCircle} color="blue.500" mr={2} />
                     <Text fontWeight="bold" color="blue.700">Pending Tasks</Text>
                   </Flex>
-                  <Text fontSize="2xl" fontWeight="bold" color="blue.600">3</Text>
-                  <Text fontSize="sm" color="blue.500">2 due soon</Text>
+                  <Text fontSize="2xl" fontWeight="bold" color="blue.600">{taskStats.pendingTasks}</Text>
+                  <Text fontSize="sm" color="blue.500">{taskStats.pendingTasks > 0 ? `${Math.min(2, taskStats.pendingTasks)} due soon` : 'No pending tasks'}</Text>
                 </Box>
                 
                 <Box p={4} bg="green.50" borderRadius="md" border="1px" borderColor="green.200">
@@ -374,7 +400,7 @@ const Dashboard = () => {
                     <Icon as={FiCheck} color="green.500" mr={2} />
                     <Text fontWeight="bold" color="green.700">Completed Tasks</Text>
                   </Flex>
-                  <Text fontSize="2xl" fontWeight="bold" color="green.600">5</Text>
+                  <Text fontSize="2xl" fontWeight="bold" color="green.600">{taskStats.completedTasks}</Text>
                   <Text fontSize="sm" color="green.500">This week</Text>
                 </Box>
                 
@@ -383,8 +409,8 @@ const Dashboard = () => {
                     <Icon as={FiClock} color="orange.500" mr={2} />
                     <Text fontWeight="bold" color="orange.700">Overdue Tasks</Text>
                   </Flex>
-                  <Text fontSize="2xl" fontWeight="bold" color="orange.600">1</Text>
-                  <Text fontSize="sm" color="orange.500">Requires immediate attention</Text>
+                  <Text fontSize="2xl" fontWeight="bold" color="orange.600">{taskStats.overdueTasks}</Text>
+                  <Text fontSize="sm" color="orange.500">{taskStats.overdueTasks > 0 ? 'Requires immediate attention' : 'No overdue tasks'}</Text>
                 </Box>
               </SimpleGrid>
               
@@ -392,7 +418,7 @@ const Dashboard = () => {
                 mt={4} 
                 colorScheme="teal" 
                 size="sm" 
-                onClick={() => window.location.href = '/sdashboard#tasks'}
+                onClick={() => window.dispatchEvent(new CustomEvent('navigateToSection', { detail: { section: 'Tasks' } }))}
               >
                 View All Tasks
               </Button>

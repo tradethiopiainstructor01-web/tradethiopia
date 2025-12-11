@@ -15,17 +15,25 @@ import {
     IconButton,
     Divider,
     Badge,
-    VStack
+    VStack,
+    useColorModeValue
 } from "@chakra-ui/react";
+import { BsBell, BsChat } from "react-icons/bs";
 import { IoMoon } from "react-icons/io5";
 import { SunIcon } from "@chakra-ui/icons";
-import { BsBell, BsChat } from "react-icons/bs";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useUserStore } from "../store/user";
 import { useEffect, useState } from "react";
 
 const NavbarPage = () => {
     const { colorMode, toggleColorMode } = useColorMode();
+    const gradient = useColorModeValue(
+        "linear(to-r, #2dd4bf, #0ea5e9)",
+        "linear(to-r, #0f172a, #111827)"
+    );
+    const textColor = useColorModeValue("gray.900", "gray.100");
+    const borderColor = useColorModeValue("rgba(15,23,42,0.8)", "rgba(255,255,255,0.2)");
+    const toggleLabel = colorMode === "light" ? "Switch to dark theme" : "Switch to light theme";
     const navigate = useNavigate();
     const currentUser = useUserStore((state) => state.currentUser);
     const users = useUserStore((state) => state.users);
@@ -53,17 +61,16 @@ const NavbarPage = () => {
         <Container
             maxW="100%"
             px={4}
-            bgGradient={
-                colorMode === "light"
-                    ? "linear(to-r, gray.800, blue.800, teal.500)"
-                    : "linear(to-r, gray.800, blue.800, teal.600)"
-            }
-            color={colorMode === "light" ? "black" : "white"}
+            py={3}
+            bgGradient={gradient}
+            color="white"
             zIndex="10"
             position="fixed"
             top="0"
             boxShadow="lg"
             transition="background 0.3s ease"
+            borderBottomWidth="1px"
+            borderBottomColor={borderColor}
         >
             <Flex
                 h="60px"
@@ -78,11 +85,11 @@ const NavbarPage = () => {
                         fontSize="24px"
                         fontWeight="bold"
                         textTransform="uppercase"
-                        textAlign="center"
-                        bgGradient="linear(to-l, #36d1dc, #5b86e5)"
-                        bgClip="text"
+                        letterSpacing="wide"
+                        color="white"
+                        textShadow="0 2px 8px rgba(0,0,0,0.35)"
                     >
-                        <Link to="/">Dashboard</Link>
+                        Dashboard
                     </Text>
                 </Flex>
 {/* Navigation Icons */}
@@ -159,8 +166,12 @@ const NavbarPage = () => {
                     <IconButton
                         icon={colorMode === "light" ? <IoMoon /> : <SunIcon />}
                         onClick={toggleColorMode}
-                        variant="ghost"
-                        aria-label="Toggle Color Mode"
+                        variant="solid"
+                        colorScheme={colorMode === "light" ? "purple" : "yellow"}
+                        aria-label={toggleLabel}
+                        rounded="full"
+                        boxShadow="md"
+                        size="md"
                     />
                 </HStack>
             </Flex>

@@ -1,69 +1,90 @@
 import React, { useState } from "react";
-import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure } from "@chakra-ui/react";
+import {
+  Box,
+  Drawer,
+  DrawerOverlay,
+  DrawerContent,
+  useDisclosure,
+  useColorModeValue,
+} from "@chakra-ui/react";
+
 import Sidebar from "./Sidebar";
 import Cnavbar from "./customNavbar";
-import { useColorModeValue } from "@chakra-ui/react";
 
-const Layout = ({ children, hideSidebar = false }) => {
-  const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
+const Layout = ({ children, hideSidebar = false, activeSection, onSelectSection }) => {
+  const { isOpen, onOpen, onClose } = useDisclosure();
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const pageBg = useColorModeValue("#f5f8ff", "#0b1224");
+
+  const pageBg = useColorModeValue("#f2f6ff", "#0b1224");
+
+  const sidebarWidth = isSidebarCollapsed ? "78px" : "260px";
 
   return (
-    <Box display="flex" flexDirection="column" height="100vh">
-      {/* Navbar */}
-      <Box position="fixed" top={0} left={0} width="100%" zIndex="1000">
-        <Cnavbar onToggleSidebar={onOpen} /> {/* Pass `onOpen` to toggle the drawer */}
+    <Box height="100vh" overflow="hidden">
+
+      {/* NAVBAR */}
+      <Box position="fixed" top={0} left={0} w="100%" zIndex="1100">
+        <Cnavbar onToggleSidebar={onOpen} />
       </Box>
 
-      {/* Main Container */}
-      <Box display="flex" flex="1" pt="60px">
-        {/* Sidebar for Larger Screens */}
+      <Box pt="64px" height="100%">
+        {/* DESKTOP SIDEBAR */}
         {!hideSidebar && (
           <Box
             position="fixed"
-            top="60px"
+            top="64px"
             left={0}
-            width={isSidebarCollapsed ? "72px" : "240px"}
-            height="calc(100vh - 60px)" // Adjust height to account for the navbar
-            transition="width 0.3s"
-            display={{ base: "none", md: "block" }} // Hide on mobile
-            zIndex="900" // Ensure it's below the navbar but above other content
+            height="calc(100vh - 64px)"
+            width={sidebarWidth}
+            transition="width .25s ease"
+            display={{ base: "none", md: "block" }}
+            zIndex="1000"
           >
             <Sidebar
               isCollapsed={isSidebarCollapsed}
-              toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
+              toggleCollapse={() =>
+                setSidebarCollapsed((prev) => !prev)
+              }
+              activeSection={activeSection}
+              onSelectSection={onSelectSection}
             />
           </Box>
         )}
 
-        {/* Drawer for Mobile Screens */}
+        {/* MOBILE DRAWER SIDEBAR */}
         {!hideSidebar && (
-          <Drawer isOpen={isOpen} onClose={onClose} placement="left">
+          <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
             <DrawerOverlay />
             <DrawerContent>
               <Sidebar
-                isCollapsed={isSidebarCollapsed}
-                toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
+                isCollapsed={false} // mobile always expanded
+                toggleCollapse={() => {}}
+                activeSection={activeSection}
+                onSelectSection={onSelectSection}
               />
             </DrawerContent>
           </Drawer>
         )}
 
-        {/* Main Content */}
-        <Box
-          ml={{
-            base: 0, // No margin on mobile
-            md: hideSidebar ? 0 : isSidebarCollapsed ? "72px" : "240px", // Adjust for collapsed or expanded sidebar on larger screens
-          }}
-          transition="margin-left 0.3s"
-          p={4}
-          bg={pageBg}
-          flex="1"
-          width="100%" // Ensure it takes up the remaining space
-        >
-          {children}
-        </Box>
+               {/* MAIN CONTENT */}
+            <Box
+              ml={{
+                base: 0,
+                md: hideSidebar
+                  ? 0
+                  : isSidebarCollapsed
+                  ? "78px"        // SIDEBAR COLLAPSED WIDTH
+                  : "260px",      // SIDEBAR FULL WIDTH
+              }}
+              transition="all .25s ease"
+              bg={pageBg}
+              height="calc(100vh - 64px)"
+              overflowY="auto"
+              p={5}
+            >
+              {children}
+            </Box>
+
       </Box>
     </Box>
   );

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   VStack, 
   Box, 
@@ -15,7 +15,8 @@ import {
   MenuItem,
   MenuDivider,
   Icon,
-  useColorModeValue
+  useColorModeValue,
+  Badge,
 } from '@chakra-ui/react';
 import { 
   FiHome, 
@@ -25,10 +26,12 @@ import {
   FiUser, 
   FiActivity, 
   FiChevronDown,
-  FiBell
+  FiBell,
+  FiMessageSquare
 } from 'react-icons/fi';
+import { getNotifications } from '../../services/notificationService';
 
-const NavButton = ({ icon, label, active, onClick, colorScheme }) => (
+const NavButton = ({ icon, label, active, onClick, colorScheme, unreadCount = 0 }) => (
   <Tooltip label={label} placement="right" hasArrow>
     <Button
       leftIcon={icon}
@@ -40,14 +43,55 @@ const NavButton = ({ icon, label, active, onClick, colorScheme }) => (
       size={{ base: 'md', lg: 'lg' }}
       borderRadius="lg"
       fontWeight="normal"
+      position="relative"
     >
       <Text display={{ base: 'none', lg: 'block' }}>{label}</Text>
+      {unreadCount > 0 && label === 'Notice Board' && (
+        <Badge
+          colorScheme="red"
+          borderRadius="full"
+          position="absolute"
+          top="8px"
+          right="8px"
+          fontSize="10px"
+          w="18px"
+          h="18px"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          {unreadCount}
+        </Badge>
+      )}
     </Button>
   </Tooltip>
 );
 
 const ITSidebar = ({ active, setActive }) => {
+  const [unreadCount, setUnreadCount] = useState(0);
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  
+  // Fetch notifications to count unread messages
+  const fetchUnreadCount = async () => {
+    try {
+      const data = await getNotifications();
+      // Filter for general notifications (broadcast messages) and count unread
+      const broadcastMessages = data.filter(msg => msg.type === 'general');
+      const unread = broadcastMessages.filter(msg => !msg.read).length;
+      setUnreadCount(unread);
+    } catch (err) {
+      console.error('Error fetching notification count:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+    
+    // Set up interval to periodically refresh the count
+    const interval = setInterval(fetchUnreadCount, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
   
   return (
     <Box height="100%" display="flex" flexDirection="column">
@@ -120,6 +164,18 @@ const ITSidebar = ({ active, setActive }) => {
             active={active === 'reports'} 
             onClick={() => setActive('reports')} 
             colorScheme="green"
+          />
+          
+          <NavButton 
+            icon={<FiMessageSquare />} 
+            label="Notice Board" 
+            active={active === 'notice-board'} 
+            onClick={() => {
+              setActive('notice-board');
+              fetchUnreadCount();
+            }} 
+            colorScheme="teal"
+            unreadCount={unreadCount}
           />
           
           <Box w="full" mt={6}>

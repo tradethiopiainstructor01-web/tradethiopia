@@ -41,6 +41,55 @@ const getTrainingFollowups = async (req, res) => {
   }
 };
 
+// Get count of training customers whose progress is not 'Completed'
+const getIncompleteTrainingCount = async (req, res) => {
+  try {
+    const count = await TrainingFollowup.countDocuments({
+      progress: { $ne: "Completed" }
+    });
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Get training programs that are not completed properly (not equal to 'Completed')
+const getWeeklyPopularTrainings = async (req, res) => {
+  try {
+    // Aggregate to get training program counts where progress is not 'Completed'
+    const popularTrainings = await TrainingFollowup.aggregate([
+      {
+        $match: {
+          progress: { $ne: "Completed" }  // Only include trainings that are not completed
+        }
+      },
+      {
+        $group: {
+          _id: "$trainingType",  // Group by training program (trainingType)
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      },
+      {
+        $limit: 5 // Get top 5 most popular training programs
+      },
+      {
+        $project: {
+          _id: 0,
+          trainingProgram: "$_id",  // Rename _id to trainingProgram for clarity
+          count: 1
+        }
+      }
+    ]);
+
+    res.json(popularTrainings);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // Update Training follow-up
 const updateTrainingFollowup = async (req, res) => {
   try {
@@ -71,6 +120,8 @@ const deleteTrainingFollowup = async (req, res) => {
 module.exports = {
   createTrainingFollowup,
   getTrainingFollowups,
+  getIncompleteTrainingCount,
+  getWeeklyPopularTrainings,
   updateTrainingFollowup,
   deleteTrainingFollowup,
 };

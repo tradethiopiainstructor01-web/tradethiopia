@@ -77,14 +77,15 @@ const loginUser = async (req, res) => {
                 altEmail: user.altEmail,
                 altPhone: user.altPhone,
                 gender: user.gender,
-                jobTitle: user.jobTitle,
-                hireDate: user.hireDate,
-                employmentType: user.employmentType,
-                education: user.education,
-                location: user.location,
-                phone: user.phone,
-                additionalLanguages: user.additionalLanguages,
-                notes: user.notes,
+            jobTitle: user.jobTitle,
+            hireDate: user.hireDate,
+            employmentType: user.employmentType,
+            education: user.education,
+            location: user.location,
+            phone: user.phone,
+            additionalLanguages: user.additionalLanguages,
+            salary: user.salary,
+            notes: user.notes,
                 digitalId: user.digitalId,
                 photo: user.photo,
                 photoUrl: user.photo ? 
@@ -111,7 +112,8 @@ const createuser = async (req, res) => {
         fullName, altEmail, altPhone, gender, 
         jobTitle, hireDate, employmentType, 
         education, location, phone, additionalLanguages, 
-        notes,digitalId,photo,infoStatus,trainingStatus,guarantorFile
+        notes,digitalId,photo,infoStatus,trainingStatus,guarantorFile,
+        salary
     } = req.body;
 
     if (!username || !email || !password || !role) {
@@ -158,10 +160,8 @@ const createuser = async (req, res) => {
             photo,
             infoStatus,
             trainingStatus,
-            guarantorFile
-
-
-
+            guarantorFile,
+            salary: salary !== undefined && salary !== null ? Number(salary) : undefined
         });
         await newUser.save();
         res.status(201).json({ success: true, data: newUser });

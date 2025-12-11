@@ -15,10 +15,10 @@ import {
   Card,
   CardBody
 } from '@chakra-ui/react';
-import FinanceLayout from './FinanceLayout';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getFinanceMetrics, getOrders, getDemands } from '../../services/financeService';
+import { getMetrics, getOrders, getDemands } from '../../services/financeService';
+import AgentSalesReport from './AgentSalesReport';
 
 const FinanceDashboard = () => {
   const [metrics, setMetrics] = useState(null);
@@ -30,7 +30,7 @@ const FinanceDashboard = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await getFinanceMetrics();
+        const data = await getMetrics();
         setMetrics(data);
         // load orders/demands counts
         try {
@@ -51,7 +51,7 @@ const FinanceDashboard = () => {
     load();
   }, []);
   return (
-    <FinanceLayout>
+    <>
       <Box mb={6}>
         <Heading size="lg">Finance Overview</Heading>
         <Text color="gray.600">Key finance metrics and quick actions</Text>
@@ -106,6 +106,11 @@ const FinanceDashboard = () => {
         </HStack>
       </Box>
 
+      {/* Agent Sales Report Section */}
+      <Box mb={8}>
+        <AgentSalesReport />
+      </Box>
+
       <Box>
         <Heading size="md" mb={3}>Activity</Heading>
         <VStack spacing={3} align="stretch">
@@ -124,7 +129,7 @@ const FinanceDashboard = () => {
           </Card>
         </VStack>
       </Box>
-    </FinanceLayout>
+    </>
   );
 };
 
