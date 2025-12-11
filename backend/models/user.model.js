@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['admin', 'sales', 'salesmanager', 'tradextv', 'customerservice', 'SocialmediaManager', 'CustomerSuccessManager', 'TETV', 'IT', 'HR', 'SalesSupervisor', 'Instructor', 'EventManager', 'COO', 'TradeXTV', 'finance'],
+        enum: ['admin', 'HR', 'sales', 'salesmanager', 'tradextv', 'customerservice', 'SocialmediaManager', 'CustomerSuccessManager', 'TETV', 'IT', 'HR', 'SalesSupervisor', 'Instructor', 'EventManager', 'COO', 'TradeXTV', 'finance'],
         default: 'sales',
     },
     status: {
