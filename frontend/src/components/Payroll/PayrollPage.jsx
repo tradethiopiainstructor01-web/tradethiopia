@@ -47,8 +47,8 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, DownloadIcon, ViewIcon, LockIcon, CheckIcon } from '@chakra-ui/icons';
 import Layout from '../Layout';
-import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll } from '../../services/payrollService';
-import useAgentCommission from '../../hooks/useAgentCommission';
+import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll, fetchCommissionData, submitCommission, fetchSalesDataForCommission } from '../../services/payrollService';
+
 const PayrollPage = () => {
   const [payrollData, setPayrollData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +60,7 @@ const PayrollPage = () => {
   const [selectedRole, setSelectedRole] = useState('');
   const [isHrModalOpen, setIsHrModalOpen] = useState(false);
   const [isFinanceModalOpen, setIsFinanceModalOpen] = useState(false);
+  const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [hrFormData, setHrFormData] = useState({
     userId: '',
@@ -74,6 +75,14 @@ const PayrollPage = () => {
     financeDeductions: 0,
     hrAllowances: 0
   });
+  const [commissionFormData, setCommissionFormData] = useState({
+    userId: '',
+    numberOfSales: 0,
+    totalCommission: 0,
+    commissionDetails: []
+  });
+  const [salesData, setSalesData] = useState([]);
+  const [loadingSales, setLoadingSales] = useState(false);
   
   const toast = useToast();
   
@@ -324,6 +333,120 @@ const PayrollPage = () => {
       ...financeFormData,
       [name]: parseFloat(value) || 0
     });
+  };
+  
+  // Open Commission modal
+  const openCommissionModal = async (employee) => {
+    setSelectedEmployee(employee);
+    setIsCommissionModalOpen(true);
+    
+    try {
+      // Fetch existing commission data if available
+      const commissionData = await fetchCommissionData(
+        employee.userId._id || employee.userId,
+        selectedMonth,
+        selectedYear
+      );
+      
+      if (commissionData) {
+        setCommissionFormData({
+          userId: employee.userId._id || employee.userId,
+          numberOfSales: commissionData.numberOfSales || 0,
+          totalCommission: commissionData.totalCommission || 0,
+          commissionDetails: commissionData.commissionDetails || []
+        });
+      } else {
+        // Initialize with default values
+        setCommissionFormData({
+          userId: employee.userId._id || employee.userId,
+          numberOfSales: 0,
+          totalCommission: 0,
+          commissionDetails: []
+        });
+      }
+      
+      // Fetch sales data for this employee
+      if (employee.department === 'sales') {
+        setLoadingSales(true);
+        const sales = await fetchSalesDataForCommission(
+          employee.userId._id || employee.userId,
+          selectedMonth,
+          selectedYear
+        );
+        setSalesData(sales || []);
+        setLoadingSales(false);
+      }
+    } catch (err) {
+      console.error('Error fetching commission data:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch commission data',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      setLoadingSales(false);
+    }
+  };
+  
+  // Handle Commission form change
+  const handleCommissionFormChange = (e) => {
+    const { name, value } = e.target;
+    setCommissionFormData({
+      ...commissionFormData,
+      [name]: parseFloat(value) || 0
+    });
+  };
+  
+  // Submit Commission
+  const submitCommissionHandler = async () => {
+    try {
+      const data = await submitCommission({
+        ...commissionFormData,
+        month: selectedMonth,
+        year: selectedYear
+      });
+      toast({
+        title: 'Success',
+        description: data.message,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      setIsCommissionModalOpen(false);
+      fetchPayrollDataHandler();
+    } catch (err) {
+      console.error('Error submitting commission:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to submit commission',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+  
+  // Auto-calculate commission based on sales data
+  const calculateCommissionFromSales = () => {
+    if (salesData.length > 0) {
+      const totalSales = salesData.reduce((sum, sale) => sum + (sale.coursePrice || 0), 0);
+      const totalCommission = totalSales * 0.10; // 10% commission rate
+      
+      setCommissionFormData({
+        ...commissionFormData,
+        numberOfSales: salesData.length,
+        totalCommission: totalCommission,
+        commissionDetails: salesData.map(sale => ({
+          customerId: sale._id,
+          customerName: sale.customerName,
+          saleAmount: sale.coursePrice || 0,
+          commissionRate: 0.10,
+          commissionAmount: (sale.coursePrice || 0) * 0.10,
+          date: sale.date
+        }))
+      });
+    }
   };
   
   // Effect to fetch data on mount and when filters change
@@ -729,6 +852,17 @@ const PayrollPage = () => {
                           />
                         </Tooltip>
                         
+                        {employee.department === 'sales' && (
+                          <Tooltip label="Manage Commission">
+                            <IconButton
+                              icon={<AddIcon />}
+                              size="xs"
+                              colorScheme="green"
+                              onClick={() => openCommissionModal(employee)}
+                            />
+                          </Tooltip>
+                        )}
+                        
                         {employee.status !== 'locked' && (
                           <>
                             <Tooltip label="HR Adjustment">
@@ -774,6 +908,7 @@ const PayrollPage = () => {
                         )}
                       </Flex>
                     </Td>
+
                   </Tr>
                 ))}
               </Tbody>
@@ -939,6 +1074,143 @@ const PayrollPage = () => {
               <Button 
                 variant="ghost" 
                 onClick={() => setIsFinanceModalOpen(false)}
+                size="sm"
+                px={6}
+              >
+                Cancel
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+        
+        {/* Commission Modal */}
+        <Modal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} size="xl">
+          <ModalOverlay />
+          <ModalContent maxW={{ base: "95%", md: "600px" }}>
+            <ModalHeader fontSize="lg" fontWeight="bold" bg={headerBg} color="white" borderTopRadius="lg">
+              Commission Management
+            </ModalHeader>
+            <ModalCloseButton color="white" />
+            <ModalBody py={5}>
+              {selectedEmployee && (
+                <Box mb={4}>
+                  <Text fontSize="sm"><strong>Employee:</strong> {selectedEmployee.employeeName}</Text>
+                  <Text fontSize="sm"><strong>Department:</strong> {selectedEmployee.department}</Text>
+                  <Text fontSize="sm"><strong>Period:</strong> {selectedMonth} {selectedYear}</Text>
+                </Box>
+              )}
+              
+              {selectedEmployee?.department === 'sales' && (
+                <Box mb={4}>
+                  <Flex justify="space-between" align="center" mb={2}>
+                    <Text fontSize="sm" fontWeight="bold">Sales Data</Text>
+                    <Button 
+                      size="xs" 
+                      colorScheme="teal" 
+                      onClick={calculateCommissionFromSales}
+                      isLoading={loadingSales}
+                    >
+                      Calculate from Sales
+                    </Button>
+                  </Flex>
+                  
+                  {loadingSales ? (
+                    <Flex justify="center" py={4}>
+                      <Spinner size="sm" />
+                    </Flex>
+                  ) : salesData.length > 0 ? (
+                    <Box maxHeight="200px" overflowY="auto" border="1px" borderColor={borderColor} borderRadius="md" p={2}>
+                      <Table size="sm">
+                        <Thead>
+                          <Tr>
+                            <Th px={2} py={1} fontSize="xs">Customer</Th>
+                            <Th px={2} py={1} fontSize="xs" isNumeric>Amount</Th>
+                            <Th px={2} py={1} fontSize="xs" isNumeric>Commission</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {salesData.map((sale, index) => (
+                            <Tr key={index}>
+                              <Td px={2} py={1} fontSize="xs">{sale.customerName}</Td>
+                              <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(sale.coursePrice || 0)}</Td>
+                              <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency((sale.coursePrice || 0) * 0.10)}</Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </Box>
+                  ) : (
+                    <Text fontSize="sm" color="gray.500">No sales data found for this period</Text>
+                  )}
+                </Box>
+              )}
+              
+              <Grid templateColumns="1fr 1fr" gap={4} mb={4}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Number of Sales</FormLabel>
+                  <Input
+                    type="number"
+                    name="numberOfSales"
+                    value={commissionFormData.numberOfSales}
+                    onChange={handleCommissionFormChange}
+                    size="sm"
+                    borderRadius="md"
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel fontSize="sm">Total Commission</FormLabel>
+                  <Input
+                    type="number"
+                    name="totalCommission"
+                    value={commissionFormData.totalCommission}
+                    onChange={handleCommissionFormChange}
+                    size="sm"
+                    borderRadius="md"
+                  />
+                </FormControl>
+              </Grid>
+              
+              <Text fontSize="sm" fontWeight="bold" mb={2}>Commission Details</Text>
+              {commissionFormData.commissionDetails.length > 0 ? (
+                <Box maxHeight="150px" overflowY="auto" border="1px" borderColor={borderColor} borderRadius="md" p={2} mb={4}>
+                  <Table size="sm">
+                    <Thead>
+                      <Tr>
+                        <Th px={2} py={1} fontSize="xs">Customer</Th>
+                        <Th px={2} py={1} fontSize="xs" isNumeric>Amount</Th>
+                        <Th px={2} py={1} fontSize="xs" isNumeric>Commission</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {commissionFormData.commissionDetails.map((detail, index) => (
+                        <Tr key={index}>
+                          <Td px={2} py={1} fontSize="xs">{detail.customerName}</Td>
+                          <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(detail.saleAmount || 0)}</Td>
+                          <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(detail.commissionAmount || 0)}</Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </Box>
+              ) : (
+                <Text fontSize="sm" color="gray.500" mb={4}>No commission details added</Text>
+              )}
+            </ModalBody>
+            
+            <ModalFooter bg={cardBg} borderBottomRadius="lg">
+              <Button 
+                colorScheme="blue" 
+                mr={3} 
+                onClick={submitCommissionHandler}
+                size="sm"
+                px={6}
+              >
+                Save Commission
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => setIsCommissionModalOpen(false)}
                 size="sm"
                 px={6}
               >

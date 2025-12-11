@@ -7,7 +7,10 @@ const {
   submitFinanceAdjustment,
   getPayrollDetails,
   approvePayroll,
-  lockPayroll
+  lockPayroll,
+  submitCommission,
+  getCommissionByUser,
+  getSalesDataForCommission
 } = require('../controllers/payrollController');
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleAuth');
@@ -30,6 +33,18 @@ router.post('/hr-adjust', authorize('hr', 'HR'), submitHRAdjustment);
 // POST /payroll/finance-adjust → Finance allowances & deductions
 // Access: Finance
 router.post('/finance-adjust', authorize('finance', 'Finance'), submitFinanceAdjustment);
+
+// POST /payroll/commission → Submit or update commission data
+// Access: Admin, Finance
+router.post('/commission', authorize('admin', 'finance', 'Finance'), submitCommission);
+
+// GET /payroll/commission/:userId → Get commission data for a user
+// Access: Admin, Finance, HR
+router.get('/commission/:userId', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getCommissionByUser);
+
+// GET /payroll/sales-data/:agentId → Get sales data for commission calculation
+// Access: Admin, Finance, HR
+router.get('/sales-data/:agentId', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getSalesDataForCommission);
 
 // GET /payroll/:userId/details → detailed payroll view
 // Access: HR, Finance, Admin, Employee (own data only)

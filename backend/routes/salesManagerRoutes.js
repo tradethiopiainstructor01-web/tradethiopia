@@ -7,7 +7,8 @@ const {
   updateSupervisorComment,
   getAllAgents,
   getTeamPerformance,
-  getDashboardStats
+  getDashboardStats,
+  getAgentSales
 } = require('../controllers/salesManagerController');
 
 // All routes are protected and require sales manager role
@@ -25,5 +26,8 @@ router.route('/team-performance')
 
 router.route('/dashboard-stats')
   .get(protect, authorize('salesmanager'), getDashboardStats);
+
+router.route('/agent-sales/:agentId')
+  .get(protect, authorize('salesmanager'), getAgentSales);
 
 module.exports = router;

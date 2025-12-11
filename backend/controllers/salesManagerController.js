@@ -441,10 +441,55 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Get sales data for a specific agent
+// @route   GET /api/sales-manager/agent-sales/:agentId
+// @access  Private (Sales Manager only)
+const getAgentSales = asyncHandler(async (req, res) => {
+  try {
+    // Only sales managers can access this
+    if (req.user.role !== 'salesmanager') {
+      res.status(403);
+      throw new Error('Access denied. Sales managers only.');
+    }
+
+    const { agentId } = req.params;
+    const { month, year } = req.query;
+
+    // Build filter object
+    let filter = {
+      agentId: agentId,
+      followupStatus: 'Completed'
+    };
+
+    // Date filtering
+    if (month && year) {
+      const startDate = new Date(year, month.split('-')[1] - 1, 1);
+      const endDate = new Date(year, month.split('-')[1], 0);
+      
+      filter.date = {
+        $gte: startDate,
+        $lte: endDate
+      };
+    }
+
+    // Get sales for this agent with filters
+    const sales = await SalesCustomer.find(filter)
+      .sort({ date: -1 });
+
+    res.json(sales);
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Error fetching agent sales", 
+      error: error.message 
+    });
+  }
+});
+
 module.exports = {
   getAllSales,
   updateSupervisorComment,
   getAllAgents,
   getTeamPerformance,
-  getDashboardStats
+  getDashboardStats,
+  getAgentSales
 };

@@ -354,6 +354,96 @@ const submitFinanceAdjustment = async (req, res) => {
   }
 };
 
+// POST /payroll/commission → Submit or update commission data
+const submitCommission = async (req, res) => {
+  try {
+    const { userId, month, year, numberOfSales, totalCommission, commissionDetails } = req.body;
+    
+    if (!userId || !month || !year) {
+      return res.status(400).json({ message: 'User ID, month, and year are required' });
+    }
+    
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Create or update commission record
+    const commissionData = {
+      userId: user._id,
+      employeeName: user.fullName || user.username,
+      department: user.role,
+      month,
+      year,
+      numberOfSales: numberOfSales || 0,
+      totalCommission: totalCommission || 0,
+      commissionDetails: commissionDetails || [],
+      submittedBy: req.user._id
+    };
+    
+    // Check if record already exists
+    const existingRecord = await Commission.findOne({ userId, month, year });
+    
+    let commissionRecord;
+    if (existingRecord) {
+      commissionRecord = await Commission.findByIdAndUpdate(
+        existingRecord._id,
+        commissionData,
+        { new: true }
+      );
+    } else {
+      commissionRecord = new Commission(commissionData);
+      await commissionRecord.save();
+    }
+    
+    // If this is for the current payroll period, update payroll
+    const currentDate = new Date();
+    const currentMonth = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+    const payrollMonth = month;
+    
+    if (currentMonth === payrollMonth) {
+      // Recalculate payroll for this user
+      const payrollData = await calculatePayroll(user._id, month, year);
+      
+      await Payroll.findOneAndUpdate(
+        { userId: user._id, month, year },
+        payrollData,
+        { upsert: true, new: true }
+      );
+    }
+    
+    res.json({
+      message: 'Commission submitted successfully',
+      commission: commissionRecord
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET /payroll/commission/:userId → Get commission data for a user
+const getCommissionByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { month, year } = req.query;
+    
+    if (!month || !year) {
+      return res.status(400).json({ message: 'Month and year are required' });
+    }
+    
+    const commissionRecord = await Commission.findOne({ userId, month, year });
+    
+    if (!commissionRecord) {
+      return res.status(404).json({ message: 'Commission record not found' });
+    }
+    
+    res.json(commissionRecord);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // GET /payroll/:userId/details → detailed payroll view
 const getPayrollDetails = async (req, res) => {
   try {
@@ -470,6 +560,32 @@ const lockPayroll = async (req, res) => {
   }
 };
 
+// GET /payroll/sales-data/:agentId → Get sales data for commission calculation
+const getSalesDataForCommission = async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { month, year } = req.query;
+    
+    if (!month || !year) {
+      return res.status(400).json({ message: 'Month and year are required' });
+    }
+    
+    // Get sales for this agent
+    const sales = await SalesCustomer.find({
+      agentId: agentId,
+      followupStatus: 'Completed',
+      date: {
+        $gte: new Date(year, month.split('-')[1] - 1, 1),
+        $lte: new Date(year, month.split('-')[1], 0)
+      }
+    }).sort({ date: -1 });
+    
+    res.json(sales);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getPayrollList,
   calculatePayrollForAll,
@@ -477,5 +593,8 @@ module.exports = {
   submitFinanceAdjustment,
   getPayrollDetails,
   approvePayroll,
-  lockPayroll
+  lockPayroll,
+  submitCommission,
+  getCommissionByUser,
+  getSalesDataForCommission
 };
