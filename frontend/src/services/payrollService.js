@@ -72,6 +72,12 @@ export const submitCommission = async (data) => {
   return response.data;
 };
 
+// Delete a payroll record
+export const deletePayrollRecord = async (payrollId) => {
+  const response = await axiosInstance.delete(`/payroll/${payrollId}`);
+  return response.data;
+};
+
 // Get sales data for commission calculation (through payroll system)
 export const fetchSalesDataForCommission = async (agentId, month, year) => {
   // Instead of calling sales manager endpoint directly, we'll get this data

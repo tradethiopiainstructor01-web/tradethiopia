@@ -10,7 +10,8 @@ const {
   lockPayroll,
   submitCommission,
   getCommissionByUser,
-  getSalesDataForCommission
+  getSalesDataForCommission,
+  deletePayrollRecord
 } = require('../controllers/payrollController');
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleAuth');
@@ -51,11 +52,15 @@ router.get('/sales-data/:agentId', authorize('admin', 'finance', 'Finance', 'hr'
 router.get('/:userId/details', getPayrollDetails);
 
 // PUT /payroll/:id/approve → Approve payroll
-// Access: Admin
-router.put('/:id/approve', authorize('admin'), approvePayroll);
+// Access: Admin, Finance
+router.put('/:id/approve', authorize('admin', 'finance', 'Finance'), approvePayroll);
 
 // PUT /payroll/:id/lock → Lock payroll
 // Access: Admin
 router.put('/:id/lock', authorize('admin'), lockPayroll);
+
+// DELETE /payroll/:id — Delete payroll entry
+// Access: Admin, Finance
+router.delete('/:id', authorize('admin', 'finance', 'Finance'), deletePayrollRecord);
 
 module.exports = router;

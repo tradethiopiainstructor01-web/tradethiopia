@@ -19,6 +19,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getMetrics, getOrders, getDemands } from '../../services/financeService';
 import AgentSalesReport from './AgentSalesReport';
+import FinancePayrollTable from './FinancePayrollTable';
 
 const FinanceDashboard = () => {
   const [metrics, setMetrics] = useState(null);
@@ -128,6 +129,11 @@ const FinanceDashboard = () => {
             </CardBody>
           </Card>
         </VStack>
+      </Box>
+
+      <Box mt={8}>
+        <Heading size="md" mb={3}>Payroll Snapshot</Heading>
+        <FinancePayrollTable />
       </Box>
     </>
   );

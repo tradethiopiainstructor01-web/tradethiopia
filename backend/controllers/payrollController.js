@@ -641,6 +641,23 @@ const getSalesDataForCommission = async (req, res) => {
   }
 };
 
+// DELETE /payroll/:id — Delete a payroll entry
+const deletePayrollRecord = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payrollRecord = await Payroll.findByIdAndDelete(id);
+    if (!payrollRecord) {
+      return res.status(404).json({ message: 'Payroll record not found' });
+    }
+    res.json({
+      success: true,
+      message: 'Payroll record deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getPayrollList,
   calculatePayrollForAll,
@@ -651,5 +668,6 @@ module.exports = {
   lockPayroll,
   getCommissionByUser,
   submitCommission,
-  getSalesDataForCommission
+  getSalesDataForCommission,
+  deletePayrollRecord
 };
