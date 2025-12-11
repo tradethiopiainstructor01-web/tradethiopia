@@ -64,6 +64,14 @@ const PerformancePage = () => {
   const tableBorderColor = useColorModeValue('gray.100', 'gray.600');
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+  const formatNumber = (value, options) => {
+    const normalized = value != null ? Number(value) : 0;
+    if (!Number.isFinite(normalized)) {
+      return '0';
+    }
+    return normalized.toLocaleString(undefined, options);
+  };
+  const formatCurrency = (value) => `ETB ${formatNumber(value, { maximumFractionDigits: 0 })}`;
 
   const fetchPerformanceData = useCallback(async () => {
     try {
@@ -248,7 +256,7 @@ const PerformancePage = () => {
         {[
           {
             title: 'Total Agents',
-            value: performanceData.teamStats.totalAgents,
+            value: formatNumber(performanceData.teamStats.totalAgents),
             icon: 'FiUsers',
             color: 'teal',
             trend: '+5%',
@@ -257,7 +265,7 @@ const PerformancePage = () => {
           },
           {
             title: 'Total Sales',
-            value: performanceData.teamStats.totalTeamSales,
+            value: formatNumber(performanceData.teamStats.totalTeamSales),
             icon: 'FiBarChart2',
             color: 'blue',
             trend: '+12%',
@@ -266,7 +274,7 @@ const PerformancePage = () => {
           },
           {
             title: 'Total Commission',
-            value: `ETB ${(performanceData.teamStats.totalTeamCommission || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+            value: formatCurrency(performanceData.teamStats.totalTeamCommission),
             icon: 'FiDollarSign',
             color: 'purple',
             trend: '+8%',
@@ -275,7 +283,7 @@ const PerformancePage = () => {
           },
           {
             title: 'Avg. Commission',
-            value: `ETB ${Math.round(performanceData.teamStats.averageCommissionPerAgent || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+            value: formatCurrency(Math.round(performanceData.teamStats.averageCommissionPerAgent || 0)),
             icon: 'FiTrendingUp',
             color: 'orange',
             trend: '+3%',
@@ -531,7 +539,7 @@ const PerformancePage = () => {
                     tick={{ fontSize: 11, fill: mutedText }}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => value.toLocaleString()}
+                    tickFormatter={(value) => formatNumber(value)}
                   />
                   <YAxis 
                     dataKey="name" 
@@ -561,7 +569,7 @@ const PerformancePage = () => {
                       marginBottom: '4px' 
                     }}
                     formatter={(value, name) => [
-                      name === 'sales' ? value : `ETB ${value.toLocaleString()}`,
+                      name === 'sales' ? formatNumber(value) : formatCurrency(value),
                       name === 'sales' ? 'Sales' : 'Revenue'
                     ]}
                   />
@@ -650,69 +658,74 @@ const PerformancePage = () => {
                   </Box>
                 </Box>
                 <Box as="tbody">
-                  {performanceData.agentPerformance.map((agent, index) => (
-                    <Box 
-                      as="tr" 
-                      key={agent.id}
-                      _hover={{ bg: hoverBg }}
-                      borderBottomWidth="1px"
-                      borderColor={tableBorderColor}
-                      _last={{ borderBottom: 'none' }}
-                    >
+                  {performanceData.agentPerformance.map((agent, index) => {
+                    const avgSale = agent.sales > 0 && Number.isFinite(agent.revenue / agent.sales)
+                      ? Math.round(agent.revenue / agent.sales)
+                      : 0;
+                    return (
                       <Box 
-                        as="td" 
-                        px={3} 
-                        py={2.5} 
-                        color={textColor} 
-                        fontWeight={index < 3 ? 'bold' : 'normal'}
-                        whiteSpace="nowrap"
+                        as="tr" 
+                        key={agent.id}
+                        _hover={{ bg: hoverBg }}
+                        borderBottomWidth="1px"
+                        borderColor={tableBorderColor}
+                        _last={{ borderBottom: "none" }}
                       >
-                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                        <Box 
+                          as="td" 
+                          px={3} 
+                          py={2.5} 
+                          color={textColor} 
+                          fontWeight={index < 3 ? 'bold' : 'normal'}
+                          whiteSpace="nowrap"
+                        >
+                          {index === 0 ? 'ðŸ¥‡' : index === 1 ? 'ðŸ¥ˆ' : index === 2 ? 'ðŸ¥‰' : `#${index + 1}`}
+                        </Box>
+                        <Box 
+                          as="td" 
+                          px={3} 
+                          py={2.5} 
+                          color={textColor}
+                          whiteSpace="nowrap"
+                        >
+                          {agent.name}
+                        </Box>
+                        <Box 
+                          as="td" 
+                          px={3} 
+                          py={2.5} 
+                          color={textColor} 
+                          textAlign="right"
+                          fontFamily="mono"
+                          whiteSpace="nowrap"
+                        >
+                          {formatNumber(agent.sales)}
+                        </Box>
+                        <Box 
+                          as="td" 
+                          px={3} 
+                          py={2.5} 
+                          color={textColor} 
+                          textAlign="right"
+                          fontFamily="mono"
+                          whiteSpace="nowrap"
+                        >
+                          {formatCurrency(agent.revenue)}
+                        </Box>
+                        <Box 
+                          as="td" 
+                          px={3} 
+                          py={2.5} 
+                          color={textColor} 
+                          textAlign="right"
+                          fontFamily="mono"
+                          whiteSpace="nowrap"
+                        >
+                          {formatCurrency(avgSale)}
+                        </Box>
                       </Box>
-                      <Box 
-                        as="td" 
-                        px={3} 
-                        py={2.5} 
-                        color={textColor}
-                        whiteSpace="nowrap"
-                      >
-                        {agent.name}
-                      </Box>
-                      <Box 
-                        as="td" 
-                        px={3} 
-                        py={2.5} 
-                        color={textColor} 
-                        textAlign="right"
-                        fontFamily="mono"
-                        whiteSpace="nowrap"
-                      >
-                        {agent.sales.toLocaleString()}
-                      </Box>
-                      <Box 
-                        as="td" 
-                        px={3} 
-                        py={2.5} 
-                        color={textColor} 
-                        textAlign="right"
-                        fontFamily="mono"
-                        whiteSpace="nowrap"
-                      >
-                        ETB {agent.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </Box>
-                      <Box 
-                        as="td" 
-                        px={3} 
-                        py={2.5} 
-                        color={textColor} 
-                        textAlign="right"
-                        fontFamily="mono"
-                        whiteSpace="nowrap"
-                      >
-                        ETB {agent.sales > 0 ? Math.round(agent.revenue / agent.sales).toLocaleString(undefined, { maximumFractionDigits: 0 }) : 0}
-                      </Box>
-                    </Box>
-                  ))}
+                    );
+                  })}
                 </Box>
               </Box>
             ) : (

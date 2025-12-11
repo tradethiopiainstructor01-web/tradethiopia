@@ -3,7 +3,7 @@ import { Box, Button, Input, FormLabel, FormControl, Text, useToast } from '@cha
 import Particles from 'react-tsparticles';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useUserStore } from '../store/user'; // Update the path if necessary
+import { useUserStore, normalizeRole } from '../store/user'; // Update the path if necessary
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
@@ -34,7 +34,7 @@ const handleLogin = async () => {
                 // If info status is inactive, redirect to /employee-info
                 navigate('/employee-info');
             } else {
-                const normalizedRole = (role || '').toLowerCase();
+                const normalizedRole = normalizeRole(role);
                 // If both are active, redirect based on user role
                 switch (normalizedRole) {
                    
@@ -182,19 +182,6 @@ const handleLogin = async () => {
                 >
                     Login
                 </Button>
-                <Box mt={4} textAlign="center">
-                    <Text color="whiteAlpha.700" fontSize="sm" mb={2}>
-                        Need the social media workspace? Access it directly below.
-                    </Text>
-                    <Button
-                        variant="outline"
-                        colorScheme="teal"
-                        size="sm"
-                        onClick={() => navigate('/social-media')}
-                    >
-                        Open Social Media Dashboard
-                    </Button>
-                </Box>
             </Box>
         </Box>
     );

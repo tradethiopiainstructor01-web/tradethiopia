@@ -1,9 +1,10 @@
 // src/store/userStore.js
 import { create } from "zustand";
 
-const normalizeRole = (value = "") => {
+export const normalizeRole = (value = "") => {
     const text = value ? value.toString() : "";
-    return text.trim().toLowerCase().replace(/\s+/g, "");
+    // Keep only lowercase alphanumeric characters so different spellings still match
+    return text.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 };
 
 const loadCurrentUser = () => {
