@@ -15,6 +15,7 @@ import FourthPage from "./pages/FourthPage";
 import FifthPage from "./pages/FifthPage.jsx";
 import QuizPage from "./pages/quizPage.jsx";
 import Sdashboard from "./pages/sales/Sdashboard.jsx";
+import FinanceLayout from "./pages/sales/FinanceLayout.jsx";
 import FinanceDashboardPage from "./pages/sales/FinanceDashboardPage.jsx";
 import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
 import InventoryPage from "./pages/sales/InventoryPage.jsx";
@@ -63,6 +64,13 @@ import CalendarPage from "./components/salesmanager/CalendarPage";
 import SettingsPage from "./components/salesmanager/SettingsPage";
 import PayrollPage from "./components/Payroll/PayrollPage";
 import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
+import MessagesPage from "./pages/MessagesPage";
+import SalesMessagesPage from "./pages/SalesMessagesPage";
+import FinanceMessagesPage from "./pages/FinanceMessagesPage";
+import ITMessagesPage from "./pages/ITMessagesPage";
+import RedirectMessagesPage from "./pages/RedirectMessagesPage";
+import SocialMediaDashboardPage from "./pages/socialmedia/SocialMediaDashboardPage";
+import SocialMediaRequestPage from "./pages/socialmedia/SocialMediaRequestPage";
 
 function App() {
   const location = useLocation();
@@ -72,9 +80,10 @@ function App() {
     "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
     "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
+    "/finance/messages",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", 
     "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/social-media/request"
   ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
@@ -141,9 +150,22 @@ function App() {
             <Route path="/coo-dashboard" element={<COODashboard />} />
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
+            <Route path="/social-media" element={<SocialMediaDashboardPage />} />
+            <Route path="/social-media/request" element={<SocialMediaRequestPage />} />
             <Route path="/it" element={<ITDashboard />} />
             <Route path="/payroll" element={<PayrollPage />} />
             <Route path="/my-payroll" element={<EmployeePayrollView />} />
+            {/* Generic message page that redirects to dashboard-specific pages */}
+            <Route path="/messages" element={<RedirectMessagesPage />} />
+            {/* Dashboard-specific message pages */}
+            <Route path="/sales/messages" element={<SalesMessagesPage />} />
+            <Route path="/finance/messages" element={
+              <FinanceLayout>
+                <FinanceMessagesPage embedded />
+              </FinanceLayout>
+            } />
+            <Route path="/it/messages" element={<ITDashboard initialTab="notice-board" />} />
+            <Route path="/customer/messages" element={<CDashboard initialTab="notice-board" />} />
             <Route
               path="/salesmanager/*"
               element={
@@ -161,6 +183,7 @@ function App() {
               <Route path="reports" element={<ReportsPage />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="messages" element={<MessagesPage />} />
             </Route>
           </Routes>
         </AppLayout>

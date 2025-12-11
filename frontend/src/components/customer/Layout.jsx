@@ -11,7 +11,7 @@ import {
 import Sidebar from "./Sidebar";
 import Cnavbar from "./customNavbar";
 
-const Layout = ({ children, hideSidebar = false }) => {
+const Layout = ({ children, hideSidebar = false, activeSection, onSelectSection }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -45,6 +45,8 @@ const Layout = ({ children, hideSidebar = false }) => {
               toggleCollapse={() =>
                 setSidebarCollapsed((prev) => !prev)
               }
+              activeSection={activeSection}
+              onSelectSection={onSelectSection}
             />
           </Box>
         )}
@@ -57,6 +59,8 @@ const Layout = ({ children, hideSidebar = false }) => {
               <Sidebar
                 isCollapsed={false} // mobile always expanded
                 toggleCollapse={() => {}}
+                activeSection={activeSection}
+                onSelectSection={onSelectSection}
               />
             </DrawerContent>
           </Drawer>

@@ -1,13 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
-  Flex,
   IconButton,
-  Avatar,
   HStack,
   VStack,
   Text,
-  Link,
   Heading,
   useColorModeValue,
   Drawer,
@@ -16,20 +13,14 @@ import {
   DrawerCloseButton,
   DrawerBody,
   useDisclosure,
-  Button,
   Divider,
-  useColorMode,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
 } from '@chakra-ui/react';
-import { FiMenu, FiHome, FiBox, FiBarChart2, FiCreditCard, FiSun, FiMoon } from 'react-icons/fi';
+import { FiMenu, FiHome, FiBox, FiBarChart2, FiCreditCard, FiMessageSquare, FiDollarSign, FiUsers, FiShield } from 'react-icons/fi';
 import { RxHamburgerMenu } from 'react-icons/rx';
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
-import { useUserStore } from '../../store/user';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { getNotifications } from '../../services/notificationService';
 
-const SidebarItem = ({ icon: Icon, label, to }) => {
+const SidebarItem = ({ icon: Icon, label, to, unreadCount = 0 }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
   const activeBg = useColorModeValue('rgba(255,255,255,0.08)', 'rgba(255,255,255,0.06)');
@@ -44,15 +35,33 @@ const SidebarItem = ({ icon: Icon, label, to }) => {
         bg={isActive ? activeBg : 'transparent'}
         _hover={{ bg: activeBg }}
         color={color}
+        position="relative"
       >
         <Box as={Icon} boxSize={5} />
         <Text fontSize="sm">{label}</Text>
+        {unreadCount > 0 && (
+          <Badge
+            colorScheme="red"
+            borderRadius="full"
+            position="absolute"
+            top="8px"
+            right="8px"
+            fontSize="10px"
+            w="18px"
+            h="18px"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+          >
+            {unreadCount}
+          </Badge>
+        )}
       </HStack>
     </RouterLink>
   );
 };
 
-const Sidebar = ({ onClose, mobile = false }) => {
+const Sidebar = ({ onClose, mobile = false, unreadCount = 0, showNoticeBoard = true }) => {
   const [collapsed, setCollapsed] = useState(false);
   const sidebarBg = useColorModeValue('linear-gradient(180deg,#06b6d4 0%,#0ea5a4 100%)', 'linear-gradient(180deg,#164e63 0%,#0e7490 100%)');
   const textColor = useColorModeValue('white', 'cyan.100');
@@ -95,8 +104,19 @@ const Sidebar = ({ onClose, mobile = false }) => {
         <SidebarItem icon={FiBox} label={collapsed && !mobile ? '' : 'Inventory'} to="/finance/inventory" />
         <SidebarItem icon={FiBox} label={collapsed && !mobile ? '' : 'Orders'} to="/finance/orders" />
         <SidebarItem icon={FiBarChart2} label={collapsed && !mobile ? '' : 'Reports'} to="/finance/reports" />
+        {showNoticeBoard && (
+          <SidebarItem 
+            icon={FiMessageSquare} 
+            label={collapsed && !mobile ? '' : 'Notice Board'} 
+            to="/finance/messages" 
+            unreadCount={unreadCount} 
+          />
+        )}
         <SidebarItem icon={FiCreditCard} label={collapsed && !mobile ? '' : 'Transactions'} to="/finance/transactions" />
-        <SidebarItem icon={FiBox} label={collapsed && !mobile ? '' : 'Demands'} to="/finance/demands" />
+        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Pricing'} to="/finance-dashboard/pricing" />
+        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Revenue'} to="/finance-dashboard/revenue" />
+        <SidebarItem icon={FiUsers} label={collapsed && !mobile ? '' : 'Purchase'} to="/finance-dashboard/purchase" />
+        <SidebarItem icon={FiShield} label={collapsed && !mobile ? '' : 'Costs'} to="/finance-dashboard/costs" />
         {(!collapsed || mobile) && <>
           <Divider borderColor={accent} my={2} />
           <Text fontSize="xs" color={accent} whiteSpace="normal">Manage finance-related features</Text>
@@ -107,93 +127,53 @@ const Sidebar = ({ onClose, mobile = false }) => {
 };
 
 
-const Topbar = ({ onOpen }) => {
-  const { colorMode, toggleColorMode } = useColorMode();
-  const topBg = useColorModeValue('whiteAlpha.900', 'gray.800');
-  const accentBorder = useColorModeValue('teal.100', 'teal.900');
-  const borderColor = useColorModeValue('gray.100', 'gray.700');
-  const currentUser = useUserStore((state) => state.currentUser);
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
-  };
-
-  return (
-    <Flex
-      justify="space-between"
-      align="center"
-      px={{ base: 2, md: 6 }}
-      height="64px"
-      bg={topBg}
-      boxShadow="sm"
-      borderBottom="2px solid"
-      borderColor={accentBorder}
-      position="sticky"
-      top={0}
-      zIndex={10}
-    >
-      <HStack spacing={4}>
-        {/* Burger menu for mobile */}
-        <Box display={{ base: 'block', md: 'none' }}>
-          <IconButton icon={<RxHamburgerMenu size={22} />} variant="ghost" color={useColorModeValue('teal.600','teal.200')} onClick={onOpen} aria-label="Open menu" />
-        </Box>
-        <Heading size="sm" color={useColorModeValue('teal.700','teal.200')} letterSpacing="wider">Finance Dashboard</Heading>
-      </HStack>
-      <HStack spacing={3}>
-        <IconButton
-          aria-label="Toggle color mode"
-          icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
-          onClick={toggleColorMode}
-          variant="ghost"
-          color={useColorModeValue('teal.600','teal.200')}
-        />
-        <Menu>
-          <MenuButton as={Avatar} size="sm" name={currentUser?.username || 'User'} cursor="pointer" />
-          <MenuList>
-            <Box p={3} textAlign="center">
-              <Avatar size="lg" name={currentUser?.username} mb={2} />
-              <Text fontSize="lg" fontWeight="bold">{currentUser?.username}</Text>
-              <Text fontSize="md">Role: {currentUser?.role}</Text>
-            </Box>
-            <Divider />
-            <MenuItem onClick={handleLogout}>Logout</MenuItem>
-          </MenuList>
-        </Menu>
-      </HStack>
-    </Flex>
-  );
-};
-
 const FinanceLayout = ({ children }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const pageBg = useColorModeValue('gray.50', 'gray.900');
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const data = await getNotifications();
+      const broadcastMessages = data.filter(msg => msg.type === 'general');
+      const unread = broadcastMessages.filter(msg => !msg.read).length;
+      setUnreadCount(unread);
+    } catch (err) {
+      console.error('Error fetching notification count:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
 
   return (
     <Box minH="100vh" bg={pageBg}>
-      {/* Topbar always at the top */}
-      <Topbar onOpen={onOpen} />
-      {/* Sidebar for desktop, fixed and flush with topbar */}
-      {/* Desktop sidebar */}
-      <Sidebar />
-      {/* Mobile drawer */}
-      {/* Mobile sidebar in Drawer */}
+      <IconButton
+        aria-label="Open finance navigation"
+        icon={<FiMenu />}
+        onClick={onOpen}
+        position="fixed"
+        top={4}
+        left={4}
+        zIndex="banner"
+        colorScheme="teal"
+      />
+      {/* Drawer-based sidebar */}
       <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
         <DrawerOverlay />
         <DrawerContent maxW="80vw">
           <DrawerCloseButton />
           <DrawerBody p={0}>
-            <Sidebar onClose={onClose} mobile />
+            <Sidebar onClose={onClose} mobile unreadCount={unreadCount} showNoticeBoard />
           </DrawerBody>
         </DrawerContent>
       </Drawer>
-      {/* Main content, margin left for sidebar on desktop, padding for spacing */}
       <Box
-        ml={{ base: 0, md: '220px' }}
-        pt={{ base: '64px', md: 0 }}
         transition="margin-left 0.3s"
-        minH="calc(100vh - 64px)"
+        minH="100vh"
       >
         <Box p={{ base: 2, sm: 4, md: 8 }}>
           {children}

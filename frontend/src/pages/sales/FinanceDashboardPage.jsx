@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Flex,
@@ -31,6 +31,7 @@ import {
   AlertTitle,
   AlertDescription
 } from '@chakra-ui/react';
+import apiClient from '../../utils/apiClient';
 import { 
   FaChartBar, 
   FaChartPie, 
@@ -47,6 +48,7 @@ import {
 import FinanceDashboard from '../../components/finance/FinanceDashboard';
 import FinanceLayout from './FinanceLayout';
 import MonthlyReport from '../../components/finance/MonthlyReport';
+import FinanceMessagesPage from '../FinanceMessagesPage';
 
 const FinanceDashboardPage = () => {
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -61,6 +63,45 @@ const FinanceDashboardPage = () => {
     { title: 'Suppliers', value: '24', change: '+2.0%', icon: FaTruck, color: 'teal' },
     { title: 'Customers', value: '156', change: '+4.5%', icon: FaUsers, color: 'pink' }
   ];
+
+  const [requests, setRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+
+  const requestSummary = useMemo(() => {
+    const total = requests.length;
+    const open = requests.filter((req) => (req.status || 'open') !== 'resolved').length;
+    const highPriority = requests.filter((req) => req.priority === 'High').length;
+    return { total, open, highPriority };
+  }, [requests]);
+
+  const formatRequestDate = (value) => {
+    if (!value) return 'No due date';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'No due date';
+    return date.toLocaleDateString();
+  };
+
+  const fetchRequests = useCallback(async () => {
+    setRequestsLoading(true);
+    try {
+      const response = await apiClient.get('/requests');
+      const payload = Array.isArray(response.data?.data)
+        ? response.data.data
+        : Array.isArray(response.data)
+        ? response.data
+        : [];
+      setRequests(payload);
+    } catch (err) {
+      console.error('Failed to load requests', err);
+      setRequests([]);
+    } finally {
+      setRequestsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
 
   return (
     <FinanceLayout>
@@ -138,6 +179,18 @@ const FinanceDashboardPage = () => {
           </TabPanels>
         </Tabs>
 
+        <Box 
+          bg={cardBg} 
+          boxShadow="md" 
+          borderRadius="lg" 
+          mb={8} 
+          p={{ base: 3, md: 4 }} 
+          maxH="600px" 
+          overflow="hidden"
+        >
+          <FinanceMessagesPage embedded />
+        </Box>
+
         {/* Inventory Management Section */}
         <Card bg={cardBg} boxShadow="md" mb={8}>
           <CardHeader>
@@ -166,6 +219,81 @@ const FinanceDashboardPage = () => {
                 </Flex>
               ))}
             </VStack>
+          </CardBody>
+        </Card>
+
+        <Card bg={cardBg} boxShadow="md" mt={6}>
+          <CardHeader>
+            <Flex direction={{ base: "column", md: "row" }} align="center" justify="space-between" gap={2}>
+              <Box>
+                <Heading size="md">Team requests</Heading>
+                <Text fontSize="sm" color="gray.500">
+                  Finance tracks requests submitted by every department.
+                </Text>
+              </Box>
+              <Button size="sm" variant="outline" onClick={fetchRequests} isLoading={requestsLoading}>
+                Refresh
+              </Button>
+            </Flex>
+          </CardHeader>
+          <CardBody>
+            <SimpleGrid columns={{ base: 1, md: 3 }} gap={4} mb={4}>
+              <Box p={3} borderRadius="md" border="1px solid" borderColor="gray.100" bg="gray.50">
+                <Text fontSize="xs" color="gray.600">Total requests</Text>
+                <Heading size="md">{requestSummary.total}</Heading>
+              </Box>
+              <Box p={3} borderRadius="md" border="1px solid" borderColor="gray.100" bg="gray.50">
+                <Text fontSize="xs" color="gray.600">Open</Text>
+                <Heading size="md">{requestSummary.open}</Heading>
+              </Box>
+              <Box p={3} borderRadius="md" border="1px solid" borderColor="gray.100" bg="gray.50">
+                <Text fontSize="xs" color="gray.600">High priority</Text>
+                <Heading size="md">{requestSummary.highPriority}</Heading>
+              </Box>
+            </SimpleGrid>
+            {requestsLoading ? (
+              <Text textAlign="center" color="gray.500">
+                Loading requests...
+              </Text>
+            ) : requests.length === 0 ? (
+              <Text textAlign="center" color="gray.500">
+                No requests have been submitted yet.
+              </Text>
+            ) : (
+              <VStack spacing={3} align="stretch">
+                {requests.slice(0, 4).map((request) => (
+                  <Box
+                    key={request._id || request.title}
+                    p={3}
+                    borderRadius="lg"
+                    border="1px solid"
+                    borderColor="gray.100"
+                    bg="gray.50"
+                  >
+                    <Flex align="center" justify="space-between" wrap="wrap" gap={2}>
+                      <Text fontWeight="semibold" flex="1" isTruncated>
+                        {request.title}
+                      </Text>
+                      <Tag size="sm" colorScheme={request.priority === 'High' ? 'red' : request.priority === 'Medium' ? 'orange' : 'gray'}>
+                        {request.priority || 'Medium'}
+                      </Tag>
+                    </Flex>
+                    <Text fontSize="xs" color="gray.500" mt={1}>
+                      {request.department?.toUpperCase() || 'GENERAL'}
+                      {request.platform ? ` • ${request.platform}` : ''}
+                    </Text>
+                    <Text fontSize="xs" color="gray.500">
+                      Due {formatRequestDate(request.dueDate)} • Submitted {formatRequestDate(request.createdAt)}
+                    </Text>
+                    {request.details && (
+                      <Text fontSize="sm" color="gray.600" mt={2}>
+                        {request.details}
+                      </Text>
+                    )}
+                  </Box>
+                ))}
+              </VStack>
+            )}
           </CardBody>
         </Card>
       </Box>

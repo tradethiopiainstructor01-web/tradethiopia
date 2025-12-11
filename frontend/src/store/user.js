@@ -15,6 +15,7 @@ const loadCurrentUser = () => {
     const infoStatus = localStorage.getItem("infoStatus");
     const username = localStorage.getItem("userName");
     const userId = localStorage.getItem("userId"); // Retrieve user ID
+    const email = localStorage.getItem("userEmail");
 
     return token
         ? {
@@ -26,6 +27,7 @@ const loadCurrentUser = () => {
               infoStatus,
               token,
               _id: userId,
+              email,
           }
         : null;
 };
@@ -72,14 +74,19 @@ export const useUserStore = create((set) => ({
                 displayRole,
             };
             set({ currentUser: sanitizedUser });
-            localStorage.setItem("userToken", user.token);
-            localStorage.setItem("userRole", normalizedRole);
+        localStorage.setItem("userToken", user.token);
+        localStorage.setItem("userRole", normalizedRole);
             localStorage.setItem("userRoleRaw", displayRole);
-            localStorage.setItem("userName", user.username);
-            localStorage.setItem("userStatus", user.status);
-            localStorage.setItem("infoStatus", user.infoStatus);
-            localStorage.setItem("userId", user._id); // Store user ID
+        localStorage.setItem("userName", user.username);
+        localStorage.setItem("userStatus", user.status);
+        localStorage.setItem("infoStatus", user.infoStatus);
+        localStorage.setItem("userId", user._id); // Store user ID
+        if (user.email) {
+            localStorage.setItem("userEmail", user.email);
         } else {
+            localStorage.removeItem("userEmail");
+        }
+    } else {
             set({ currentUser: null });
             localStorage.removeItem("userToken");
             localStorage.removeItem("userRole");
@@ -101,6 +108,7 @@ export const useUserStore = create((set) => ({
         localStorage.removeItem("userStatus");
         localStorage.removeItem("infoStatus");
         localStorage.removeItem("userId"); // Remove user ID
+        localStorage.removeItem("userEmail");
     },
 
     deleteUser: async (uid) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Button, Input, FormLabel, FormControl, useToast } from '@chakra-ui/react';
+import { Box, Button, Input, FormLabel, FormControl, Text, useToast } from '@chakra-ui/react';
 import Particles from 'react-tsparticles';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -21,10 +21,10 @@ const handleLogin = async () => {
         if (response.data.success) {
             // Extract user data and token correctly
             const { user, token } = response.data;
-            const { _id, role, status, infoStatus, username } = user;
+            const { _id, role, status, infoStatus, username, email } = user;
 
             // Save token and user information in local storage
-            setCurrentUser({ username, role, status, infoStatus, token, _id });
+            setCurrentUser({ username, role, status, infoStatus, token, _id, email });
 
             // Check user and info statuses
             if (status === 'inactive' && infoStatus === 'active') {
@@ -37,6 +37,7 @@ const handleLogin = async () => {
                 const normalizedRole = (role || '').toLowerCase();
                 // If both are active, redirect based on user role
                 switch (normalizedRole) {
+                   
                     case 'admin':
                     case 'hr':
                         navigate('/dashboard');
@@ -68,6 +69,9 @@ const handleLogin = async () => {
                         break;
                     case 'IT':
                         navigate('/it'); // Add IT role navigation
+                        break;
+                    case 'socialmediamanager':
+                        navigate('/social-media'); // Add social media role navigation
                         break;
                     default:
                         navigate('/ComingSoonPage'); // Optional: handle unknown roles
@@ -179,9 +183,17 @@ const handleLogin = async () => {
                     Login
                 </Button>
                 <Box mt={4} textAlign="center">
-                    {/* <Button variant="link" color="white" fontSize="sm" _hover={{ textDecoration: 'underline' }}>
-                        Forgot Password?
-                    </Button> */}
+                    <Text color="whiteAlpha.700" fontSize="sm" mb={2}>
+                        Need the social media workspace? Access it directly below.
+                    </Text>
+                    <Button
+                        variant="outline"
+                        colorScheme="teal"
+                        size="sm"
+                        onClick={() => navigate('/social-media')}
+                    >
+                        Open Social Media Dashboard
+                    </Button>
                 </Box>
             </Box>
         </Box>

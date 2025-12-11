@@ -88,7 +88,8 @@ import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import { useUserStore } from '../store/user';
 import axios from 'axios';
 import NotificationsPanel from '../components/NotificationsPanel';
-
+import { getNotifications } from '../services/notificationService';
+import MessagesPage from './MessagesPage';
 const defaultServiceOptions = ['Promotional video', 'Motion graphics', 'Graphics design', 'Brand promo video'];
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const defaultRevenueRows = [
@@ -158,8 +159,8 @@ const getStatusColor = (status) => {
 const TradexTVDashboard = () => {
   // Tab state
   const [tabIndex, setTabIndex] = useState(0);
-  const tabKeys = ['overview', 'projects', 'tickets', 'team', 'analytics', 'revenue', 'report', 'settings'];
-
+  const [unreadCount, setUnreadCount] = useState(0);
+  const tabKeys = ['overview', 'projects', 'tickets', 'team', 'analytics', 'revenue', 'report', 'notice-board', 'settings'];
   const handleTabsChange = (index) => {
     setTabIndex(index);
     const params = new URLSearchParams(location.search);
@@ -483,10 +484,31 @@ const TradexTVDashboard = () => {
     }
   }, [tabIndex, users.length, usersLoading, fetchUsers]);
 
+  // Fetch notifications to count unread messages
+  const fetchUnreadCount = async () => {
+    try {
+      const data = await getNotifications();
+      // Filter for general notifications (broadcast messages) and count unread
+      const broadcastMessages = data.filter(msg => msg.type === 'general');
+      const unread = broadcastMessages.filter(msg => !msg.read).length;
+      setUnreadCount(unread);
+    } catch (err) {
+      console.error('Error fetching notification count:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+    
+    // Set up interval to periodically refresh the count
+    const interval = setInterval(fetchUnreadCount, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
-
   const handleAddProject = () => {
     if (!projectForm.name.trim() || !projectForm.owner.trim() || !projectForm.dueDate) return;
     const nextId = (projects[projects.length - 1]?.id || 0) + 1;
@@ -747,11 +769,11 @@ const TradexTVDashboard = () => {
         { icon: FiPieChart, label: 'Analytics', path: '/tradextv-dashboard?tab=analytics' },
         { icon: FiBarChart2, label: 'Revenue', path: '/tradextv-dashboard?tab=revenue' },
         { icon: FiFileText, label: 'Report', path: '/tradextv-dashboard?tab=report' },
+        { icon: FiMessageSquare, label: 'Notice Board', path: '/tradextv-dashboard?tab=notice-board', unreadCount: unreadCount },
         { icon: FiSettings, label: 'Settings', path: '/tradextv-dashboard?tab=settings' },
       ]
     },
   ];
-
   return (
     <Box minH="100vh" bg={useColorModeValue('gray.50', 'gray.900')}>
       {isLoading && (
@@ -819,10 +841,11 @@ const TradexTVDashboard = () => {
                     {section.section}
                   </Text>
                 )}
-                <VStack spacing={1} align="stretch">
-                  {section.items.map((item) => {
-                    const isActive = location.pathname === item.path;
-                    return (
+            <VStack spacing={1} align="stretch">
+              {section.items.map((item) => {
+                const currentPath = location.pathname + location.search;
+                const isActive = currentPath === item.path;
+                return (
                       <Link
                         key={item.path}
                         as={RouterLink}
@@ -839,11 +862,37 @@ const TradexTVDashboard = () => {
                           bg: isActive ? 'purple.50' : useColorModeValue('gray.100', 'gray.700'),
                         }}
                         fontWeight={isActive ? 'semibold' : 'normal'}
-                      >
-                        <Icon as={item.icon} mr={isSidebarCollapsed ? 0 : 3} />
-                        {!isSidebarCollapsed && item.label}
-                      </Link>
-                    );
+                        position="relative"
+                        onClick={() => {
+                          if (item.label === 'Notice Board') {
+                            // Refresh the count when navigating to the Notice Board
+                            setTimeout(fetchUnreadCount, 500);
+                          }
+                        }}
+                      >                        <Icon as={item.icon} mr={isSidebarCollapsed ? 0 : 3} />
+                        {!isSidebarCollapsed && (
+                          <>
+                            {item.label}
+                            {item.unreadCount > 0 && item.label === 'Notice Board' && (
+                              <Badge
+                                colorScheme="red"
+                                borderRadius="full"
+                                position="absolute"
+                                top="5px"
+                                right="5px"
+                                fontSize="10px"
+                                w="18px"
+                                h="18px"
+                                display="flex"
+                                alignItems="center"
+                                justifyContent="center"
+                              >
+                                {item.unreadCount}
+                              </Badge>
+                            )}
+                          </>
+                        )}
+                      </Link>                    );
                   })}
                 </VStack>
                 {index < menuItems.length - 1 && !isSidebarCollapsed && (
@@ -899,6 +948,7 @@ const TradexTVDashboard = () => {
               <Tab>Analytics</Tab>
               <Tab>Revenue</Tab>
               <Tab>Report</Tab>
+              <Tab>Notice Board</Tab>
               <Tab>Settings</Tab>
             </TabList>
 
@@ -1778,6 +1828,21 @@ const TradexTVDashboard = () => {
                   </Tbody>
                 </Table>
               </Box>
+            </Box>
+          </TabPanel>
+
+          {/* Notice Board Tab */}
+          <TabPanel p={0}>
+            <Box
+              bg={cardBg}
+              p={6}
+              borderRadius="lg"
+              boxShadow="sm"
+              borderWidth="1px"
+              borderColor={borderColor}
+              mb={8}
+            >
+              <MessagesPage embedded />
             </Box>
           </TabPanel>
 

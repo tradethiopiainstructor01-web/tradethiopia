@@ -5,7 +5,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "seed:salesmanager": "node seedSalesManagerData.js"
+    "seed:salesmanager": "node seedSalesManagerData.js",
+    "dev": "nodemon server.js"
   },
   "keywords": [],
   "author": "",

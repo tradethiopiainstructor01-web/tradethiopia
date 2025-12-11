@@ -53,6 +53,9 @@ const InternalTable = ({ search }) => {
   const [sort, setSort] = useState('newest');
   const [showAdd, setShowAdd] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingPoints, setEditingPoints] = useState(1);
+  const [showCompleted, setShowCompleted] = useState(true); // Show completed tasks by default
   const toast = useToast();
   const { currentUser } = useUserStore(); // Get current user from store
   const token = currentUser?.token; // Get token from current user
@@ -163,8 +166,48 @@ const InternalTable = ({ search }) => {
     }
   };
 
+  const startEditingPoints = (taskId, currentPoints) => {
+    setEditingTaskId(taskId);
+    setEditingPoints(currentPoints || 1);
+  };
+
+  const savePoints = async (taskId) => {
+    try {
+      const points = parseInt(editingPoints);
+      if (isNaN(points) || points < 1) {
+        toast({ title: 'Invalid input', description: 'Please enter a valid number of points (minimum 1)', status: 'error' });
+        return;
+      }
+
+      const response = await axios.put(`${import.meta.env.VITE_API_URL}/api/it/${taskId}`, {
+        featureCount: points
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.data.success) {
+        fetchTasks();
+        setEditingTaskId(null);
+        setEditingPoints(1);
+        toast({ title: 'Points updated successfully', status: 'success' });
+      } else {
+        toast({ title: 'Update failed', description: response.data.message || 'Failed to update points', status: 'error' });
+      }
+    } catch (err) {
+      console.error('Error updating points:', err);
+      toast({ title: 'Update failed', description: err.response?.data?.message || err.message || 'Failed to update points', status: 'error' });
+    }
+  };
+
+  const cancelEditingPoints = () => {
+    setEditingTaskId(null);
+    setEditingPoints(1);
+  };
+
   const filtered = tasks
-    .filter(t => t.status !== 'done') // Exclude completed tasks
+    .filter(t => showCompleted || t.status !== 'done') // Show completed tasks if toggle is on
     .filter(t => filter === 'all' ? true : t.status === filter)
     .filter(t => !searchTerm || 
       [
@@ -289,6 +332,15 @@ const InternalTable = ({ search }) => {
               <option value="done">Completed</option>
             </Select>
             
+            <Button 
+              size="sm"
+              colorScheme={showCompleted ? 'blue' : 'gray'}
+              variant={showCompleted ? 'solid' : 'outline'}
+              onClick={() => setShowCompleted(!showCompleted)}
+            >
+              {showCompleted ? 'Hide Completed' : 'Show Completed'}
+            </Button>
+            
             <Select 
               maxW="200px" 
               value={sort} 
@@ -323,6 +375,7 @@ const InternalTable = ({ search }) => {
                   <Th>Timeline</Th>
                   <Th>Status</Th>
                   <Th>Priority</Th>
+                  <Th>Points</Th>
                   <Th>Assignee</Th>
                   <Th>Actions</Th>
                 </Tr>
@@ -372,6 +425,42 @@ const InternalTable = ({ search }) => {
                       <Badge colorScheme={task.priority === 'High' ? 'red' : task.priority === 'Medium' ? 'orange' : 'green'}>
                         {task.priority}
                       </Badge>
+                    </Td>
+                    <Td>
+                      {editingTaskId === (task._id || task.id) ? (
+                        <HStack spacing={2}>
+                          <Input 
+                            type="number" 
+                            min="1"
+                            value={editingPoints}
+                            onChange={(e) => setEditingPoints(e.target.value)}
+                            width="80px"
+                            size="sm"
+                          />
+                          <Button size="sm" colorScheme="green" onClick={() => savePoints(task._id || task.id)}>
+                            Save
+                          </Button>
+                          <Button size="sm" onClick={cancelEditingPoints}>
+                            Cancel
+                          </Button>
+                        </HStack>
+                      ) : (
+                        <HStack spacing={2}>
+                          <Badge colorScheme={task.status === 'done' ? 'green' : 'gray'}>
+                            {task.featureCount || (task.status === 'done' ? 1 : 0)} pts
+                          </Badge>
+                          {task.status === 'done' && (
+                            <Button 
+                              size="sm" 
+                              colorScheme="blue"
+                              variant="outline"
+                              onClick={() => startEditingPoints(task._id || task.id, task.featureCount || 1)}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                        </HStack>
+                      )}
                     </Td>
                     <Td>
                       <Wrap spacing={2}>

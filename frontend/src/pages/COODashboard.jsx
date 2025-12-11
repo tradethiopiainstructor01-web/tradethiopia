@@ -229,6 +229,7 @@ const COODashboard = () => {
     '365d': 'Last 12 months'
   };
   const revenueSummary = { total: '$12.4M', change: '+4.3% MoM' }; // placeholder aggregate for display
+  const showSocialRequestsSection = false;
   const currencyFormatter = useMemo(
     () =>
       new Intl.NumberFormat('en-US', {
@@ -1868,6 +1869,7 @@ const COODashboard = () => {
             <KpiCards department={effectiveDept} timeRange={timeRange} metrics={metrics} />
           </Box>
 
+            {showSocialRequestsSection && (
             <MotionBox
               bg="white"
               p={{ base: 4, md: 5 }}
@@ -1971,6 +1973,7 @@ const COODashboard = () => {
                 </SimpleGrid>
               </Box>
             </MotionBox>
+            )}
 
             <MotionBox
               bg="white"
