@@ -531,6 +531,7 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
   const navigate = useNavigate();
   const clearUser = useUserStore((state) => state.clearUser);
   const [activeView, setActiveView] = useState('dashboard');
+  const [active, setActive] = useState('notice-board');
   const [tasks, setTasks] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
