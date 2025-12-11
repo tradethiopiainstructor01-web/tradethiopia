@@ -1230,7 +1230,7 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
   };
 
   return (
-    <Flex minH="100vh" bg={pageBg}>
+    <Flex minH="100vh" bg={pageBg} w="100%" overflowX="hidden">
       <Box
         as="aside"
         w={{ base: '80px', lg: '260px' }}
@@ -1327,7 +1327,7 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
         </VStack>
       </Box>
 
-      <Box flex="1" p={{ base: 4, lg: 8 }}>
+      <Box flex="1" p={{ base: 4, lg: 8 }} minW={0}>
         <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
           <Heading size="xl">IT Department Dashboard</Heading>
           <Button colorScheme="blue" leftIcon={<FiPlus />} onClick={() => setModalOpen(true)}>

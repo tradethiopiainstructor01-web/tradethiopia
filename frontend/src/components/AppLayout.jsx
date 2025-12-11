@@ -14,6 +14,10 @@ const AppLayout = ({ children, showNav }) => {
 
   const sidebarWidth = isSidebarCollapsed ? 70 : 260;
   const marginLeft = showNav ? { base: 0, md: `${sidebarWidth}px` } : 0;
+  const contentPadding = showNav ? { base: 4, md: 6 } : 0;
+  const contentMaxWidth = showNav ? "1200px" : "100%";
+  const contentJustify = showNav ? "center" : "stretch";
+  const contentPx = showNav ? { base: 0, md: 4 } : 0;
 
   const handleSidebarToggle = () => {
     setSidebarCollapsed((prev) => !prev);
@@ -35,14 +39,14 @@ const AppLayout = ({ children, showNav }) => {
         )}
         <Box
           flex="1"
-          p={showNav ? { base: 4, md: 6 } : 4}
+          p={contentPadding}
           ml={marginLeft}
           transition="margin-left 0.3s ease"
           width="100%"
           display="flex"
-          justifyContent="center"
+          justifyContent={contentJustify}
         >
-          <Box w="100%" maxW="1200px" px={{ base: 0, md: 4 }}>
+          <Box w="100%" maxW={contentMaxWidth} px={contentPx}>
             {children}
           </Box>
         </Box>
