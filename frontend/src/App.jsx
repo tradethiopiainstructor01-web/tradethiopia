@@ -70,7 +70,7 @@ import FinanceMessagesPage from "./pages/FinanceMessagesPage";
 import ITMessagesPage from "./pages/ITMessagesPage";
 import RedirectMessagesPage from "./pages/RedirectMessagesPage";
 import SocialMediaDashboardPage from "./pages/socialmedia/SocialMediaDashboardPage";
-import SocialMediaRequestPage from "./pages/socialmedia/SocialMediaRequestPage";
+import RequestPage from "./pages/RequestPage";
 
 function App() {
   const location = useLocation();
@@ -83,7 +83,7 @@ function App() {
     "/finance/messages",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", 
     "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/social-media/request"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests"
   ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
@@ -151,7 +151,7 @@ function App() {
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
             <Route path="/social-media" element={<SocialMediaDashboardPage />} />
-            <Route path="/social-media/request" element={<SocialMediaRequestPage />} />
+            <Route path="/requests" element={<RequestPage />} />
             <Route path="/it" element={<ITDashboard />} />
             <Route path="/payroll" element={<PayrollPage />} />
             <Route path="/my-payroll" element={<EmployeePayrollView />} />

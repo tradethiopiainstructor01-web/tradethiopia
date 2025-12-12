@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Badge,
   Box,
@@ -61,8 +61,8 @@ import {
   Heading,
 } from "@chakra-ui/react";
 import { AddIcon, MinusIcon, DownloadIcon, CalendarIcon, CheckIcon, EditIcon } from "@chakra-ui/icons";
-import apiClient from "../../utils/apiClient";
-import { useUserStore } from "../../store/user";
+import { useNavigate } from "react-router-dom";
+import NoticeBoardPanel from "../NoticeBoardPanel";
 
 // Initial data for all required platforms
 const initialTargets = [
@@ -174,10 +174,6 @@ const statusColorMap = {
   Posted: "green",
 };
 
-const SOCIAL_MEDIA_DEPARTMENT = "Social Media";
-const REQUEST_PRIORITIES = ["High", "Medium", "Low"];
-
-
 // Function to calculate status based on progress
 const getStatusInfo = (progress) => {
   if (progress === 100) return { status: "COMPLETED", colorScheme: "green" };
@@ -265,7 +261,7 @@ const buildTargetRow = (target) => {
 
 const SocialMediaManager = () => {
   const toast = useToast();
-  const currentUser = useUserStore((state) => state.currentUser);
+  const navigate = useNavigate();
 
   const [weeklyTargets, setWeeklyTargets] = useState(() => {
     const savedTargets = localStorage.getItem('weeklyTargets');
@@ -309,16 +305,6 @@ const SocialMediaManager = () => {
 
   const bgColor = useColorModeValue("gray.50", "gray.800");
   const cardBg = useColorModeValue("white", "gray.700");
-
-const [requestForm, setRequestForm] = useState({
-    department: SOCIAL_MEDIA_DEPARTMENT,
-    details: "",
-    dueDate: toInputDate(getLatestSaturday()),
-    priority: REQUEST_PRIORITIES[0],
-  });
-  const [recentRequests, setRecentRequests] = useState([]);
-  const [loadingRequests, setLoadingRequests] = useState(false);
-  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   // Save data to localStorage whenever it changes
   useEffect(() => {
@@ -624,76 +610,6 @@ const [requestForm, setRequestForm] = useState({
     setSelectedDate(new Date(e.target.value));
   };
 
-  const normalizeRequestField = (field, value) => {
-    setRequestForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const fetchRecentRequests = useCallback(async () => {
-    setLoadingRequests(true);
-    try {
-      const response = await apiClient.get("/requests", {
-        params: { department: requestForm.department || SOCIAL_MEDIA_DEPARTMENT },
-      });
-      const data = Array.isArray(response.data?.data)
-        ? response.data.data
-        : Array.isArray(response.data)
-          ? response.data
-          : [];
-      setRecentRequests(data.slice(0, 5));
-    } catch (err) {
-      console.error("Unable to load requests", err);
-      setRecentRequests([]);
-    } finally {
-      setLoadingRequests(false);
-    }
-  }, [requestForm.department]);
-
-  useEffect(() => {
-    fetchRecentRequests();
-  }, [fetchRecentRequests]);
-
-  const handleRequestSubmit = async () => {
-    if (!requestForm.department || !requestForm.details.trim() || !requestForm.dueDate || !requestForm.priority) {
-      toast({
-        title: "All fields required",
-        description: "Department, details, date, and priority are mandatory.",
-        status: "warning",
-      });
-      return;
-    }
-    setSubmittingRequest(true);
-    try {
-      const payload = {
-        title: `${requestForm.department} request`,
-        department: requestForm.department,
-        details: requestForm.details.trim(),
-        dueDate: requestForm.dueDate,
-        priority: requestForm.priority,
-        requestedBy: currentUser?.email || currentUser?.username,
-        requestedById: currentUser?._id,
-      };
-      const response = await apiClient.post("/requests", payload);
-      const entry = response.data?.data || response.data;
-      setRecentRequests((prev) => [entry, ...prev].slice(0, 5));
-      toast({ title: "Request submitted", status: "success" });
-      setRequestForm((prev) => ({
-        ...prev,
-        details: "",
-        dueDate: toInputDate(getLatestSaturday()),
-        priority: REQUEST_PRIORITIES[0],
-      }));
-    } catch (err) {
-      console.error("Request submission failed", err);
-      toast({
-        title: "Request failed",
-        description: err.message || "Please try again later.",
-        status: "error",
-      });
-    } finally {
-      setSubmittingRequest(false);
-    }
-  };
-
   // Get reports for current week
 
   return (
@@ -749,7 +665,6 @@ const [requestForm, setRequestForm] = useState({
           <Tab>Content Planner</Tab>
           <Tab>Performance Analytics</Tab>
           <Tab>Weekly Reports</Tab>
-          <Tab>Request</Tab>
         </TabList>
         <TabPanels>
           <TabPanel>
@@ -1328,104 +1243,15 @@ const [requestForm, setRequestForm] = useState({
               </Card>
             </SimpleGrid>
           </TabPanel>
-          
-          <TabPanel>
-            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-              <Box bg={cardBg} shadow="md" borderRadius="2xl" p={6}>
-                <VStack align="stretch" spacing={4}>
-                  <Heading size="lg">Submit request</Heading>
-                  <Text fontSize="sm" color="gray.500">
-                    Department, details, date, and priority are required. Finance tracks everything centrally.
-                  </Text>
-                  <FormControl isRequired>
-                    <FormLabel>Department</FormLabel>
-                    <Input
-                      value={requestForm.department}
-                      isReadOnly
-                      bg={useColorModeValue("gray.100", "whiteAlpha.100")}
-                      color={useColorModeValue("gray.700", "gray.200")}
-                      borderRadius="lg"
-                    />
-                  </FormControl>
-                  <FormControl isRequired>
-                    <FormLabel>Details</FormLabel>
-                    <Textarea
-                      value={requestForm.details}
-                      onChange={(e) => normalizeRequestField("details", e.target.value)}
-                      placeholder="Describe the required deliverable"
-                      minH="140px"
-                    />
-                  </FormControl>
-                  <FormControl isRequired>
-                    <FormLabel>Priority</FormLabel>
-                    <Select
-                      value={requestForm.priority}
-                      onChange={(e) => normalizeRequestField("priority", e.target.value)}
-                    >
-                      {REQUEST_PRIORITIES.map((priority) => (
-                        <option key={priority} value={priority}>
-                          {priority}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl isRequired>
-                    <FormLabel>Date</FormLabel>
-                    <Input
-                      type="date"
-                      value={requestForm.dueDate}
-                      onChange={(e) => normalizeRequestField("dueDate", e.target.value)}
-                    />
-                  </FormControl>
-                  <Button colorScheme="teal" onClick={handleRequestSubmit} isLoading={submittingRequest}>
-                    Submit request
-                  </Button>
-                </VStack>
-              </Box>
-              <Box bg={cardBg} shadow="md" borderRadius="2xl" p={6}>
-                <VStack align="stretch" spacing={3}>
-                  <Heading size="lg">Recent submissions</Heading>
-                  <Text fontSize="sm" color="gray.500">
-                    Showing the latest five social media requests.
-                  </Text>
-                  {loadingRequests ? (
-                    <Text color="gray.500">Loading...</Text>
-                  ) : recentRequests.length === 0 ? (
-                    <Text color="gray.500">No requests yet.</Text>
-                  ) : (
-                    recentRequests.map((entry) => (
-                      <Box key={entry._id || entry.title} borderWidth="1px" borderRadius="lg" p={3} bg="gray.50">
-                        <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
-                          <Text fontWeight="semibold">{entry.title}</Text>
-                          <Tag
-                            size="sm"
-                            colorScheme={
-                              entry.priority === "High"
-                                ? "red"
-                                : entry.priority === "Medium"
-                                ? "orange"
-                                : "gray"
-                            }
-                          >
-                            {entry.priority || "Medium"}
-                          </Tag>
-                        </Flex>
-                        <Text fontSize="xs" color="gray.500">
-                          {entry.department} • {formatDate(entry.dueDate || entry.createdAt)}
-                        </Text>
-                        <Text fontSize="sm" color="gray.600" noOfLines={2}>
-                          {entry.details}
-                        </Text>
-                      </Box>
-                    ))
-                  )}
-                </VStack>
-              </Box>
-            </SimpleGrid>
-          </TabPanel>
         </TabPanels>
       </Tabs>
       
+      <NoticeBoardPanel
+        title="Social Media Notice Board"
+        subtitle="Broadcast messages for the content team and leadership"
+        embedded
+      />
+
       {/* New Post Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />

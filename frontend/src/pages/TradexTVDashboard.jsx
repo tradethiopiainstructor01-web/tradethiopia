@@ -960,19 +960,22 @@ const TradexTVDashboard = () => {
                 <Heading size="lg" mb={1}>TradexTV Dashboard</Heading>
                 <Text color="gray.500">Welcome back! Here's what's happening with your customer support.</Text>
               </Box>
-              <HStack spacing={3}>
-                <NotificationsPanel
-                  buttonProps={{
-                    colorScheme: 'purple',
-                    variant: 'outline',
-                    size: 'sm',
-                  }}
-                  buttonLabel="Notifications"
-                />
-                <Button colorScheme="purple" onClick={onOpenNewCustomer}>
-                  New customer
-                </Button>
-              </HStack>
+          <HStack spacing={3}>
+            <NotificationsPanel
+              buttonProps={{
+                colorScheme: 'purple',
+                variant: 'outline',
+                size: 'sm',
+              }}
+              buttonLabel="Notifications"
+            />
+            <Button colorScheme="purple" onClick={onOpenNewCustomer}>
+              New customer
+            </Button>
+            <Button colorScheme="teal" variant="outline" onClick={() => navigate("/requests")}>
+              Requests
+            </Button>
+          </HStack>
             </Flex>
 
       {/* Stats Grid */}

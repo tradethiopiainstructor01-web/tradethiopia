@@ -1333,9 +1333,14 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
           <>
             <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
               <Heading size="xl">IT Department Dashboard</Heading>
-              <Button colorScheme="blue" leftIcon={<FiPlus />} onClick={() => setModalOpen(true)}>
-                New Task
-              </Button>
+              <HStack spacing={2}>
+                <Button colorScheme="blue" leftIcon={<FiPlus />} onClick={() => setModalOpen(true)}>
+                  New Task
+                </Button>
+                <Button colorScheme="teal" variant="outline" onClick={() => navigate("/requests")}>
+                  Requests
+                </Button>
+              </HStack>
             </Flex>
             <Box
               bg={cardBg}

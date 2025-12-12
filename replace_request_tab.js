@@ -1,0 +1,13 @@
+const fs = require('fs');
+const path = require('path');
+const filePath = path.join('frontend','src','components','socialmedia','SocialMediaManager.jsx');
+const text = fs.readFileSync(filePath, 'utf8');
+const startMarker = '          <TabPanel>\r\n            <Box bg={cardBg} borderRadius= 2xl p={4} mb={4}>';
+const endMarker = '          <TabPanel>\r\n            <Box>\r\n              <NoticeBoardPanel';
+const startIndex = text.indexOf(startMarker);
+if (startIndex === -1) throw new Error('start marker not found');
+const endIndex = text.indexOf(endMarker, startIndex + startMarker.length);
+if (endIndex === -1) throw new Error('end marker not found');
+const replacement =           <TabPanel>\r\n            <Box bg={cardBg} borderRadius=2xl p={4} mb={4}>\r\n              <VStack align=stretch spacing={3}>\r\n                <Heading size=lg>Central request center</Heading>\r\n                <Text fontSize=sm color=gray.500>\r\n                  All departments now use the unified request page. Finance reviews everything centrally.\r\n                </Text>\r\n                <Button colorScheme=teal onClick={() => navigate(/requests)}>\r\n                  Go to request center\r\n                </Button>\r\n              </VStack>\r\n            </Box>\r\n          </TabPanel>\r\n;
+const newText = text.slice(0, startIndex) + replacement + text.slice(endIndex);
+fs.writeFileSync(filePath, newText);

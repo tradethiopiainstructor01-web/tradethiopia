@@ -48,7 +48,7 @@ const demandRoutes = require('./routes/demandRoutes.js');
 const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
 
 const costRoutes = require('./routes/costRoutes.js');
-const socialRequestRoutes = require('./routes/socialRequestRoutes.js');
+const requestRoutes = require('./routes/requestRoutes.js');
 // Load environment variables
 
 // Initialize Express app
@@ -265,8 +265,8 @@ app.use('/api/purchases', require('./routes/purchaseRoutes'));
 app.use('/api/costs', costRoutes);
 app.use('/api/demands', demandRoutes);
 app.use('/api/payroll', payrollRoutes); // Add this line
-app.use('/api/requests', socialRequestRoutes);
-app.use('/api/social-requests', socialRequestRoutes);
+app.use('/api/requests', requestRoutes);
+app.use('/api/social-requests', requestRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

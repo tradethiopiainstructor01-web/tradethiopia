@@ -15,8 +15,6 @@ import { MoonIcon, SunIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
 import { useUserStore } from "../../store/user";
 import SocialMediaManager from "../../components/socialmedia/SocialMediaManager";
-import NoticeBoardPanel from "../../components/NoticeBoardPanel";
-
 const SocialMediaDashboardPage = () => {
   const navigate = useNavigate();
   const currentUser = useUserStore((state) => state.currentUser);
@@ -41,7 +39,7 @@ const SocialMediaDashboardPage = () => {
   };
   const handleLogin = () => navigate("/login");
   const handleRequestNav = () => {
-    navigate("/social-media/request");
+    navigate("/requests");
   };
 
   if (!currentUser) {
@@ -87,13 +85,6 @@ const SocialMediaDashboardPage = () => {
       px={{ base: 4, md: 6 }}
       py={{ base: 6, md: 10 }}
     >
-      <Box mb={8}>
-        <NoticeBoardPanel
-          title="Social Media Notice Board"
-          subtitle="Broadcast updates curated for the social media team."
-          embedded
-        />
-      </Box>
       <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={3}>
         <Text fontSize="lg" fontWeight="bold" color="gray.600">
           Social media workspace shortcuts
