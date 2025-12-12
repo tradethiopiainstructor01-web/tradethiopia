@@ -47,6 +47,22 @@ const formatCurrency = (value) => {
   }).format(number);
 };
 
+const monthNumberOptions = Array.from({ length: 12 }, (_, index) => String(index + 1));
+
+const getMonthNumberFromIso = (isoMonth) => {
+  if (!isoMonth) return '';
+  const date = new Date(`${isoMonth}-01`);
+  if (Number.isNaN(date.getTime())) return '';
+  return String(date.getMonth() + 1);
+};
+
+const extractMonthNumber = (monthString) => {
+  if (!monthString) return '';
+  const parts = monthString.split('-');
+  if (parts.length < 2) return '';
+  return String(Number(parts[1]));
+};
+
 const FinancePayrollPage = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -71,6 +87,11 @@ const FinancePayrollPage = () => {
   const [editTargetId, setEditTargetId] = useState('');
   const [deleteTargetName, setDeleteTargetName] = useState('');
   const [paidList, setPaidList] = useState([]);
+  const [approvedMonthFilter, setApprovedMonthFilter] = useState(
+    getMonthNumberFromIso(selectedMonth)
+  );
+  const [approvedYearFilter, setApprovedYearFilter] = useState(String(selectedYear));
+  const [approvedNameFilter, setApprovedNameFilter] = useState('');
   const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [approveTarget, setApproveTarget] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -98,6 +119,11 @@ const FinancePayrollPage = () => {
   useEffect(() => {
     loadPayroll();
   }, [loadPayroll]);
+
+  useEffect(() => {
+    setApprovedMonthFilter(getMonthNumberFromIso(selectedMonth));
+    setApprovedYearFilter(String(selectedYear));
+  }, [selectedMonth, selectedYear]);
 
   const monthOptions = useMemo(() => {
     const today = new Date();
@@ -137,6 +163,20 @@ const FinancePayrollPage = () => {
       }, {}),
     [payrollOptions]
   );
+
+  const filteredPaidList = useMemo(() => {
+    const searchTerm = approvedNameFilter.trim().toLowerCase();
+    return paidList.filter((record) => {
+      const recordMonthNumber = extractMonthNumber(record.month);
+      const matchesMonth =
+        !approvedMonthFilter || recordMonthNumber === approvedMonthFilter;
+      const matchesYear =
+        !approvedYearFilter || Number(record.year) === Number(approvedYearFilter);
+      const employeeName = (record.employeeName || record.userId?.fullName || '').toLowerCase();
+      const matchesName = !searchTerm || employeeName.includes(searchTerm);
+      return matchesMonth && matchesYear && matchesName;
+    });
+  }, [approvedMonthFilter, approvedNameFilter, approvedYearFilter, paidList]);
 
   const resetAddForm = () => {
     setAddForm({ employeeId: '', financeAllowances: '', financeDeductions: '' });
@@ -290,7 +330,11 @@ const FinancePayrollPage = () => {
   };
 
   const handleExportPaidList = () => {
-    if (paidList.length === 0) return;
+    const recordsToExport = filteredPaidList.length ? filteredPaidList : paidList;
+    if (recordsToExport.length === 0) return;
+
+    const periodMonth = approvedMonthFilter || getMonthNumberFromIso(selectedMonth);
+    const periodYear = approvedYearFilter || String(selectedYear);
 
     const headers = [
       'Employee',
@@ -307,7 +351,7 @@ const FinancePayrollPage = () => {
       'Net Salary'
     ];
 
-    const rows = paidList.map((record) => [
+    const rows = recordsToExport.map((record) => [
       csvEscape(record.employeeName || record.userId?.fullName),
       csvEscape(record.department),
       csvEscape(record.status),
@@ -326,7 +370,7 @@ const FinancePayrollPage = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `paid-payroll-${selectedMonth}-${selectedYear}.csv`;
+    link.download = `paid-payroll-${periodMonth}-${periodYear}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -424,7 +468,7 @@ const FinancePayrollPage = () => {
         {paidList.length > 0 && (
           <Card mt={6}>
             <CardBody>
-              <Flex justify="space-between" align="center" mb={3}>
+              <Flex justify="space-between" align="center" flexWrap="wrap" gap={3} mb={3}>
                 <Heading size="md">Paid this month</Heading>
                 <Button
                   size="sm"
@@ -435,50 +479,107 @@ const FinancePayrollPage = () => {
                   Export Paid List
                 </Button>
               </Flex>
-              <Table variant="simple" size="sm">
-                <Thead>
-                  <Tr>
-                    <Th>Employee</Th>
-                    <Th>Dept.</Th>
-                    <Th>Gross</Th>
-                    <Th>Income Tax</Th>
-                    <Th>Pension</Th>
-                    <Th>Commission</Th>
-                    <Th>Allowances</Th>
-                    <Th>Deductions</Th>
-                    <Th>Net</Th>
-                    <Th>Status</Th>
-                    <Th>Month</Th>
-                    <Th>Year</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {paidList.map((record) => (
-                    <Tr key={record._id}>
-                      <Td>
-                        <Text fontWeight="semibold">
-                          {record.employeeName || record.userId?.fullName || 'Employee'}
-                        </Text>
-                      </Td>
-                      <Td>{record.department || 'General'}</Td>
-                      <Td>{formatCurrency(record.grossSalary || record.basicSalary)}</Td>
-                      <Td>{formatCurrency(record.incomeTax)}</Td>
-                      <Td>{formatCurrency(record.pension)}</Td>
-                      <Td>{formatCurrency(record.salesCommission)}</Td>
-                      <Td>{formatCurrency(record.financeAllowances)}</Td>
-                      <Td>{formatCurrency(record.financeDeductions)}</Td>
-                      <Td fontWeight="bold" color="teal.500">
-                        {formatCurrency(record.netSalary || record.finalSalary)}
-                      </Td>
-                      <Td>
-                        <Badge colorScheme="green">Paid</Badge>
-                      </Td>
-                      <Td>{record.month}</Td>
-                      <Td>{record.year}</Td>
+
+              <Flex wrap="wrap" gap={4} mb={4} align="flex-end">
+                <Box minW="160px">
+                  <Text fontSize="xs" mb={1} fontWeight="semibold">
+                    Filter month
+                  </Text>
+                  <Select
+                    size="sm"
+                    value={approvedMonthFilter}
+                    onChange={(event) => setApprovedMonthFilter(event.target.value)}
+                  >
+                    <option value="">All months</option>
+                    {monthNumberOptions.map((monthNumber) => (
+                      <option key={monthNumber} value={monthNumber}>
+                        {monthNumber}
+                      </option>
+                    ))}
+                  </Select>
+                </Box>
+
+                <Box minW="120px">
+                  <Text fontSize="xs" mb={1} fontWeight="semibold">
+                    Filter year
+                  </Text>
+                  <Select
+                    size="sm"
+                    value={approvedYearFilter}
+                    onChange={(event) => setApprovedYearFilter(event.target.value)}
+                  >
+                    <option value="">All years</option>
+                    {yearOptions.map((year) => (
+                      <option key={year} value={String(year)}>
+                        {year}
+                      </option>
+                    ))}
+                  </Select>
+                </Box>
+
+                <Box flexGrow={1} minW="200px">
+                  <Text fontSize="xs" mb={1} fontWeight="semibold">
+                    Search by name
+                  </Text>
+                  <Input
+                    size="sm"
+                    placeholder="Employee name"
+                    value={approvedNameFilter}
+                    onChange={(event) => setApprovedNameFilter(event.target.value)}
+                  />
+                </Box>
+              </Flex>
+
+              {filteredPaidList.length === 0 ? (
+                <Text color="gray.500" textAlign="center" py={6}>
+                  No approved payroll records match the current filters.
+                </Text>
+              ) : (
+                <Table variant="simple" size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th>Employee</Th>
+                      <Th>Dept.</Th>
+                      <Th>Gross</Th>
+                      <Th>Income Tax</Th>
+                      <Th>Pension</Th>
+                      <Th>Commission</Th>
+                      <Th>Allowances</Th>
+                      <Th>Deductions</Th>
+                      <Th>Net</Th>
+                      <Th>Status</Th>
+                      <Th>Month</Th>
+                      <Th>Year</Th>
                     </Tr>
-                  ))}
-                </Tbody>
-              </Table>
+                  </Thead>
+                  <Tbody>
+                    {filteredPaidList.map((record) => (
+                      <Tr key={record._id}>
+                        <Td>
+                          <Text fontWeight="semibold">
+                            {record.employeeName || record.userId?.fullName || 'Employee'}
+                          </Text>
+                        </Td>
+                        <Td>{record.department || 'General'}</Td>
+                        <Td>{formatCurrency(record.grossSalary || record.basicSalary)}</Td>
+                        <Td>{formatCurrency(record.incomeTax)}</Td>
+                        <Td>{formatCurrency(record.pension)}</Td>
+                        <Td>{formatCurrency(record.salesCommission)}</Td>
+                        <Td>{formatCurrency(record.financeAllowances)}</Td>
+                        <Td>{formatCurrency(record.financeDeductions)}</Td>
+                        <Td fontWeight="bold" color="teal.500">
+                          {formatCurrency(record.netSalary || record.finalSalary)}
+                        </Td>
+                        <Td>
+                          <Badge colorScheme="green">Paid</Badge>
+                        </Td>
+                        <Td>{record.month}</Td>
+                        <Td>{record.year}</Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              )}
             </CardBody>
           </Card>
         )}
