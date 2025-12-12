@@ -20,6 +20,7 @@ import FinanceDashboardPage from "./pages/sales/FinanceDashboardPage.jsx";
 import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
 import InventoryPage from "./pages/sales/InventoryPage.jsx";
 import OrdersPage from "./pages/sales/OrdersPage.jsx";
+import FinancePayrollPage from "./pages/sales/FinancePayrollPage.jsx";
 import PDFList from './components/PDFList';
 import InfoForm from './pages/InfoForm';
 import EmployeeInfoPage from './pages/EmployeeInfoPage';
@@ -116,6 +117,7 @@ function App() {
             <Route path="/finance-dashboard/revenue" element={<RevenuePage />} />
             <Route path="/finance-dashboard/purchase" element={<PurchasePage />} />
             <Route path="/finance-dashboard/costs" element={<CostManagementPage />} />
+            <Route path="/finance-dashboard/payroll" element={<FinancePayrollPage />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />

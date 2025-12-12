@@ -1,31 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Flex,
-  Grid,
-  Card,
-  CardBody,
-  Heading,
-  Text,
-  Stat,
-  StatLabel,
-  StatNumber,
-  Select,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  useToast,
-  useColorModeValue,
-  Badge,
-  Spinner,
-  Alert,
-  AlertIcon,
-  AlertTitle,
-  AlertDescription,
-  Button
+import { 
+  Box, 
+  Card, 
+  CardBody, 
+  Grid, 
+  Heading, 
+  Stat, 
+  StatLabel, 
+  StatNumber, 
+  Table, 
+  Thead, 
+  Tbody, 
+  Tr, 
+  Th, 
+  Td, 
+  Text, 
+  useColorModeValue 
 } from '@chakra-ui/react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowBackIcon } from '@chakra-ui/icons';
@@ -35,289 +25,117 @@ import { getPayrollDetails, fetchSalesDataForCommission } from '../../services/p
 const EmployeePayrollView = () => {
   const [payrollData, setPayrollData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [error, setError] = useState(null);
   
-  const toast = useToast();
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Color mode values
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
-  const headerColor = useColorModeValue('teal.600', 'teal.200');
-  const textColor = useColorModeValue('gray.700', 'gray.200');
-  const headerBg = useColorModeValue('teal.600', 'teal.700');
+  const headerBg = useColorModeValue('blue.500', 'blue.700');
+  const headerColor = useColorModeValue('white', 'white');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const tableBg = useColorModeValue('white', 'gray.800');
   const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
 
-  // Parse URL parameters
-  const getUrlParams = () => {
-    const searchParams = new URLSearchParams(location.search);
-    const userId = searchParams.get('userId');
-    const month = searchParams.get('month') || selectedMonth;
-    const year = searchParams.get('year') || selectedYear;
-    
-    // Update state with URL parameters if they exist
-    if (month) setSelectedMonth(month);
-    if (year) setSelectedYear(year);
-    
-    return { userId, month, year };
-  };
-
-  // Get current user's username from localStorage
-  const currentUsername = localStorage.getItem('userName') || '';
-
-  // Fetch employee payroll data
-  const fetchPayrollDataHandler = async () => {
-    try {
-      setLoading(true);
-      
-      // Get URL parameters
-      const { userId, month, year } = getUrlParams();
-      
-      // If we're viewing another employee's data (from PayrollPage)
-      if (userId) {
-        const data = await getPayrollDetails(userId, { month, year });
-        setPayrollData(data);
-      } else {
-        // Viewing own data - this would typically come from the backend
-        // For now, we'll simulate with sample data
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Sample data - in real implementation, this would come from the backend
-        const sampleData = {
-          _id: '1',
-          month: selectedMonth,
-          year: parseInt(selectedYear),
-          employeeName: currentUsername,
-          department: 'sales',
-          basicSalary: 5000,
-          age: 30,
-          ageAdjustment: 0,
-          overtimeHours: 10,
-          overtimeRate: 50,
-          overtimePay: 500,
-          lateMinutes: 30,
-          lateRate: 5,
-          lateDeduction: 150,
-          absenceDays: 0,
-          dailyRate: 200,
-          absenceDeduction: 0,
-          numberOfSales: 12,
-          salesCommission: 1200,
-          hrAllowances: 300,
-          financeAllowances: 200,
-          financeDeductions: 50,
-          finalSalary: 6950,
-          status: 'locked',
-          auditLog: []
-        };
-        
-        setPayrollData(sampleData);
-      }
-      
-      setError('');
-    } catch (err) {
-      console.error('Error fetching payroll data:', err);
-      setError('Failed to fetch payroll data');
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch payroll data',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-  
   // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'ETB',
     }).format(amount);
   };
-  
-  // Get status badge color
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'draft': return 'yellow';
-      case 'hr_submitted': return 'blue';
-      case 'finance_reviewed': return 'purple';
-      case 'approved': return 'green';
-      case 'locked': return 'red';
-      default: return 'gray';
-    }
-  };
-  
-  // Effect to fetch data on mount and when filters change
+
   useEffect(() => {
-    fetchPayrollDataHandler();
-  }, [selectedMonth, selectedYear]);
-  
+    const fetchPayrollDetails = async () => {
+      try {
+        setLoading(true);
+        const searchParams = new URLSearchParams(location.search);
+        const userId = searchParams.get('userId');
+        const month = searchParams.get('month');
+        const year = searchParams.get('year');
+        
+        if (!userId || !month || !year) {
+          throw new Error('Missing required parameters');
+        }
+        
+        const data = await getPayrollDetails(userId, { month, year });
+        setPayrollData(data);
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching payroll details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPayrollDetails();
+  }, [location.search]);
+
   if (loading) {
     return (
       <Layout>
-        <Box p={6} bg={bgColor} minHeight="100vh">
-          <Flex justify="center" align="center" height="100%">
-            <Spinner size="xl" />
-          </Flex>
+        <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
+          <Text>Loading payroll details...</Text>
         </Box>
       </Layout>
     );
   }
-  
+
   if (error) {
     return (
       <Layout>
-        <Box p={6} bg={bgColor} minHeight="100vh">
-          <Alert
-            status="error"
-            variant="subtle"
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
-            textAlign="center"
-            height="200px"
-            borderRadius="lg"
-          >
-            <AlertIcon boxSize="40px" mr={0} />
-            <AlertTitle mt={4} mb={1} fontSize="lg">
-              Error Loading Payroll Data
-            </AlertTitle>
-            <AlertDescription maxWidth="sm">
-              {error}
-            </AlertDescription>
-          </Alert>
+        <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
+          <Text color="red.500">Error: {error}</Text>
         </Box>
       </Layout>
     );
   }
-  
+
   return (
     <Layout>
       <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
         {/* Back Button and Heading */}
-        <Flex 
-          direction={{ base: 'column', sm: 'row' }} 
-          justify="space-between" 
-          align={{ base: 'start', sm: 'center' }} 
-          mb={6}
-          gap={4}
-        >
-          <Button
-            leftIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/payroll')}
-            colorScheme="teal"
-            variant="outline"
-            size={{ base: 'sm', md: 'md' }}
-            mb={{ base: 2, sm: 0 }}
-          >
-            Back to Payroll
-          </Button>
-          
-          <Heading 
-            as="h1" 
-            size={{ base: 'lg', md: 'xl' }} 
-            color={headerColor}
-            pb={2}
-            borderBottom="2px solid"
-            borderBottomColor={headerColor}
-            display="inline-block"
-          >
-            {payrollData?.employeeName ? `${payrollData.employeeName}'s Payroll` : 'My Payroll'}
+        <Box display="flex" alignItems="center" mb={6}>
+          <ArrowBackIcon 
+            onClick={() => navigate(-1)} 
+            cursor="pointer" 
+            mr={3} 
+            boxSize={6} 
+            color="blue.500"
+          />
+          <Heading as="h1" size="lg" color={headerColor}>
+            Payroll Details for {payrollData?.employeeName || 'Employee'}
           </Heading>
-        </Flex>
-        
-        {/* Filters */}
-        <Card mb={6} bg={cardBg} boxShadow="md" borderRadius="lg">
-          <CardBody py={4} px={5}>
-            <Flex 
-              direction={{ base: 'column', sm: 'row' }} 
-              justify="space-between" 
-              align={{ base: 'start', sm: 'center' }}
-              gap={4}
-            >
-              <Flex direction={{ base: 'column', sm: 'row' }} gap={3}>
-                <Select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  width={{ base: '100%', sm: '140px' }}
-                  size="sm"
-                  borderRadius="md"
-                >
-                  {Array.from({ length: 12 }, (_, i) => {
-                    const date = new Date();
-                    date.setMonth(date.getMonth() - i);
-                    const month = date.toISOString().slice(0, 7);
-                    return (
-                      <option key={month} value={month}>
-                        {date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                      </option>
-                    );
-                  })}
-                </Select>
-                
-                <Select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  width={{ base: '100%', sm: '140px' }}
-                  size="sm"
-                  borderRadius="md"
-                >
-                  {Array.from({ length: 5 }, (_, i) => {
-                    const year = new Date().getFullYear() - i;
-                    return (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    );
-                  })}
-                </Select>
-              </Flex>
-            </Flex>
-          </CardBody>
-        </Card>
-        
+        </Box>
+
         {/* Payroll Summary */}
         {payrollData && (
           <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }} gap={6} mb={6}>
             <StatCard 
-              title="Basic Salary" 
-              value={formatCurrency(payrollData.basicSalary)} 
+              title="Gross Salary" 
+              value={formatCurrency(payrollData.grossSalary || payrollData.basicSalary || 0)} 
               color="blue.500" 
             />
             <StatCard 
-              title="Total Adjustments" 
-              value={formatCurrency(
-                (payrollData.overtimePay || 0) +
-                (payrollData.hrAllowances || 0) +
-                (payrollData.financeAllowances || 0) -
-                (payrollData.lateDeduction || 0) -
-                (payrollData.absenceDeduction || 0) -
-                (payrollData.financeDeductions || 0)
-              )} 
+              title="Total Deductions" 
+              value={formatCurrency((payrollData.incomeTax || 0) + (payrollData.pension || 0) + (payrollData.lateDeduction || 0) + (payrollData.absenceDeduction || 0) + (payrollData.financeDeductions || 0))} 
+              color="orange.500" 
+            />
+            <StatCard 
+              title="Total Allowances" 
+              value={formatCurrency((payrollData.hrAllowances || 0) + (payrollData.financeAllowances || 0) + (payrollData.salesCommission || 0))} 
               color="green.500" 
             />
             <StatCard 
-              title="Sales Commission" 
-              value={formatCurrency(payrollData.salesCommission || 0)} 
-              color="purple.500" 
-            />
-            <StatCard 
-              title="Final Salary" 
-              value={formatCurrency(payrollData.finalSalary)} 
+              title="Net Salary" 
+              value={formatCurrency(payrollData.netSalary || payrollData.finalSalary || 0)} 
               color="teal.500" 
               isBold={true}
             />
           </Grid>
         )}
-        
+
         {/* Detailed Breakdown */}
         {payrollData && (
           <Card mb={6} bg={cardBg} boxShadow="md" borderRadius="lg">
@@ -369,7 +187,7 @@ const EmployeePayrollView = () => {
                         <Text fontWeight="bold">Basic Salary</Text>
                       </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
-                        {formatCurrency(payrollData.basicSalary)}
+                        {formatCurrency(payrollData.basicSalary || 0)}
                       </Td>
                     </Tr>
                     
@@ -377,35 +195,11 @@ const EmployeePayrollView = () => {
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
                         <Text fontWeight="bold">Overtime Pay</Text>
                         <Text fontSize={{ base: "xxs", md: "xs" }} color="gray.500">
-                          {payrollData.overtimeHours || 0} hours × {formatCurrency(payrollData.overtimeRate || 0)}/hour
+                          {payrollData.overtimeHours || 0} hours
                         </Text>
                       </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
                         {formatCurrency(payrollData.overtimePay || 0)}
-                      </Td>
-                    </Tr>
-                    
-                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        <Text fontWeight="bold">Late Deduction</Text>
-                        <Text fontSize={{ base: "xxs", md: "xs" }} color="gray.500">
-                          {payrollData.lateMinutes || 0} minutes × {formatCurrency(payrollData.lateRate || 0)}/minute
-                        </Text>
-                      </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
-                        -{formatCurrency(payrollData.lateDeduction || 0)}
-                      </Td>
-                    </Tr>
-                    
-                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        <Text fontWeight="bold">Absence Deduction</Text>
-                        <Text fontSize={{ base: "xxs", md: "xs" }} color="gray.500">
-                          {payrollData.absenceDays || 0} days × {formatCurrency(payrollData.dailyRate || 0)}/day
-                        </Text>
-                      </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
-                        -{formatCurrency(payrollData.absenceDeduction || 0)}
                       </Td>
                     </Tr>
                     
@@ -429,15 +223,6 @@ const EmployeePayrollView = () => {
                     
                     <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        <Text fontWeight="bold">Finance Deductions</Text>
-                      </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
-                        -{formatCurrency(payrollData.financeDeductions || 0)}
-                      </Td>
-                    </Tr>
-                    
-                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
                         <Text fontWeight="bold">Sales Commission</Text>
                         <Text fontSize={{ base: "xxs", md: "xs" }} color="gray.500">
                           {payrollData.numberOfSales || 0} sales
@@ -448,12 +233,75 @@ const EmployeePayrollView = () => {
                       </Td>
                     </Tr>
                     
-                    <Tr bg="teal.50" _hover={{ bg: "teal.100" }} transition="background-color 0.2s">
-                      <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        <Text fontWeight="bold" fontSize={{ base: "sm", md: "md" }}>Final Salary</Text>
+                    <Tr bg="gray.100" _hover={{ bg: "gray.200" }} transition="background-color 0.2s">
+                      <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }} fontSize={{ base: "sm", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Gross Salary</Text>
+                        <Text fontSize={{ base: "xxs", md: "xs" }} color="gray.500">
+                          (Basic + Overtime + Allowances + Commission)
+                        </Text>
                       </Td>
-                      <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric fontWeight="bold" color="teal.600">
-                        {formatCurrency(payrollData.finalSalary)}
+                      <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }} fontSize={{ base: "sm", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric fontWeight="bold">
+                        {formatCurrency(payrollData.grossSalary || payrollData.basicSalary || 0)}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Income Tax</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        -{formatCurrency(payrollData.incomeTax || 0)}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Pension (7%)</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        -{formatCurrency(payrollData.pension || 0)}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Late Deduction</Text>
+                        <Text fontSize={{ base: "xxs", md: "xs" }} color="gray.500">
+                          {payrollData.lateDays || 0} days
+                        </Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        -{formatCurrency(payrollData.lateDeduction || 0)}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Absence Deduction</Text>
+                        <Text fontSize={{ base: "xxs", md: "xs" }} color="gray.500">
+                          {payrollData.absenceDays || 0} days
+                        </Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        -{formatCurrency(payrollData.absenceDeduction || 0)}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Finance Deductions</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        -{formatCurrency(payrollData.financeDeductions || 0)}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr bg="teal.50" _hover={{ bg: "teal.100" }} transition="background-color 0.2s">
+                      <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }} fontSize={{ base: "sm", md: "md" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold" fontSize={{ base: "sm", md: "md" }}>Net Salary</Text>
+                      </Td>
+                      <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }} fontSize={{ base: "sm", md: "md" }} borderBottom="1px solid" borderColor={borderColor} isNumeric fontWeight="bold" color="teal.600">
+                        {formatCurrency(payrollData.netSalary || payrollData.finalSalary || 0)}
                       </Td>
                     </Tr>
                   </Tbody>
@@ -462,128 +310,440 @@ const EmployeePayrollView = () => {
             </CardBody>
           </Card>
         )}
-        
+
+        {/* Tax and Pension Calculation Details */}
+        {payrollData && (
+          <Card mb={6} bg={cardBg} boxShadow="md" borderRadius="lg">
+            <CardBody py={4} px={{ base: 2, md: 5 }}>
+              <Heading as="h2" size="md" color={headerColor} mb={4}>
+                Tax and Pension Calculation Details
+              </Heading>
+              
+              <Box overflowX="auto">
+                <Table variant="simple" size={{ base: "sm", md: "sm" }}>
+                  <Thead>
+                    <Tr>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                      >
+                        Calculation Type
+                      </Th>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                      >
+                        Formula
+                      </Th>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                        isNumeric
+                      >
+                        Amount
+                      </Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Income Tax</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text>Based on Ethiopian tax brackets</Text>
+                        <Text fontSize="xxs" color="gray.500">
+                          {(payrollData.grossSalary || payrollData.basicSalary || 0) <= 600 ? "0%" :
+                           (payrollData.grossSalary || payrollData.basicSalary || 0) <= 1600 ? "10% on amount exceeding ETB 600" :
+                           (payrollData.grossSalary || payrollData.basicSalary || 0) <= 3200 ? "ETB 100 + 15% on amount exceeding ETB 1,600" :
+                           (payrollData.grossSalary || payrollData.basicSalary || 0) <= 5200 ? "ETB 340 + 20% on amount exceeding ETB 3,200" :
+                           (payrollData.grossSalary || payrollData.basicSalary || 0) <= 10000 ? "ETB 740 + 25% on amount exceeding ETB 5,200" :
+                           "ETB 1,940 + 30% on amount exceeding ETB 10,000"}
+                        </Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        {formatCurrency(payrollData.incomeTax || 0)}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Pension</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text>7% of Basic Salary</Text>
+                        <Text fontSize="xxs" color="gray.500">
+                          {formatCurrency(payrollData.basicSalary || 0)} × 7%
+                        </Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        {formatCurrency(payrollData.pension || 0)}
+                      </Td>
+                    </Tr>
+                  </Tbody>
+                </Table>
+              </Box>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Overtime Calculation Details */}
+        {payrollData && payrollData.overtimeHours > 0 && (
+          <Card mb={6} bg={cardBg} boxShadow="md" borderRadius="lg">
+            <CardBody py={4} px={{ base: 2, md: 5 }}>
+              <Heading as="h2" size="md" color={headerColor} mb={4}>
+                Overtime Calculation Details
+              </Heading>
+              
+              <Box overflowX="auto">
+                <Table variant="simple" size={{ base: "sm", md: "sm" }}>
+                  <Thead>
+                    <Tr>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                      >
+                        Overtime Type
+                      </Th>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                      >
+                        Hours
+                      </Th>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                        isNumeric
+                      >
+                        Rate
+                      </Th>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                        isNumeric
+                      >
+                        Amount
+                      </Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Daytime Overtime</Text>
+                        <Text fontSize="xxs" color="gray.500">(6am–10pm)</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {payrollData.daytimeOvertimeHours || 0} hours
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        1.5× Base Rate
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        {formatCurrency((payrollData.daytimeOvertimeHours || 0) * ((payrollData.basicSalary || 0) / 30 / 8 * 1.5))}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Night Overtime</Text>
+                        <Text fontSize="xxs" color="gray.500">(10pm–6am)</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {payrollData.nightOvertimeHours || 0} hours
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        1.75× Base Rate
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        {formatCurrency((payrollData.nightOvertimeHours || 0) * ((payrollData.basicSalary || 0) / 30 / 8 * 1.75))}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Rest Day Overtime</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {payrollData.restDayOvertimeHours || 0} hours
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        2.0× Base Rate
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        {formatCurrency((payrollData.restDayOvertimeHours || 0) * ((payrollData.basicSalary || 0) / 30 / 8 * 2.0))}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Public Holiday Overtime</Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {payrollData.holidayOvertimeHours || 0} hours
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        2.5× Base Rate
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric>
+                        {formatCurrency((payrollData.holidayOvertimeHours || 0) * ((payrollData.basicSalary || 0) / 30 / 8 * 2.5))}
+                      </Td>
+                    </Tr>
+                    
+                    <Tr bg="gray.100" _hover={{ bg: "gray.200" }} transition="background-color 0.2s">
+                      <Td colSpan={3} py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }} fontSize={{ base: "sm", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold">Total Overtime Pay</Text>
+                      </Td>
+                      <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 3 }} fontSize={{ base: "sm", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} isNumeric fontWeight="bold">
+                        {formatCurrency(payrollData.overtimePay || 0)}
+                      </Td>
+                    </Tr>
+                  </Tbody>
+                </Table>
+              </Box>
+            </CardBody>
+          </Card>
+        )}
+
         {/* Status and Audit Log */}
         {payrollData && (
           <Card mb={6} bg={cardBg} boxShadow="md" borderRadius="lg">
             <CardBody py={4} px={{ base: 2, md: 5 }}>
-              <Flex 
-                direction={{ base: 'column', md: 'row' }} 
-                justify="space-between" 
-                align={{ base: 'start', md: 'center' }} 
-                mb={4}
-                gap={2}
-              >
-                <Heading as="h2" size="md" color={headerColor}>
-                  Status & History
-                </Heading>
-                <Badge colorScheme={getStatusColor(payrollData.status)} fontSize="sm" px={3} py={1} borderRadius="full">
-                  {payrollData.status?.replace('_', ' ')}
-                </Badge>
-              </Flex>
+              <Heading as="h2" size="md" color={headerColor} mb={4}>
+                Status and History
+              </Heading>
               
-              {payrollData.auditLog && payrollData.auditLog.length > 0 ? (
-                <Box overflowX="auto">
-                  <Table variant="simple" size={{ base: "sm", md: "sm" }}>
-                    <Thead>
-                      <Tr>
-                        <Th 
-                          py={{ base: 2, md: 3 }}
-                          px={{ base: 2, md: 3 }}
-                          fontSize={{ base: "xs", md: "sm" }}
-                          fontWeight="bold"
-                          color="white"
-                          position="sticky"
-                          top={0}
-                          bg={headerBg}
-                          zIndex={1}
-                          boxShadow="sm"
-                          borderColor={borderColor}
-                        >
-                          Date
-                        </Th>
-                        <Th 
-                          py={{ base: 2, md: 3 }}
-                          px={{ base: 2, md: 3 }}
-                          fontSize={{ base: "xs", md: "sm" }}
-                          fontWeight="bold"
-                          color="white"
-                          position="sticky"
-                          top={0}
-                          bg={headerBg}
-                          zIndex={1}
-                          boxShadow="sm"
-                          borderColor={borderColor}
-                        >
-                          Changed By
-                        </Th>
-                        <Th 
-                          py={{ base: 2, md: 3 }}
-                          px={{ base: 2, md: 3 }}
-                          fontSize={{ base: "xs", md: "sm" }}
-                          fontWeight="bold"
-                          color="white"
-                          position="sticky"
-                          top={0}
-                          bg={headerBg}
-                          zIndex={1}
-                          boxShadow="sm"
-                          borderColor={borderColor}
-                        >
-                          Field
-                        </Th>
-                        <Th 
-                          py={{ base: 2, md: 3 }}
-                          px={{ base: 2, md: 3 }}
-                          fontSize={{ base: "xs", md: "sm" }}
-                          fontWeight="bold"
-                          color="white"
-                          position="sticky"
-                          top={0}
-                          bg={headerBg}
-                          zIndex={1}
-                          boxShadow="sm"
-                          borderColor={borderColor}
-                        >
-                          Change
-                        </Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {payrollData.auditLog.map((log, index) => (
-                        <Tr key={index} _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
-                          <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                            {new Date(log.changedAt).toLocaleString()}
-                          </Td>
-                          <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                            {log.changedBy?.username || log.changedBy?.fullName || 'Unknown'}
-                            <Badge ml={2} fontSize="xs" colorScheme="gray">
-                              {log.role}
-                            </Badge>
-                          </Td>
-                          <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                            {log.fieldName}
-                          </Td>
-                          <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                            {typeof log.oldValue === 'number' && typeof log.newValue === 'number' ? (
-                              <Text>
-                                {formatCurrency(log.oldValue)} → {formatCurrency(log.newValue)}
-                              </Text>
-                            ) : (
-                              <Text>
-                                {String(log.oldValue)} → {String(log.newValue)}
-                              </Text>
-                            )}
-                          </Td>
+              <Box overflowX="auto">
+                <Table variant="simple" size={{ base: "sm", md: "sm" }}>
+                  <Thead>
+                    <Tr>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                      >
+                        Status
+                      </Th>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                      >
+                        Updated By
+                      </Th>
+                      <Th 
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 3 }}
+                        fontSize={{ base: "xs", md: "sm" }}
+                        fontWeight="bold"
+                        color="white"
+                        position="sticky"
+                        top={0}
+                        bg={headerBg}
+                        zIndex={1}
+                        boxShadow="sm"
+                        borderColor={borderColor}
+                      >
+                        Timestamp
+                      </Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    <Tr>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        <Text fontWeight="bold" color={
+                          payrollData.status === 'draft' ? 'yellow.500' :
+                          payrollData.status === 'hr_submitted' ? 'blue.500' :
+                          payrollData.status === 'finance_reviewed' ? 'purple.500' :
+                          payrollData.status === 'approved' ? 'green.500' :
+                          payrollData.status === 'locked' ? 'red.500' : 'gray.500'
+                        }>
+                          {payrollData.status?.toUpperCase() || 'UNKNOWN'}
+                        </Text>
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {payrollData.hrSubmittedBy?.fullName || payrollData.financeReviewedBy?.fullName || payrollData.approvedBy?.fullName || 'N/A'}
+                      </Td>
+                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                        {payrollData.updatedAt ? new Date(payrollData.updatedAt).toLocaleString() : 'N/A'}
+                      </Td>
+                    </Tr>
+                  </Tbody>
+                </Table>
+              </Box>
+              
+              {payrollData.auditLog && payrollData.auditLog.length > 0 && (
+                <>
+                  <Heading as="h3" size="sm" color={headerColor} mt={6} mb={3}>
+                    Audit Log
+                  </Heading>
+                  
+                  <Box overflowX="auto">
+                    <Table variant="simple" size={{ base: "sm", md: "sm" }}>
+                      <Thead>
+                        <Tr>
+                          <Th 
+                            py={{ base: 2, md: 3 }}
+                            px={{ base: 2, md: 3 }}
+                            fontSize={{ base: "xs", md: "sm" }}
+                            fontWeight="bold"
+                            color="white"
+                            position="sticky"
+                            top={0}
+                            bg={headerBg}
+                            zIndex={1}
+                            boxShadow="sm"
+                            borderColor={borderColor}
+                          >
+                            Changed By
+                          </Th>
+                          <Th 
+                            py={{ base: 2, md: 3 }}
+                            px={{ base: 2, md: 3 }}
+                            fontSize={{ base: "xs", md: "sm" }}
+                            fontWeight="bold"
+                            color="white"
+                            position="sticky"
+                            top={0}
+                            bg={headerBg}
+                            zIndex={1}
+                            boxShadow="sm"
+                            borderColor={borderColor}
+                          >
+                            Field
+                          </Th>
+                          <Th 
+                            py={{ base: 2, md: 3 }}
+                            px={{ base: 2, md: 3 }}
+                            fontSize={{ base: "xs", md: "sm" }}
+                            fontWeight="bold"
+                            color="white"
+                            position="sticky"
+                            top={0}
+                            bg={headerBg}
+                            zIndex={1}
+                            boxShadow="sm"
+                            borderColor={borderColor}
+                          >
+                            Change
+                          </Th>
+                          <Th 
+                            py={{ base: 2, md: 3 }}
+                            px={{ base: 2, md: 3 }}
+                            fontSize={{ base: "xs", md: "sm" }}
+                            fontWeight="bold"
+                            color="white"
+                            position="sticky"
+                            top={0}
+                            bg={headerBg}
+                            zIndex={1}
+                            boxShadow="sm"
+                            borderColor={borderColor}
+                          >
+                            Timestamp
+                          </Th>
                         </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </Box>
-              ) : (
-                <Text color="gray.500" fontStyle="italic" fontSize={{ base: "sm", md: "md" }}>
-                  No audit history available
-                </Text>
+                      </Thead>
+                      <Tbody>
+                        {payrollData.auditLog.map((log, index) => (
+                          <Tr key={index} _hover={{ bg: rowHoverBg }} transition="background-color 0.2s">
+                            <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                              {log.changedBy?.fullName || 'System'}
+                            </Td>
+                            <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                              {log.fieldName}
+                            </Td>
+                            <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                              {typeof log.oldValue === 'object' ? JSON.stringify(log.oldValue) : log.oldValue} → {typeof log.newValue === 'object' ? JSON.stringify(log.newValue) : log.newValue}
+                            </Td>
+                            <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                              {new Date(log.changedAt).toLocaleString()}
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+
+                    </Table>
+                  </Box>
+                </>
               )}
             </CardBody>
           </Card>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Box,
   Flex,
@@ -191,15 +192,38 @@ const FinanceDashboardPage = () => {
           <Heading as="h1" size="xl" color={headerColor}>
             Enterprise Finance Dashboard
           </Heading>
-          <HStack spacing={3}>
-            <Button colorScheme="teal">Generate Report</Button>
-            <Button colorScheme="blue">Export Data</Button>
-          </HStack>
-        </Flex>
+        <HStack spacing={3}>
+          <Button colorScheme="teal">Generate Report</Button>
+          <Button colorScheme="blue">Export Data</Button>
+        </HStack>
+      </Flex>
 
-        {/* Financial Overview Cards */}
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 6 }} spacing={6} mb={8}>
-          {financialMetrics.map((metric, index) => (
+      <Box mb={8}>
+        <Card bg={cardBg} boxShadow="md">
+          <CardBody>
+            <Flex justify="space-between" align="center" flexWrap="wrap" gap={2}>
+              <Box>
+                <Heading size="md">Payroll</Heading>
+                <Text color="gray.500" fontSize="sm">
+                  View submitted payroll data, adjustments, and approvals without leaving the finance dashboard.
+                </Text>
+              </Box>
+              <Button
+                as={Link}
+                to="/payroll"
+                colorScheme="purple"
+                variant="outline"
+              >
+                Open Payroll
+              </Button>
+            </Flex>
+          </CardBody>
+        </Card>
+      </Box>
+
+      {/* Financial Overview Cards */}
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 6 }} spacing={6} mb={8}>
+        {financialMetrics.map((metric, index) => (
             <Card key={index} bg={cardBg} boxShadow="md">
               <CardBody>
                 <Flex justify="space-between" align="center" mb={2}>

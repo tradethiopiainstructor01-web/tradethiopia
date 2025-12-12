@@ -182,19 +182,6 @@ const handleLogin = async () => {
                 >
                     Login
                 </Button>
-                <Box mt={4} textAlign="center">
-                    <Text color="whiteAlpha.700" fontSize="sm" mb={2}>
-                        Need the social media workspace? Access it directly below.
-                    </Text>
-                    <Button
-                        variant="outline"
-                        colorScheme="teal"
-                        size="sm"
-                        onClick={() => navigate('/social-media')}
-                    >
-                        Open Social Media Dashboard
-                    </Button>
-                </Box>
             </Box>
         </Box>
     );

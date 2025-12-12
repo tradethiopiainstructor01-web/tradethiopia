@@ -15,7 +15,19 @@ import {
   useDisclosure,
   Divider,
 } from '@chakra-ui/react';
-import { FiMenu, FiHome, FiBox, FiBarChart2, FiCreditCard, FiMessageSquare, FiDollarSign, FiUsers, FiShield } from 'react-icons/fi';
+import {
+  FiMenu,
+  FiHome,
+  FiBox,
+  FiBarChart2,
+  FiMessageSquare,
+  FiDollarSign,
+  FiUsers,
+  FiShield,
+  FiFileInvoice,
+  FiShoppingCart,
+  FiSettings,
+} from 'react-icons/fi';
 import { RxHamburgerMenu } from 'react-icons/rx';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { getNotifications } from '../../services/notificationService';
@@ -100,10 +112,16 @@ const Sidebar = ({ onClose, mobile = false, unreadCount = 0, showNoticeBoard = t
       )}
       <VStack align="stretch" spacing={3}>
         {!collapsed && <Heading size="sm" mb={2} color={accent}>Finance</Heading>}
-        <SidebarItem icon={FiHome} label={collapsed && !mobile ? '' : 'Dashboard'} to="/finance" />
-        <SidebarItem icon={FiBox} label={collapsed && !mobile ? '' : 'Inventory'} to="/finance/inventory" />
-        <SidebarItem icon={FiBox} label={collapsed && !mobile ? '' : 'Orders'} to="/finance/orders" />
-        <SidebarItem icon={FiBarChart2} label={collapsed && !mobile ? '' : 'Reports'} to="/finance/reports" />
+        <SidebarItem icon={FiHome} label={collapsed && !mobile ? '' : 'Dashboard'} to="/finance-dashboard" />
+        <SidebarItem icon={FiBarChart2} label={collapsed && !mobile ? '' : 'Financial Reports'} to="/finance-dashboard/reports" />
+        <SidebarItem icon={FiBox} label={collapsed && !mobile ? '' : 'Inventory'} to="/finance-dashboard/inventory" />
+        <SidebarItem icon={FiShoppingCart} label={collapsed && !mobile ? '' : 'Orders'} to="/finance-dashboard/orders" />
+        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Pricing'} to="/finance-dashboard/pricing" />
+        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Revenue'} to="/finance-dashboard/revenue" />
+        <SidebarItem icon={FiUsers} label={collapsed && !mobile ? '' : 'Purchase'} to="/finance-dashboard/purchase" />
+        <SidebarItem icon={FiShield} label={collapsed && !mobile ? '' : 'Costs'} to="/finance-dashboard/costs" />
+        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Payroll'} to="/payroll" />
+        <SidebarItem icon={FiFileInvoice} label={collapsed && !mobile ? '' : 'Invoices'} to="/finance-dashboard/invoices" />
         {showNoticeBoard && (
           <SidebarItem 
             icon={FiMessageSquare} 
@@ -112,11 +130,7 @@ const Sidebar = ({ onClose, mobile = false, unreadCount = 0, showNoticeBoard = t
             unreadCount={unreadCount} 
           />
         )}
-        <SidebarItem icon={FiCreditCard} label={collapsed && !mobile ? '' : 'Transactions'} to="/finance/transactions" />
-        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Pricing'} to="/finance-dashboard/pricing" />
-        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Revenue'} to="/finance-dashboard/revenue" />
-        <SidebarItem icon={FiUsers} label={collapsed && !mobile ? '' : 'Purchase'} to="/finance-dashboard/purchase" />
-        <SidebarItem icon={FiShield} label={collapsed && !mobile ? '' : 'Costs'} to="/finance-dashboard/costs" />
+        <SidebarItem icon={FiSettings} label={collapsed && !mobile ? '' : 'Settings'} to="/finance-dashboard/settings" />
         {(!collapsed || mobile) && <>
           <Divider borderColor={accent} my={2} />
           <Text fontSize="xs" color={accent} whiteSpace="normal">Manage finance-related features</Text>

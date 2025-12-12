@@ -14,11 +14,25 @@ import {
 import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase, FiBarChart, FiMessageSquare, FiDollarSign, FiFileText } from "react-icons/fi";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { getNotifications } from "../services/notificationService";
+import { fetchPayrollData } from "../services/payrollService";
 import { useState, useEffect } from "react";
+
+const formatCurrency = (value) => {
+  const number = Number(value) || 0;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "ETB",
+  }).format(number);
+};
 
 const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
+  const [payrollSummary, setPayrollSummary] = useState({
+    totalEmployees: 0,
+    totalNet: 0,
+  });
+  const [payrollLoading, setPayrollLoading] = useState(true);
   const breakpointValue = useBreakpointValue({ base: true, md: false });
 
   const sidebarGradient = useColorModeValue(
@@ -49,6 +63,40 @@ const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
     const interval = setInterval(fetchUnreadCount, 30000); // Refresh every 30 seconds
     
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPayrollSummary = async () => {
+      try {
+        const month = new Date().toISOString().slice(0, 7);
+        const year = new Date().getFullYear();
+        const response = await fetchPayrollData(month, { year });
+        if (!mounted) return;
+
+        const payrollRecords = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.data)
+            ? response.data
+            : [];
+
+        const totalNet = payrollRecords.reduce((sum, entry) => sum + (entry.netSalary || entry.finalSalary || 0), 0);
+        setPayrollSummary({
+          totalEmployees: payrollRecords.length,
+          totalNet,
+        });
+      } catch (err) {
+        console.error("Error loading payroll summary", err);
+      } finally {
+        if (mounted) setPayrollLoading(false);
+      }
+    };
+
+    loadPayrollSummary();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const links = [
@@ -102,29 +150,49 @@ const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
 
       {/* Combined approach - using array map with special case for Notice Board */}
       <VStack align="stretch" spacing={1} px={isCollapsed ? 2 : 4}>
-        {links.map(({ label, path, icon: Icon }) => (
-          <Link
-            as={RouterLink}
-            to={path}
-            key={label}
-            _hover={{ textDecoration: "none" }}
-          >
-            <Flex
-              align="center"
-              gap={isCollapsed ? 0 : 3}
-              px={3}
-              py={2}
-              borderRadius="md"
-              bg={isActive(path) ? hoverBg : "transparent"}
-              borderLeft={isActive(path) ? "4px solid" : "4px solid transparent"}
-              borderLeftColor={isActive(path) ? activeBorder : "transparent"}
-              transition="all 0.2s"
+        {links.map(({ label, path, icon: Icon }) => {
+          const isPayrollLink = label === "Payroll";
+          const summaryText = isPayrollLink
+            ? payrollLoading
+              ? "Loading payroll..."
+              : payrollSummary.totalEmployees > 0
+                ? `${payrollSummary.totalEmployees} employees • ${formatCurrency(payrollSummary.totalNet)}`
+                : "No payroll data"
+            : "";
+
+          return (
+            <Link
+              as={RouterLink}
+              to={path}
+              key={label}
+              _hover={{ textDecoration: "none" }}
             >
-              <Icon />
-              {!isCollapsed && <Text>{label}</Text>}
-            </Flex>
-          </Link>
-        ))}
+              <Flex
+                align="center"
+                gap={isCollapsed ? 0 : 3}
+                px={3}
+                py={2}
+                borderRadius="md"
+                bg={isActive(path) ? hoverBg : "transparent"}
+                borderLeft={isActive(path) ? "4px solid" : "4px solid transparent"}
+                borderLeftColor={isActive(path) ? activeBorder : "transparent"}
+                transition="all 0.2s"
+              >
+                <Icon />
+                {!isCollapsed && (
+                  <Box>
+                    <Text>{label}</Text>
+                    {isPayrollLink && summaryText && (
+                      <Text fontSize="xs" color="gray.400">
+                        {summaryText}
+                      </Text>
+                    )}
+                  </Box>
+                )}
+              </Flex>
+            </Link>
+          );
+        })}
         
         {/* Special case for Notice Board with badge */}
         <Link as={RouterLink} to="/messages" _hover={{ textDecoration: "none" }} onClick={fetchUnreadCount}>

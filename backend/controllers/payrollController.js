@@ -1,126 +1,185 @@
+// Import required modules
 const Payroll = require('../models/Payroll');
-const User = require('../models/user.model');
 const Attendance = require('../models/Attendance');
 const Commission = require('../models/Commission');
-const SalesCustomer = require('../models/SalesCustomer');
+const User = require('../models/user.model');
 
-// Helper function to calculate payroll
-const calculatePayroll = async (userId, month, year) => {
+// Calculate Ethiopian Income Tax based on gross salary
+const calculateEthiopianIncomeTax = (grossSalary) => {
+  // Ethiopian Income Tax Brackets
+  // Up to ETB 600: 0%
+  // ETB 601-1,600: 10% on amount exceeding ETB 600
+  // ETB 1,601-3,200: ETB 100 + 15% on amount exceeding ETB 1,600
+  // ETB 3,201-5,200: ETB 340 + 20% on amount exceeding ETB 3,200
+  // ETB 5,201-10,000: ETB 740 + 25% on amount exceeding ETB 5,200
+  // Above ETB 10,000: ETB 1,940 + 30% on amount exceeding ETB 10,000
+  
+  if (grossSalary <= 600) {
+    return 0;
+  } else if (grossSalary <= 1600) {
+    return (grossSalary - 600) * 0.10;
+  } else if (grossSalary <= 3200) {
+    return 100 + (grossSalary - 1600) * 0.15;
+  } else if (grossSalary <= 5200) {
+    return 340 + (grossSalary - 3200) * 0.20;
+  } else if (grossSalary <= 10000) {
+    return 740 + (grossSalary - 5200) * 0.25;
+  } else {
+    return 1940 + (grossSalary - 10000) * 0.30;
+  }
+};
+
+// Calculate pension contribution (7% of basic salary)
+const calculatePension = (basicSalary) => {
+  return basicSalary * 0.07;
+};
+
+// Calculate hourly wage from monthly salary
+const calculateHourlyWage = (monthlySalary) => {
+  if (!monthlySalary) return 0;
+  const dailySalary = monthlySalary / 30;
+  const hourlyWage = dailySalary / 8;
+  return hourlyWage;
+};
+
+// Calculate overtime pay based on Ethiopian labor law
+const calculateOvertimePay = (hourlyWage, overtimeData) => {
+  if (!overtimeData) return 0;
+  
+  let totalOvertimePay = 0;
+  
+  // Daytime Overtime (6am–10pm): 1.5x hourly rate
+  if (overtimeData.daytimeOvertimeHours) {
+    const daytimeRate = hourlyWage * 1.5;
+    totalOvertimePay += overtimeData.daytimeOvertimeHours * daytimeRate;
+  }
+  
+  // Night Overtime (10pm–6am): 1.75x hourly rate
+  if (overtimeData.nightOvertimeHours) {
+    const nightRate = hourlyWage * 1.75;
+    totalOvertimePay += overtimeData.nightOvertimeHours * nightRate;
+  }
+  
+  // Rest Day Overtime: 2.0x hourly rate
+  if (overtimeData.restDayOvertimeHours) {
+    const restDayRate = hourlyWage * 2.0;
+    totalOvertimePay += overtimeData.restDayOvertimeHours * restDayRate;
+  }
+  
+  // Public Holiday Overtime: 2.5x hourly rate
+  if (overtimeData.holidayOvertimeHours) {
+    const holidayRate = hourlyWage * 2.5;
+    totalOvertimePay += overtimeData.holidayOvertimeHours * holidayRate;
+  }
+  
+  return totalOvertimePay;
+};
+
+// Calculate late deduction (3000 ETB per day)
+const calculateLateDeduction = (lateDays) => {
+  return (lateDays || 0) * 300;
+};
+
+// Calculate absence deduction (3000 ETB per day)
+const calculateAbsenceDeduction = (absenceDays) => {
+  return (absenceDays || 0) * 3000;
+};
+
+// Enhanced payroll calculation function
+const calculatePayrollForEmployee = async (userData, attendanceData, commissionData) => {
   try {
-    // Get user data
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new Error('User not found');
+    const currentDate = new Date();
+    const month = currentDate.toISOString().slice(0, 7);
+    const year = currentDate.getFullYear();
+    
+    // Base salary from user data
+    const basicSalary = userData.salary || 0;
+    
+    // Calculate hourly wage for overtime calculations
+    const hourlyWage = calculateHourlyWage(basicSalary);
+    
+    // Calculate overtime pay
+    let overtimePay = 0;
+    let totalOvertimeHours = 0;
+    if (attendanceData) {
+      overtimePay = calculateOvertimePay(hourlyWage, attendanceData);
+      totalOvertimeHours = (
+        (attendanceData.daytimeOvertimeHours || 0) +
+        (attendanceData.nightOvertimeHours || 0) +
+        (attendanceData.restDayOvertimeHours || 0) +
+        (attendanceData.holidayOvertimeHours || 0)
+      );
     }
-
-    // Initialize payroll components
-    const payrollData = {
-      userId: user._id,
-      employeeName: user.fullName || user.username,
-      department: user.role,
+    
+    // Calculate late deduction
+    let lateDeduction = 0;
+    const lateDays = attendanceData?.lateDays || 0;
+    if (lateDays) {
+      lateDeduction = calculateLateDeduction(lateDays);
+    }
+    
+    // Calculate absence deduction
+    let absenceDeduction = 0;
+    const absenceDays = attendanceData?.absenceDays || 0;
+    if (absenceDays) {
+      absenceDeduction = calculateAbsenceDeduction(absenceDays);
+    }
+    
+    // Calculate commission
+    let salesCommission = 0;
+    let numberOfSales = 0;
+    if (commissionData) {
+      salesCommission = commissionData.totalCommission || 0;
+      numberOfSales = commissionData.numberOfSales || 0;
+    }
+    
+    // Calculate allowances
+    const hrAllowances = attendanceData?.hrAllowances || 0;
+    const financeAllowances = attendanceData?.financeAllowances || 0;
+    const financeDeductions = attendanceData?.financeDeductions || 0;
+    
+    // Calculate gross salary (basic + overtime + commission + allowances)
+    const grossSalary = basicSalary + overtimePay + salesCommission + hrAllowances + financeAllowances;
+    
+    // Calculate income tax on gross salary
+    const incomeTax = calculateEthiopianIncomeTax(grossSalary);
+    
+    // Calculate pension (7% of basic salary only)
+    const pension = calculatePension(basicSalary);
+    
+    // Calculate net salary
+    const netSalary = grossSalary - incomeTax - pension - lateDeduction - absenceDeduction - financeDeductions;
+    
+    // Prepare payroll record
+    const payrollRecord = {
+      userId: userData._id,
+      employeeName: userData.fullName || userData.username,
+      department: userData.department || 'general',
       month,
       year,
-      basicSalary: user.salary || 0,
-      age: user.age || 0,
-      ageAdjustment: 0, // Placeholder for age-based adjustments
-      // Attendance defaults
-      overtimeHours: 0,
-      overtimeRate: 0, // Will be configurable
-      overtimePay: 0,
-      lateMinutes: 0,
-      lateRate: 0, // Will be configurable
-      lateDeduction: 0,
-      absenceDays: 0,
-      dailyRate: 0, // Will be calculated
-      absenceDeduction: 0,
-      // Sales defaults
-      numberOfSales: 0,
-      salesCommission: 0,
-      // Allowances
-      hrAllowances: 0,
-      financeAllowances: 0,
-      // Deductions
-      financeDeductions: 0,
-      // Final salary
-      finalSalary: 0
+      basicSalary,
+      grossSalary,
+      incomeTax,
+      pension,
+      overtimeHours: totalOvertimeHours,
+      overtimePay,
+      lateDays,
+      lateDeduction,
+      absenceDays,
+      absenceDeduction,
+      numberOfSales,
+      salesCommission,
+      hrAllowances,
+      financeAllowances,
+      financeDeductions,
+      netSalary,
+      status: 'draft'
     };
-
-    // Get attendance data for the month
-    const attendanceRecords = await Attendance.find({
-      userId: user._id,
-      month,
-      year
-    });
-
-    // Calculate attendance adjustments
-    if (attendanceRecords.length > 0) {
-      payrollData.overtimeHours = attendanceRecords.reduce((sum, record) => sum + (record.overtimeHours || 0), 0);
-      payrollData.lateMinutes = attendanceRecords.reduce((sum, record) => sum + (record.lateMinutes || 0), 0);
-      payrollData.absenceDays = attendanceRecords.filter(record => record.absence).length;
-      
-      // Calculate daily rate (basic salary / 30 days as approximation)
-      payrollData.dailyRate = (payrollData.basicSalary / 30);
-      
-      // Calculate adjustments (these rates should be configurable)
-      payrollData.overtimeRate = 20; // $20 per hour default
-      payrollData.lateRate = 1; // $1 per minute default
-      
-      payrollData.overtimePay = payrollData.overtimeHours * payrollData.overtimeRate;
-      payrollData.lateDeduction = payrollData.lateMinutes * payrollData.lateRate;
-      payrollData.absenceDeduction = payrollData.absenceDays * payrollData.dailyRate;
-    }
-
-    // Get commission data for the month
-    const commissionRecord = await Commission.findOne({
-      userId: user._id,
-      month,
-      year
-    });
-
-    if (commissionRecord) {
-      payrollData.numberOfSales = commissionRecord.numberOfSales || 0;
-      payrollData.salesCommission = commissionRecord.totalCommission || 0;
-    } else if (user.role === 'sales') {
-      // For sales employees, calculate commission from SalesCustomer records if no commission record exists
-      const salesRecords = await SalesCustomer.find({
-        agentId: user._id,
-        followupStatus: 'Completed',
-        createdAt: {
-          $gte: new Date(year, month.split('-')[1] - 1, 1),
-          $lt: new Date(year, month.split('-')[1], 1)
-        }
-      });
-
-      // Calculate commission based on sales
-      let totalCommission = 0;
-      let numberOfSales = salesRecords.length;
-
-      salesRecords.forEach(sale => {
-        // Calculate commission based on course price (10% default)
-        const coursePrice = sale.coursePrice || 0;
-        const commissionAmount = coursePrice * 0.10; // 10% commission
-        totalCommission += commissionAmount;
-      });
-
-      payrollData.numberOfSales = numberOfSales;
-      payrollData.salesCommission = totalCommission;
-    }
-
-    // Calculate final salary
-    payrollData.finalSalary = 
-      payrollData.basicSalary +
-      payrollData.ageAdjustment +
-      payrollData.overtimePay +
-      payrollData.hrAllowances +
-      payrollData.financeAllowances +
-      payrollData.salesCommission -
-      payrollData.lateDeduction -
-      payrollData.absenceDeduction -
-      payrollData.financeDeductions;
-
-    return payrollData;
+    
+    return payrollRecord;
   } catch (error) {
-    throw new Error(`Error calculating payroll: ${error.message}`);
+    console.error('Error calculating payroll for employee:', error);
+    throw error;
   }
 };
 
@@ -128,21 +187,16 @@ const calculatePayroll = async (userId, month, year) => {
 const getPayrollList = async (req, res) => {
   try {
     const { month } = req.params;
-    const { year, department, role, salesOnly } = req.query;
+    const { year, department, role } = req.query;
     
     // Build query
-    const query = { month };
-    if (year) query.year = parseInt(year);
+    let query = { month };
+    if (year) query.year = year;
     if (department) query.department = department;
-    if (role) query['employeeName'] = new RegExp(role, 'i');
-    if (salesOnly === 'true') query.department = 'sales';
+    if (role) query.role = role;
     
     const payrollRecords = await Payroll.find(query)
-      .populate('userId', 'username fullName role')
-      .populate('hrSubmittedBy', 'username fullName')
-      .populate('financeReviewedBy', 'username fullName')
-      .populate('approvedBy', 'username fullName')
-      .populate('lockedBy', 'username fullName')
+      .populate('userId', 'username fullName role salary')
       .sort({ employeeName: 1 });
     
     res.json(payrollRecords);
@@ -156,19 +210,31 @@ const calculatePayrollForAll = async (req, res) => {
   try {
     const { month, year } = req.body;
     
-    if (!month || !year) {
-      return res.status(400).json({ message: 'Month and year are required' });
-    }
+    // Get all active users
+    const users = await User.find({ status: 'active' });
     
-    // Get all users
-    const users = await User.find({});
+    let payrollRecords = [];
     
-    const payrollResults = [];
-    
-    // Calculate payroll for each user
     for (const user of users) {
       try {
-        const payrollData = await calculatePayroll(user._id, month, year);
+        // Get attendance data for the user
+        const attendanceData = await Attendance.findOne({
+          userId: user._id,
+          date: {
+            $gte: new Date(`${month}-01`),
+            $lt: new Date(new Date(`${month}-01`).setMonth(new Date(`${month}-01`).getMonth() + 1))
+          }
+        });
+        
+        // Get commission data for the user
+        const commissionData = await Commission.findOne({
+          userId: user._id,
+          month,
+          year
+        });
+        
+        // Calculate payroll for the employee
+        const payrollData = await calculatePayrollForEmployee(user, attendanceData, commissionData);
         
         // Check if payroll record already exists
         const existingRecord = await Payroll.findOne({
@@ -177,29 +243,48 @@ const calculatePayrollForAll = async (req, res) => {
           year
         });
         
+        let payrollRecord;
         if (existingRecord) {
           // Update existing record
-          const updatedRecord = await Payroll.findByIdAndUpdate(
+          payrollRecord = await Payroll.findByIdAndUpdate(
             existingRecord._id,
-            payrollData,
+            { ...payrollData, auditLog: [...existingRecord.auditLog, {
+              changedBy: req.user._id,
+              changedAt: new Date(),
+              fieldName: 'Payroll Recalculation',
+              oldValue: null,
+              newValue: 'Recalculated',
+              role: req.user.role
+            }] },
             { new: true }
           );
-          payrollResults.push(updatedRecord);
         } else {
           // Create new record
-          const newRecord = new Payroll(payrollData);
-          await newRecord.save();
-          payrollResults.push(newRecord);
+          payrollRecord = new Payroll({
+            ...payrollData,
+            auditLog: [{
+              changedBy: req.user._id,
+              changedAt: new Date(),
+              fieldName: 'Payroll Creation',
+              oldValue: null,
+              newValue: 'Created',
+              role: req.user.role
+            }]
+          });
+          await payrollRecord.save();
         }
-      } catch (userError) {
-        console.error(`Error calculating payroll for user ${user._id}:`, userError.message);
-        // Continue with other users
+        
+        payrollRecords.push(payrollRecord);
+      } catch (error) {
+        console.error(`Error calculating payroll for user ${user._id}:`, error);
+        // Continue with other users even if one fails
       }
     }
     
     res.json({
-      message: `Payroll calculated for ${payrollResults.length} employees`,
-      results: payrollResults
+      success: true,
+      message: `Payroll calculated for ${payrollRecords.length} employees`,
+      data: payrollRecords
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -209,11 +294,11 @@ const calculatePayrollForAll = async (req, res) => {
 // POST /payroll/hr-adjust → HR attendance submission
 const submitHRAdjustment = async (req, res) => {
   try {
-    const { userId, date, overtimeHours, lateMinutes, absence } = req.body;
-    const { month, year } = req.body;
+    const { userId, month, year, ...attendanceData } = req.body;
     
-    if (!userId || !date || !month || !year) {
-      return res.status(400).json({ message: 'User ID, date, month, and year are required' });
+    // Validate required fields
+    if (!userId || !month || !year) {
+      return res.status(400).json({ message: 'User ID, month, and year are required' });
     }
     
     // Check if user exists
@@ -222,58 +307,53 @@ const submitHRAdjustment = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    // Create or update attendance record
-    const attendanceData = {
-      userId: user._id,
-      employeeName: user.fullName || user.username,
-      department: user.role,
-      date: new Date(date),
-      month,
-      year,
-      overtimeHours: overtimeHours || 0,
-      lateMinutes: lateMinutes || 0,
-      absence: absence || false,
-      submittedBy: req.user._id, // From auth middleware
-      role: 'HR'
-    };
+    // Upsert attendance record
+    const attendanceRecord = await Attendance.findOneAndUpdate(
+      { userId, date: { $gte: new Date(`${month}-01`), $lt: new Date(new Date(`${month}-01`).setMonth(new Date(`${month}-01`).getMonth() + 1)) } },
+      {
+        ...attendanceData,
+        userId,
+        employeeName: user.fullName || user.username,
+        department: user.department || 'general',
+        status: 'approved',
+        submittedBy: req.user._id,
+        approvedBy: req.user._id,
+        submittedAt: new Date(),
+        approvedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
     
-    // Check if record already exists
-    const existingRecord = await Attendance.findOne({
-      userId: user._id,
-      date: new Date(date)
-    });
+    // Recalculate payroll for this user
+    const commissionData = await Commission.findOne({ userId, month, year });
+    const payrollData = await calculatePayrollForEmployee(user, attendanceRecord, commissionData);
     
-    let attendanceRecord;
-    if (existingRecord) {
-      attendanceRecord = await Attendance.findByIdAndUpdate(
-        existingRecord._id,
-        attendanceData,
-        { new: true }
-      );
-    } else {
-      attendanceRecord = new Attendance(attendanceData);
-      await attendanceRecord.save();
-    }
-    
-    // If this is for the current payroll period, update payroll
-    const currentDate = new Date();
-    const currentMonth = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-    const payrollMonth = `${year}-${month.padStart(2, '0')}`;
-    
-    if (currentMonth === payrollMonth) {
-      // Recalculate payroll for this user
-      const payrollData = await calculatePayroll(user._id, month, year);
-      
-      await Payroll.findOneAndUpdate(
-        { userId: user._id, month, year },
-        payrollData,
-        { upsert: true, new: true }
-      );
-    }
+    // Update or create payroll record
+    const payrollRecord = await Payroll.findOneAndUpdate(
+      { userId, month, year },
+      {
+        ...payrollData,
+        hrSubmittedBy: req.user._id,
+        hrSubmittedAt: new Date(),
+        status: 'hr_submitted',
+        $push: {
+          auditLog: {
+            changedBy: req.user._id,
+            changedAt: new Date(),
+            fieldName: 'HR Adjustment',
+            oldValue: null,
+            newValue: 'HR adjustment submitted',
+            role: 'HR'
+          }
+        }
+      },
+      { upsert: true, new: true }
+    );
     
     res.json({
+      success: true,
       message: 'HR adjustment submitted successfully',
-      attendance: attendanceRecord
+      data: payrollRecord
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -283,8 +363,9 @@ const submitHRAdjustment = async (req, res) => {
 // POST /payroll/finance-adjust → Finance allowances & deductions
 const submitFinanceAdjustment = async (req, res) => {
   try {
-    const { userId, month, year, financeAllowances, financeDeductions, hrAllowances } = req.body;
+    const { userId, month, year, financeAllowances, financeDeductions } = req.body;
     
+    // Validate required fields
     if (!userId || !month || !year) {
       return res.status(400).json({ message: 'User ID, month, and year are required' });
     }
@@ -295,127 +376,152 @@ const submitFinanceAdjustment = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    // Find or create payroll record
-    let payrollRecord = await Payroll.findOne({ userId, month, year });
-    
-    if (!payrollRecord) {
-      // Calculate initial payroll if not exists
-      const payrollData = await calculatePayroll(userId, month, year);
-      payrollRecord = new Payroll(payrollData);
-    }
-    
-    // Update finance adjustments
-    if (financeAllowances !== undefined) {
-      payrollRecord.financeAllowances = financeAllowances;
-    }
-    
-    if (financeDeductions !== undefined) {
-      payrollRecord.financeDeductions = financeDeductions;
-    }
-    
-    if (hrAllowances !== undefined) {
-      payrollRecord.hrAllowances = hrAllowances;
-    }
-    
-    // Add to audit log
-    payrollRecord.auditLog.push({
-      changedBy: req.user._id,
-      fieldName: 'Finance Adjustment',
-      oldValue: {},
-      newValue: { financeAllowances, financeDeductions, hrAllowances },
-      role: 'Finance'
+    // Get existing attendance record
+    const attendanceRecord = await Attendance.findOne({
+      userId,
+      date: { $gte: new Date(`${month}-01`), $lt: new Date(new Date(`${month}-01`).setMonth(new Date(`${month}-01`).getMonth() + 1)) }
     });
     
-    // Update status
-    payrollRecord.status = 'finance_reviewed';
-    payrollRecord.financeReviewedBy = req.user._id;
-    payrollRecord.financeReviewedAt = new Date();
+    // Get existing commission data
+    const commissionData = await Commission.findOne({ userId, month, year });
     
-    // Recalculate final salary
-    payrollRecord.finalSalary = 
-      payrollRecord.basicSalary +
-      payrollRecord.ageAdjustment +
-      payrollRecord.overtimePay +
-      payrollRecord.hrAllowances +
-      payrollRecord.financeAllowances +
-      payrollRecord.salesCommission -
-      payrollRecord.lateDeduction -
-      payrollRecord.absenceDeduction -
-      payrollRecord.financeDeductions;
+    // Recalculate payroll with new finance adjustments
+    const payrollData = await calculatePayrollForEmployee(user, attendanceRecord, commissionData);
     
-    await payrollRecord.save();
+    // Update payroll record with finance adjustments
+    const payrollRecord = await Payroll.findOneAndUpdate(
+      { userId, month, year },
+      {
+        ...payrollData,
+        financeAllowances: financeAllowances || payrollData.financeAllowances,
+        financeDeductions: financeDeductions || payrollData.financeDeductions,
+        financeReviewedBy: req.user._id,
+        financeReviewedAt: new Date(),
+        status: 'finance_reviewed',
+        $push: {
+          auditLog: {
+            changedBy: req.user._id,
+            changedAt: new Date(),
+            fieldName: 'Finance Adjustment',
+            oldValue: null,
+            newValue: 'Finance adjustment submitted',
+            role: 'Finance'
+          }
+        }
+      },
+      { upsert: true, new: true }
+    );
     
     res.json({
+      success: true,
       message: 'Finance adjustment submitted successfully',
-      payroll: payrollRecord
+      data: payrollRecord
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// POST /payroll/commission → Submit or update commission data
-const submitCommission = async (req, res) => {
+// GET /payroll/:userId/details → detailed payroll view
+const getPayrollDetails = async (req, res) => {
   try {
-    const { userId, month, year, numberOfSales, totalCommission, commissionDetails } = req.body;
+    const { userId } = req.params;
+    const { month, year } = req.query;
     
-    if (!userId || !month || !year) {
-      return res.status(400).json({ message: 'User ID, month, and year are required' });
+    if (!month || !year) {
+      return res.status(400).json({ message: 'Month and year are required' });
     }
     
-    // Check if user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    // Get payroll record
+    const payrollRecord = await Payroll.findOne({ userId, month, year })
+      .populate('userId', 'username fullName role salary')
+      .populate('hrSubmittedBy', 'username fullName')
+      .populate('financeReviewedBy', 'username fullName')
+      .populate('approvedBy', 'username fullName')
+      .populate('lockedBy', 'username fullName');
+    
+    if (!payrollRecord) {
+      return res.status(404).json({ message: 'Payroll record not found' });
     }
     
-    // Create or update commission record
-    const commissionData = {
-      userId: user._id,
-      employeeName: user.fullName || user.username,
-      department: user.role,
-      month,
-      year,
-      numberOfSales: numberOfSales || 0,
-      totalCommission: totalCommission || 0,
-      commissionDetails: commissionDetails || [],
-      submittedBy: req.user._id
-    };
+    res.json(payrollRecord);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PUT /payroll/:id/approve → Approve payroll
+const approvePayroll = async (req, res) => {
+  try {
+    const { id } = req.params;
     
-    // Check if record already exists
-    const existingRecord = await Commission.findOne({ userId, month, year });
+    const payrollRecord = await Payroll.findByIdAndUpdate(
+      id,
+      {
+        status: 'approved',
+        approvedBy: req.user._id,
+        approvedAt: new Date(),
+        $push: {
+          auditLog: {
+            changedBy: req.user._id,
+            changedAt: new Date(),
+            fieldName: 'Payroll Approval',
+            oldValue: 'finance_reviewed',
+            newValue: 'approved',
+            role: 'Admin'
+          }
+        }
+      },
+      { new: true }
+    ).populate('userId', 'username fullName role');
     
-    let commissionRecord;
-    if (existingRecord) {
-      commissionRecord = await Commission.findByIdAndUpdate(
-        existingRecord._id,
-        commissionData,
-        { new: true }
-      );
-    } else {
-      commissionRecord = new Commission(commissionData);
-      await commissionRecord.save();
-    }
-    
-    // If this is for the current payroll period, update payroll
-    const currentDate = new Date();
-    const currentMonth = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
-    const payrollMonth = month;
-    
-    if (currentMonth === payrollMonth) {
-      // Recalculate payroll for this user
-      const payrollData = await calculatePayroll(user._id, month, year);
-      
-      await Payroll.findOneAndUpdate(
-        { userId: user._id, month, year },
-        payrollData,
-        { upsert: true, new: true }
-      );
+    if (!payrollRecord) {
+      return res.status(404).json({ message: 'Payroll record not found' });
     }
     
     res.json({
-      message: 'Commission submitted successfully',
-      commission: commissionRecord
+      success: true,
+      message: 'Payroll approved successfully',
+      data: payrollRecord
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PUT /payroll/:id/lock → Lock payroll
+const lockPayroll = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const payrollRecord = await Payroll.findByIdAndUpdate(
+      id,
+      {
+        status: 'locked',
+        lockedBy: req.user._id,
+        lockedAt: new Date(),
+        $push: {
+          auditLog: {
+            changedBy: req.user._id,
+            changedAt: new Date(),
+            fieldName: 'Payroll Lock',
+            oldValue: 'approved',
+            newValue: 'locked',
+            role: 'Admin'
+          }
+        }
+      },
+      { new: true }
+    ).populate('userId', 'username fullName role');
+    
+    if (!payrollRecord) {
+      return res.status(404).json({ message: 'Payroll record not found' });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Payroll locked successfully',
+      data: payrollRecord
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -444,116 +550,68 @@ const getCommissionByUser = async (req, res) => {
   }
 };
 
-// GET /payroll/:userId/details → detailed payroll view
-const getPayrollDetails = async (req, res) => {
+// POST /payroll/commission → Submit or update commission data
+const submitCommission = async (req, res) => {
   try {
-    const { userId } = req.params;
-    const { month, year } = req.query;
+    const { userId, month, year, numberOfSales, totalCommission, commissionDetails } = req.body;
     
-    if (!month || !year) {
-      return res.status(400).json({ message: 'Month and year are required' });
+    // Validate required fields
+    if (!userId || !month || !year) {
+      return res.status(400).json({ message: 'User ID, month, and year are required' });
     }
     
-    // Get payroll record
-    const payrollRecord = await Payroll.findOne({ userId, month, year })
-      .populate('userId', 'username fullName role salary')
-      .populate('hrSubmittedBy', 'username fullName')
-      .populate('financeReviewedBy', 'username fullName')
-      .populate('approvedBy', 'username fullName')
-      .populate('lockedBy', 'username fullName');
-    
-    if (!payrollRecord) {
-      return res.status(404).json({ message: 'Payroll record not found' });
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
     
-    // Get attendance records for the month
-    const attendanceRecords = await Attendance.find({
+    // Upsert commission record
+    const commissionRecord = await Commission.findOneAndUpdate(
+      { userId, month, year },
+      {
+        userId,
+        month,
+        year,
+        numberOfSales: numberOfSales || 0,
+        totalCommission: totalCommission || 0,
+        commissionDetails: commissionDetails || []
+      },
+      { upsert: true, new: true }
+    );
+    
+    // Get existing attendance data
+    const attendanceData = await Attendance.findOne({
       userId,
-      month,
-      year
+      date: { $gte: new Date(`${month}-01`), $lt: new Date(new Date(`${month}-01`).setMonth(new Date(`${month}-01`).getMonth() + 1)) }
     });
     
-    // Get commission record for the month
-    const commissionRecord = await Commission.findOne({
-      userId,
-      month,
-      year
-    });
+    // Recalculate payroll with new commission data
+    const payrollData = await calculatePayrollForEmployee(user, attendanceData, commissionRecord);
+    
+    // Update payroll record
+    const payrollRecord = await Payroll.findOneAndUpdate(
+      { userId, month, year },
+      {
+        ...payrollData,
+        $push: {
+          auditLog: {
+            changedBy: req.user._id,
+            changedAt: new Date(),
+            fieldName: 'Commission Update',
+            oldValue: null,
+            newValue: 'Commission data updated',
+            role: req.user.role
+          }
+        }
+      },
+      { upsert: true, new: true }
+    );
     
     res.json({
-      payroll: payrollRecord,
-      attendance: attendanceRecords,
-      commission: commissionRecord
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// PUT /payroll/:id/approve → Approve payroll
-const approvePayroll = async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const payrollRecord = await Payroll.findById(id);
-    if (!payrollRecord) {
-      return res.status(404).json({ message: 'Payroll record not found' });
-    }
-    
-    // Update status
-    payrollRecord.status = 'approved';
-    payrollRecord.approvedBy = req.user._id;
-    payrollRecord.approvedAt = new Date();
-    
-    // Add to audit log
-    payrollRecord.auditLog.push({
-      changedBy: req.user._id,
-      fieldName: 'Status',
-      oldValue: payrollRecord.status,
-      newValue: 'approved',
-      role: 'Admin'
-    });
-    
-    await payrollRecord.save();
-    
-    res.json({
-      message: 'Payroll approved successfully',
-      payroll: payrollRecord
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// PUT /payroll/:id/lock → Lock payroll
-const lockPayroll = async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const payrollRecord = await Payroll.findById(id);
-    if (!payrollRecord) {
-      return res.status(404).json({ message: 'Payroll record not found' });
-    }
-    
-    // Update status
-    payrollRecord.status = 'locked';
-    payrollRecord.lockedBy = req.user._id;
-    payrollRecord.lockedAt = new Date();
-    
-    // Add to audit log
-    payrollRecord.auditLog.push({
-      changedBy: req.user._id,
-      fieldName: 'Status',
-      oldValue: payrollRecord.status,
-      newValue: 'locked',
-      role: 'Admin'
-    });
-    
-    await payrollRecord.save();
-    
-    res.json({
-      message: 'Payroll locked successfully',
-      payroll: payrollRecord
+      success: true,
+      message: 'Commission data submitted successfully',
+      data: { commission: commissionRecord, payroll: payrollRecord }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -566,21 +624,35 @@ const getSalesDataForCommission = async (req, res) => {
     const { agentId } = req.params;
     const { month, year } = req.query;
     
-    if (!month || !year) {
-      return res.status(400).json({ message: 'Month and year are required' });
+    // In a real implementation, this would fetch actual sales data
+    // For now, we'll return mock data
+    const mockSalesData = {
+      agentId,
+      month,
+      year,
+      sales: [],
+      totalCommission: 0,
+      numberOfSales: 0
+    };
+    
+    res.json(mockSalesData);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// DELETE /payroll/:id — Delete a payroll entry
+const deletePayrollRecord = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payrollRecord = await Payroll.findByIdAndDelete(id);
+    if (!payrollRecord) {
+      return res.status(404).json({ message: 'Payroll record not found' });
     }
-    
-    // Get sales for this agent
-    const sales = await SalesCustomer.find({
-      agentId: agentId,
-      followupStatus: 'Completed',
-      date: {
-        $gte: new Date(year, month.split('-')[1] - 1, 1),
-        $lte: new Date(year, month.split('-')[1], 0)
-      }
-    }).sort({ date: -1 });
-    
-    res.json(sales);
+    res.json({
+      success: true,
+      message: 'Payroll record deleted successfully'
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -594,7 +666,8 @@ module.exports = {
   getPayrollDetails,
   approvePayroll,
   lockPayroll,
-  submitCommission,
   getCommissionByUser,
-  getSalesDataForCommission
+  submitCommission,
+  getSalesDataForCommission,
+  deletePayrollRecord
 };

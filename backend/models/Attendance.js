@@ -18,29 +18,57 @@ const attendanceSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  month: {
-    type: String, // Format: "YYYY-MM"
-    required: true
-  },
-  year: {
-    type: Number,
-    required: true
-  },
-  // Attendance Details
-  overtimeHours: {
+  // Overtime fields for Ethiopian labor law compliance
+  daytimeOvertimeHours: {
     type: Number,
     default: 0
   },
-  lateMinutes: {
+  nightOvertimeHours: {
     type: Number,
     default: 0
   },
-  absence: {
-    type: Boolean,
-    default: false
+  restDayOvertimeHours: {
+    type: Number,
+    default: 0
   },
-  // Status and Metadata
+  holidayOvertimeHours: {
+    type: Number,
+    default: 0
+  },
+  // Late and absence tracking
+  lateDays: {
+    type: Number,
+    default: 0
+  },
+  absenceDays: {
+    type: Number,
+    default: 0
+  },
+  // Allowances
+  hrAllowances: {
+    type: Number,
+    default: 0
+  },
+  financeAllowances: {
+    type: Number,
+    default: 0
+  },
+  // Deductions
+  financeDeductions: {
+    type: Number,
+    default: 0
+  },
+  // Status and metadata
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
   submittedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  approvedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
@@ -48,18 +76,16 @@ const attendanceSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  role: {
-    type: String,
-    enum: ['HR', 'Admin'],
-    required: true
+  approvedAt: {
+    type: Date
   }
 }, {
   timestamps: true
 });
 
-// Index for faster queries
-attendanceSchema.index({ userId: 1, month: 1, year: 1 });
+// Index for efficient querying
+attendanceSchema.index({ userId: 1, date: 1 });
 attendanceSchema.index({ department: 1 });
-attendanceSchema.index({ date: 1 });
+attendanceSchema.index({ status: 1 });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);
