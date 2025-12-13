@@ -153,7 +153,14 @@ function App() {
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
             <Route path="/social-media" element={<SocialMediaDashboardPage />} />
-            <Route path="/requests" element={<RequestPage />} />
+            <Route
+              path="/requests"
+              element={
+                <FinanceLayout>
+                  <RequestPage />
+                </FinanceLayout>
+              }
+            />
             <Route path="/it" element={<ITDashboard />} />
             <Route path="/payroll" element={<PayrollPage />} />
             <Route path="/my-payroll" element={<EmployeePayrollView />} />

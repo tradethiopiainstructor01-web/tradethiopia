@@ -27,6 +27,7 @@ import {
   useDisclosure,
   Checkbox,
   Stack,
+  useColorMode,
   useColorModeValue,
   HStack,
   IconButton,
@@ -57,8 +58,9 @@ import {
   useToast,
   Textarea,
   Divider,
+  Tooltip,
 } from '@chakra-ui/react';
-import { DownloadIcon, ExternalLinkIcon, ChevronDownIcon, HamburgerIcon } from '@chakra-ui/icons';
+import { DownloadIcon, ExternalLinkIcon, ChevronDownIcon, HamburgerIcon, SunIcon, MoonIcon } from '@chakra-ui/icons';
 import { chakra } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -125,6 +127,7 @@ const baseTradexSummary = [
 ];
 
 const COODashboard = () => {
+  const { colorMode, toggleColorMode } = useColorMode();
   const [departments, setDepartments] = useState(['All', 'TradexTV', 'Customer Succes', 'Finance', 'Sales Manager', 'IT']);
   const [selectedDept, setSelectedDept] = useState('All');
   const [timeRange, setTimeRange] = useState('30d');
@@ -976,45 +979,61 @@ const COODashboard = () => {
   };
 
   return (
-    <Box bg={useColorModeValue('gray.50', 'gray.900')} minH="100vh" py={{ base: 5, md: 7 }}>
-      <Container maxW="8xl">
-        <MotionBox
-          bgGradient="linear(to-r, #dbeafe, #bfdbfe)"
-          color="blue.900"
-          p={{ base: 4, md: 6 }}
-          borderRadius="2xl"
-          boxShadow="0 18px 40px rgba(59,130,246,0.15)"
-          mb={{ base: 5, md: 6 }}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-        <Flex align={{ base: 'flex-start', md: 'center' }} gap={4} wrap="wrap">
-            <Box>
-              <Text fontSize="xs" opacity={0.7}>Operations Control</Text>
-              <Heading fontSize={{ base: 'xl', md: '2xl' }} color="blue.900">COO Dashboard</Heading>
-              <Tag mt={3} colorScheme="blue" variant="solid" size="sm">
-                {timeRangeLabels[timeRange] || 'Custom window'}
-              </Tag>
-            </Box>
-            <Flex gap={3} wrap="wrap" align="center">
-              <ButtonGroup size="sm" variant="outline" colorScheme="blue">
-                <Button leftIcon={<DownloadIcon />} onClick={() => {}}>
-                  Export
-                </Button>
-                <Button leftIcon={<ExternalLinkIcon />} onClick={() => {}}>
-                  Share
-                </Button>
-              </ButtonGroup>
-              <Button size="sm" variant="solid" colorScheme="green" onClick={onOpenBroadcast} leftIcon={<ExternalLinkIcon />}>
-                Broadcast notice
-              </Button>
-              <Button size="sm" variant="solid" colorScheme="blue" onClick={onOpenReports} leftIcon={<ExternalLinkIcon />}>
-                Department reports
-              </Button>
+    <Box bg={useColorModeValue('gray.50', 'gray.900')} minH="100vh" py={{ base: 5, md: 7 }} px={{ base: 4, md: 6 }}>
+      {/* Hero Section - Full Width */}
+      <MotionBox
+        bgGradient="linear(to-r, #dbeafe, #bfdbfe)"
+        color="blue.900"
+        p={{ base: 3, md: 4 }}
+        boxShadow="0 8px 20px rgba(59,130,246,0.1)"
+        mb={{ base: 3, md: 4 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        borderRadius="0"  // Remove rounded corners for full-width effect
+      >
+        <Container maxW="8xl" mx="auto" px={{ base: 2, md: 3 }}>
+          {/* Top Bar with Navigation, Title, and User Profile */}
+          <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'flex-start', md: 'center' }} gap={3} wrap="wrap" mb={3}>
+            <Flex align="center" gap={3}>
+              <IconButton
+                aria-label="Open reports sidebar"
+                icon={<HamburgerIcon />}
+                onClick={onOpenSidePanel}
+                size="sm"
+                variant="outline"
+                colorScheme="purple"
+                boxShadow="0 4px 10px rgba(88,28,135,0.15)"
+                _hover={{ transform: 'translateY(-1px)' }}
+              />
+              <Box>
+                <Heading fontSize={{ base: 'lg', md: 'xl', lg: '2xl' }} color="blue.900" mb={1}>
+                  Chief Operations Dashboard
+                </Heading>
+                <Text fontSize="xs" opacity={0.8}>Operations Control Center</Text>
+              </Box>
             </Flex>
-            <Spacer />
-            <HStack spacing={3} align="center">
+            
+            <Flex align="center" gap={3}>
+              <Flex gap={2} wrap="wrap">
+                <Tag colorScheme="blue" variant="solid" size="sm">
+                  {timeRangeLabels[timeRange] || 'Custom window'}
+                </Tag>
+                <Tag colorScheme="green" variant="subtle" size="sm">
+                  {activeDeptCount} Departments Active
+                </Tag>
+              </Flex>
+              
+              <Tooltip label={`Switch to ${colorMode === "light" ? "dark" : "light"} mode`}>
+                <IconButton
+                  aria-label="Toggle theme"
+                  icon={colorMode === "light" ? <MoonIcon /> : <SunIcon />}
+                  onClick={toggleColorMode}
+                  variant="ghost"
+                  colorScheme="blue"
+                />
+              </Tooltip>
+              
               <Menu placement="bottom-end" isLazy>
                 <MenuButton
                   as={Button}
@@ -1022,8 +1041,8 @@ const COODashboard = () => {
                   colorScheme="blue"
                   leftIcon={<Avatar name={currentUser?.username || 'User'} src={currentUser?.avatar} size="sm" />}
                   rightIcon={<ChevronDownIcon />}
-                  px={3}
-                  minW={{ base: '200px', md: '240px' }}
+                  px={2}
+                  minW={{ base: '150px', md: '180px' }}
                 >
                   <Flex justify="space-between" align="center" w="100%">
                     <Box textAlign="left">
@@ -1041,26 +1060,39 @@ const COODashboard = () => {
                   <MenuItem color="red.500" onClick={handleLogout}>Logout</MenuItem>
                 </MenuList>
               </Menu>
-            </HStack>
+            </Flex>
           </Flex>
-        </MotionBox>
+          
+          <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" gap={3} wrap="wrap">
+            <Text fontSize={{ base: 'xs', md: 'sm' }} maxW="600px">
+              Monitor cross-functional performance, track key metrics, and manage departmental operations from a centralized view.
+            </Text>
+            <Flex gap={2} wrap="wrap" align="center">
+              <ButtonGroup size="xs" variant="outline" colorScheme="blue">
+                <Button leftIcon={<DownloadIcon />} onClick={() => {}} size="xs">
+                  Export
+                </Button>
+                <Button leftIcon={<ExternalLinkIcon />} onClick={() => {}} size="xs">
+                  Share
+                </Button>
+              </ButtonGroup>
+              <Button size="xs" variant="solid" colorScheme="green" onClick={onOpenBroadcast} leftIcon={<ExternalLinkIcon />}>
+                Broadcast
+              </Button>
+              <Button size="xs" variant="solid" colorScheme="blue" onClick={onOpenReports} leftIcon={<ExternalLinkIcon />}>
+                Reports
+              </Button>
+            </Flex>
+          </Flex>
+        </Container>
+      </MotionBox>
 
-        <Flex align="center" gap={3} mb={4} wrap="wrap">
-          <IconButton
-            aria-label="Open reports sidebar"
-            icon={<HamburgerIcon />}
-            onClick={onOpenSidePanel}
-            size="sm"
-            variant="outline"
-            colorScheme="purple"
-            boxShadow="0 8px 20px rgba(88,28,135,0.25)"
-            _hover={{ transform: 'translateY(-1px)' }}
-          />
+        <Flex align="center" gap={3} mb={4} wrap="wrap" px={{ base: 4, md: 6 }}>
           <Button size="sm" variant="ghost" onClick={onOpenDeptDrawer}>Departments</Button>
           {/* Drawer opens legacy department list */}
         </Flex>
 
-        <Box mb={4}>
+        <Box mb={4} px={{ base: 4, md: 6 }}>
           <Heading size="md">Operations & Department Dashboards</Heading>
           <Text fontSize="sm" color="gray.600">
             Toggle between department performance, purchase activity, and revenue insight panels.
@@ -1072,6 +1104,7 @@ const COODashboard = () => {
           colorScheme="blue"
           mb={{ base: 6, md: 8 }}
           isLazy
+          px={{ base: 4, md: 6 }}
         >
           <TabList
             bg={tabBg}
@@ -1093,7 +1126,7 @@ const COODashboard = () => {
             />
           </TabList>
           <TabPanels mt={4}>
-            <TabPanel px={0} py={0}>
+            <TabPanel px={{ base: 4, md: 6 }} py={0}>
               <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={4}>
                 {orderedDepartments
                   .filter((dept) => dept !== 'All')
@@ -1138,7 +1171,7 @@ const COODashboard = () => {
                   })}
               </SimpleGrid>
             </TabPanel>
-            <TabPanel px={0} py={0}>
+            <TabPanel px={{ base: 4, md: 6 }} py={0}>
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4} mb={4}>
                 {revenueHighlights.map((item) => (
                   <Box
@@ -1209,7 +1242,7 @@ const COODashboard = () => {
                 </Box>
               </SimpleGrid>
             </TabPanel>
-            <TabPanel px={0} py={0}>
+            <TabPanel px={{ base: 4, md: 6 }} py={0}>
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
                 {purchaseOrders.map((order) => (
                   <Box
@@ -2362,7 +2395,6 @@ const COODashboard = () => {
           </VStack>
 
         </VStack>
-      </Container>
 
     {/* Collapsible Sidebar Drawer */}
     <Drawer isOpen={isSidePanelOpen} placement="left" onClose={onCloseSidePanel} size="xs">
