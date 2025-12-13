@@ -61,10 +61,10 @@ const NavbarPage = () => {
         <Container
             maxW="100%"
             px={4}
-            py={3}
+            py={2}
             bgGradient={gradient}
-            color="white"
-            zIndex="10"
+            color={textColor}
+            zIndex="20"
             position="fixed"
             top="0"
             boxShadow="lg"
@@ -73,10 +73,10 @@ const NavbarPage = () => {
             borderBottomColor={borderColor}
         >
             <Flex
-                h="60px"
+                h="52px"
                 alignItems="center"
                 justifyContent="space-between"
-                px={4}
+                px={3}
                 flexDir={{ base: "column", sm: "row" }}
             >
                 {/* Dashboard Title */}
@@ -86,7 +86,7 @@ const NavbarPage = () => {
                         fontWeight="bold"
                         textTransform="uppercase"
                         letterSpacing="wide"
-                        color="white"
+                        color={textColor}
                         textShadow="0 2px 8px rgba(0,0,0,0.35)"
                     >
                         Dashboard

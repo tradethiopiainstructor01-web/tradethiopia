@@ -3,31 +3,30 @@ const Payroll = require('../models/Payroll');
 const Attendance = require('../models/Attendance');
 const Commission = require('../models/Commission');
 const User = require('../models/user.model');
+const SalesCustomer = require('../models/SalesCustomer');
 
-// Calculate Ethiopian Income Tax based on gross salary
+// Ethiopian Income Tax (2017 EC / 2025 GC)
 const calculateEthiopianIncomeTax = (grossSalary) => {
-  // Ethiopian Income Tax Brackets
-  // Up to ETB 600: 0%
-  // ETB 601-1,600: 10% on amount exceeding ETB 600
-  // ETB 1,601-3,200: ETB 100 + 15% on amount exceeding ETB 1,600
-  // ETB 3,201-5,200: ETB 340 + 20% on amount exceeding ETB 3,200
-  // ETB 5,201-10,000: ETB 740 + 25% on amount exceeding ETB 5,200
-  // Above ETB 10,000: ETB 1,940 + 30% on amount exceeding ETB 10,000
-  
-  if (grossSalary <= 600) {
+  if (grossSalary <= 2000) {
     return 0;
-  } else if (grossSalary <= 1600) {
-    return (grossSalary - 600) * 0.10;
-  } else if (grossSalary <= 3200) {
-    return 100 + (grossSalary - 1600) * 0.15;
-  } else if (grossSalary <= 5200) {
-    return 340 + (grossSalary - 3200) * 0.20;
-  } else if (grossSalary <= 10000) {
-    return 740 + (grossSalary - 5200) * 0.25;
-  } else {
-    return 1940 + (grossSalary - 10000) * 0.30;
+  } 
+  else if (grossSalary <= 4000) {
+    return grossSalary * 0.15 - 300;
+  } 
+  else if (grossSalary <= 7000) {
+    return grossSalary * 0.20 - 500;
+  } 
+  else if (grossSalary <= 10000) {
+    return grossSalary * 0.25 - 850;
+  } 
+  else if (grossSalary <= 14000) {
+    return grossSalary * 0.30 - 1350;
+  } 
+  else {
+    return grossSalary * 0.35 - 2050;
   }
 };
+
 
 // Calculate pension contribution (7% of basic salary)
 const calculatePension = (basicSalary) => {
@@ -186,21 +185,83 @@ const calculatePayrollForEmployee = async (userData, attendanceData, commissionD
 // GET /payroll/:month → full payroll list
 const getPayrollList = async (req, res) => {
   try {
-    const { month } = req.params;
-    const { year, department, role } = req.query;
+    const { month, year } = req.params;
+    const { department, role } = req.query;
     
-    // Build query
+    // Build query for existing payroll records
     let query = { month };
     if (year) query.year = year;
     if (department) query.department = department;
     if (role) query.role = role;
     
-    const payrollRecords = await Payroll.find(query)
-      .populate('userId', 'username fullName role salary')
-      .sort({ employeeName: 1 });
+    // Get existing payroll records
+    const existingPayrollRecords = await Payroll.find(query)
+      .populate('userId', 'username fullName role salary jobTitle');
+    
+    // Get all active users matching the filters
+    let userQuery = { status: 'active' };
+    if (department) userQuery.jobTitle = department; // Use jobTitle instead of department
+    if (role) userQuery.role = role;
+    
+    const allActiveUsers = await User.find(userQuery);
+    
+    // Create a map of existing payroll records by userId for quick lookup
+    const payrollRecordMap = {};
+    existingPayrollRecords.forEach(record => {
+      payrollRecordMap[record.userId._id.toString()] = record;
+    });
+    
+    // Combine existing records with placeholders for users without records
+    const payrollRecords = allActiveUsers.map(user => {
+      const userIdStr = user._id.toString();
+      if (payrollRecordMap[userIdStr]) {
+        // Return existing record (make sure department is populated)
+        const record = payrollRecordMap[userIdStr];
+        // Ensure department is set from user's jobTitle if not already set or is 'general'
+        if ((!record.department || record.department === 'general') && user.jobTitle) {
+          record.department = user.jobTitle;
+        }
+        // Make sure we always have a department
+        if (!record.department || record.department === 'general') {
+          record.department = user.jobTitle || user.role || 'general';
+        }
+        return record;
+      } else {
+        // Create a placeholder record for users without existing payroll data
+        const placeholderRecord = {
+          _id: `placeholder-${userIdStr}`, // Add a temporary ID for frontend use
+          userId: user._id,
+          employeeName: user.fullName || user.username,
+          department: user.jobTitle || user.role || 'general', // Use jobTitle or role as fallback
+          month,
+          year: parseInt(year) || new Date().getFullYear(),
+          basicSalary: user.salary || 0,
+          grossSalary: user.salary || 0,
+          incomeTax: 0,
+          pension: 0,
+          overtimeHours: 0,
+          overtimePay: 0,
+          lateDays: 0,
+          lateDeduction: 0,
+          absenceDays: 0,
+          absenceDeduction: 0,
+          numberOfSales: 0,
+          salesCommission: 0,
+          hrAllowances: 0,
+          financeAllowances: 0,
+          financeDeductions: 0,
+          netSalary: user.salary || 0,
+          status: 'draft',
+          auditLog: []
+        };
+        
+        return placeholderRecord;
+      }
+    });
     
     res.json(payrollRecords);
   } catch (error) {
+    console.error('Error in getPayrollList:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -294,6 +355,10 @@ const calculatePayrollForAll = async (req, res) => {
 // POST /payroll/hr-adjust → HR attendance submission
 const submitHRAdjustment = async (req, res) => {
   try {
+    // Log for debugging
+    console.log('HR Adjustment Request - User:', req.user);
+    console.log('HR Adjustment Request - Body:', req.body);
+    
     const { userId, month, year, ...attendanceData } = req.body;
     
     // Validate required fields
@@ -314,7 +379,7 @@ const submitHRAdjustment = async (req, res) => {
         ...attendanceData,
         userId,
         employeeName: user.fullName || user.username,
-        department: user.department || 'general',
+        department: user.jobTitle || 'general', // Use jobTitle instead of department
         status: 'approved',
         submittedBy: req.user._id,
         approvedBy: req.user._id,
@@ -363,6 +428,10 @@ const submitHRAdjustment = async (req, res) => {
 // POST /payroll/finance-adjust → Finance allowances & deductions
 const submitFinanceAdjustment = async (req, res) => {
   try {
+    // Log for debugging
+    console.log('Finance Adjustment Request - User:', req.user);
+    console.log('Finance Adjustment Request - Body:', req.body);
+    
     const { userId, month, year, financeAllowances, financeDeductions } = req.body;
     
     // Validate required fields
@@ -622,39 +691,104 @@ const submitCommission = async (req, res) => {
 const getSalesDataForCommission = async (req, res) => {
   try {
     const { agentId } = req.params;
-    const { month, year } = req.query;
+    const { month, year, startDate, endDate, status } = req.query;
     
-    // In a real implementation, this would fetch actual sales data
-    // For now, we'll return mock data
-    const mockSalesData = {
-      agentId,
-      month,
-      year,
-      sales: [],
-      totalCommission: 0,
-      numberOfSales: 0
+    // Build date filter
+    const dateFilter = {};
+    
+    // If specific date range is provided, use that
+    if (startDate && endDate) {
+      dateFilter.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    } 
+    // Otherwise, use month/year filter
+    else if (month && year) {
+      // Parse month (expected format: YYYY-MM)
+      const [yearStr, monthStr] = month.split('-');
+      const monthIndex = parseInt(monthStr) - 1; // JS months are 0-indexed
+      
+      const startDateOfMonth = new Date(yearStr, monthIndex, 1);
+      const endDateOfMonth = new Date(yearStr, monthIndex + 1, 0); // Last day of month
+      
+      dateFilter.date = {
+        $gte: startDateOfMonth,
+        $lte: endDateOfMonth
+      };
+    }
+    
+    // Build filter object
+    const filter = {
+      agentId: agentId,
+      ...dateFilter
     };
     
-    res.json(mockSalesData);
+    // Only add followupStatus filter if explicitly requested
+    // This allows the payroll system to access all sales data, not just completed ones
+    if (status) {
+      filter.followupStatus = status;
+    }
+    
+    // Get sales for this agent with filters
+    const sales = await SalesCustomer.find(filter)
+      .sort({ date: -1 });
+    
+    // Calculate total commission
+    let totalCommission = 0;
+    let numberOfSales = sales.length;
+    
+    sales.forEach(sale => {
+      // Simple commission calculation (10% of course price)
+      // In a real implementation, this would use a more complex commission structure
+      const saleAmount = sale.coursePrice || 0;
+      const commission = saleAmount * 0.10; // 10% commission rate
+      totalCommission += commission;
+    });
+    
+    res.json({
+      agentId,
+      sales,
+      totalCommission: Math.round(totalCommission),
+      numberOfSales
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// DELETE /payroll/:id — Delete a payroll entry
+// DELETE /payroll/:id → Delete payroll record
 const deletePayrollRecord = async (req, res) => {
   try {
     const { id } = req.params;
-    const payrollRecord = await Payroll.findByIdAndDelete(id);
-    if (!payrollRecord) {
-      return res.status(404).json({ message: 'Payroll record not found' });
+    
+    // Check if user has proper permissions (admin or finance)
+    if (req.user.role !== 'admin' && req.user.role !== 'finance') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. Requires admin or finance role.' 
+      });
     }
+    
+    const payrollRecord = await Payroll.findByIdAndDelete(id);
+    
+    if (!payrollRecord) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Payroll record not found' 
+      });
+    }
+    
     res.json({
       success: true,
-      message: 'Payroll record deleted successfully'
+      message: 'Payroll record deleted successfully',
+      data: payrollRecord
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 

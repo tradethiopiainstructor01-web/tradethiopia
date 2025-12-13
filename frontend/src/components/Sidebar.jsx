@@ -25,7 +25,7 @@ const formatCurrency = (value) => {
   }).format(number);
 };
 
-const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
+const Sidebar = ({ isCollapsed, onToggleCollapse, topOffset = "52px" }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const [payrollSummary, setPayrollSummary] = useState({
@@ -118,24 +118,24 @@ const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
     <Box
       as="nav"
       width={isCollapsed ? "70px" : "260px"}
-      height="100vh"
+      height={`calc(100vh - ${topOffset})`}
       position="fixed"
-      left={0}
-      top={0}
+      left="0"
+      top={topOffset}
       bgGradient={sidebarGradient}
       color={textColor}
       transition="width 0.3s"
-      zIndex="1"
-      paddingTop="80px"
+      zIndex="10"
       borderRightWidth="1px"
       borderRightColor="rgba(255,255,255,0.1)"
-      boxShadow="dark-lg"
+      boxShadow="lg"
     >
       <Flex
         align="center"
         justify="flex-end"
-        px={isCollapsed ? 3 : 5}
+        px={isCollapsed ? 2 : 4}
         mb={6}
+        mt={1}
         transition="padding 0.3s"
       >
         <IconButton
@@ -149,7 +149,7 @@ const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
       </Flex>
 
       {/* Combined approach - using array map with special case for Notice Board */}
-      <VStack align="stretch" spacing={1} px={isCollapsed ? 2 : 4}>
+      <VStack align="stretch" spacing={1} px={isCollapsed ? 1 : 3}>
         {links.map(({ label, path, icon: Icon }) => {
           const isPayrollLink = label === "Payroll";
           const summaryText = isPayrollLink
@@ -169,19 +169,21 @@ const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
             >
               <Flex
                 align="center"
-                gap={isCollapsed ? 0 : 3}
-                px={3}
-                py={2}
+                gap={isCollapsed ? 0 : 2}
+                px={2}
+                py={1.5}
                 borderRadius="md"
                 bg={isActive(path) ? hoverBg : "transparent"}
-                borderLeft={isActive(path) ? "4px solid" : "4px solid transparent"}
+                borderLeft={isActive(path) ? "3px solid" : "3px solid transparent"}
                 borderLeftColor={isActive(path) ? activeBorder : "transparent"}
                 transition="all 0.2s"
               >
-                <Icon />
+                <Icon size={16} />
                 {!isCollapsed && (
                   <Box>
-                    <Text>{label}</Text>
+                    <Text fontSize="sm" letterSpacing="wide">
+                      {label}
+                    </Text>
                     {isPayrollLink && summaryText && (
                       <Text fontSize="xs" color="gray.400">
                         {summaryText}
@@ -198,17 +200,17 @@ const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
         <Link as={RouterLink} to="/messages" _hover={{ textDecoration: "none" }} onClick={fetchUnreadCount}>
           <Flex
             align="center"
-            gap={isCollapsed ? 0 : 3}
-            px={3}
-            py={2}
+            gap={isCollapsed ? 0 : 2}
+            px={2}
+            py={1.5}
             borderRadius="md"
             bg={isActive("/messages") ? hoverBg : "transparent"}
-            borderLeft={isActive("/messages") ? "4px solid" : "4px solid transparent"}
+            borderLeft={isActive("/messages") ? "3px solid" : "3px solid transparent"}
             borderLeftColor={isActive("/messages") ? activeBorder : "transparent"}
             transition="all 0.2s"
             position="relative"
           >
-            <FiMessageSquare />
+            <FiMessageSquare size={16} />
             {!isCollapsed && (
               <>
                 <Text>Notice Board</Text>

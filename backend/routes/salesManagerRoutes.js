@@ -11,9 +11,10 @@ const {
   getAgentSales
 } = require('../controllers/salesManagerController');
 
-// All routes are protected and require sales manager role
+// All routes are protected
+// /all-sales endpoint also allows HR, Finance, and Admin roles to access sales data for payroll purposes
 router.route('/all-sales')
-  .get(protect, authorize('salesmanager'), getAllSales);
+  .get(protect, authorize('salesmanager', 'hr', 'HR', 'finance', 'Finance', 'admin'), getAllSales);
 
 router.route('/sales/:id/supervisor-comment')
   .put(protect, authorize('salesmanager'), updateSupervisorComment);

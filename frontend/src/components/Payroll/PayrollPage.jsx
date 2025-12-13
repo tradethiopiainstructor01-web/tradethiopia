@@ -82,11 +82,18 @@ const PayrollPage = () => {
   const [commissionFormData, setCommissionFormData] = useState({
     userId: '',
     numberOfSales: 0,
+    grossCommission: 0,
+    commissionTax: 0,
     totalCommission: 0,
     commissionDetails: []
   });
   const [salesData, setSalesData] = useState([]);
   const [loadingSales, setLoadingSales] = useState(false);
+  const [commissionDateRange, setCommissionDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  const [useDateRange, setUseDateRange] = useState(false);
   
   const toast = useToast();
   const navigate = useNavigate();
@@ -309,7 +316,7 @@ const PayrollPage = () => {
   // Check if user has Admin permissions
   const isAdminUser = () => {
     const role = getCurrentUserRole();
-    return role === 'admin';
+    return  role === 'admin'|| role === 'hr';
   };
 
   // Export to CSV
@@ -482,21 +489,36 @@ const PayrollPage = () => {
   
   // Open Commission modal
   const openCommissionModal = async (employee) => {
+    console.log('=== OPENING COMMISSION MODAL ===');
+    console.log('Selected employee:', employee);
+    console.log('Current filters:', { selectedMonth, selectedYear });
+    
     setSelectedEmployee(employee);
     setIsCommissionModalOpen(true);
     
+    // Reset date range options
+    setUseDateRange(false);
+    setCommissionDateRange({
+      startDate: '',
+      endDate: ''
+    });
+    
     try {
       // Fetch existing commission data if available
+      console.log('Fetching existing commission data...');
       const commissionData = await fetchCommissionData(
         employee.userId._id || employee.userId,
         selectedMonth,
         selectedYear
       );
+      console.log('Existing commission data:', commissionData);
       
       if (commissionData) {
         setCommissionFormData({
           userId: employee.userId._id || employee.userId,
           numberOfSales: commissionData.numberOfSales || 0,
+          grossCommission: commissionData.grossCommission || 0,
+          commissionTax: commissionData.commissionTax || 0,
           totalCommission: commissionData.totalCommission || 0,
           commissionDetails: commissionData.commissionDetails || []
         });
@@ -505,29 +527,73 @@ const PayrollPage = () => {
         setCommissionFormData({
           userId: employee.userId._id || employee.userId,
           numberOfSales: 0,
+          grossCommission: 0,
+          commissionTax: 0,
           totalCommission: 0,
           commissionDetails: []
         });
       }
       
-      // Fetch sales data for this employee
+      // Fetch sales data for this employee (initially using month/year)
       if (employee.department === 'sales') {
+        console.log('Fetching sales data for commission calculation...');
         setLoadingSales(true);
-        const sales = await fetchSalesDataForCommission(
+        const salesDataResult = await fetchSalesDataForCommission(
           employee.userId._id || employee.userId,
           selectedMonth,
           selectedYear
         );
-        setSalesData(sales || []);
+        console.log('Sales data received:', salesDataResult);
+        
+        // The salesDataResult contains the sales data directly, not in a .sales property
+        const salesArray = extractSalesArray(salesDataResult);
+        setSalesData(salesArray);
+        
+        // Auto-calculate commission from sales data
+        if (salesArray.length > 0) {
+          // Calculate totals from sales data
+          let totalGross = 0;
+          let totalTax = 0;
+          let totalNet = 0;
+          
+          salesArray.forEach(sale => {
+            totalGross += sale.grossCommission || 0;
+            totalTax += sale.commissionTax || 0;
+            totalNet += sale.netCommission || 0;
+          });
+          
+          // Update commission form data with calculated values
+          const updatedCommissionDetails = salesArray.map(sale => ({
+            customerId: sale.customerId,
+            customerName: sale.customerName,
+            saleAmount: sale.saleAmount || 0,
+            commissionRate: 0.07,
+            grossCommission: sale.grossCommission || 0,
+            commissionTax: sale.commissionTax || 0,
+            netCommission: sale.netCommission || 0,
+            date: sale.date
+          }));
+          
+          setCommissionFormData(prev => ({
+            ...prev,
+            numberOfSales: salesArray.length,
+            grossCommission: Math.round(totalGross),
+            commissionTax: Math.round(totalTax),
+            totalCommission: Math.round(totalNet), // Using net commission as the total
+            commissionDetails: updatedCommissionDetails
+          }));
+        }
+        
         setLoadingSales(false);
       }
     } catch (err) {
       console.error('Error fetching commission data:', err);
+      console.error('Error details:', err.response?.data);
       toast({
         title: 'Error',
-        description: 'Failed to fetch commission data',
+        description: 'Failed to fetch commission data: ' + (err.response?.data?.message || err.message),
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
       setLoadingSales(false);
@@ -542,7 +608,67 @@ const PayrollPage = () => {
       [name]: parseFloat(value) || 0
     });
   };
-  
+
+  const normalizeSaleRecord = (sale) => {
+    if (!sale) return null;
+    const commissionSource = sale.grossCommission !== undefined
+      ? sale
+      : sale.commission || {};
+    return {
+      customerId: sale.customerId || sale._id,
+      customerName: sale.customerName || '',
+      saleAmount: sale.saleAmount ?? sale.coursePrice ?? sale.commission?.saleAmount ?? 0,
+      grossCommission: Number(commissionSource.grossCommission) || 0,
+      commissionTax: Number(commissionSource.commissionTax) || 0,
+      netCommission: Number(commissionSource.netCommission) || 0,
+      date: sale.date
+    };
+  };
+
+  const extractSalesArray = (payload) => {
+    const raw = Array.isArray(payload)
+      ? payload
+      : payload?.commissionDetails || payload?.sales || [];
+    return raw.map(normalizeSaleRecord).filter(Boolean);
+  };
+
+  // Auto-calculate commission based on sales data
+  const calculateCommissionFromSales = () => {
+    if (salesData && salesData.length > 0) {
+      // Calculate totals from sales data
+      let totalGross = 0;
+      let totalTax = 0;
+      let totalNet = 0;
+      
+      salesData.forEach(sale => {
+        totalGross += sale.grossCommission || 0;
+        totalTax += sale.commissionTax || 0;
+        totalNet += sale.netCommission || 0;
+      });
+      
+      // Update commission form data with calculated values
+      const updatedCommissionDetails = salesData.map(sale => ({
+        customerId: sale.customerId,
+        customerName: sale.customerName,
+        saleAmount: sale.saleAmount || 0,
+        commissionRate: 0.07,
+        grossCommission: sale.grossCommission || 0,
+        commissionTax: sale.commissionTax || 0,
+        netCommission: sale.netCommission || 0,
+        date: sale.date
+      }));
+      
+      setCommissionFormData({
+        ...commissionFormData,
+        numberOfSales: salesData.length,
+        grossCommission: Math.round(totalGross),
+        commissionTax: Math.round(totalTax),
+        totalCommission: Math.round(totalNet), // Using net commission as the total
+        commissionDetails: updatedCommissionDetails
+      });
+    }
+  };
+
   // Submit Commission
   const submitCommissionHandler = async () => {
     try {
@@ -571,29 +697,139 @@ const PayrollPage = () => {
       });
     }
   };
-  
-  // Auto-calculate commission based on sales data
-  const calculateCommissionFromSales = () => {
-    if (salesData.length > 0) {
-      const totalSales = salesData.reduce((sum, sale) => sum + (sale.coursePrice || 0), 0);
-      const totalCommission = totalSales * 0.10; // 10% commission rate
+
+  // Fetch sales data with date range option
+  const fetchSalesDataWithDateRange = async () => {
+    console.log('=== FETCHING SALES DATA WITH DATE RANGE ===');
+    console.log('Selected employee:', selectedEmployee);
+    console.log('Use date range:', useDateRange);
+    console.log('Commission date range:', commissionDateRange);
+    
+    if (!selectedEmployee) return;
+    
+    try {
+      setLoadingSales(true);
       
-      setCommissionFormData({
-        ...commissionFormData,
-        numberOfSales: salesData.length,
-        totalCommission: totalCommission,
-        commissionDetails: salesData.map(sale => ({
-          customerId: sale._id,
+      let params = {};
+      
+      if (useDateRange && commissionDateRange.startDate && commissionDateRange.endDate) {
+        // Use date range
+        params = {
+          startDate: commissionDateRange.startDate,
+          endDate: commissionDateRange.endDate
+        };
+        console.log('Using date range parameters:', params);
+      } else {
+        // Use month/year from the main filters
+        params = {
+          month: selectedMonth, // Full "YYYY-MM" format
+          year: selectedYear.toString() // Convert to string to match expected format
+        };
+        console.log('Using month/year parameters:', params);
+      }
+      
+      console.log('Calling fetchSalesDataForCommission with:', {
+        agentId: selectedEmployee.userId._id || selectedEmployee.userId,
+        ...params
+      });
+      
+      const salesDataResult = await fetchSalesDataForCommission(
+        selectedEmployee.userId._id || selectedEmployee.userId,
+        params.month || undefined,
+        params.year || undefined,
+        params.startDate || undefined,
+        params.endDate || undefined
+      );
+      
+      console.log('Received sales data result:', salesDataResult);
+      console.log('Sales data result type:', typeof salesDataResult);
+      console.log('Sales data result sales property:', salesDataResult?.sales);
+      console.log('Sales data result sales length:', salesDataResult?.sales?.length);
+      
+      // The salesDataResult is the actual data, not in a .sales property
+      const salesArray = extractSalesArray(salesDataResult);
+      console.log('Setting sales data state with:', salesArray);
+      setSalesData(salesArray);
+      console.log('Sales data state after setting:', salesArray);
+      
+      // Auto-calculate commission from sales data
+      if (salesArray.length > 0) {
+        // Calculate totals from sales data
+        let totalGross = 0;
+        let totalTax = 0;
+        let totalNet = 0;
+        
+        salesArray.forEach(sale => {
+          totalGross += sale.grossCommission || 0;
+          totalTax += sale.commissionTax || 0;
+          totalNet += sale.netCommission || 0;
+        });
+        
+        // Update commission form data with calculated values
+        const updatedCommissionDetails = salesArray.map(sale => ({
+          customerId: sale.customerId,
           customerName: sale.customerName,
-          saleAmount: sale.coursePrice || 0,
-          commissionRate: 0.10,
-          commissionAmount: (sale.coursePrice || 0) * 0.10,
+          saleAmount: sale.saleAmount || 0,
+          commissionRate: 0.07,
+          grossCommission: sale.grossCommission || 0,
+          commissionTax: sale.commissionTax || 0,
+          netCommission: sale.netCommission || 0,
           date: sale.date
-        }))
+        }));
+        
+        setCommissionFormData(prev => ({
+          ...prev,
+          numberOfSales: salesArray.length,
+          grossCommission: Math.round(totalGross),
+          commissionTax: Math.round(totalTax),
+          totalCommission: Math.round(totalNet), // Using net commission as the total
+          commissionDetails: updatedCommissionDetails
+        }));
+      }
+      
+      setLoadingSales(false);
+    } catch (err) {
+      console.error('Error fetching sales data:', err);
+      console.error('Error response:', err.response?.data);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch sales data: ' + (err.response?.data?.message || err.message),
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      setLoadingSales(false);
+    }
+  };
+
+  // Handle date range change
+  const handleDateRangeChange = (e) => {
+    const { name, value } = e.target;
+    setCommissionDateRange(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Toggle between month/year and date range
+  const toggleDateSelection = () => {
+    setUseDateRange(!useDateRange);
+    // Clear date range when switching back to month/year
+    if (useDateRange) {
+      setCommissionDateRange({
+        startDate: '',
+        endDate: ''
       });
     }
   };
-  
+
+  // Effect to fetch sales data when date range changes or when commission modal opens
+  useEffect(() => {
+    if (isCommissionModalOpen && selectedEmployee && selectedEmployee.department === 'sales') {
+      fetchSalesDataWithDateRange();
+    }
+  }, [useDateRange, commissionDateRange, isCommissionModalOpen, selectedEmployee]);
+
   // Effect to fetch data on mount and when filters change
   useEffect(() => {
     fetchPayrollDataHandler();
@@ -729,6 +965,7 @@ const PayrollPage = () => {
                       </option>
                     );
                   })}
+
                 </Select>
               </Box>
               
@@ -790,21 +1027,23 @@ const PayrollPage = () => {
               justify="flex-end" 
               mt={4}
             >
-              <Button
-                colorScheme="teal"
-                size="sm"
-                onClick={calculatePayrollHandler}
-                leftIcon={<AddIcon />}
-              >
-                Calculate Payroll
-              </Button>
+              {isAdminUser() && (
+                <Button
+                  colorScheme="teal"
+                  size="sm"
+                  onClick={calculatePayrollHandler}
+                  leftIcon={<AddIcon />}
+                >
+                  Calculate Payroll
+                </Button>
+              )}
             </Flex>
           </CardBody>
         </Card>
 
         {/* Stats Cards */}
         <Grid 
-          templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }} 
+          templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(6, 1fr)" }} 
           gap={6} 
           mb={6}
         >
@@ -828,19 +1067,29 @@ const PayrollPage = () => {
             value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.netSalary || emp.finalSalary || 0), 0))} 
             color="teal.500" 
           />
+          <StatCard 
+            title="Total Pension (7%)" 
+            value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.pension || 0), 0))} 
+            color="purple.500" 
+          />
+          <StatCard 
+            title="Total Pension (11%)" 
+            value={formatCurrency(payrollData.reduce((sum, emp) => sum + ((emp.grossSalary || emp.basicSalary || 0) * 0.11), 0))} 
+            color="pink.500" 
+          />
         </Grid>
 
         {/* Payroll Table */}
         <Card bg={cardBg} boxShadow="md" borderRadius="lg">
-          <CardBody py={4} px={{ base: 2, md: 5 }}>
+          <CardBody py={2} px={2}>
             <Box overflowX="auto">
-              <Table variant="simple" size={{ base: "sm", md: "sm" }}>
+              <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -853,9 +1102,9 @@ const PayrollPage = () => {
                       Employee
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -868,9 +1117,9 @@ const PayrollPage = () => {
                       Department
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -883,9 +1132,9 @@ const PayrollPage = () => {
                       Gross Salary
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -898,9 +1147,9 @@ const PayrollPage = () => {
                       Tax
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -913,9 +1162,24 @@ const PayrollPage = () => {
                       Pension
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
+                      fontWeight="bold"
+                      color="white"
+                      position="sticky"
+                      top={0}
+                      bg={headerBg}
+                      zIndex={1}
+                      boxShadow="sm"
+                      borderColor={borderColor}
+                    >
+                      Pension (11%)
+                    </Th>
+                    <Th 
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -928,9 +1192,9 @@ const PayrollPage = () => {
                       Overtime
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -943,9 +1207,9 @@ const PayrollPage = () => {
                       Commission
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -958,9 +1222,9 @@ const PayrollPage = () => {
                       Fin. Allowances
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -973,9 +1237,9 @@ const PayrollPage = () => {
                       Fin. Deductions
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -988,9 +1252,9 @@ const PayrollPage = () => {
                       Net Salary
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -1003,9 +1267,9 @@ const PayrollPage = () => {
                       Status
                     </Th>
                     <Th 
-                      py={{ base: 2, md: 3 }}
-                      px={{ base: 2, md: 3 }}
-                      fontSize={{ base: "xs", md: "sm" }}
+                      py={1}
+                      px={2}
+                      fontSize="xs"
                       fontWeight="bold"
                       color="white"
                       position="sticky"
@@ -1026,63 +1290,87 @@ const PayrollPage = () => {
                       _hover={{ bg: rowHoverBg }}
                       transition="background-color 0.2s"
                     >
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         <Text fontWeight="bold">
                           {employee.employeeName || employee.userId?.fullName || employee.userId?.username}
                         </Text>
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        <Badge colorScheme="blue" fontSize="xs" px={2} py={1} borderRadius="full">
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
+                        <Badge colorScheme="blue" fontSize="2xs" px={1} py={0.5} borderRadius="full">
                           {employee.department}
                         </Badge>
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.grossSalary || employee.basicSalary || 0)}
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.incomeTax || 0)}
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.pension || 0)}
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
+                        {formatCurrency((employee.grossSalary || employee.basicSalary || 0) * 0.11)}
+                      </Td>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.overtimePay || 0)}
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.salesCommission || 0)}
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.financeAllowances || 0)}
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.financeDeductions || 0)}
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor} fontWeight="bold" color="teal.500">
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor} fontWeight="bold" color="teal.500">
                         {formatCurrency(employee.netSalary || employee.finalSalary || 0)}
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        <Badge colorScheme={getStatusColor(employee.status)} fontSize="xs" px={2} py={1} borderRadius="full">
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
+                        <Badge colorScheme={getStatusColor(employee.status)} fontSize="2xs" px={1} py={0.5} borderRadius="full">
                           {employee.status?.replace('_', ' ')}
                         </Badge>
                       </Td>
-                      <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        <Flex gap={1}>
+                      <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
+                        <Flex gap={0.5}>
                           <Tooltip label="View Details">
                             <IconButton
                               icon={<ViewIcon />}
                               size="xs"
                               colorScheme="blue"
                               onClick={() => viewEmployeeDetails(employee)}
+                              sx={{
+                                minHeight: '20px',
+                                height: '20px',
+                                minWidth: '20px',
+                                width: '20px',
+                                fontSize: '2xs'
+                              }}
                             />
                           </Tooltip>
                           
-                          {employee.department === 'sales' && (
+                          {/* Debug: Show department info */}
+                          {/* <Text fontSize="2xs">
+                            Dept: {employee.department || 'No dept'} 
+                            ({employee.department === 'sales' ? 'SALES' : 'NOT SALES'})
+                            {employee.userId?.department && ` | UserDept: ${employee.userId.department}`}
+                          </Text> */}
+                          
+                          {(employee.department === 'sales' || employee.userId?.department === 'sales') && (
                             <Tooltip label="Manage Commission">
                               <IconButton
                                 icon={<AddIcon />}
                                 size="xs"
                                 colorScheme="green"
                                 onClick={() => openCommissionModal(employee)}
+                                sx={{
+                                  minHeight: '20px',
+                                  height: '20px',
+                                  minWidth: '20px',
+                                  width: '20px',
+                                  fontSize: '2xs'
+                                }}
                               />
                             </Tooltip>
                           )}
@@ -1096,6 +1384,13 @@ const PayrollPage = () => {
                                     size="xs"
                                     colorScheme="orange"
                                     onClick={() => openHrModal(employee)}
+                                    sx={{
+                                      minHeight: '20px',
+                                      height: '20px',
+                                      minWidth: '20px',
+                                      width: '20px',
+                                      fontSize: '2xs'
+                                    }}
                                   />
                                 </Tooltip>
                               )}
@@ -1107,6 +1402,13 @@ const PayrollPage = () => {
                                     size="xs"
                                     colorScheme="purple"
                                     onClick={() => openFinanceModal(employee)}
+                                    sx={{
+                                      minHeight: '20px',
+                                      height: '20px',
+                                      minWidth: '20px',
+                                      width: '20px',
+                                      fontSize: '2xs'
+                                    }}
                                   />
                                 </Tooltip>
                               )}
@@ -1118,6 +1420,13 @@ const PayrollPage = () => {
                                     size="xs"
                                     colorScheme="green"
                                     onClick={() => approvePayrollHandler(employee._id)}
+                                    sx={{
+                                      minHeight: '20px',
+                                      height: '20px',
+                                      minWidth: '20px',
+                                      width: '20px',
+                                      fontSize: '2xs'
+                                    }}
                                   />
                                 </Tooltip>
                               )}
@@ -1129,6 +1438,13 @@ const PayrollPage = () => {
                                     size="xs"
                                     colorScheme="red"
                                     onClick={() => lockPayrollHandler(employee._id)}
+                                    sx={{
+                                      minHeight: '20px',
+                                      height: '20px',
+                                      minWidth: '20px',
+                                      width: '20px',
+                                      fontSize: '2xs'
+                                    }}
                                   />
                                 </Tooltip>
                               )}
@@ -1138,13 +1454,52 @@ const PayrollPage = () => {
                       </Td>
                     </Tr>
                   ))}
+                  
+                  {/* Total Row */}
+                  <Tr bg={headerBg} fontWeight="bold" color="white">
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      Total
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {payrollData.length} Employees
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.grossSalary || emp.basicSalary || 0), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.incomeTax || 0), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.pension || 0), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + ((emp.grossSalary || emp.basicSalary || 0) * 0.11), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.overtimePay || 0), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.salesCommission || 0), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.financeAllowances || 0), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.financeDeductions || 0), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.netSalary || emp.finalSalary || 0), 0))}
+                    </Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}></Td>
+                    <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}></Td>
+                  </Tr>
                 </Tbody>
               </Table>
             </Box>
             
             {payrollData.length === 0 && (
-              <Flex justify="center" align="center" py={10}>
-                <Text color="gray.500">No payroll data found for the selected filters</Text>
+              <Flex justify="center" align="center" py={5}>
+                <Text color="gray.500" fontSize="sm">No payroll data found for the selected filters</Text>
               </Flex>
             )}
           </CardBody>
@@ -1364,7 +1719,7 @@ const PayrollPage = () => {
         {/* Commission Modal */}
         <Modal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} size="xl">
           <ModalOverlay />
-          <ModalContent maxW={{ base: "95%", md: "600px" }}>
+          <ModalContent maxW={{ base: "95%", md: "800px" }}>
             <ModalHeader fontSize="lg" fontWeight="bold" bg={headerBg} color="white" borderTopRadius="lg">
               Commission Management
             </ModalHeader>
@@ -1374,21 +1729,71 @@ const PayrollPage = () => {
                 <Box mb={4}>
                   <Text fontSize="sm"><strong>Employee:</strong> {selectedEmployee.employeeName}</Text>
                   <Text fontSize="sm"><strong>Department:</strong> {selectedEmployee.department}</Text>
-                  <Text fontSize="sm"><strong>Period:</strong> {selectedMonth} {selectedYear}</Text>
+                  <Text fontSize="sm">
+                    <strong>Period:</strong> 
+                    {useDateRange && commissionDateRange.startDate && commissionDateRange.endDate
+                      ? ` ${commissionDateRange.startDate} to ${commissionDateRange.endDate}`
+                      : ` ${selectedMonth} ${selectedYear}`}
+                  </Text>
                 </Box>
               )}
               
               {selectedEmployee?.department === 'sales' && (
                 <Box mb={4}>
+                  {/* Date Selection Toggle */}
+                  <Flex justify="space-between" align="center" mb={3}>
+                    <Text fontSize="sm" fontWeight="bold">Date Selection</Text>
+                    <Button 
+                      size="xs" 
+                      colorScheme={useDateRange ? "blue" : "gray"}
+                      onClick={toggleDateSelection}
+                    >
+                      {useDateRange ? "Use Month/Year" : "Use Date Range"}
+                    </Button>
+                  </Flex>
+                  
+                  {useDateRange ? (
+                    <Grid templateColumns="1fr 1fr" gap={3} mb={4}>
+                      <FormControl>
+                        <FormLabel fontSize="xs">Start Date</FormLabel>
+                        <Input
+                          type="date"
+                          name="startDate"
+                          value={commissionDateRange.startDate}
+                          onChange={handleDateRangeChange}
+                          size="sm"
+                          borderRadius="md"
+                        />
+                      </FormControl>
+                      
+                      <FormControl>
+                        <FormLabel fontSize="xs">End Date</FormLabel>
+                        <Input
+                          type="date"
+                          name="endDate"
+                          value={commissionDateRange.endDate}
+                          onChange={handleDateRangeChange}
+                          size="sm"
+                          borderRadius="md"
+                          min={commissionDateRange.startDate}
+                        />
+                      </FormControl>
+                    </Grid>
+                  ) : (
+                    <Text fontSize="sm" mb={4} color="gray.500">
+                      Using month/year: {selectedMonth} {selectedYear}
+                    </Text>
+                  )}
+                  
                   <Flex justify="space-between" align="center" mb={2}>
                     <Text fontSize="sm" fontWeight="bold">Sales Data</Text>
                     <Button 
                       size="xs" 
                       colorScheme="teal" 
-                      onClick={calculateCommissionFromSales}
+                      onClick={fetchSalesDataWithDateRange}
                       isLoading={loadingSales}
                     >
-                      Calculate from Sales
+                      Refresh Sales Data
                     </Button>
                   </Flex>
                   
@@ -1396,34 +1801,61 @@ const PayrollPage = () => {
                     <Flex justify="center" py={4}>
                       <Spinner size="sm" />
                     </Flex>
-                  ) : salesData.length > 0 ? (
-                    <Box maxHeight="200px" overflowY="auto" border="1px" borderColor={borderColor} borderRadius="md" p={2}>
-                      <Table size="sm">
-                        <Thead>
-                          <Tr>
-                            <Th px={2} py={1} fontSize="xs">Customer</Th>
-                            <Th px={2} py={1} fontSize="xs" isNumeric>Amount</Th>
-                            <Th px={2} py={1} fontSize="xs" isNumeric>Commission</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {salesData.map((sale, index) => (
-                            <Tr key={index}>
-                              <Td px={2} py={1} fontSize="xs">{sale.customerName}</Td>
-                              <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(sale.coursePrice || 0)}</Td>
-                              <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency((sale.coursePrice || 0) * 0.10)}</Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </Box>
                   ) : (
-                    <Text fontSize="sm" color="gray.500">No sales data found for this period</Text>
+                    <div>
+                      {/* Debug information */}
+                      <div style={{ display: 'none' }}>
+                        {console.log('=== COMMISSION MODAL RENDER DEBUG ===')}
+                        {console.log('salesData state:', salesData)}
+                        {console.log('salesData length:', salesData?.length)}
+                        {console.log('salesData type:', typeof salesData)}
+                        {salesData && salesData.forEach((sale, index) => {
+                          console.log(`Sale ${index + 1} in salesData:`, {
+                            customerName: sale.customerName,
+                            coursePrice: sale.coursePrice,
+                            grossCommission: sale.grossCommission,
+                            commissionTax: sale.commissionTax,
+                            netCommission: sale.netCommission,
+                            commission: sale.commission
+                          });
+                        })}
+                      </div>
+                      
+                      {salesData && salesData.length > 0 ? (
+                        <Box maxHeight="200px" overflowY="auto" border="1px" borderColor={borderColor} borderRadius="md" p={2}>
+                          <Table size="sm">
+                            <Thead>
+                              <Tr>
+                                <Th px={2} py={1} fontSize="xs">Customer</Th>
+                                <Th px={2} py={1} fontSize="xs" isNumeric>Amount</Th>
+                                <Th px={2} py={1} fontSize="xs" isNumeric>Gross</Th>
+                                <Th px={2} py={1} fontSize="xs" isNumeric>Tax</Th>
+                                <Th px={2} py={1} fontSize="xs" isNumeric>Net</Th>
+                              </Tr>
+                            </Thead>
+                            <Tbody>
+                              {salesData.map((sale, index) => (
+                                <Tr key={index}>
+                                  <Td px={2} py={1} fontSize="xs">{sale.customerName}</Td>
+                                  <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(sale.saleAmount ?? sale.coursePrice ?? 0)}</Td>
+                                  <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(sale.grossCommission || 0)}</Td>
+                                  <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(sale.commissionTax || 0)}</Td>
+                                  <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(sale.netCommission || 0)}</Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+                        </Box>
+                      ) : (
+                        <Text fontSize="sm" color="gray.500">No sales data found for this period</Text>
+                      )}
+                    </div>
                   )}
+
                 </Box>
               )}
               
-              <Grid templateColumns="1fr 1fr" gap={4} mb={4}>
+              <Grid templateColumns="1fr 1fr 1fr" gap={4} mb={4}>
                 <FormControl>
                   <FormLabel fontSize="sm">Number of Sales</FormLabel>
                   <Input
@@ -1437,7 +1869,19 @@ const PayrollPage = () => {
                 </FormControl>
                 
                 <FormControl>
-                  <FormLabel fontSize="sm">Total Commission</FormLabel>
+                  <FormLabel fontSize="sm">Gross Commission</FormLabel>
+                  <Input
+                    type="number"
+                    name="grossCommission"
+                    value={commissionFormData.grossCommission || 0}
+                    onChange={handleCommissionFormChange}
+                    size="sm"
+                    borderRadius="md"
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel fontSize="sm">Net Commission</FormLabel>
                   <Input
                     type="number"
                     name="totalCommission"
@@ -1450,14 +1894,16 @@ const PayrollPage = () => {
               </Grid>
               
               <Text fontSize="sm" fontWeight="bold" mb={2}>Commission Details</Text>
-              {commissionFormData.commissionDetails.length > 0 ? (
+              {commissionFormData.commissionDetails && commissionFormData.commissionDetails.length > 0 ? (
                 <Box maxHeight="150px" overflowY="auto" border="1px" borderColor={borderColor} borderRadius="md" p={2} mb={4}>
                   <Table size="sm">
                     <Thead>
                       <Tr>
                         <Th px={2} py={1} fontSize="xs">Customer</Th>
                         <Th px={2} py={1} fontSize="xs" isNumeric>Amount</Th>
-                        <Th px={2} py={1} fontSize="xs" isNumeric>Commission</Th>
+                        <Th px={2} py={1} fontSize="xs" isNumeric>Gross</Th>
+                        <Th px={2} py={1} fontSize="xs" isNumeric>Tax</Th>
+                        <Th px={2} py={1} fontSize="xs" isNumeric>Net</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -1465,7 +1911,9 @@ const PayrollPage = () => {
                         <Tr key={index}>
                           <Td px={2} py={1} fontSize="xs">{detail.customerName}</Td>
                           <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(detail.saleAmount || 0)}</Td>
-                          <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(detail.commissionAmount || 0)}</Td>
+                          <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(detail.grossCommission || 0)}</Td>
+                          <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(detail.commissionTax || 0)}</Td>
+                          <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(detail.netCommission || 0)}</Td>
                         </Tr>
                       ))}
                     </Tbody>
