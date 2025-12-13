@@ -8,23 +8,37 @@ const authorize = (...roles) => {
     }
 
     // Log for debugging
-    console.log('User role:', req.user.role);
+    console.log('=== AUTHORIZATION DEBUG INFO ===');
+    console.log('User role from token:', req.user.role);
     console.log('Required roles:', roles);
     
-    // Simple case-insensitive check
-    const userRoleLower = (req.user.role || '').toLowerCase();
-    const requiredRolesLower = roles.map(role => role.toLowerCase());
+    // More explicit role matching
+    const userRole = req.user.role || '';
+    const hasAccess = roles.some(requiredRole => {
+      // Direct match
+      if (userRole === requiredRole) {
+        console.log(`Direct match found: ${userRole} === ${requiredRole}`);
+        return true;
+      }
+      
+      // Case insensitive match
+      if (userRole.toLowerCase() === requiredRole.toLowerCase()) {
+        console.log(`Case insensitive match found: ${userRole} =~ ${requiredRole}`);
+        return true;
+      }
+      
+      return false;
+    });
     
-    const hasAccess = requiredRolesLower.includes(userRoleLower);
-    
-    console.log('User role (lowercase):', userRoleLower);
-    console.log('Required roles (lowercase):', requiredRolesLower);
+    console.log('User role:', userRole);
+    console.log('Required roles:', roles);
     console.log('Access granted:', hasAccess);
+    console.log('=================================');
     
     if (!hasAccess) {
       return res.status(403).json({ 
         success: false, 
-        message: `Access denied. Requires one of these roles: ${roles.join(', ')}.` 
+        message: `Access denied. Requires one of these roles: ${roles.join(', ')}. User role: ${userRole}` 
       });
     }
 

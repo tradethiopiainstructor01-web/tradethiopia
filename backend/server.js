@@ -285,12 +285,13 @@ module.exports = app;
 // Connect to MongoDB and start the server only when running locally
 if (require.main === module) {
     const PORT = process.env.PORT || 5000;
+    const HOST = process.env.HOST || '0.0.0.0'; // Bind to all interfaces by default
     
     // Connect to database and start server
     connectDB()
       .then(() => {
-        const server = app.listen(PORT, () => {
-          console.log(`Server running on port ${PORT}`);
+        const server = app.listen(PORT, HOST, () => {
+          console.log(`Server running on http://${HOST}:${PORT}`);
         });
         
         // Initialize Socket.IO with the HTTP server
@@ -309,8 +310,8 @@ if (require.main === module) {
             console.log(`Port ${PORT} is busy, trying ${PORT + 1}`);
             setTimeout(() => {
               server.close();
-              app.listen(PORT + 1, () => {
-                console.log(`Server running on port ${PORT + 1}`);
+              app.listen(PORT + 1, HOST, () => {
+                console.log(`Server running on http://${HOST}:${PORT + 1}`);
               });
             }, 1000);
           }

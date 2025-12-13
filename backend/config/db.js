@@ -34,11 +34,12 @@ const connectDB = async () => {
         }
         
         console.log('Connecting to MongoDB...');
-        // Simplified connection options to handle network issues
+        // Connection options to handle network issues
         const conn = await mongoose.connect(mongoUri, {
-            serverSelectionTimeoutMS: 5000,
+            serverSelectionTimeoutMS: 10000, // Increase timeout to 10 seconds
             socketTimeoutMS: 45000,
-            family: 4 // Force IPv4 to avoid DNS issues
+            family: 4, // Force IPv4 to avoid DNS issues
+            maxPoolSize: 10 // Maintain up to 10 socket connections
         });
         isConnected = true;
         console.log(`MongoDB connected: ${conn.connection.host}`);

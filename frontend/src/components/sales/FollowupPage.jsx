@@ -115,6 +115,11 @@ const FollowupPage = () => {
     init();
   }, []);
 
+  useEffect(() => {
+    const total = computeTotalCommission(customers);
+    setStats(prev => ({ ...prev, totalCommission: total }));
+  }, [customers]);
+
   // active tab: customers only (product followups removed)
   const [activeTab, setActiveTab] = useState('customers');
 
@@ -139,6 +144,15 @@ const FollowupPage = () => {
     }
   };
 
+  const computeTotalCommission = (items = []) => {
+    if (!Array.isArray(items)) return 0;
+    return items.reduce((sum, customer) => {
+      if (!customer || customer.followupStatus !== 'Completed') return sum;
+      const netCommission = Number(customer?.commission?.netCommission ?? 0);
+      return sum + (Number.isFinite(netCommission) ? netCommission : 0);
+    }, 0);
+  };
+
   const fetchStats = async () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers/stats`, {
@@ -146,8 +160,8 @@ const FollowupPage = () => {
           'Authorization': `Bearer ${localStorage.getItem('userToken')}`
         }
       });
-      // Set server stats, then override active with client-side computation (based on followupStatus === 'Prospect')
-      setStats(response.data);
+      // Merge server stats while keeping any client-derived values (like totalCommission)
+      setStats(prev => ({ ...prev, ...response.data }));
       try {
           const prospectCount = (customers || []).filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
           setStats(prev => ({ ...prev, new: prospectCount }));
