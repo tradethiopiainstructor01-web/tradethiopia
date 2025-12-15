@@ -75,6 +75,18 @@ export const fetchCommissionData = async (userId, month, year) => {
   }
 };
 
+// Finalize payroll and capture history (Finance-only)
+export const finalizePayroll = async (payrollId) => {
+  const response = await axiosInstance.post(`/payroll/${payrollId}/finalize`);
+  return response.data;
+};
+
+// Fetch finalized payroll history
+export const fetchPayrollHistory = async (params = {}) => {
+  const response = await axiosInstance.get('/payroll/history', { params });
+  return response.data;
+};
+
 // Submit commission data for a user
 export const submitCommission = async (data) => {
   const response = await axiosInstance.post('/payroll/commission', data);

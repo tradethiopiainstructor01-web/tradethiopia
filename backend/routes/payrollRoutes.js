@@ -6,6 +6,8 @@ const {
   submitHRAdjustment,
   submitFinanceAdjustment,
   getPayrollDetails,
+  finalizePayrollForFinance,
+  getPayrollHistory,
   approvePayroll,
   lockPayroll,
   submitCommission,
@@ -19,13 +21,16 @@ const { authorize } = require('../middleware/roleAuth');
 // All payroll routes require authentication
 router.use(protect);
 
+// GET /payroll/history ƒ+' List payroll history
+router.get('/history', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getPayrollHistory);
+
 // GET /payroll/:month → full payroll list
 // Access: HR, Finance, Admin
 router.get('/:month', getPayrollList);
 
 // POST /payroll/calculate → run payroll engine
-// Access: Admin
-router.post('/calculate', authorize('admin'), calculatePayrollForAll);
+// Access: Admin, HR
+router.post('/calculate', authorize('admin', 'hr', 'HR'), calculatePayrollForAll);
 
 // POST /payroll/hr-adjust → HR attendance submission
 // Access: HR
@@ -50,6 +55,9 @@ router.get('/sales-data/:agentId', authorize('admin', 'finance', 'Finance', 'hr'
 // GET /payroll/:userId/details → detailed payroll view
 // Access: HR, Finance, Admin, Employee (own data only)
 router.get('/:userId/details', getPayrollDetails);
+
+// POST /payroll/:id/finalize ƒ+' Finance finalization
+router.post('/:id/finalize', authorize('finance', 'Finance'), finalizePayrollForFinance);
 
 // PUT /payroll/:id/approve → Approve payroll
 // Access: Admin, Finance

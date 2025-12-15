@@ -1,27 +1,7 @@
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
-const { calculateCommission } = require('../utils/commission');
-
-const resolveSaleCommission = (sale) => {
-  if (sale?.commission && typeof sale.commission === 'object') {
-    const {
-      grossCommission = 0,
-      commissionTax = 0,
-      netCommission = 0
-    } = sale.commission;
-
-    if (typeof netCommission === 'number') {
-      return {
-        grossCommission,
-        commissionTax,
-        netCommission
-      };
-    }
-  }
-
-  return calculateCommission(sale?.coursePrice || 0);
-};
+const { calculateCommission, resolveSaleCommission } = require('../utils/commission');
 
 // @desc    Get all sales for sales manager (all agents)
 // @route   GET /api/sales-manager/all-sales

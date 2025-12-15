@@ -130,6 +130,7 @@ return (
                             onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                         >
                             <option value="admin">Admin</option>
+                            <option value="HR">HR</option>
                             <option value="sales">Sales</option>
                             <option value="customerservice">Customer Service</option>
                             <option value="CustomerSuccessManager">Customer Success Manager</option>

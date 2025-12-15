@@ -2,8 +2,11 @@
 const Payroll = require('../models/Payroll');
 const Attendance = require('../models/Attendance');
 const Commission = require('../models/Commission');
+const PayrollHistory = require('../models/PayrollHistory');
 const User = require('../models/user.model');
 const SalesCustomer = require('../models/SalesCustomer');
+const { resolveSaleCommission } = require('../utils/commission');
+const asyncHandler = require('express-async-handler');
 
 // Ethiopian Income Tax (2017 EC / 2025 GC)
 const calculateEthiopianIncomeTax = (grossSalary) => {
@@ -82,6 +85,40 @@ const calculateLateDeduction = (lateDays) => {
 // Calculate absence deduction (3000 ETB per day)
 const calculateAbsenceDeduction = (absenceDays) => {
   return (absenceDays || 0) * 3000;
+};
+
+const buildCommissionSnapshot = (sales = []) => {
+  let totalGross = 0;
+  let totalTax = 0;
+  let totalNet = 0;
+
+  const commissionDetails = (Array.isArray(sales) ? sales : []).map((sale) => {
+    const resolved = resolveSaleCommission(sale);
+    totalGross += resolved.grossCommission;
+    totalTax += resolved.commissionTax;
+    totalNet += resolved.netCommission;
+
+    return {
+      customerId: sale._id || sale.customerId,
+      customerName: sale.customerName || 'Unknown',
+      saleAmount: Number(sale.coursePrice) || 0,
+      commissionRate: 0.07,
+      commissionAmount: resolved.netCommission,
+      grossCommission: resolved.grossCommission,
+      commissionTax: resolved.commissionTax,
+      netCommission: resolved.netCommission,
+      date: sale.date
+    };
+  });
+
+  return {
+    commissionDetails,
+    totals: {
+      gross: Math.round(totalGross),
+      tax: Math.round(totalTax),
+      net: Math.round(totalNet)
+    }
+  };
 };
 
 // Enhanced payroll calculation function
@@ -519,6 +556,97 @@ const getPayrollDetails = async (req, res) => {
   }
 };
 
+// POST /payroll/:id/finalize ?+' Finance finalization & history persistence
+const finalizePayrollForFinance = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const payrollRecord = await Payroll.findById(id);
+  if (!payrollRecord) {
+    res.status(404);
+    throw new Error('Payroll record not found');
+  }
+
+  const [yearPart = `${payrollRecord.year}`, monthPart = '01'] = (payrollRecord.month || '').split('-');
+  const year = parseInt(yearPart, 10) || payrollRecord.year;
+  const monthIndex = Math.max((parseInt(monthPart, 10) || 1) - 1, 0);
+  const startDate = new Date(year, monthIndex, 1);
+  const endDate = new Date(year, monthIndex + 1, 0);
+
+  const sales = await SalesCustomer.find({
+    agentId: String(payrollRecord.userId),
+    followupStatus: 'Completed',
+    date: {
+      $gte: startDate,
+      $lte: endDate
+    }
+  }).lean();
+
+  const { commissionDetails, totals } = buildCommissionSnapshot(sales);
+
+  await Commission.deleteMany({
+    userId: payrollRecord.userId,
+    month: payrollRecord.month,
+    year: payrollRecord.year
+  });
+
+  const commissionRecord = await Commission.create({
+    userId: payrollRecord.userId,
+    employeeName: payrollRecord.employeeName,
+    department: payrollRecord.department,
+    month: payrollRecord.month,
+    year: payrollRecord.year,
+    numberOfSales: sales.length,
+    totalCommission: totals.net,
+    commissionDetails,
+    submittedBy: req.user._id
+  });
+
+  const historyEntry = await PayrollHistory.create({
+    userId: payrollRecord.userId,
+    employeeName: payrollRecord.employeeName,
+    department: payrollRecord.department,
+    month: payrollRecord.month,
+    year: payrollRecord.year,
+    payrollData: payrollRecord.toObject(),
+    commissionData: {
+      numberOfSales: commissionRecord.numberOfSales,
+      totalCommission: commissionRecord.totalCommission,
+      grossCommission: totals.gross,
+      commissionTax: totals.tax,
+      netCommission: totals.net,
+      commissionDetails
+    },
+    finalizedBy: req.user._id,
+    finalizedByName: req.user.fullName || req.user.username || req.user.role,
+    finalizedAt: new Date()
+  });
+
+  await Payroll.findByIdAndDelete(payrollRecord._id);
+
+  res.json({
+    success: true,
+    message: 'Payroll finalized and archived',
+    history: historyEntry
+  });
+});
+
+// GET /payroll/history ?+' List historical payroll data
+const getPayrollHistory = asyncHandler(async (req, res) => {
+  const { userId, month, year, department } = req.query;
+  const filter = {};
+  if (userId) filter.userId = userId;
+  if (month) filter.month = month;
+  if (year) {
+    const parsedYear = parseInt(year, 10);
+    if (!Number.isNaN(parsedYear)) {
+      filter.year = parsedYear;
+    }
+  }
+  if (department) filter.department = department;
+
+  const historyList = await PayrollHistory.find(filter).sort({ finalizedAt: -1 });
+  res.json(historyList);
+});
+
 // PUT /payroll/:id/approve → Approve payroll
 const approvePayroll = async (req, res) => {
   try {
@@ -798,6 +926,8 @@ module.exports = {
   submitHRAdjustment,
   submitFinanceAdjustment,
   getPayrollDetails,
+  finalizePayrollForFinance,
+  getPayrollHistory,
   approvePayroll,
   lockPayroll,
   getCommissionByUser,

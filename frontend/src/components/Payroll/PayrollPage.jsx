@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Flex,
@@ -48,7 +48,7 @@ import {
 import { AddIcon, DownloadIcon, ViewIcon, LockIcon, CheckIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../Layout';
-import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll, fetchCommissionData, submitCommission, fetchSalesDataForCommission } from '../../services/payrollService';
+import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll, fetchCommissionData, submitCommission, fetchSalesDataForCommission, finalizePayroll, fetchPayrollHistory } from '../../services/payrollService';
 
 const PayrollPage = () => {
   const [payrollData, setPayrollData] = useState([]);
@@ -94,6 +94,14 @@ const PayrollPage = () => {
     endDate: ''
   });
   const [useDateRange, setUseDateRange] = useState(false);
+  const [payrollHistory, setPayrollHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyFilters, setHistoryFilters] = useState({
+    username: '',
+    month: '',
+    department: ''
+  });
   
   const toast = useToast();
   const navigate = useNavigate();
@@ -109,8 +117,8 @@ const PayrollPage = () => {
   const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
 
   // Fetch payroll data
-  const fetchPayrollDataHandler = async () => {
-    try {
+const fetchPayrollDataHandler = async () => {
+  try {
       setLoading(true);
       const data = await fetchPayrollData(selectedMonth, {
         year: selectedYear,
@@ -130,9 +138,54 @@ const PayrollPage = () => {
         isClosable: true,
       });
     } finally {
-      setLoading(false);
+    setLoading(false);
+  }
+};
+
+  const fetchPayrollHistoryHandler = useCallback(async () => {
+    try {
+      setHistoryLoading(true);
+      const history = await fetchPayrollHistory({
+        month: selectedMonth,
+        year: selectedYear
+      });
+      setPayrollHistory(Array.isArray(history) ? history : []);
+      setHistoryError('');
+    } catch (err) {
+      console.error('Error fetching payroll history:', err);
+      setHistoryError('Failed to load payroll history');
+    } finally {
+      setHistoryLoading(false);
     }
+  }, [selectedMonth, selectedYear]);
+
+  const handleHistoryFilterChange = (field, value) => {
+    setHistoryFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
+
+  const filteredPayrollHistory = payrollHistory.filter((entry) => {
+    const userFilter = historyFilters.username.toLowerCase().trim();
+    const monthFilter = historyFilters.month;
+    const departmentFilter = historyFilters.department.toLowerCase().trim();
+
+    const entryUser = (entry.payrollData?.employeeName || '').toLowerCase();
+    if (userFilter && !entryUser.includes(userFilter)) {
+      return false;
+    }
+
+    if (monthFilter && entry.month !== monthFilter) {
+      return false;
+    }
+
+    if (departmentFilter && entry.department?.toLowerCase().indexOf(departmentFilter) === -1) {
+      return false;
+    }
+
+    return true;
+  });
   
   // Fetch departments
   const fetchDepartments = async () => {
@@ -265,7 +318,31 @@ const PayrollPage = () => {
     }
   };
   
-  // Lock payroll
+  const finalizePayrollHandler = async (payrollId) => {
+  try {
+    const data = await finalizePayroll(payrollId);
+    toast({
+      title: 'Payroll Finalized',
+      description: data.message,
+      status: 'success',
+      duration: 4000,
+      isClosable: true,
+    });
+    fetchPayrollDataHandler();
+    fetchPayrollHistoryHandler();
+  } catch (err) {
+    console.error('Error finalizing payroll:', err);
+    toast({
+      title: 'Error',
+      description: 'Failed to finalize payroll',
+      status: 'error',
+      duration: 3000,
+      isClosable: true,
+    });
+  }
+};
+
+// Lock payroll
   const lockPayrollHandler = async (payrollId) => {
     try {
       const data = await lockPayroll(payrollId);
@@ -295,6 +372,12 @@ const PayrollPage = () => {
     navigate(`/my-payroll?userId=${employee.userId._id || employee.userId}&month=${selectedMonth}&year=${selectedYear}`);
   };
 
+  const viewHistoryDetails = (historyEntry) => {
+    const userId = historyEntry.payrollData?.userId?._id || historyEntry.payrollData?.userId;
+    if (!userId) return;
+    navigate(`/my-payroll?userId=${userId}&month=${historyEntry.month}&year=${historyEntry.year}`);
+  };
+
   // Get current user role
   const getCurrentUserRole = () => {
     const role = localStorage.getItem('userRole');
@@ -313,10 +396,16 @@ const PayrollPage = () => {
     return role === 'finance' || role === 'admin';
   };
 
+  // Check if user is exactly Finance (not admin)
+  const isFinanceRoleUser = () => {
+    const role = getCurrentUserRole();
+    return role === 'finance';
+  };
+
   // Check if user has Admin permissions
   const isAdminUser = () => {
     const role = getCurrentUserRole();
-    return  role === 'admin'|| role === 'hr';
+    return  role === 'hr'|| role === 'admin';
   };
 
   // Export to CSV
@@ -834,7 +923,8 @@ const PayrollPage = () => {
   useEffect(() => {
     fetchPayrollDataHandler();
     fetchDepartments();
-  }, [selectedMonth, selectedYear, selectedDepartment, selectedRole]);
+    fetchPayrollHistoryHandler();
+  }, [selectedMonth, selectedYear, selectedDepartment, selectedRole, fetchPayrollHistoryHandler]);
   
   // Format currency
   const formatCurrency = (amount) => {
@@ -1395,25 +1485,43 @@ const PayrollPage = () => {
                                 </Tooltip>
                               )}
                               
-                              {isFinanceUser() && (
-                                <Tooltip label="Finance Adjustment">
-                                  <IconButton
-                                    icon={<AddIcon />}
-                                    size="xs"
-                                    colorScheme="purple"
-                                    onClick={() => openFinanceModal(employee)}
-                                    sx={{
-                                      minHeight: '20px',
-                                      height: '20px',
-                                      minWidth: '20px',
-                                      width: '20px',
-                                      fontSize: '2xs'
-                                    }}
-                                  />
-                                </Tooltip>
-                              )}
-                              
-                              {isAdminUser() && employee.status === 'finance_reviewed' && (
+                          {isFinanceUser() && (
+                            <Tooltip label="Finance Adjustment">
+                              <IconButton
+                                icon={<AddIcon />}
+                                size="xs"
+                                colorScheme="purple"
+                                onClick={() => openFinanceModal(employee)}
+                                sx={{
+                                  minHeight: '20px',
+                                  height: '20px',
+                                  minWidth: '20px',
+                                  width: '20px',
+                                  fontSize: '2xs'
+                                }}
+                              />
+                            </Tooltip>
+                          )}
+                          
+                          {isFinanceRoleUser() && employee.status !== 'approved' && employee.status !== 'locked' && !String(employee._id).startsWith('placeholder-') && (
+                            <Tooltip label="Finalize Payroll">
+                              <IconButton
+                                icon={<CheckIcon />}
+                                size="xs"
+                                colorScheme="teal"
+                                onClick={() => finalizePayrollHandler(employee._id)}
+                                sx={{
+                                  minHeight: '20px',
+                                  height: '20px',
+                                  minWidth: '20px',
+                                  width: '20px',
+                                  fontSize: '2xs'
+                                }}
+                              />
+                            </Tooltip>
+                          )}
+                          
+                          {isAdminUser() && employee.status === 'finance_reviewed' && (
                                 <Tooltip label="Approve">
                                   <IconButton
                                     icon={<CheckIcon />}
@@ -1716,6 +1824,114 @@ const PayrollPage = () => {
           </ModalContent>
         </Modal>
         
+        <Card mt={6} bg={cardBg} boxShadow="md" borderRadius="lg">
+          <CardBody>
+            <Flex justify="space-between" align="center" mb={4}>
+              <Text fontSize="lg" fontWeight="bold" color={headerColor}>Payroll History</Text>
+              <Button size="sm" variant="ghost" onClick={fetchPayrollHistoryHandler} isLoading={historyLoading}>Refresh History</Button>
+            </Flex>
+
+            <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={3} mb={4}>
+              <FormControl>
+                <FormLabel fontSize="xs">Username</FormLabel>
+                <Input
+                  value={historyFilters.username}
+                  onChange={(e) => handleHistoryFilterChange('username', e.target.value)}
+                  size="sm"
+                  placeholder="Filter by name"
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="xs">Month</FormLabel>
+                <Input
+                  type="month"
+                  value={historyFilters.month}
+                  onChange={(e) => handleHistoryFilterChange('month', e.target.value)}
+                  size="sm"
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="xs">Department</FormLabel>
+                <Select
+                  size="sm"
+                  value={historyFilters.department}
+                  onChange={(e) => handleHistoryFilterChange('department', e.target.value)}
+                  placeholder="All departments"
+                >
+                  {departments.map(dept => (
+                    <option key={dept} value={dept}>{dept.charAt(0).toUpperCase() + dept.slice(1)}</option>
+                  ))}
+                </Select>
+              </FormControl>
+              <Box display="flex" alignItems="flex-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setHistoryFilters({ username: '', month: '', department: '' })}
+                >
+                  Clear Filters
+                </Button>
+              </Box>
+            </Grid>
+
+            {historyError && (
+              <Text fontSize="sm" color="red.500" mb={3}>{historyError}</Text>
+            )}
+            {historyLoading ? (
+              <Flex justify="center" py={6}>
+                <Spinner size="sm" color="teal.500" />
+              </Flex>
+            ) : filteredPayrollHistory.length > 0 ? (
+              <Box overflowX="auto">
+                <Table variant="simple" size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th fontSize="xs" px={2} py={1}>Period</Th>
+                      <Th fontSize="xs" px={2} py={1}>Employee</Th>
+                      <Th fontSize="xs" px={2} py={1} isNumeric>Gross Salary</Th>
+                      <Th fontSize="xs" px={2} py={1} isNumeric>Net Salary</Th>
+                      <Th fontSize="xs" px={2} py={1} isNumeric>Gross Comm.</Th>
+                      <Th fontSize="xs" px={2} py={1} isNumeric>Comm. Tax</Th>
+                      <Th fontSize="xs" px={2} py={1} isNumeric>Net Comm.</Th>
+                      <Th fontSize="xs" px={2} py={1}>Finalized By</Th>
+                      <Th fontSize="xs" px={2} py={1}>Finalized At</Th>
+                      <Th fontSize="xs" px={2} py={1}>Actions</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {filteredPayrollHistory.map((entry) => (
+                      <Tr key={entry._id}>
+                        <Td px={2} py={1} fontSize="xs">{entry.month} {entry.year}</Td>
+                        <Td px={2} py={1} fontSize="xs">{entry.employeeName}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.payrollData?.grossSalary || entry.payrollData?.basicSalary || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.payrollData?.netSalary || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.grossCommission || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.commissionTax || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.netCommission || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs">{entry.finalizedByName || entry.finalizedBy || 'Finance'}</Td>
+                        <Td px={2} py={1} fontSize="xs">{entry.finalizedAt ? new Date(entry.finalizedAt).toLocaleDateString() : '?'}</Td>
+                        <Td px={2} py={1} fontSize="xs">
+                          <Tooltip label="View History Details">
+                            <IconButton
+                              size="xs"
+                              icon={<ViewIcon />}
+                              onClick={() => viewHistoryDetails(entry)}
+                              colorScheme="teal"
+                              aria-label="View history details"
+                            />
+                          </Tooltip>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </Box>
+            ) : (
+              <Text fontSize="sm" color="gray.500">No approved payroll records yet for {selectedMonth}.</Text>
+            )}
+          </CardBody>
+        </Card>
+
         {/* Commission Modal */}
         <Modal isOpen={isCommissionModalOpen} onClose={() => setIsCommissionModalOpen(false)} size="xl">
           <ModalOverlay />
@@ -1829,7 +2045,7 @@ const PayrollPage = () => {
                                 <Th px={2} py={1} fontSize="xs">Customer</Th>
                                 <Th px={2} py={1} fontSize="xs" isNumeric>Amount</Th>
                                 <Th px={2} py={1} fontSize="xs" isNumeric>Gross</Th>
-                                <Th px={2} py={1} fontSize="xs" isNumeric>Tax</Th>
+                                <Th px={2} py={1} fontSize="xs" isNumeric>Social Media Boost</Th>
                                 <Th px={2} py={1} fontSize="xs" isNumeric>Net</Th>
                               </Tr>
                             </Thead>
@@ -1902,7 +2118,7 @@ const PayrollPage = () => {
                         <Th px={2} py={1} fontSize="xs">Customer</Th>
                         <Th px={2} py={1} fontSize="xs" isNumeric>Amount</Th>
                         <Th px={2} py={1} fontSize="xs" isNumeric>Gross</Th>
-                        <Th px={2} py={1} fontSize="xs" isNumeric>Tax</Th>
+                        <Th px={2} py={1} fontSize="xs" isNumeric>Social Media Boost</Th>
                         <Th px={2} py={1} fontSize="xs" isNumeric>Net</Th>
                       </Tr>
                     </Thead>
