@@ -24,27 +24,13 @@ import {
 import { Bar } from 'react-chartjs-2';
 import { MdPeople, MdCheckCircle, MdPendingActions, MdError, MdNote } from 'react-icons/md';
 import { FiCheckCircle, FiCheck, FiClock } from 'react-icons/fi';
-import axios from 'axios';
 import axiosInstance from '../../services/axiosInstance';
 import { getMyTasks, getTaskStats } from '../../services/taskService';
 import { Chart, registerables } from 'chart.js';
+import { calculateCommission } from '../../utils/commission';
 
 // Register Chart.js components
 Chart.register(...registerables);
-
-// Standardized commission calculation function
-const calculateCommission = (salesValue) => {
-  // Standard commission rate: 10%
-  const commissionRate = 0.10;
-  // Tax on commission: 5%
-  const taxRate = 0.05;
-  
-  const grossCommission = salesValue * commissionRate;
-  const commissionTax = grossCommission * taxRate;
-  const netCommission = grossCommission - commissionTax;
-  
-  return Math.round(netCommission);
-};
 
 const Dashboard = () => {
   const [data, setData] = useState({
@@ -131,7 +117,7 @@ const Dashboard = () => {
         const completedDeals = stats.completedDeals || 0;
         const averageDealValue = 15000; // Average value per deal
         const totalSalesValue = completedDeals * averageDealValue;
-        const totalCommission = calculateCommission(totalSalesValue);
+        const totalCommission = calculateCommission(totalSalesValue).netCommission;
 
         setData({
           totalCustomers,

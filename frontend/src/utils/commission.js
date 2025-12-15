@@ -1,11 +1,12 @@
-const calculateCommission = (salesValue = 0) => {
+// Client-side version of the shared commission logic.
+// Keep this in sync with backend/utils/commission.js.
+export const calculateCommission = (salesValue = 0) => {
   const commissionRate = 0.075;
-  
+
   const price = Number(salesValue) || 0;
-  
-  // Adjust SocialTaxRate based on price
+
   const SocialtaxRate = price < 15000 ? 300 : 900;
-  const Commission = price - SocialtaxRate
+  const Commission = price - SocialtaxRate;
   const grossCommission = Commission * commissionRate;
   const commissionTax = SocialtaxRate;
   const netCommission = grossCommission;
@@ -17,7 +18,7 @@ const calculateCommission = (salesValue = 0) => {
   };
 };
 
-const resolveSaleCommission = (sale) => {
+export const resolveSaleCommission = (sale) => {
   if (sale?.commission && typeof sale.commission === 'object') {
     const {
       grossCommission = 0,
@@ -35,9 +36,4 @@ const resolveSaleCommission = (sale) => {
   }
 
   return calculateCommission(sale?.coursePrice || 0);
-};
-
-module.exports = {
-  calculateCommission,
-  resolveSaleCommission
 };

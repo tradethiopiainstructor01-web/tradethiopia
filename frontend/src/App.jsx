@@ -85,7 +85,7 @@ function App() {
       "/finance/messages", "/finance/team-requests",
       "/addcustomer", "/resource", "/videolist", "/uploadpage", 
       "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-      "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests"
+      "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll"
     ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
@@ -156,7 +156,14 @@ function App() {
             <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
             <Route path="/customer-settings" element={<CustomerSettings />} />
             <Route path="/social-media" element={<SocialMediaDashboardPage />} />
-            <Route path="/requests" element={<RequestPage />} />
+            <Route
+              path="/requests"
+              element={
+                <FinanceLayout>
+                  <RequestPage />
+                </FinanceLayout>
+              }
+            />
             <Route path="/it" element={<ITDashboard />} />
             <Route path="/payroll" element={<PayrollPage />} />
             <Route path="/my-payroll" element={<EmployeePayrollView />} />

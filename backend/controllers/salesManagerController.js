@@ -1,37 +1,22 @@
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
-const { calculateCommission } = require('../utils/commission');
-
-const resolveSaleCommission = (sale) => {
-  if (sale?.commission && typeof sale.commission === 'object') {
-    const {
-      grossCommission = 0,
-      commissionTax = 0,
-      netCommission = 0
-    } = sale.commission;
-
-    if (typeof netCommission === 'number') {
-      return {
-        grossCommission,
-        commissionTax,
-        netCommission
-      };
-    }
-  }
-
-  return calculateCommission(sale?.coursePrice || 0);
-};
+const { calculateCommission, resolveSaleCommission } = require('../utils/commission');
 
 // @desc    Get all sales for sales manager (all agents)
 // @route   GET /api/sales-manager/all-sales
 // @access  Private (Sales Manager only)
 const getAllSales = asyncHandler(async (req, res) => {
   try {
+    console.log('=== GET ALL SALES REQUEST ===');
+    console.log('User:', req.user);
+    console.log('Query parameters:', req.query);
+    
     // Only sales managers can access this
-    if (req.user.role !== 'salesmanager') {
+    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
+      console.log('Access denied - User role:', req.user.role);
       res.status(403);
-      throw new Error('Access denied. Sales managers only.');
+      throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
 
     // Build filter object. By default show ALL sales unless a specific status is requested.
@@ -63,14 +48,19 @@ const getAllSales = asyncHandler(async (req, res) => {
     if (req.query.agentId) {
       filter.agentId = req.query.agentId;
     }
+    
+    console.log('Applied filter:', filter);
 
     // Get all completed sales from all agents with filters
     const sales = await SalesCustomer.find(filter)
       .sort({ date: -1 })
       .populate('commission');
+    
+    console.log(`Found ${sales.length} sales records`);
 
     // If no sales found, return empty array
     if (sales.length === 0) {
+      console.log('No sales found with current filter');
       return res.json([]);
     }
 
@@ -101,6 +91,7 @@ const getAllSales = asyncHandler(async (req, res) => {
 
     res.json(salesWithAgents);
   } catch (error) {
+    console.error('Error in getAllSales:', error);
     res.status(500).json({ 
       message: "Error fetching all sales", 
       error: error.message 

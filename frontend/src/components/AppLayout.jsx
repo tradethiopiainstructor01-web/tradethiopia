@@ -3,6 +3,8 @@ import { Box, Flex, useColorModeValue, useBreakpointValue } from "@chakra-ui/rea
 import NavbarPage from "./Navbar";
 import Sidebar from "./Sidebar";
 
+const NAVBAR_HEIGHT = 52;
+
 const AppLayout = ({ children, showNav }) => {
   const bgColor = useColorModeValue("gray.100", "gray.900");
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -12,41 +14,42 @@ const AppLayout = ({ children, showNav }) => {
     setSidebarCollapsed(Boolean(shouldCollapse));
   }, [shouldCollapse]);
 
+  const contentVerticalPadding = showNav ? { base: 4, md: 6 } : { base: 4, md: 6 };
+  const contentHorizontalPadding = showNav ? 0 : { base: 4, md: 6 };
+  const contentJustify = "stretch";
+  const contentPx = 0;
   const sidebarWidth = isSidebarCollapsed ? 70 : 260;
-  const marginLeft = showNav ? { base: 0, md: `${sidebarWidth}px` } : 0;
-  const contentPadding = showNav ? { base: 4, md: 6 } : 0;
-  const contentMaxWidth = showNav ? "1200px" : "100%";
-  const contentJustify = showNav ? "center" : "stretch";
-  const contentPx = showNav ? { base: 0, md: 4 } : 0;
+  const contentMarginLeft = showNav ? `${sidebarWidth}px` : 0;
 
   const handleSidebarToggle = () => {
     setSidebarCollapsed((prev) => !prev);
   };
 
+  const navbarHeight = `${NAVBAR_HEIGHT}px`;
+
   return (
     <Box minH="100vh" bg={bgColor}>
       {showNav && <NavbarPage />}
-      <Flex
-        width="100%"
-        flexDirection="row"
-        pt={showNav ? "80px" : "0"}
-      >
+      <Flex width="100%" flexDirection="row" pt={showNav ? navbarHeight : "0"} alignItems="stretch">
         {showNav && (
           <Sidebar
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={handleSidebarToggle}
+            topOffset={navbarHeight}
           />
         )}
         <Box
           flex="1"
-          p={contentPadding}
-          ml={marginLeft}
-          transition="margin-left 0.3s ease"
+          pt={contentVerticalPadding}
+          pb={contentVerticalPadding}
+          px={contentHorizontalPadding}
+          transition="all 0.3s ease"
           width="100%"
           display="flex"
           justifyContent={contentJustify}
+          ml={contentMarginLeft}
         >
-          <Box w="100%" maxW={contentMaxWidth} px={contentPx}>
+          <Box w="100%" px={contentPx}>
             {children}
           </Box>
         </Box>
