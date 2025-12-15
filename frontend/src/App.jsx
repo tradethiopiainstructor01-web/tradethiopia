@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import CreatePage from "./pages/CreatePage";
@@ -72,20 +72,21 @@ import ITMessagesPage from "./pages/ITMessagesPage";
 import RedirectMessagesPage from "./pages/RedirectMessagesPage";
 import SocialMediaDashboardPage from "./pages/socialmedia/SocialMediaDashboardPage";
 import RequestPage from "./pages/RequestPage";
+import TeamRequestsPage from "./pages/sales/TeamRequestsPage.jsx";
 
 function App() {
   const location = useLocation();
 
   // Define the paths where Sidebar and Navbar should not appear
-  const noNavSidebarRoutes = [
-    "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
-    "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
-    "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
-    "/finance/messages",
-    "/addcustomer", "/resource", "/videolist", "/uploadpage", 
-    "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests"
-  ].map((path) => path.toLowerCase());
+    const noNavSidebarRoutes = [
+      "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
+      "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
+      "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
+      "/finance/messages", "/finance/team-requests",
+      "/addcustomer", "/resource", "/videolist", "/uploadpage", 
+      "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
+      "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests"
+    ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
   const normalizedPath = location.pathname.toLowerCase();
@@ -118,6 +119,8 @@ function App() {
             <Route path="/finance-dashboard/purchase" element={<PurchasePage />} />
             <Route path="/finance-dashboard/costs" element={<CostManagementPage />} />
             <Route path="/finance-dashboard/payroll" element={<FinancePayrollPage />} />
+            <Route path="/finance/team-requests" element={<TeamRequestsPage />} />
+            <Route path="/resource" element={<Navigate to="/resources" replace />} />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />

@@ -1,5 +1,6 @@
 // src/store/userStore.js
 import { create } from "zustand";
+import { getDepartmentFromRole, getUserDepartment } from "../utils/department";
 
 export const normalizeRole = (value = "") => {
     const text = value ? value.toString() : "";
@@ -17,6 +18,7 @@ const loadCurrentUser = () => {
     const username = localStorage.getItem("userName");
     const userId = localStorage.getItem("userId"); // Retrieve user ID
     const email = localStorage.getItem("userEmail");
+    const departmentFromCache = localStorage.getItem("userDepartment") || getDepartmentFromRole(storedRole);
 
     return token
         ? {
@@ -29,6 +31,7 @@ const loadCurrentUser = () => {
               token,
               _id: userId,
               email,
+              department: departmentFromCache || "",
           }
         : null;
 };
@@ -68,26 +71,29 @@ export const useUserStore = create((set) => ({
                 user.role && user.role.toString().trim()
                     ? user.role.toString().trim()
                     : normalizedRole;
+            const computedDepartment = getUserDepartment(user);
             const sanitizedUser = {
                 ...user,
                 role: normalizedRole,
                 normalizedRole,
                 displayRole,
+                department: computedDepartment || "",
             };
             set({ currentUser: sanitizedUser });
-        localStorage.setItem("userToken", user.token);
-        localStorage.setItem("userRole", normalizedRole);
+            localStorage.setItem("userToken", user.token);
+            localStorage.setItem("userRole", normalizedRole);
             localStorage.setItem("userRoleRaw", displayRole);
-        localStorage.setItem("userName", user.username);
-        localStorage.setItem("userStatus", user.status);
-        localStorage.setItem("infoStatus", user.infoStatus);
-        localStorage.setItem("userId", user._id); // Store user ID
-        if (user.email) {
-            localStorage.setItem("userEmail", user.email);
+            localStorage.setItem("userName", user.username);
+            localStorage.setItem("userStatus", user.status);
+            localStorage.setItem("infoStatus", user.infoStatus);
+            localStorage.setItem("userId", user._id); // Store user ID
+            if (user.email) {
+                localStorage.setItem("userEmail", user.email);
+            } else {
+                localStorage.removeItem("userEmail");
+            }
+            localStorage.setItem("userDepartment", sanitizedUser.department || "");
         } else {
-            localStorage.removeItem("userEmail");
-        }
-    } else {
             set({ currentUser: null });
             localStorage.removeItem("userToken");
             localStorage.removeItem("userRole");
@@ -95,6 +101,7 @@ export const useUserStore = create((set) => ({
             localStorage.removeItem("userName");
             localStorage.removeItem("userStatus");
             localStorage.removeItem("infoStatus");
+            localStorage.removeItem("userDepartment");
             localStorage.removeItem("userId"); // Remove user ID
         }
     },
@@ -108,6 +115,7 @@ export const useUserStore = create((set) => ({
         localStorage.removeItem("userName");
         localStorage.removeItem("userStatus");
         localStorage.removeItem("infoStatus");
+        localStorage.removeItem("userDepartment");
         localStorage.removeItem("userId"); // Remove user ID
         localStorage.removeItem("userEmail");
     },

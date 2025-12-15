@@ -21,6 +21,7 @@ import {
   FiBookOpen,
   FiGlobe,
   FiBook,
+  FiClipboard,
   FiFileText,
 } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
@@ -252,10 +253,21 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, acti
           />
           <SidebarLink
             isCollapsed={isCollapsed}
-            to="/resource"
+            to="/requests"
+            icon={<FiClipboard />}
+            label="Requests"
+            active={isActive("/requests")}
+            iconColor={iconColor}
+            activeIconColor={activeIconColor}
+            textColor={textColor}
+            activeTextColor={activeTextColor}
+          />
+          <SidebarLink
+            isCollapsed={isCollapsed}
+            to="/resources"
             icon={<FiBook />}
             label="Resources"
-            active={isActive("/resource")}
+            active={isActive("/resources")}
             iconColor={iconColor}
             activeIconColor={activeIconColor}
             textColor={textColor}

@@ -11,7 +11,7 @@ import {
   Badge,
   HStack,
 } from "@chakra-ui/react";
-import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase, FiBarChart, FiMessageSquare, FiDollarSign, FiFileText } from "react-icons/fi";
+import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase, FiBarChart, FiMessageSquare, FiDollarSign, FiFileText, FiClipboard } from "react-icons/fi";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { getNotifications } from "../services/notificationService";
 import { fetchPayrollData } from "../services/payrollService";
@@ -109,6 +109,7 @@ const Sidebar = ({ isCollapsed, onToggleCollapse }) => {
     { label: "Customer List", path: "/FollowUpList", icon: FiUsers },
     { label: "Customer Report", path: "/adminCustomerReport", icon: FiFileText },
     { label: "Training", path: "/admin-training-upload", icon: FiBookOpen },
+    { label: "Requests", path: "/requests", icon: FiClipboard },
     { label: "Payroll", path: "/payroll", icon: FiDollarSign },
   ];
 

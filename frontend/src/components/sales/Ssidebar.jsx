@@ -23,7 +23,6 @@ import {
   FaClipboardList
 } from 'react-icons/fa';
 import { FiCheckCircle, FiMessageSquare } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
 import { getNotifications } from '../../services/notificationService';
 
 const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) => {
@@ -33,7 +32,6 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
   const borderColor = useColorModeValue('whiteAlpha.300', 'whiteAlpha.200');
   
   const [unreadCount, setUnreadCount] = useState(0);
-  const navigate = useNavigate();
 
   // Fetch notifications to count unread messages
   const fetchUnreadCount = async () => {
@@ -77,7 +75,7 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
       </HStack>
       <Divider mb={4} borderColor={borderColor} />
       <VStack align="stretch" spacing={2} px={2}>
-          {['Home', 'Followup', 'Orders', 'Tutorials', 'Tasks', 'Monthly Report', 'Notice Board'].map((label) => (
+          {['Home', 'Followup', 'Orders', 'Tutorials', 'Tasks', 'Monthly Report', 'Notice Board', 'Requests'].map((label) => (
           <SidebarItem
             key={label}
             icon={
@@ -93,6 +91,8 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
                 ? FiCheckCircle
                 : label === 'Notice Board'
                 ? FiMessageSquare
+                : label === 'Requests'
+                ? FaClipboardList
                 : FaVideo
             }
             label={label}

@@ -19,6 +19,10 @@ const Layout = ({ children }) => {
   // Load initial state from localStorage or default to 'Home'
   const getInitialActiveItem = () => {
     const savedItem = localStorage.getItem('salesActiveItem');
+    if (savedItem === 'Requests') {
+      localStorage.removeItem('salesActiveItem');
+      return 'Home';
+    }
     return savedItem || 'Home';
   };
   
@@ -56,6 +60,9 @@ const Layout = ({ children }) => {
         return <MonthlyReport />;
       case 'Notice Board':
         return <SalesMessagesPage />;
+      case 'Requests':
+        window.location.href = '/requests';
+        return null;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }
