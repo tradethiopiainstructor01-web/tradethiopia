@@ -50,7 +50,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../Layout';
 import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll, fetchCommissionData, submitCommission, fetchSalesDataForCommission, finalizePayroll, fetchPayrollHistory } from '../../services/payrollService';
 
-const PayrollPage = () => {
+const PayrollPage = ({ wrapLayout = true }) => {
   const [payrollData, setPayrollData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -985,9 +985,8 @@ const fetchPayrollDataHandler = async () => {
     );
   }
   
-  return (
-    <Layout>
-      <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
+  const pageContent = (
+    <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
         <Flex 
           direction={{ base: 'column', sm: 'row' }} 
           justify="space-between" 
@@ -2162,8 +2161,9 @@ const fetchPayrollDataHandler = async () => {
           </ModalContent>
         </Modal>
       </Box>
-    </Layout>
   );
+
+  return wrapLayout ? <Layout>{pageContent}</Layout> : pageContent;
 };
 
 // Stat Card Component
