@@ -89,6 +89,7 @@ const FinanceLayout = ({ children }) => {
     { label: 'Purchase', icon: FaUsers, path: '/finance-dashboard/purchase' },
     { label: 'Costs', icon: FaMoneyBillWave, path: '/finance-dashboard/costs' },
     { label: 'Payroll', icon: FaDollarSign, path: '/finance-dashboard/payroll' },
+    { label: 'Requests', icon: FaStickyNote, path: '/requests' },
     { label: 'Invoices', icon: FaFileInvoice, path: '/finance-dashboard/invoices' },
     { label: 'Notice Board', icon: FaCommentDots, path: '/finance/messages' },
     { label: 'Settings', icon: FaCogs, path: '/finance-dashboard/settings' }
