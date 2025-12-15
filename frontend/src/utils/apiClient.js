@@ -5,6 +5,18 @@ const apiClient = axios.create({
   baseURL,
 });
 
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("userToken");
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Add response interceptor to handle errors
 apiClient.interceptors.response.use(
   (response) => {

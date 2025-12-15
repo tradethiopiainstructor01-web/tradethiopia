@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Box,
@@ -36,9 +36,7 @@ import {
   Input,
   Select,
   Tag,
-  useToast,
 } from '@chakra-ui/react';
-import apiClient from '../../utils/apiClient';
 import { 
   FaChartBar, 
   FaChartPie, 
@@ -52,22 +50,11 @@ import {
   FaBalanceScale,
   FaWarehouse
 } from 'react-icons/fa';
+import { useTeamRequests } from '../../hooks/useTeamRequests';
 import FinanceDashboard from '../../components/finance/FinanceDashboard';
 import FinanceLayout from './FinanceLayout';
 import MonthlyReport from '../../components/finance/MonthlyReport';
 import FinanceMessagesPage from '../FinanceMessagesPage';
-
-const REQUEST_DEPARTMENTS = [
-  "Social Media",
-  "TradexTV",
-  "IT",
-  "HR",
-  "Sales",
-  "Customer Success",
-  "Finance",
-];
-const REQUEST_STATUSES = ["Pending", "Approved", "Completed"];
-const REQUEST_PRIORITIES = ["High", "Medium", "Low"];
 
 const FinanceDashboardPage = () => {
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -77,16 +64,13 @@ const FinanceDashboardPage = () => {
   const detailTextColor = useColorModeValue('gray.600', 'gray.200');
   const borderColor = useColorModeValue('gray.100', 'gray.600');
   const insetBg = useColorModeValue('gray.50', 'gray.600');
-  const toast = useToast();
-  const initialFilters = { department: "", priority: "", status: "", fromDate: "", toDate: "" };
-  const [filters, setFilters] = useState(initialFilters);
-  const [statusUpdatingId, setStatusUpdatingId] = useState(null);
-  const handleFilterChange = (field, value) => {
-    setFilters((prev) => ({ ...prev, [field]: value }));
-  };
-  const resetFilters = () => {
-    setFilters({ ...initialFilters });
-  };
+
+  const {
+    requests: teamRequests,
+    loading: teamRequestsLoading,
+    requestSummary,
+    fetchRequests: refreshTeamRequests,
+  } = useTeamRequests();
 
   // Mock data for financial metrics
   const financialMetrics = [
@@ -97,16 +81,6 @@ const FinanceDashboardPage = () => {
     { title: 'Suppliers', value: '24', change: '+2.0%', icon: FaTruck, color: 'teal' },
     { title: 'Customers', value: '156', change: '+4.5%', icon: FaUsers, color: 'pink' }
   ];
-
-  const [requests, setRequests] = useState([]);
-  const [requestsLoading, setRequestsLoading] = useState(false);
-
-  const requestSummary = useMemo(() => {
-    const total = requests.length;
-    const open = requests.filter((req) => (req.status || 'Pending') !== 'Completed').length;
-    const highPriority = requests.filter((req) => req.priority === 'High').length;
-    return { total, open, highPriority };
-  }, [requests]);
 
   const formatRequestDate = (value) => {
     if (!value) return 'No due date';
@@ -126,64 +100,16 @@ const FinanceDashboardPage = () => {
     }
   };
 
-  const fetchRequests = useCallback(async () => {
-    setRequestsLoading(true);
-    try {
-      const params = {};
-      if (filters.department) params.department = filters.department;
-      if (filters.priority) params.priority = filters.priority;
-      if (filters.status) params.status = filters.status;
-      if (filters.fromDate) params.fromDate = filters.fromDate;
-      if (filters.toDate) params.toDate = filters.toDate;
-      const response = await apiClient.get('/requests', { params });
-      const payload = Array.isArray(response.data?.data)
-        ? response.data.data
-        : Array.isArray(response.data)
-        ? response.data
-        : [];
-      setRequests(payload);
-    } catch (err) {
-      console.error('Failed to load requests', err);
-      toast({
-        title: 'Unable to load requests',
-        description: err.message || 'Please try again later',
-        status: 'error',
-      });
-      setRequests([]);
-    } finally {
-      setRequestsLoading(false);
-    }
-  }, [
-    filters.department,
-    filters.priority,
-    filters.status,
-    filters.fromDate,
-    filters.toDate,
-    toast,
-  ]);
-
-  const handleStatusChange = async (requestId, newStatus) => {
-    if (!requestId || !newStatus) return;
-    setStatusUpdatingId(requestId);
-    try {
-      await apiClient.patch(`/requests/${requestId}/status`, { status: newStatus });
-      toast({ title: "Status updated", status: "success" });
-    } catch (err) {
-      console.error("Failed to update request status", err);
-      toast({
-        title: "Unable to update status",
-        description: err.message || "Please try again later",
-        status: "error",
-      });
-    } finally {
-      setStatusUpdatingId(null);
-      fetchRequests();
+  const getPriorityColor = (priority) => {
+    switch ((priority || 'Medium').toLowerCase()) {
+      case 'high':
+        return 'red';
+      case 'medium':
+        return 'orange';
+      default:
+        return 'gray';
     }
   };
-
-  useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
 
   return (
     <FinanceLayout>
@@ -346,83 +272,20 @@ const FinanceDashboardPage = () => {
               <Box>
                 <Heading size="md">Team requests</Heading>
                 <Text fontSize="sm" color={helperTextColor}>
-                  Finance tracks requests submitted by every department.
+                  A quick summary of the most recent department requests.
                 </Text>
               </Box>
-              <Button size="sm" variant="outline" onClick={fetchRequests} isLoading={requestsLoading}>
-                Refresh
-              </Button>
+              <HStack spacing={2}>
+                <Button size="sm" variant="outline" onClick={refreshTeamRequests} isLoading={teamRequestsLoading}>
+                  Refresh
+                </Button>
+                <Button size="sm" colorScheme="teal" as={Link} to="/finance/team-requests">
+                  Manage requests
+                </Button>
+              </HStack>
             </Flex>
           </CardHeader>
           <CardBody>
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 5 }} spacing={3} mb={4}>
-              <FormControl>
-                <FormLabel fontSize="xs">Department</FormLabel>
-                <Select
-                  value={filters.department}
-                  onChange={(event) => handleFilterChange("department", event.target.value)}
-                >
-                  <option value="">All</option>
-                  {REQUEST_DEPARTMENTS.map((department) => (
-                    <option key={department} value={department}>
-                      {department}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl>
-                <FormLabel fontSize="xs">Priority</FormLabel>
-                <Select
-                  value={filters.priority}
-                  onChange={(event) => handleFilterChange("priority", event.target.value)}
-                >
-                  <option value="">All</option>
-                  {REQUEST_PRIORITIES.map((priority) => (
-                    <option key={priority} value={priority}>
-                      {priority}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl>
-                <FormLabel fontSize="xs">Status</FormLabel>
-                <Select
-                  value={filters.status}
-                  onChange={(event) => handleFilterChange("status", event.target.value)}
-                >
-                  <option value="">All</option>
-                  {REQUEST_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl>
-                <FormLabel fontSize="xs">From date</FormLabel>
-                <Input
-                  type="date"
-                  value={filters.fromDate}
-                  onChange={(event) => handleFilterChange("fromDate", event.target.value)}
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel fontSize="xs">To date</FormLabel>
-                <Input
-                  type="date"
-                  value={filters.toDate}
-                  onChange={(event) => handleFilterChange("toDate", event.target.value)}
-                />
-              </FormControl>
-            </SimpleGrid>
-            <HStack spacing={3} mb={4} wrap="wrap">
-              <Button size="sm" variant="ghost" onClick={resetFilters}>
-                Clear filters
-              </Button>
-              <Button size="sm" colorScheme="teal" onClick={fetchRequests} isLoading={requestsLoading}>
-                Apply filters
-              </Button>
-            </HStack>
             <SimpleGrid columns={{ base: 1, md: 3 }} gap={4} mb={4}>
               <Box p={3} borderRadius="md" border="1px solid" borderColor={borderColor} bg={insetBg}>
                 <Text fontSize="xs" color={helperTextColor}>
@@ -443,82 +306,50 @@ const FinanceDashboardPage = () => {
                 <Heading size="md">{requestSummary.highPriority}</Heading>
               </Box>
             </SimpleGrid>
-            {requestsLoading ? (
-              <Text textAlign="center" color={helperTextColor}>
-                Loading requests...
-              </Text>
-            ) : requests.length === 0 ? (
-              <Text textAlign="center" color={helperTextColor}>
-                No requests have been submitted yet.
-              </Text>
-            ) : (
-              <VStack spacing={3} align="stretch">
-                {requests.slice(0, 6).map((request) => {
-                  const label =
-                    request.title ||
-                    `${request.department ? request.department : "Request"} request`;
+            <VStack align="stretch" spacing={3}>
+              {teamRequestsLoading ? (
+                <Text textAlign="center" color={helperTextColor}>Loading requests...</Text>
+              ) : teamRequests.length === 0 ? (
+                <Text textAlign="center" color={helperTextColor}>No team requests yet.</Text>
+              ) : (
+                teamRequests.slice(0, 3).map((request) => {
+                  const label = request.title || `${request.department || "Team"} request`;
                   return (
                     <Box
-                      key={request._id || request.createdAt}
-                      p={3}
-                      borderRadius="lg"
+                      key={request._id || request.createdAt || label}
+                      p={4}
+                      borderRadius="md"
                       border="1px solid"
                       borderColor={borderColor}
                       bg={insetBg}
                     >
-                      <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
-                        <Text fontWeight="semibold" flex="1" isTruncated>
+                      <Flex justify="space-between" align="center" mb={1}>
+                        <Text fontWeight="semibold" fontSize="sm" isTruncated maxW="70%">
                           {label}
                         </Text>
-                        <HStack spacing={2}>
-                          <Tag
-                            size="sm"
-                            colorScheme={
-                              request.priority === "High"
-                                ? "red"
-                                : request.priority === "Medium"
-                                ? "orange"
-                                : "gray"
-                            }
-                          >
-                            {request.priority || "Medium"}
-                          </Tag>
-                          <Badge colorScheme={getStatusColor(request.status)}>
-                            {request.status || "Pending"}
-                          </Badge>
-                        </HStack>
+                        <Badge colorScheme={getPriorityColor(request.priority)} fontSize="10px">
+                          {request.priority || "Medium"}
+                        </Badge>
                       </Flex>
-                      <Text fontSize="xs" color={helperTextColor} mt={1}>
-                        {request.department?.toUpperCase() || "GENERAL"} • Due{" "}
-                        {formatRequestDate(request.date || request.createdAt)}
-                      </Text>
-                      <Text fontSize="xs" color={helperTextColor}>
-                        Submitted by {request.createdBy || "Team"} on{" "}
-                        {formatRequestDate(request.createdAt)}
-                      </Text>
+                      <HStack spacing={2} fontSize="xs" color="gray.500" mb={1}>
+                        <Text>{request.department || "Department"}</Text>
+                        <Text>-</Text>
+                        <Badge colorScheme={getStatusColor(request.status)} fontSize="xx-small">
+                          {request.status || "Pending"}
+                        </Badge>
+                        <Text>-</Text>
+                        <Text>{formatRequestDate(request.createdAt || request.date)}</Text>
+                      </HStack>
                       {request.details && (
-                        <Text fontSize="sm" color={detailTextColor} mt={2}>
+                        <Text fontSize="sm" color={detailTextColor} noOfLines={2}>
                           {request.details}
                         </Text>
                       )}
-                      <Select
-                        size="sm"
-                        mt={3}
-                        value={request.status || "Pending"}
-                        onChange={(event) => handleStatusChange(request._id, event.target.value)}
-                        isDisabled={statusUpdatingId === request._id}
-                      >
-                        {REQUEST_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </Select>
                     </Box>
                   );
-                })}
-              </VStack>
-            )}
+                })
+              )}
+            </VStack>
           </CardBody>
         </Card>
       </Box>
@@ -527,3 +358,5 @@ const FinanceDashboardPage = () => {
 };
 
 export default FinanceDashboardPage;
+
+

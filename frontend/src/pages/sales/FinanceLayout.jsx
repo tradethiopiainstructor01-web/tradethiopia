@@ -1,25 +1,28 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { 
-  Box, 
-  Flex, 
-  HStack, 
-  IconButton, 
-  Text, 
-  useColorModeValue,
-  useDisclosure,
   Avatar,
+  Badge,
+  Box,
+  Button,
+  Divider,
+  Drawer,
+  DrawerContent,
+  DrawerOverlay,
+  Flex,
+  HStack,
+  IconButton,
   Menu,
   MenuButton,
-  MenuList,
-  MenuItem,
   MenuDivider,
+  MenuItem,
+  MenuList,
+  Text,
+  Tooltip,
   useBreakpointValue,
-  Drawer,
-  DrawerOverlay,
-  DrawerContent,
+  useColorMode,
+  useColorModeValue,
+  useDisclosure,
   VStack,
-  Divider,
-  Tooltip
 } from '@chakra-ui/react';
 import { 
   FaArrowLeft, 
@@ -36,7 +39,7 @@ import {
   FaDollarSign,
   FaTruck,
   FaUsers,
-  FaFileInvoice,
+  FaClipboardList,
   FaMoneyBillWave,
   FaCogs,
   FaArrowRight,
@@ -45,7 +48,24 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUserStore } from '../../store/user';
 import NotesDrawer from '../../components/sales/NoteDrawer';
-import { useColorMode } from '@chakra-ui/react';
+import { keyframes } from '@emotion/react';
+import apiClient from '../../utils/apiClient';
+import { getLatestRequestTimestamp, getRequestCreatedAt, markTeamRequestsAsRead, getTeamRequestsLastSeenAt } from '../../utils/teamRequestHelpers';
+
+const bellPulse = keyframes`
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(56, 178, 172, 0.6);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 6px rgba(56, 178, 172, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(56, 178, 172, 0);
+  }
+`;
 
 const FinanceLayout = ({ children }) => {
   const { isOpen: isSidebarOpen, onOpen, onClose } = useDisclosure();
@@ -77,6 +97,11 @@ const FinanceLayout = ({ children }) => {
   const textColor = useColorModeValue('white', 'gray.100');
   const borderColor = useColorModeValue('whiteAlpha.300', 'whiteAlpha.200');
   const pageBg = useColorModeValue("#f5f8ff", "#0b1224");
+  const [teamRequests, setTeamRequests] = useState([]);
+  const [teamRequestsLoading, setTeamRequestsLoading] = useState(false);
+  const [lastTeamRequestSeen, setLastTeamRequestSeen] = useState(() => getTeamRequestsLastSeenAt() || new Date(0));
+  const [isBellPulsing, setIsBellPulsing] = useState(false);
+  const unreadCountRef = useRef(0);
 
   // Navigation items
   const navItems = [
@@ -90,11 +115,10 @@ const FinanceLayout = ({ children }) => {
     { label: 'Costs', icon: FaMoneyBillWave, path: '/finance-dashboard/costs' },
     { label: 'Payroll', icon: FaDollarSign, path: '/finance-dashboard/payroll' },
     { label: 'Requests', icon: FaStickyNote, path: '/requests' },
-    { label: 'Invoices', icon: FaFileInvoice, path: '/finance-dashboard/invoices' },
+    { label: 'Team Requests', icon: FaClipboardList, path: '/finance/team-requests' },
     { label: 'Notice Board', icon: FaCommentDots, path: '/finance/messages' },
-    { label: 'Settings', icon: FaCogs, path: '/finance-dashboard/settings' }
+    { label: 'Settings', icon: FaCogs, path: '/finance-dashboard/settings' },
   ];
-
   // Set active item based on current location
   useEffect(() => {
     const currentItem = navItems.find(item => location.pathname === item.path);
@@ -102,11 +126,34 @@ const FinanceLayout = ({ children }) => {
       setActiveItem(currentItem.label);
     }
   }, [location.pathname]);
+  
+    const handleNavigation = (path) => {
+      navigate(path);
+      onClose();
+    };
 
-  const handleNavigation = (path) => {
-    navigate(path);
-    onClose();
-  };
+    const fetchTeamRequestsForNotifications = useCallback(async () => {
+      setTeamRequestsLoading(true);
+      try {
+        const response = await apiClient.get('/requests');
+        const payload = Array.isArray(response.data?.data)
+          ? response.data.data
+          : Array.isArray(response.data)
+          ? response.data
+          : [];
+        setTeamRequests(payload.slice(0, 5));
+      } catch (error) {
+        console.error('Failed to load team requests for notifications', error);
+      } finally {
+        setTeamRequestsLoading(false);
+      }
+    }, []);
+
+    useEffect(() => {
+      fetchTeamRequestsForNotifications();
+      const interval = setInterval(fetchTeamRequestsForNotifications, 30000);
+      return () => clearInterval(interval);
+    }, [fetchTeamRequestsForNotifications]);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!isSidebarCollapsed);
@@ -114,6 +161,80 @@ const FinanceLayout = ({ children }) => {
 
   const isCurrentPath = (path) => {
     return location.pathname === path;
+  };
+
+  const normalizedTeamRequestSeen = lastTeamRequestSeen || new Date(0);
+  const unreadTeamRequestCount = useMemo(() => {
+    return teamRequests.filter((request) => {
+      const createdAt = getRequestCreatedAt(request);
+      return createdAt && createdAt > normalizedTeamRequestSeen;
+    }).length;
+  }, [teamRequests, normalizedTeamRequestSeen]);
+
+  const teamRequestsBadgeLabel = unreadTeamRequestCount > 0
+    ? unreadTeamRequestCount > 99
+      ? '99+'
+      : `${unreadTeamRequestCount}`
+    : null;
+
+  useEffect(() => {
+    if (unreadTeamRequestCount > unreadCountRef.current) {
+      setIsBellPulsing(true);
+      const animationReset = setTimeout(() => setIsBellPulsing(false), 1200);
+      unreadCountRef.current = unreadTeamRequestCount;
+      return () => clearTimeout(animationReset);
+    }
+    unreadCountRef.current = unreadTeamRequestCount;
+  }, [unreadTeamRequestCount]);
+
+  useEffect(() => {
+    if (location.pathname !== '/finance/team-requests') return;
+    const latest = getLatestRequestTimestamp(teamRequests) || new Date();
+    markTeamRequestsAsRead(latest);
+    setLastTeamRequestSeen(latest);
+  }, [location.pathname, teamRequests]);
+
+  const handleNotificationClick = (request) => {
+    const timestamp = getRequestCreatedAt(request) || new Date();
+    markTeamRequestsAsRead(timestamp);
+    setLastTeamRequestSeen(timestamp);
+    navigate('/finance/team-requests');
+  };
+
+  const handleViewAllRequests = () => {
+    const reference = getLatestRequestTimestamp(teamRequests) || new Date();
+    markTeamRequestsAsRead(reference);
+    setLastTeamRequestSeen(reference);
+    navigate('/finance/team-requests');
+  };
+
+  const formatNotificationDate = (value) => {
+    if (!value) return 'No date';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'No date';
+    return date.toLocaleDateString();
+  };
+
+  const getNotificationStatusColor = (status) => {
+    switch ((status || 'Pending').toLowerCase()) {
+      case 'approved':
+        return 'blue';
+      case 'completed':
+        return 'green';
+      default:
+        return 'orange';
+    }
+  };
+
+  const getPriorityBadgeColor = (priority) => {
+    switch ((priority || 'medium').toLowerCase()) {
+      case 'high':
+        return 'red';
+      case 'medium':
+        return 'orange';
+      default:
+        return 'gray';
+    }
   };
 
   const getActiveItem = () => {
@@ -126,25 +247,55 @@ const FinanceLayout = ({ children }) => {
     setActiveItem(getActiveItem());
   }, [location.pathname]);
 
-  const SidebarItem = ({ icon, label, path, isActive, onClick }) => {
+  const SidebarItem = ({ icon, label, path, isActive, onClick, badgeLabel }) => {
     return (
       <Tooltip label={isSidebarCollapsed ? label : ''} placement="right" hasArrow>
-        <HStack
-          as="button"
-          spacing={isSidebarCollapsed ? 0 : 3}
-          p={isSidebarCollapsed ? 2 : 3}
-          w="100%"
-          bg={isActive ? 'teal.600' : 'gray.700'}
-          _hover={{ bg: isActive ? 'teal.500' : 'gray.600', transform: 'translateX(2px)', transition: 'all 0.2s ease' }}
-          borderRadius="lg"
-          justifyContent={isSidebarCollapsed ? 'center' : 'flex-start'}
-          transition="all 0.3s ease"
-          onClick={onClick}
-          boxShadow={isActive ? 'md' : 'sm'}
-          cursor="pointer"
-        >
-          <Box as={icon} fontSize={isSidebarCollapsed ? "18px" : "20px"} />
-          {!isSidebarCollapsed && <Text fontSize="sm" fontWeight="medium">{label}</Text>}
+          <HStack
+            as="button"
+            spacing={isSidebarCollapsed ? 0 : 3}
+            p={isSidebarCollapsed ? 2 : 3}
+            w="100%"
+            bg={isActive ? 'teal.600' : 'gray.700'}
+            _hover={{ bg: isActive ? 'teal.500' : 'gray.600', transform: 'translateX(2px)', transition: 'all 0.2s ease' }}
+            borderRadius="lg"
+            justifyContent={isSidebarCollapsed ? 'center' : 'flex-start'}
+            transition="all 0.3s ease"
+            onClick={onClick}
+            boxShadow={isActive ? 'md' : 'sm'}
+            cursor="pointer"
+            position="relative"
+          >
+            <Box as={icon} fontSize={isSidebarCollapsed ? "18px" : "20px"} />
+            {!isSidebarCollapsed && (
+              <>
+                <Text fontSize="sm" fontWeight="medium">{label}</Text>
+                {badgeLabel && (
+                  <Badge
+                    colorScheme="red"
+                    borderRadius="full"
+                    fontSize="10px"
+                    px={2}
+                    py={1}
+                  >
+                    {badgeLabel}
+                  </Badge>
+                )}
+              </>
+            )}
+            {isSidebarCollapsed && badgeLabel && (
+              <Badge
+                position="absolute"
+                top="6px"
+                right="6px"
+                colorScheme="red"
+                borderRadius="full"
+                fontSize="9px"
+                px={1}
+                py={0}
+              >
+                {badgeLabel}
+              </Badge>
+            )}
         </HStack>
       </Tooltip>
     );
@@ -191,21 +342,22 @@ const FinanceLayout = ({ children }) => {
               />
             </HStack>
             <Divider mb={3} borderColor={borderColor} />
-            <VStack align="stretch" spacing={1} px={2} flex="1">
-              {navItems.map((item) => (
-                <SidebarItem
-                  key={item.label}
-                  icon={item.icon}
-                  label={item.label}
-                  path={item.path}
-                  isActive={activeItem === item.label}
-                  onClick={() => {
-                    setActiveItem(item.label);
-                    handleNavigation(item.path);
-                  }}
-                />
-              ))}
-            </VStack>
+                <VStack align="stretch" spacing={1} px={2} flex="1">
+                  {navItems.map((item) => (
+                    <SidebarItem
+                      key={item.label}
+                      icon={item.icon}
+                      label={item.label}
+                      path={item.path}
+                      isActive={activeItem === item.label}
+                      badgeLabel={item.label === 'Team Requests' ? teamRequestsBadgeLabel : undefined}
+                      onClick={() => {
+                        setActiveItem(item.label);
+                        handleNavigation(item.path);
+                      }}
+                    />
+                  ))}
+                </VStack>
           </Flex>
         </Box>
 
@@ -237,6 +389,7 @@ const FinanceLayout = ({ children }) => {
                     label={item.label}
                     path={item.path}
                     isActive={activeItem === item.label}
+                    badgeLabel={item.label === 'Team Requests' ? teamRequestsBadgeLabel : undefined}
                     onClick={() => {
                       setActiveItem(item.label);
                       handleNavigation(item.path);
@@ -284,19 +437,100 @@ const FinanceLayout = ({ children }) => {
                 </Text>
               </HStack>
               <HStack spacing={2}>
-                <IconButton
-                  display={{ base: "flex", md: "none" }}
-                  icon={<FaBoxes />}
-                  aria-label="Open Sidebar"
-                  size="sm"
-                  onClick={onOpen}
-                />
-                <IconButton
-                  icon={<FaBell />}
-                  aria-label="Notifications"
-                  variant="ghost"
-                  size="sm"
-                />
+                  <IconButton
+                    display={{ base: "flex", md: "none" }}
+                    icon={<FaBoxes />}
+                    aria-label="Open Sidebar"
+                    size="sm"
+                    onClick={onOpen}
+                  />
+                  <Menu>
+                    <MenuButton
+                      as={Button}
+                      variant="ghost"
+                      size="sm"
+                      px={2}
+                      py={1}
+                      borderRadius="full"
+                      aria-label="Team request notifications"
+                      position="relative"
+                      animation={isBellPulsing ? `${bellPulse} 1.2s ease` : undefined}
+                    >
+                      <Box position="relative">
+                        <FaBell />
+                        {teamRequestsBadgeLabel && (
+                          <Badge
+                            position="absolute"
+                            top="-1"
+                            right="-1"
+                            fontSize="xs"
+                            colorScheme="red"
+                            borderRadius="full"
+                            minW="20px"
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                          >
+                            {teamRequestsBadgeLabel}
+                          </Badge>
+                        )}
+                      </Box>
+                    </MenuButton>
+                    <MenuList minW="320px" maxW="360px" py={0}>
+                      <Box px={4} py={3}>
+                        <Text fontWeight="bold" fontSize="sm">Team Requests</Text>
+                        <Text fontSize="xs" color="gray.500">
+                          {unreadTeamRequestCount} unread request{unreadTeamRequestCount === 1 ? '' : 's'}
+                        </Text>
+                      </Box>
+                      <Divider />
+                      {teamRequestsLoading ? (
+                        <MenuItem isDisabled>
+                          <Text fontSize="sm" color="gray.500">Loading requests...</Text>
+                        </MenuItem>
+                      ) : teamRequests.length === 0 ? (
+                        <MenuItem isDisabled>
+                          <Text fontSize="sm" color="gray.500">No recent requests.</Text>
+                        </MenuItem>
+                      ) : (
+                        teamRequests.map((request) => {
+                          const label = request.title || `${request.department || 'Team'} request`;
+                          return (
+                            <MenuItem
+                              key={request._id || request.createdAt || label}
+                              onClick={() => handleNotificationClick(request)}
+                              flexDirection="column"
+                              alignItems="flex-start"
+                              py={3}
+                            >
+                              <Flex width="100%" justify="space-between" align="center">
+                                <Text fontSize="sm" fontWeight="semibold" isTruncated maxW="190px">
+                                  {label}
+                                </Text>
+                                <Badge colorScheme={getPriorityBadgeColor(request.priority)} fontSize="xx-small">
+                                  {request.priority || 'Medium'}
+                                </Badge>
+                              </Flex>
+                              <HStack spacing={2} fontSize="xs" color="gray.500">
+                                <Text>{request.department || 'Department'}</Text>
+                                <Text>-</Text>
+                                <Badge colorScheme={getNotificationStatusColor(request.status)} fontSize="xx-small">
+                                  {request.status || 'Pending'}
+                                </Badge>
+                              </HStack>
+                              <Text fontSize="xs" color="gray.500">
+                                {formatNotificationDate(request.createdAt || request.date)}
+                              </Text>
+                            </MenuItem>
+                          );
+                        })
+                      )}
+                      <MenuDivider />
+                      <MenuItem onClick={handleViewAllRequests}>
+                        <Text fontSize="sm">View all requests</Text>
+                      </MenuItem>
+                    </MenuList>
+                  </Menu>
                 <IconButton
                   icon={<FaStickyNote />}
                   aria-label="Notes"
