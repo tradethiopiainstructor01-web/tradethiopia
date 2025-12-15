@@ -2,7 +2,127 @@ const InventoryItem = require('../models/InventoryItem');
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const Purchase = require('../models/Purchase');
-const { calculateCommission } = require('../utils/commission');
+const Cost = require('../models/Cost');
+const { calculateRevenueSummary, buildRevenueTimeline } = require('../utils/revenue');
+const { calculatePayrollCost, calculateCategoryBreakdown } = require('../utils/expence');
+
+const buildExpenseSummary = async () => {
+  const buildTimeline = async (period) => {
+    const groupId = period === 'week'
+      ? {
+          year: { $isoWeekYear: '$incurredOn' },
+          periodValue: { $isoWeek: '$incurredOn' }
+        }
+      : {
+          year: { $year: '$incurredOn' },
+          periodValue: { $month: '$incurredOn' }
+        };
+
+    const pipeline = [
+      { $match: { incurredOn: { $exists: true } } },
+      {
+        $group: {
+          _id: groupId,
+          total: { $sum: '$amount' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          year: '$_id.year',
+          periodValue: '$_id.periodValue',
+          total: 1
+        }
+      },
+      {
+        $addFields: {
+          paddedPeriod: {
+            $cond: [
+              { $gte: ['$periodValue', 10] },
+              { $toString: '$periodValue' },
+              { $concat: ['0', { $toString: '$periodValue' }] }
+            ]
+          }
+        }
+      },
+      {
+        $addFields: {
+          label: {
+            $concat: [
+              { $toString: '$year' },
+              period === 'week' ? '-W' : '-',
+              '$paddedPeriod'
+            ]
+          },
+          order: {
+            $add: [
+              { $multiply: ['$year', 100] },
+              '$periodValue'
+            ]
+          }
+        }
+      },
+      { $sort: { order: -1 } },
+      { $limit: 6 }
+    ];
+
+    return Cost.aggregate(pipeline);
+  };
+
+  const buildSources = async (limit = 5) => {
+    return Cost.aggregate([
+      {
+        $group: {
+          _id: {
+            category: { $ifNull: ['$category', 'uncategorized'] },
+            department: { $ifNull: ['$department', 'General'] }
+          },
+          total: { $sum: '$amount' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          category: '$_id.category',
+          department: '$_id.department',
+          total: 1
+        }
+      },
+      { $sort: { total: -1 } },
+      { $limit: limit }
+    ]);
+  };
+
+  const [breakdown, recentExpenses, weeklyTotals, monthlyTotals, payrollCost, expenseSources] = await Promise.all([
+    calculateCategoryBreakdown(),
+    Cost.find().sort({ incurredOn: -1 }).limit(5).lean(),
+    buildTimeline('week'),
+    buildTimeline('month'),
+    calculatePayrollCost(),
+    buildSources()
+  ]);
+
+  const totalCostOnly = Number(Object.values(breakdown).reduce((sum, value) => sum + (value || 0), 0).toFixed(2));
+  const totalExpenses = Number((totalCostOnly + (payrollCost || 0)).toFixed(2));
+
+  const transformTrend = (timeline = []) => timeline.map((bucket) => ({
+    label: bucket.label,
+    total: Number((bucket.total || 0).toFixed(2)),
+    order: bucket.order
+  }));
+
+  return {
+    totalExpenses,
+    totalCostsRecorded: totalExpenses,
+    totalCost: totalCostOnly,
+    breakdown,
+    monthlyTrend: transformTrend(monthlyTotals),
+    weeklyTrend: transformTrend(weeklyTotals),
+    recent: recentExpenses,
+    payrollCost: payrollCost || 0,
+    expenseSources
+  };
+};
 
 exports.getMetrics = async (req, res) => {
   try {
@@ -26,6 +146,72 @@ exports.getMetrics = async (req, res) => {
   } catch (err) {
     console.error('Error fetching finance metrics:', err);
     res.status(500).json({ message: 'Failed to fetch finance metrics' });
+  }
+};
+
+exports.getRevenueSummary = async (_req, res) => {
+  try {
+    const data = await calculateRevenueSummary();
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching revenue summary:', err);
+    res.status(500).json({ message: 'Failed to fetch revenue summary' });
+  }
+};
+
+exports.getRevenueReport = async (req, res) => {
+  try {
+    const data = await calculateRevenueSummary();
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching revenue report:', err);
+    res.status(500).json({ message: 'Failed to fetch revenue report', error: err.message });
+  }
+};
+
+exports.getFinanceSummary = async (req, res) => {
+  try {
+    const [revenueData, expenseData, weeklyRevenue, monthlyRevenue] = await Promise.all([
+      calculateRevenueSummary(),
+      buildExpenseSummary(),
+      buildRevenueTimeline('week'),
+      buildRevenueTimeline('month')
+    ]);
+
+    const totalRevenue = revenueData?.totalRevenue || 0;
+    const totalExpenses = expenseData.totalExpenses || 0;
+    const profit = Number((totalRevenue - totalExpenses).toFixed(2));
+
+    res.json({
+      revenue: totalRevenue,
+      expenses: totalExpenses,
+      profit,
+      invoices: 0,
+      totalCostsRecorded: expenseData.totalCostsRecorded || totalExpenses,
+      payrollCost: expenseData.payrollCost || 0,
+      followupRevenue: revenueData.followupRevenue || 0,
+      orderRevenue: revenueData.orderRevenue || 0,
+      packageRevenue: revenueData.packageRevenue || 0,
+      expenseBreakdown: expenseData.breakdown,
+      monthlyExpenses: expenseData.monthlyTrend,
+      weeklyExpenses: expenseData.weeklyTrend,
+      weeklyRevenue,
+      monthlyRevenue,
+      recentExpenses: expenseData.recent
+    });
+  } catch (err) {
+    console.error('Error fetching finance summary:', err);
+    res.status(500).json({ message: 'Failed to fetch finance summary', error: err.message });
+  }
+};
+
+exports.getExpenseReport = async (_req, res) => {
+  try {
+    const data = await buildExpenseSummary();
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching expense report:', err);
+    res.status(500).json({ message: 'Failed to fetch expense report', error: err.message });
   }
 };
 

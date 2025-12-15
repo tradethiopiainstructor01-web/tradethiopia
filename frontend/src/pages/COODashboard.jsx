@@ -160,7 +160,7 @@ const COODashboard = () => {
   const [loadingRevenueOps, setLoadingRevenueOps] = useState(false);
   const [csStats, setCsStats] = useState({ total: 0, active: 0, completed: 0, newCustomers: 0, returningCustomers: 0 });
   const [loadingCsStats, setLoadingCsStats] = useState(false);
-  const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0 });
+  const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0, totalCostsRecorded: 0 });
   const [loadingFinance, setLoadingFinance] = useState(false);
   const [financeReports, setFinanceReports] = useState([]);
   const [loadingFinanceReports, setLoadingFinanceReports] = useState(false);
@@ -484,6 +484,7 @@ const COODashboard = () => {
         expenses: data.expenses || 0,
         profit: data.profit || 0,
         invoices: data.invoices || 0,
+        totalCostsRecorded: data.totalCostsRecorded ?? data.expenses ?? 0
       });
     } catch (err) {
       console.warn('Failed to load finance stats', err);
@@ -861,14 +862,14 @@ const COODashboard = () => {
 
   const financialSnapshot = React.useMemo(
     () => ({
-      revenue: 5400000,
-      netProfit: 1180000,
-      cashflow: 920000,
-      expenses: 4200000,
+      revenue: financeStats.revenue || 0,
+      netProfit: financeStats.profit || 0,
+      cashflow: (financeStats.revenue || 0) - (financeStats.expenses || 0) || 0,
+      expenses: financeStats.expenses || 0,
       salesGrowth: 12.4,
       receivables: 310000,
     }),
-    []
+    [financeStats]
   );
 
   const profitabilityTrend = React.useMemo(
@@ -2218,6 +2219,9 @@ const COODashboard = () => {
                 <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
                   <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Expenses</Text>
                   <Heading size="md" mt={1} color="red.500">{loadingFinance ? '...' : etbFormatter.format(financeStats.expenses || 0)}</Heading>
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    Total Costs Recorded: {loadingFinance ? '...' : etbFormatter.format(financeStats.totalCostsRecorded || 0)}
+                  </Text>
                 </Box>
                 <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
                   <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Net Profit</Text>

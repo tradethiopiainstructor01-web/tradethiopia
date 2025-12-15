@@ -77,7 +77,7 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
       </HStack>
       <Divider mb={4} borderColor={borderColor} />
       <VStack align="stretch" spacing={2} px={2}>
-          {['Home', 'Followup', 'Orders', 'Tutorials', 'Tasks', 'Monthly Report', 'Notice Board'].map((label) => (
+          {['Home', 'Followup', 'Orders', 'Tutorials', 'Tasks', 'Monthly Report', 'Notice Board', 'Financial Reports'].map((label) => (
           <SidebarItem
             key={label}
             icon={
@@ -93,6 +93,8 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
                 ? FiCheckCircle
                 : label === 'Notice Board'
                 ? FiMessageSquare
+                : label === 'Financial Reports'
+                ? FaChartLine
                 : FaVideo
             }
             label={label}

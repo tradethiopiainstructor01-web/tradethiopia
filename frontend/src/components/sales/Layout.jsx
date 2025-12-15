@@ -13,11 +13,14 @@ import TaskDashboard from './TaskDashboard.jsx';
 import MonthlyReport from './MonthlyReport.jsx';
 import SalesMessagesPage from '../../pages/SalesMessagesPage';
 
-const Layout = ({ children }) => {
+const Layout = ({ children, initialActiveItem }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
-  
+
   // Load initial state from localStorage or default to 'Home'
   const getInitialActiveItem = () => {
+    if (initialActiveItem) {
+      return initialActiveItem;
+    }
     const savedItem = localStorage.getItem('salesActiveItem');
     return savedItem || 'Home';
   };
@@ -41,6 +44,9 @@ const Layout = ({ children }) => {
       case 'Finance':
         // Navigate to the dedicated finance dashboard page
         window.location.href = '/finance-dashboard';
+        return null;
+      case 'Financial Reports':
+        window.location.href = '/finance-dashboard/reports';
         return null;
       case 'Orders':
         return <OrderFollowup />;
