@@ -44,6 +44,7 @@ export const getRequestCreatedAt = (request) => {
 };
 
 export const getLatestRequestTimestamp = (requests = []) => {
+  if (!Array.isArray(requests) || requests.length === 0) return null;
   return requests.reduce((latest, request) => {
     const candidate = getRequestCreatedAt(request);
     if (!candidate) return latest;

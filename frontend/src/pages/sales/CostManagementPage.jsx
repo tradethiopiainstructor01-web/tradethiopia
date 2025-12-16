@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FaFileExport } from 'react-icons/fa';
-import FinanceLayout from './FinanceLayout';
 import {
   getCosts,
   createCost,
@@ -229,8 +228,7 @@ const CostManagementPage = () => {
   const activeCosts = filteredCosts[activeTab] || [];
 
   return (
-    <FinanceLayout>
-      <Box>
+    <Box>
         <Flex justify="space-between" mb={4} align="center">
           <Heading size="lg">Cost Management</Heading>
           <Stack direction="row" spacing={3}>
@@ -396,7 +394,6 @@ const CostManagementPage = () => {
           </TabPanels>
         </Tabs>
       </Box>
-    </FinanceLayout>
   );
 };
 

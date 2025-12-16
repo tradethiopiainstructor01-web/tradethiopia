@@ -31,7 +31,6 @@ import {
   Spinner
 } from '@chakra-ui/react';
 import { FaPlus, FaTrash, FaShoppingCart, FaChartBar, FaDollarSign, FaSave } from 'react-icons/fa';
-import FinanceLayout from './FinanceLayout';
 import { getPurchases, createPurchase, updatePurchase, deletePurchase } from '../../services/financeService';
 
 const PurchasePage = () => {
@@ -328,8 +327,7 @@ const PurchasePage = () => {
   const totalCostSum = purchaseItems.reduce((sum, item) => sum + parseFloat(item.totalCost || 0), 0);
 
   return (
-    <FinanceLayout>
-      <Box py={1} px={2}>
+    <Box py={1} px={2}>
         {/* Compact Header Section */}
         <Flex justify="space-between" align="center" mb={3}>
           <Heading as="h1" size="md" color={headerColor} fontWeight="bold">
@@ -658,7 +656,6 @@ const PurchasePage = () => {
           </CardBody>
         </Card>
       </Box>
-    </FinanceLayout>
   );
 };
 

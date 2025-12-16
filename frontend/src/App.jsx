@@ -1,5 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import AppLayout from "./components/AppLayout";
+import { Navigate, Route, Routes } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import CreatePage from "./pages/CreatePage";
 import CreateQuiz from "./pages/CreateQuiz";
@@ -15,6 +14,7 @@ import FourthPage from "./pages/FourthPage";
 import FifthPage from "./pages/FifthPage.jsx";
 import QuizPage from "./pages/quizPage.jsx";
 import Sdashboard from "./pages/sales/Sdashboard.jsx";
+import Srequest from "./pages/sales/Srequest.jsx";
 import FinanceLayout from "./pages/sales/FinanceLayout.jsx";
 import FinanceDashboardPage from "./pages/sales/FinanceDashboardPage.jsx";
 import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
@@ -75,130 +75,99 @@ import RequestPage from "./pages/RequestPage";
 import TeamRequestsPage from "./pages/sales/TeamRequestsPage.jsx";
 
 function App() {
-  const location = useLocation();
-
-  // Define the paths where Sidebar and Navbar should not appear
-    const noNavSidebarRoutes = [
-      "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
-      "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
-      "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
-      "/finance/messages", "/finance/team-requests",
-      "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
-      "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-      "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll"
-    ].map((path) => path.toLowerCase());
-
-  // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
-  const normalizedPath = location.pathname.toLowerCase();
-  const showNavAndSidebar = !noNavSidebarRoutes.some((route) => {
-    if (route === "/") {
-      return normalizedPath === "/";
-    }
-    return normalizedPath.startsWith(route);
-  });
-
   return (
-    <AppLayout showNav={showNavAndSidebar}>
-      <Routes>
-            <Route path="/" element={<WelcomePage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/InfoForm" element={<InfoForm />} />
-            <Route path="/secondpage" element={<SecondPage />} />
-            <Route path="/thirdpage" element={<ThirdPage />} />
-            <Route path="/fourthpage" element={<FourthPage />} />
-            <Route path="/fifthpage" element={<FifthPage />} />
-            <Route path="/exam" element={<QuizPage />} />
-            <Route path="/WaitingForApproval" element={<WaitingForApproval />} />
-            <Route path="/sdashboard" element={<Sdashboard />} />
-            <Route path="/finance-dashboard" element={<FinanceDashboardPage />} />
-            <Route path="/finance-dashboard/reports" element={<FinanceReportsPage />} />
-            <Route path="/finance-dashboard/inventory" element={<InventoryPage />} />
-            <Route path="/finance-dashboard/orders" element={<OrdersPage />} />
-            <Route path="/finance-dashboard/pricing" element={<PricingPage />} />
-            <Route path="/finance-dashboard/revenue" element={<RevenuePage />} />
-            <Route path="/finance-dashboard/purchase" element={<PurchasePage />} />
-            <Route path="/finance-dashboard/costs" element={<CostManagementPage />} />
-            <Route path="/finance-dashboard/payroll" element={<FinancePayrollPage />} />
-            <Route path="/finance/team-requests" element={<TeamRequestsPage />} />
-            <Route path="/resource" element={<Navigate to="/resources" replace />} />
-            <Route path="/employee-info" element={<EmployeeInfoPage />} />
-            <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
-            <Route path="/users" element={<HomePage />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/documentupload" element={<DocumentUploadForm />} />
-            <Route path="/category" element={<Category />} />
-            <Route path="/documentlist" element={<DocumentList />} />
-            <Route path="/EmployeeDocument" element={<EmployeeDocumentList />} />
-            <Route path="/documentlist/:id" element={<DocumentList />} />
-            <Route path="/create" element={<CreatePage />} />
-            <Route path="/quiz" element={<CreateQuiz />} />
-            <Route path="/resources" element={<PDFList />} />
-            <Route path="/Addresource" element={<Addresource />} />
-            <Route path="/FollowUpList" element={<FollowUpList />} />
-            <Route path="/CustomerFollowUpForm" element={<CustomerFollowUpForm />} />
-            <Route path="/assetcategory" element={<AssetCategoryPage />} />
-            <Route path="/assets" element={<AssetManagementPage />} />
-            <Route path="/ttv" element={<TTV />} />
-            <Route path="/PDF" element={<PDFList />} />
-            <Route path="/CustomerFollowup" element={<CustomerFollowup />} />
-            <Route path="/AddCustomer" element={<AddCustomer />} />
-            <Route path="/VideoList" element={<VideoList />} />
-            <Route path="/UploadPage" element={<UploadResource />} />
-            <Route path="/Cdashboard" element={<CDashboard />} />
-            <Route path="/CustomerReport" element={<CustomerReport />} />
-            <Route path="/followup-report" element={<CustomerFollowupReport />} />
-            <Route path="/training" element={<TrainingPage />} />
-            <Route path="/ComingSoonPage" element={<ComingSoonPage />} />
-            <Route path="/admin-training-upload" element={<AdminTrainingUpload />} />
-            <Route path="/adminCustomerReport" element={<AdminCustomerReport />} />
-            <Route path="/b2b-dashboard" element={<B2BDashboard />} />
-            <Route path="/coo-dashboard" element={<COODashboard />} />
-            <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
-            <Route path="/customer-settings" element={<CustomerSettings />} />
-            <Route path="/social-media" element={<SocialMediaDashboardPage />} />
-            <Route
-              path="/requests"
-              element={
-                <FinanceLayout>
-                  <RequestPage />
-                </FinanceLayout>
-              }
-            />
-            <Route path="/it" element={<ITDashboard />} />
-            <Route path="/payroll" element={<PayrollPage />} />
-            <Route path="/my-payroll" element={<EmployeePayrollView />} />
-            {/* Generic message page that redirects to dashboard-specific pages */}
-            <Route path="/messages" element={<RedirectMessagesPage />} />
-            {/* Dashboard-specific message pages */}
-            <Route path="/sales/messages" element={<SalesMessagesPage />} />
-            <Route path="/finance/messages" element={
-              <FinanceLayout>
-                <FinanceMessagesPage embedded />
-              </FinanceLayout>
-            } />
-            <Route path="/it/messages" element={<ITDashboard initialTab="notice-board" />} />
-            <Route path="/customer/messages" element={<CDashboard initialTab="notice-board" />} />
-            <Route
-              path="/salesmanager/*"
-              element={
-                <SalesManagerProtectedRoute>
-                  <SalesManagerLayout />
-                </SalesManagerProtectedRoute>
-              }
-            >
-              <Route index element={<SalesManagerDashboard />} />
-              <Route path="dashboard" element={<SalesManagerDashboard />} />
-              <Route path="all-sales" element={<AllSalesPage />} />
-              <Route path="performance" element={<PerformancePage />} />
-              <Route path="team" element={<TeamManagementPage />} />
-              <Route path="tasks" element={<TaskManagementPage />} />
-              <Route path="reports" element={<ReportsPage />} />
-              <Route path="calendar" element={<CalendarPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="messages" element={<MessagesPage />} />
-            </Route>
-          </Routes>
-        </AppLayout>
+    <Routes>
+        <Route path="/" element={<WelcomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/InfoForm" element={<InfoForm />} />
+        <Route path="/secondpage" element={<SecondPage />} />
+        <Route path="/thirdpage" element={<ThirdPage />} />
+        <Route path="/fourthpage" element={<FourthPage />} />
+        <Route path="/fifthpage" element={<FifthPage />} />
+        <Route path="/exam" element={<QuizPage />} />
+        <Route path="/WaitingForApproval" element={<WaitingForApproval />} />
+        <Route path="/sdashboard" element={<Sdashboard />} />
+        <Route path="/srequest" element={<Srequest />} />
+        <Route path="/finance-dashboard" element={<FinanceLayout><FinanceDashboardPage /></FinanceLayout>} />
+        <Route path="/finance-dashboard/reports" element={<FinanceLayout><FinanceReportsPage /></FinanceLayout>} />
+        <Route path="/finance-dashboard/inventory" element={<FinanceLayout><InventoryPage /></FinanceLayout>} />
+        <Route path="/finance-dashboard/orders" element={<FinanceLayout><OrdersPage /></FinanceLayout>} />
+        <Route path="/finance-dashboard/pricing" element={<FinanceLayout><PricingPage /></FinanceLayout>} />
+        <Route path="/finance-dashboard/revenue" element={<FinanceLayout><RevenuePage /></FinanceLayout>} />
+        <Route path="/finance-dashboard/purchase" element={<FinanceLayout><PurchasePage /></FinanceLayout>} />
+        <Route path="/finance-dashboard/costs" element={<FinanceLayout><CostManagementPage /></FinanceLayout>} />
+        <Route path="/finance-dashboard/payroll" element={<FinanceLayout><FinancePayrollPage /></FinanceLayout>} />
+        <Route path="/finance/team-requests" element={<FinanceLayout><TeamRequestsPage /></FinanceLayout>} />
+        <Route
+          path="/finance/messages"
+          element={
+            <FinanceLayout>
+              <FinanceMessagesPage embedded />
+            </FinanceLayout>
+          }
+        />
+        <Route path="/resource" element={<Navigate to="/resources" replace />} />
+        <Route path="/employee-info" element={<EmployeeInfoPage />} />
+        <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
+        <Route path="/users" element={<HomePage />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/documentupload" element={<DocumentUploadForm />} />
+        <Route path="/category" element={<Category />} />
+        <Route path="/documentlist" element={<DocumentList />} />
+        <Route path="/EmployeeDocument" element={<EmployeeDocumentList />} />
+        <Route path="/documentlist/:id" element={<DocumentList />} />
+        <Route path="/create" element={<CreatePage />} />
+        <Route path="/quiz" element={<CreateQuiz />} />
+        <Route path="/resources" element={<PDFList />} />
+        <Route path="/Addresource" element={<Addresource />} />
+        <Route path="/FollowUpList" element={<FollowUpList />} />
+        <Route path="/CustomerFollowUpForm" element={<CustomerFollowUpForm />} />
+        <Route path="/assetcategory" element={<AssetCategoryPage />} />
+        <Route path="/assets" element={<AssetManagementPage />} />
+        <Route path="/ttv" element={<TTV />} />
+        <Route path="/PDF" element={<PDFList />} />
+        <Route path="/CustomerFollowup" element={<CustomerFollowup />} />
+        <Route path="/AddCustomer" element={<AddCustomer />} />
+        <Route path="/VideoList" element={<VideoList />} />
+        <Route path="/UploadPage" element={<UploadResource />} />
+        <Route path="/Cdashboard" element={<CDashboard />} />
+        <Route path="/CustomerReport" element={<CustomerReport />} />
+        <Route path="/followup-report" element={<CustomerFollowupReport />} />
+        <Route path="/training" element={<TrainingPage />} />
+        <Route path="/ComingSoonPage" element={<ComingSoonPage />} />
+        <Route path="/admin-training-upload" element={<AdminTrainingUpload />} />
+        <Route path="/adminCustomerReport" element={<AdminCustomerReport />} />
+        <Route path="/b2b-dashboard" element={<B2BDashboard />} />
+        <Route path="/coo-dashboard" element={<COODashboard />} />
+        <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
+        <Route path="/customer-settings" element={<CustomerSettings />} />
+        <Route path="/social-media" element={<SocialMediaDashboardPage />} />
+        <Route path="/requests" element={<RequestPage />} />
+        <Route path="/it" element={<ITDashboard />} />
+        <Route path="/payroll" element={<PayrollPage />} />
+        <Route path="/my-payroll" element={<EmployeePayrollView />} />
+        <Route path="/messages" element={<RedirectMessagesPage />} />
+        <Route path="/sales/messages" element={<SalesMessagesPage />} />
+        <Route
+          path="/salesmanager/*"
+          element={
+            <SalesManagerProtectedRoute>
+              <SalesManagerLayout />
+            </SalesManagerProtectedRoute>
+          }
+        >
+          <Route index element={<SalesManagerDashboard />} />
+          <Route path="dashboard" element={<SalesManagerDashboard />} />
+          <Route path="all-sales" element={<AllSalesPage />} />
+          <Route path="performance" element={<PerformancePage />} />
+          <Route path="team" element={<TeamManagementPage />} />
+          <Route path="tasks" element={<TaskManagementPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="messages" element={<MessagesPage />} />
+        </Route>
+      </Routes>
   );
 }
 

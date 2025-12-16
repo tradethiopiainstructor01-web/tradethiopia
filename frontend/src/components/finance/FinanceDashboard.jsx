@@ -72,20 +72,20 @@ const FinanceDashboard = () => {
   }, []);
   return (
     <>
-      <Box mb={6}>
-        <Heading size="lg">Finance Overview</Heading>
-        <Text color="gray.600">Key finance metrics and quick actions</Text>
+      <Box mb={3}>
+        <Heading size="xs">Finance Overview</Heading>
+        <Text fontSize="xs" color="gray.600">Key finance metrics and quick actions</Text>
       </Box>
 
-      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={6}>
-        <Card>
-          <CardBody>
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={2} mb={3}>
+        <Card size="sm">
+          <CardBody py={2} px={3}>
             <Stat>
-              <StatLabel>Total Revenue</StatLabel>
-              <StatNumber>
+              <StatLabel fontSize="xs">Total Revenue</StatLabel>
+              <StatNumber fontSize="sm">
                 {financeSummary ? formatCurrency(financeSummary.revenue) : '$0'}
               </StatNumber>
-              <StatHelpText>
+              <StatHelpText fontSize="xs">
                 {financeSummary ? (
                   <>
                     <StatArrow type="increase" />
@@ -104,28 +104,28 @@ const FinanceDashboard = () => {
           </CardBody>
         </Card>
 
-        <Card>
-          <CardBody>
+        <Card size="sm">
+          <CardBody py={2} px={3}>
             <Stat>
-              <StatLabel>Expenses (recorded)</StatLabel>
-              <StatNumber>
+              <StatLabel fontSize="xs">Expenses (recorded)</StatLabel>
+              <StatNumber fontSize="sm">
                 {financeSummary ? formatCurrency(financeSummary.totalCostsRecorded || financeSummary.expenses) : '$0'}
               </StatNumber>
-              <StatHelpText>
+              <StatHelpText fontSize="xs">
                 Payroll spend: {financeSummary ? formatCurrency(financeSummary.payrollCost) : '$0'}
               </StatHelpText>
             </Stat>
           </CardBody>
         </Card>
 
-        <Card>
-          <CardBody>
+        <Card size="sm">
+          <CardBody py={2} px={3}>
             <Stat>
-              <StatLabel>Net Profit</StatLabel>
-              <StatNumber>
+              <StatLabel fontSize="xs">Net Profit</StatLabel>
+              <StatNumber fontSize="sm">
                 {financeSummary ? formatCurrency(financeSummary.profit) : '$0'}
               </StatNumber>
-              <StatHelpText>
+              <StatHelpText fontSize="xs">
                 {financeSummary ? 'Revenue − Expenses' : 'Loading...'}
               </StatHelpText>
             </Stat>
@@ -133,25 +133,25 @@ const FinanceDashboard = () => {
         </Card>
       </SimpleGrid>
 
-      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={6}>
-        <Card>
-          <CardBody>
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={2} mb={3}>
+        <Card size="sm">
+          <CardBody py={2} px={3}>
             <Stat>
-              <StatLabel>Outstanding Invoices</StatLabel>
-              <StatNumber>${metrics ? (metrics.outstandingInvoices || 0).toLocaleString() : '0'}</StatNumber>
-              <StatHelpText>
+              <StatLabel fontSize="xs">Outstanding Invoices</StatLabel>
+              <StatNumber fontSize="sm">${metrics ? (metrics.outstandingInvoices || 0).toLocaleString() : '0'}</StatNumber>
+              <StatHelpText fontSize="xs">
                 <StatArrow type="decrease" /> 4% vs last month
               </StatHelpText>
             </Stat>
           </CardBody>
         </Card>
 
-        <Card>
-          <CardBody>
+        <Card size="sm">
+          <CardBody py={2} px={3}>
             <Stat>
-              <StatLabel>Stock Value</StatLabel>
-              <StatNumber>${metrics ? (metrics.stockValue || 0).toLocaleString() : '0'}</StatNumber>
-              <StatHelpText>
+              <StatLabel fontSize="xs">Stock Value</StatLabel>
+              <StatNumber fontSize="sm">${metrics ? (metrics.stockValue || 0).toLocaleString() : '0'}</StatNumber>
+              <StatHelpText fontSize="xs">
                 <StatArrow type="increase" /> 3% this month
               </StatHelpText>
             </Stat>
@@ -159,43 +159,43 @@ const FinanceDashboard = () => {
         </Card>
       </SimpleGrid>
 
-      <Box mb={6}>
-        <Heading size="md" mb={3}>Quick Actions</Heading>
-        <HStack spacing={3}>
-          <Button as={Link} to="/finance/inventory" colorScheme="teal">Manage Inventory</Button>
-          <Button as={Link} to="/finance/orders" colorScheme="purple">Manage Orders {openOrders ? `(${openOrders})` : ''}</Button>
-          <Button as={Link} to="/finance/demands" colorScheme="orange">View Demands {openDemands ? `(${openDemands})` : ''}</Button>
-          <Button colorScheme="blue">Create Invoice</Button>
-          <Button colorScheme="gray">View Reports</Button>
+      <Box mb={3}>
+        <Heading size="xs" mb={2}>Quick Actions</Heading>
+        <HStack spacing={1} flexWrap="wrap">
+          <Button as={Link} to="/finance/inventory" colorScheme="teal" size="xs" height="24px" minH="unset">Manage Inventory</Button>
+          <Button as={Link} to="/finance/orders" colorScheme="purple" size="xs" height="24px" minH="unset">Manage Orders {openOrders ? `(${openOrders})` : ''}</Button>
+          <Button as={Link} to="/finance/demands" colorScheme="orange" size="xs" height="24px" minH="unset">View Demands {openDemands ? `(${openDemands})` : ''}</Button>
+          <Button colorScheme="blue" size="xs" height="24px" minH="unset">Create Invoice</Button>
+          <Button colorScheme="gray" size="xs" height="24px" minH="unset">View Reports</Button>
         </HStack>
       </Box>
 
       {/* Agent Sales Report Section */}
-      <Box mb={8}>
+      <Box mb={4}>
         <AgentSalesReport />
       </Box>
 
-      <Box>
-        <Heading size="md" mb={3}>Activity</Heading>
-        <VStack spacing={3} align="stretch">
-          <Card>
-            <CardBody>
-              <Text fontWeight="semibold">Recent stock adjustments</Text>
-              <Text fontSize="sm" color="gray.500">No recent adjustments</Text>
+      <Box mb={3}>
+        <Heading size="xs" mb={2}>Activity</Heading>
+        <VStack spacing={2} align="stretch">
+          <Card size="sm">
+            <CardBody py={2} px={3}>
+              <Text fontWeight="semibold" fontSize="sm">Recent stock adjustments</Text>
+              <Text fontSize="xs" color="gray.500">No recent adjustments</Text>
             </CardBody>
           </Card>
 
-          <Card>
-            <CardBody>
-              <Text fontWeight="semibold">Payment status</Text>
-              <Text fontSize="sm" color="gray.500">All payments processed</Text>
+          <Card size="sm">
+            <CardBody py={2} px={3}>
+              <Text fontWeight="semibold" fontSize="sm">Payment status</Text>
+              <Text fontSize="xs" color="gray.500">All payments processed</Text>
             </CardBody>
           </Card>
         </VStack>
       </Box>
 
-      <Box mt={8}>
-        <Heading size="md" mb={3}>Payroll Snapshot</Heading>
+      <Box mt={4}>
+        <Heading size="xs" mb={2}>Payroll Snapshot</Heading>
         <FinancePayrollTable />
       </Box>
     </>
