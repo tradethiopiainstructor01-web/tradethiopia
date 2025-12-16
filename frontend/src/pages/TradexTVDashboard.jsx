@@ -61,13 +61,13 @@ import {
   Textarea
 } from '@chakra-ui/react';
 import {
-  FiUsers, 
-  FiMessageSquare, 
-  FiClock, 
-  FiCheckCircle, 
-  FiAlertCircle, 
-  FiHome, 
-  FiMenu, 
+  FiUsers,
+  FiMessageSquare,
+  FiClock,
+  FiCheckCircle,
+  FiAlertCircle,
+  FiHome,
+  FiMenu,
   FiSettings,
   FiBarChart2,
   FiFileText,
@@ -82,7 +82,8 @@ import {
   FiAward,
   FiPieChart,
   FiChevronDown,
-  FiLogOut
+  FiLogOut,
+  FiClipboard,
 } from 'react-icons/fi';
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import { useUserStore } from '../store/user';
@@ -249,6 +250,17 @@ const TradexTVDashboard = () => {
   const navigate = useNavigate();
   const cardBg = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const sidebarBg = useColorModeValue('white', 'gray.800');
+  const sidebarBorderColor = useColorModeValue('gray.200', 'gray.700');
+  const sidebarActiveBg = useColorModeValue('purple.50', 'purple.900');
+  const sidebarHoverBg = useColorModeValue('gray.100', 'gray.700');
+  const sidebarLinkColor = useColorModeValue('gray.700', 'gray.100');
+  const sidebarActiveColor = useColorModeValue('purple.600', 'purple.200');
+  const whiteCardTextColor = useColorModeValue('gray.800', 'gray.900');
+  const sectionHeadingColor = useColorModeValue('gray.700', 'whiteAlpha.900');
+  const sectionTextColor = useColorModeValue('gray.600', 'gray.300');
+  const serviceInputTextColor = useColorModeValue('gray.900', 'gray.900');
+  const serviceInputPlaceholderColor = useColorModeValue('gray.500', 'gray.400');
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const location = useLocation();
@@ -769,6 +781,7 @@ const TradexTVDashboard = () => {
         { icon: FiPieChart, label: 'Analytics', path: '/tradextv-dashboard?tab=analytics' },
         { icon: FiBarChart2, label: 'Revenue', path: '/tradextv-dashboard?tab=revenue' },
         { icon: FiFileText, label: 'Report', path: '/tradextv-dashboard?tab=report' },
+        { icon: FiClipboard, label: 'Requests', path: '/requests' },
         { icon: FiMessageSquare, label: 'Notice Board', path: '/tradextv-dashboard?tab=notice-board', unreadCount: unreadCount },
         { icon: FiSettings, label: 'Settings', path: '/tradextv-dashboard?tab=settings' },
       ]
@@ -799,20 +812,20 @@ const TradexTVDashboard = () => {
           left={0}
           top={0}
           h="100vh"
-          bg={useColorModeValue('white', 'gray.800')}
+          bg={sidebarBg}
           boxShadow="sm"
           transition="width 0.3s ease"
           zIndex="sticky"
         >
           {/* Sidebar Header */}
-          <Flex 
-            h="70px" 
-            alignItems="center" 
-            px={4} 
-            borderBottomWidth="1px"
-            borderBottomColor={useColorModeValue('gray.200', 'gray.700')}
-            justifyContent={isSidebarCollapsed ? 'center' : 'space-between'}
-          >
+            <Flex 
+              h="70px" 
+              alignItems="center" 
+              px={4} 
+              borderBottomWidth="1px"
+              borderBottomColor={sidebarBorderColor}
+              justifyContent={isSidebarCollapsed ? 'center' : 'space-between'}
+            >
             {!isSidebarCollapsed && (
               <Heading size="md" color="purple.500">TradeXTV</Heading>
             )}
@@ -855,11 +868,11 @@ const TradexTVDashboard = () => {
                         p={3}
                         mx={2}
                         borderRadius="md"
-                        bg={isActive ? 'purple.50' : 'transparent'}
-                        color={isActive ? 'purple.600' : 'inherit'}
+                        bg={isActive ? sidebarActiveBg : 'transparent'}
+                        color={isActive ? sidebarActiveColor : sidebarLinkColor}
                         _hover={{
                           textDecoration: 'none',
-                          bg: isActive ? 'purple.50' : useColorModeValue('gray.100', 'gray.700'),
+                          bg: isActive ? sidebarActiveBg : sidebarHoverBg,
                         }}
                         fontWeight={isActive ? 'semibold' : 'normal'}
                         position="relative"
@@ -896,7 +909,7 @@ const TradexTVDashboard = () => {
                   })}
                 </VStack>
                 {index < menuItems.length - 1 && !isSidebarCollapsed && (
-                  <Divider my={2} mx={4} />
+                  <Divider my={2} mx={4} borderColor={sidebarBorderColor} />
                 )}
               </Box>
             ))}
@@ -969,12 +982,9 @@ const TradexTVDashboard = () => {
               }}
               buttonLabel="Notifications"
             />
-            <Button colorScheme="purple" onClick={onOpenNewCustomer}>
-              New customer
-            </Button>
-            <Button colorScheme="teal" variant="outline" onClick={() => navigate("/requests")}>
-              Requests
-            </Button>
+              <Button colorScheme="purple" onClick={onOpenNewCustomer}>
+                New customer
+              </Button>
           </HStack>
             </Flex>
 
@@ -1357,26 +1367,26 @@ const TradexTVDashboard = () => {
             >
               <Heading size="lg" mb={6}>Analytics Dashboard</Heading>
               <Grid templateColumns={{ base: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }} gap={4} mb={6}>
-                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={4}>
+                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={4} color={whiteCardTextColor}>
                   <Stat>
                     <StatLabel color="gray.600">Projects (Total)</StatLabel>
                     <StatNumber>{projectMetrics.total}</StatNumber>
                   </Stat>
                 </Box>
-                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={4}>
+                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={4} color={whiteCardTextColor}>
                   <Stat>
                     <StatLabel color="gray.600">Completed</StatLabel>
                     <StatNumber color="green.600">{projectMetrics.completed}</StatNumber>
                     <StatHelpText>{projectMetrics.completionRate}% done</StatHelpText>
                   </Stat>
                 </Box>
-                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={4}>
+                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={4} color={whiteCardTextColor}>
                   <Stat>
                     <StatLabel color="gray.600">In Progress</StatLabel>
                     <StatNumber color="purple.600">{projectMetrics.inProgress}</StatNumber>
                   </Stat>
                 </Box>
-                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={4}>
+                <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" p={4} color={whiteCardTextColor}>
                   <Stat>
                     <StatLabel color="gray.600">In Review</StatLabel>
                     <StatNumber color="orange.500">{projectMetrics.review}</StatNumber>
@@ -1390,6 +1400,7 @@ const TradexTVDashboard = () => {
                   borderRadius="md"
                   borderWidth="1px"
                   borderColor="gray.200"
+                  color={whiteCardTextColor}
                 >
                   <Text fontWeight="medium" mb={4}>Ticket Volume</Text>
                   <Box bg="gray.100" h="300px" borderRadius="md" p={4} display="flex" alignItems="center" justifyContent="center">
@@ -1402,6 +1413,7 @@ const TradexTVDashboard = () => {
                   borderRadius="md"
                   borderWidth="1px"
                   borderColor="gray.200"
+                  color={whiteCardTextColor}
                 >
                   <Text fontWeight="medium" mb={4}>Response Times</Text>
                   <Box bg="gray.100" h="300px" borderRadius="md" p={4} display="flex" alignItems="center" justifyContent="center">
@@ -1463,15 +1475,16 @@ const TradexTVDashboard = () => {
                 <VStack spacing={4} align="stretch">
                   <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)' }} gap={4}>
                     {revenueSummaryCards.map((item) => (
-                      <Box
-                        key={item.label}
-                        borderWidth="1px"
-                        borderColor={borderColor}
-                        borderRadius="md"
-                        bg="white"
-                        p={4}
-                        boxShadow="sm"
-                      >
+                        <Box
+                          key={item.label}
+                          borderWidth="1px"
+                          borderColor={borderColor}
+                          borderRadius="md"
+                          bg="white"
+                          p={4}
+                          boxShadow="sm"
+                          color={whiteCardTextColor}
+                        >
                         <Stat>
                           <StatLabel color="gray.600">{item.label}</StatLabel>
                           <StatNumber fontSize="2xl">
@@ -1484,7 +1497,7 @@ const TradexTVDashboard = () => {
                       </Box>
                     ))}
                   </Grid>
-                  <Box borderWidth="1px" borderColor={borderColor} borderRadius="md" bg="white" p={4}>
+                  <Box borderWidth="1px" borderColor={borderColor} borderRadius="md" bg="white" p={4} color={whiteCardTextColor}>
                     <Text fontWeight="semibold" mb={2}>Pacing to target</Text>
                     <Text fontSize="sm" color="gray.600" mb={2}>MTD revenue vs monthly plan</Text>
                     {(() => {
@@ -1514,7 +1527,7 @@ const TradexTVDashboard = () => {
                       );
                     })()}
                   </Box>
-                  <Box borderWidth="1px" borderColor={borderColor} borderRadius="md" bg="white" p={4}>
+                  <Box borderWidth="1px" borderColor={borderColor} borderRadius="md" bg="white" p={4} color={whiteCardTextColor}>
                     <Text fontWeight="semibold" mb={3}>Update actuals</Text>
                     <VStack spacing={3} align="stretch">
                     <FormControl size="sm">
@@ -1681,7 +1694,7 @@ const TradexTVDashboard = () => {
                       const deltaPct = item.target ? ((item.actual - item.target) / item.target) * 100 : 0;
                       const hit = item.actual >= item.target;
                       return (
-                        <Box key={item.platform} borderWidth="1px" borderColor={borderColor} borderRadius="md" p={3} bg="white">
+                        <Box key={item.platform} borderWidth="1px" borderColor={borderColor} borderRadius="md" p={3} bg="white" color={whiteCardTextColor}>
                           <Flex justify="space-between" align="center" mb={1}>
                             <Text fontWeight="semibold">{item.platform}</Text>
                             <Tag size="sm" colorScheme={hit ? 'green' : 'orange'} variant="subtle">
@@ -1706,7 +1719,7 @@ const TradexTVDashboard = () => {
                       );
                     })}
                   </VStack>
-                  <Box borderWidth="1px" borderColor={borderColor} borderRadius="md" bg="white" p={3} mt={4}>
+                  <Box borderWidth="1px" borderColor={borderColor} borderRadius="md" bg="white" p={3} mt={4} color={whiteCardTextColor}>
                     <Text fontWeight="semibold" mb={2}>Update social actuals</Text>
                     <VStack spacing={2.5} align="stretch">
                       <FormControl size="sm">
@@ -1859,8 +1872,12 @@ const TradexTVDashboard = () => {
               borderWidth="1px"
               borderColor={borderColor}
             >
-              <Heading size="lg" mb={6}>Settings</Heading>
-              <Text mb={4}>Configure your dashboard preferences and notification settings.</Text>
+              <Heading size="lg" mb={6} color={sectionHeadingColor}>
+                Settings
+              </Heading>
+              <Text mb={4} color={sectionTextColor}>
+                Configure your dashboard preferences and notification settings.
+              </Text>
               <Box 
                 bg="white" 
                 p={6} 
@@ -1868,6 +1885,7 @@ const TradexTVDashboard = () => {
                 borderWidth="1px" 
                 borderColor="gray.200"
                 mt={6}
+                color={whiteCardTextColor}
               >
                 <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={3}>
                   <Box>
@@ -1877,10 +1895,12 @@ const TradexTVDashboard = () => {
                   <Flex gap={2} wrap="wrap" align="center">
                     <Input
                       size="sm"
-                      placeholder="Add a new service"
-                      value={newServiceName}
-                      onChange={(e) => setNewServiceName(e.target.value)}
-                      maxW="260px"
+                    placeholder="Add a new service"
+                    value={newServiceName}
+                    onChange={(e) => setNewServiceName(e.target.value)}
+                    maxW="260px"
+                    color={serviceInputTextColor}
+                    _placeholder={{ color: serviceInputPlaceholderColor }}
                     />
                     <Button size="sm" colorScheme="purple" onClick={handleAddServiceType} isDisabled={!newServiceName.trim() || isLoadingServices} isLoading={isLoadingServices}>
                       Add service

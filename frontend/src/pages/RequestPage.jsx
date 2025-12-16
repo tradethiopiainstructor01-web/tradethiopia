@@ -5,6 +5,7 @@ import {
   Center,
   Flex,
   FormControl,
+  FormHelperText,
   FormLabel,
   Heading,
   HStack,
@@ -25,17 +26,9 @@ import { AttachmentIcon, RepeatIcon } from "@chakra-ui/icons";
 import apiClient from "../utils/apiClient";
 import { useUserStore } from "../store/user";
 import { useNavigate } from "react-router-dom";
+import { getUserDepartment } from "../utils/department";
 
 const PRIORITIES = ["High", "Medium", "Low"];
-const DEPARTMENTS = [
-  "Social Media",
-  "TradexTV",
-  "IT",
-  "HR",
-  "Sales",
-  "Customer Success",
-  "Finance",
-];
 
 const formatDate = (value) => {
   if (!value) return "No date";
@@ -55,6 +48,16 @@ const getRequestStatusColor = (status) => {
 export default function RequestPage() {
   const toast = useToast();
   const navigateUser = useUserStore((state) => state.currentUser);
+  const customerSuccessRoles = new Set([
+    "customerservice",
+    "customer_success_manager",
+    "customersuccessmanager",
+    "customersuccess",
+  ]);
+  const showSalesReturnButton = navigateUser?.role === "sales";
+  const showCustomerSuccessReturnButton = navigateUser?.role
+    ? customerSuccessRoles.has(navigateUser.role)
+    : false;
   const navigate = useNavigate();
   const { colorMode, toggleColorMode } = useColorMode();
   const fileInputRef = useRef(null);
@@ -66,13 +69,14 @@ export default function RequestPage() {
   const cardDividerColor = useColorModeValue("gray.200", "gray.600");
   const recentItemBg = useColorModeValue("gray.50", "gray.600");
 
-  const [form, setForm] = useState({
-    department: DEPARTMENTS[0],
+  const initialDepartment = getUserDepartment(navigateUser);
+  const [form, setForm] = useState(() => ({
+    department: initialDepartment || "",
     details: "",
     priority: "Medium",
     date: todayString,
     attachment: null,
-  });
+  }));
   const [recentRequests, setRecentRequests] = useState([]);
   const [fetching, setFetching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -87,6 +91,16 @@ export default function RequestPage() {
       ...prev,
       [field]: value,
     }));
+
+  const departmentDisplayLabel = form.department || "your department";
+
+  useEffect(() => {
+    const dept = getUserDepartment(navigateUser);
+    setForm((prev) => ({
+      ...prev,
+      department: dept || prev.department,
+    }));
+  }, [navigateUser]);
 
   const fetchRecentRequests = useCallback(async () => {
     if (!form.department) {
@@ -217,6 +231,16 @@ export default function RequestPage() {
         </Box>
         <HStack spacing={2}>
           <Tag colorScheme="teal">Submitted by: {submittedByLabel}</Tag>
+          {showSalesReturnButton && (
+            <Button size="sm" variant="ghost" onClick={() => navigate("/sdashboard")}>
+              Back to Sales
+            </Button>
+          )}
+          {showCustomerSuccessReturnButton && (
+            <Button size="sm" variant="ghost" onClick={() => navigate("/Cdashboard")}>
+              Back to Customer Success
+            </Button>
+          )}
           <Button size="sm" variant="outline" leftIcon={<RepeatIcon />} onClick={toggleColorMode}>
             {colorMode === "light" ? "Dark" : "Light"} mode
           </Button>
@@ -237,13 +261,12 @@ export default function RequestPage() {
 
             <FormControl isRequired>
               <FormLabel>Department</FormLabel>
-              <Select value={form.department} onChange={(event) => normalizeForm("department", event.target.value)}>
-                {DEPARTMENTS.map((department) => (
-                  <option key={department} value={department}>
-                    {department}
-                  </option>
-                ))}
-              </Select>
+              <Input
+                value={form.department || ""}
+                placeholder="Department not configured"
+                isReadOnly
+              />
+              <FormHelperText>Assigned automatically from your profile.</FormHelperText>
             </FormControl>
             <FormControl isRequired>
               <FormLabel>Details</FormLabel>
@@ -291,7 +314,7 @@ export default function RequestPage() {
           <VStack align="stretch" spacing={4}>
             <Heading size="lg">Recent submissions</Heading>
             <Text fontSize="sm" color={cardHelperColor}>
-              Showing the latest five requests for {form.department}.
+              Showing the latest five requests for {departmentDisplayLabel}.
             </Text>
             {fetching ? (
               <Text color={cardHelperColor}>Loading requests...</Text>

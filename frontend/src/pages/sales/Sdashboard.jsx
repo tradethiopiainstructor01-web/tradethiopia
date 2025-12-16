@@ -3,7 +3,7 @@ import Layout from '../../components/sales/Layout';
 
 const Sdashboard = () => {
   return (
-    <Layout />
+    <Layout initialActiveItem="Home" />
   );
 };
 

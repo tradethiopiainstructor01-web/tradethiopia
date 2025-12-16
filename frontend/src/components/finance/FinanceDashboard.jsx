@@ -17,7 +17,7 @@ import {
 } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getMetrics, getOrders, getDemands } from '../../services/financeService';
+import { getMetrics, getOrders, getDemands, getFinanceSummary } from '../../services/financeService';
 import AgentSalesReport from './AgentSalesReport';
 import FinancePayrollTable from './FinancePayrollTable';
 
@@ -26,6 +26,12 @@ const FinanceDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [openOrders, setOpenOrders] = useState(0);
   const [openDemands, setOpenDemands] = useState(0);
+  const [financeSummary, setFinanceSummary] = useState(null);
+
+  const formatCurrency = (value) => {
+    const number = Number(value) || 0;
+    return `$${number.toLocaleString()}`;
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -51,6 +57,19 @@ const FinanceDashboard = () => {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    const loadFinanceSummary = async () => {
+      try {
+        const data = await getFinanceSummary();
+        setFinanceSummary(data);
+      } catch (err) {
+        console.warn('Failed to load finance summary', err);
+      } finally {
+      }
+    };
+    loadFinanceSummary();
+  }, []);
   return (
     <>
       <Box mb={6}>
@@ -63,14 +82,58 @@ const FinanceDashboard = () => {
           <CardBody>
             <Stat>
               <StatLabel>Total Revenue</StatLabel>
-              <StatNumber>${metrics ? (metrics.totalRevenue || 0).toLocaleString() : '0'}</StatNumber>
+              <StatNumber>
+                {financeSummary ? formatCurrency(financeSummary.revenue) : '$0'}
+              </StatNumber>
               <StatHelpText>
-                <StatArrow type="increase" /> 12% vs last month
+                {financeSummary ? (
+                  <>
+                    <StatArrow type="increase" />
+                    {' '}
+                    {`Follow-ups ${formatCurrency(financeSummary.followupRevenue)} · Orders ${formatCurrency(financeSummary.orderRevenue)} · Packages ${formatCurrency(financeSummary.packageRevenue)}`}
+                  </>
+                ) : (
+                  <>
+                    <StatArrow type="increase" />
+                    {' '}
+                    loading...
+                  </>
+                )}
               </StatHelpText>
             </Stat>
           </CardBody>
         </Card>
 
+        <Card>
+          <CardBody>
+            <Stat>
+              <StatLabel>Expenses (recorded)</StatLabel>
+              <StatNumber>
+                {financeSummary ? formatCurrency(financeSummary.totalCostsRecorded || financeSummary.expenses) : '$0'}
+              </StatNumber>
+              <StatHelpText>
+                Payroll spend: {financeSummary ? formatCurrency(financeSummary.payrollCost) : '$0'}
+              </StatHelpText>
+            </Stat>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardBody>
+            <Stat>
+              <StatLabel>Net Profit</StatLabel>
+              <StatNumber>
+                {financeSummary ? formatCurrency(financeSummary.profit) : '$0'}
+              </StatNumber>
+              <StatHelpText>
+                {financeSummary ? 'Revenue − Expenses' : 'Loading...'}
+              </StatHelpText>
+            </Stat>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
+
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={6}>
         <Card>
           <CardBody>
             <Stat>

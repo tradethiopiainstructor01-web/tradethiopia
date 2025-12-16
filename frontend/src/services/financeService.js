@@ -6,6 +6,10 @@ const extractData = (response) => response?.data;
 
 // Metrics API
 export const getMetrics = () => api.get('/finance/metrics').then(extractData);
+export const getRevenueSummary = () => api.get('/finance/revenue-summary').then(extractData);
+export const getRevenueReport = () => api.get('/finance/revenue-report').then(extractData);
+export const getExpenseReport = () => api.get('/finance/expense-report').then(extractData);
+export const getFinanceSummary = () => api.get('/finance/summary').then(extractData);
 
 // Agent Sales Performance API
 export const getAgentSalesPerformance = (range) => {

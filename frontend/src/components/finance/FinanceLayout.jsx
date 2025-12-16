@@ -120,7 +120,7 @@ const Sidebar = ({ onClose, mobile = false, unreadCount = 0, showNoticeBoard = t
         <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Revenue'} to="/finance-dashboard/revenue" />
         <SidebarItem icon={FiUsers} label={collapsed && !mobile ? '' : 'Purchase'} to="/finance-dashboard/purchase" />
         <SidebarItem icon={FiShield} label={collapsed && !mobile ? '' : 'Costs'} to="/finance-dashboard/costs" />
-        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Payroll'} to="/payroll" />
+        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Payroll'} to="/finance-dashboard/payroll" />
         <SidebarItem icon={FiFileInvoice} label={collapsed && !mobile ? '' : 'Invoices'} to="/finance-dashboard/invoices" />
         {showNoticeBoard && (
           <SidebarItem 

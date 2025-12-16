@@ -13,12 +13,19 @@ import TaskDashboard from './TaskDashboard.jsx';
 import MonthlyReport from './MonthlyReport.jsx';
 import SalesMessagesPage from '../../pages/SalesMessagesPage';
 
-const Layout = ({ children }) => {
+const Layout = ({ children, initialActiveItem }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
-  
+
   // Load initial state from localStorage or default to 'Home'
   const getInitialActiveItem = () => {
+    if (initialActiveItem) {
+      return initialActiveItem;
+    }
     const savedItem = localStorage.getItem('salesActiveItem');
+    if (savedItem === 'Requests') {
+      localStorage.removeItem('salesActiveItem');
+      return 'Home';
+    }
     return savedItem || 'Home';
   };
   
@@ -42,6 +49,9 @@ const Layout = ({ children }) => {
         // Navigate to the dedicated finance dashboard page
         window.location.href = '/finance-dashboard';
         return null;
+      case 'Financial Reports':
+        window.location.href = '/finance-dashboard/reports';
+        return null;
       case 'Orders':
         return <OrderFollowup />;
       case 'Users':
@@ -56,6 +66,9 @@ const Layout = ({ children }) => {
         return <MonthlyReport />;
       case 'Notice Board':
         return <SalesMessagesPage />;
+      case 'Requests':
+        window.location.href = '/requests';
+        return null;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }

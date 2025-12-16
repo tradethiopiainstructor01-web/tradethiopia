@@ -367,8 +367,8 @@ const SocialMediaManager = () => {
   const yearOptions = [String(currentYear - 1), String(currentYear), String(currentYear + 1)];
   const [reportMonth, setReportMonth] = useState(monthOptions[new Date().getMonth() + 1]);
   const [reportYear, setReportYear] = useState(String(currentYear));
-  const [reportDate, setReportDate] = useState(toInputDate(getLatestSaturday()));
-
+  const defaultReportDate = toInputDate(new Date());
+  const [reportDate, setReportDate] = useState(defaultReportDate);
   const reportEntries = useMemo(() => {
     return weeklyReports.filter((report) => {
       const rawDate = report.date || report.createdAt || report.updatedAt;
@@ -665,6 +665,7 @@ const SocialMediaManager = () => {
           <Tab>Content Planner</Tab>
           <Tab>Performance Analytics</Tab>
           <Tab>Weekly Reports</Tab>
+          <Tab>Notice Board</Tab>
         </TabList>
         <TabPanels>
           <TabPanel>
@@ -1082,7 +1083,7 @@ const SocialMediaManager = () => {
                         value={reportDate}
                         onChange={(e) => setReportDate(e.target.value)}
                       />
-                    </FormControl>
+                  </FormControl>
                   </HStack>
                 </Flex>
                 <Text fontSize="sm" color="gray.500" mt={2}>
@@ -1243,15 +1244,15 @@ const SocialMediaManager = () => {
               </Card>
             </SimpleGrid>
           </TabPanel>
+          <TabPanel>
+            <NoticeBoardPanel
+              title="Social Media Notice Board"
+              subtitle="Broadcast messages for the content team and leadership"
+              embedded
+            />
+          </TabPanel>
         </TabPanels>
       </Tabs>
-      
-      <NoticeBoardPanel
-        title="Social Media Notice Board"
-        subtitle="Broadcast messages for the content team and leadership"
-        embedded
-      />
-
       {/* New Post Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />

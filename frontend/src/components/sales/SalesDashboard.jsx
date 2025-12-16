@@ -24,7 +24,6 @@ import {
 import { Bar } from 'react-chartjs-2';
 import { MdPeople, MdCheckCircle, MdPendingActions, MdError, MdNote } from 'react-icons/md';
 import { FiCheckCircle, FiCheck, FiClock } from 'react-icons/fi';
-import axios from 'axios';
 import axiosInstance from '../../services/axiosInstance';
 import { getMyTasks, getTaskStats } from '../../services/taskService';
 import { Chart, registerables } from 'chart.js';
@@ -32,30 +31,29 @@ import { Chart, registerables } from 'chart.js';
 // Register Chart.js components
 Chart.register(...registerables);
 
-// Standardized commission calculation function
-const calculateCommission = (salesValue) => {
-  // Standard commission rate: 10%
-  const commissionRate = 0.10;
-  // Tax on commission: 5%
-  const taxRate = 0.05;
-  
-  const grossCommission = salesValue * commissionRate;
-  const commissionTax = grossCommission * taxRate;
-  const netCommission = grossCommission - commissionTax;
-  
-  return Math.round(netCommission);
+const formatNumber = (value) => {
+  const number = Number(value) || 0;
+  return number.toLocaleString(undefined, { maximumFractionDigits: 0 });
+};
+
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'ETB'
+  }).format(Number(value) || 0);
 };
 
 const Dashboard = () => {
-  const [data, setData] = useState({
-    totalCustomers: 0,
-    completed: 0,
-    pending: 0,
-    rejected: 0,
-    totalCommission: 0,
-  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [followupMetrics, setFollowupMetrics] = useState({
+    total: 0,
+    completed: 0,
+    pending: 0,
+    overdue: 0
+  });
+  const [deliveredOrders, setDeliveredOrders] = useState(0);
+  const [totalCommission, setTotalCommission] = useState(0);
   const { colorMode } = useColorMode();
   const [notes, setNotes] = useState([]);
   const [selectedNote, setSelectedNote] = useState(null);
@@ -103,44 +101,33 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [followupRes, statsRes, tasksRes, taskStatsRes] = await Promise.all([
-          axiosInstance.get('/followup'),
-          axiosInstance.get('/sales-customers/stats'),
-          getMyTasks(),
-          getTaskStats()
-        ]);
+      const [followupStatsRes, tasksRes, taskStatsRes, ordersStatsRes, completedCustomersRes] = await Promise.all([
+        axiosInstance.get('/followups/stats'),
+        getMyTasks(),
+        getTaskStats(),
+        axiosInstance.get('/orders/stats'),
+        axiosInstance.get('/sales-customers', { params: { followupStatus: 'Completed' } })
+      ]);
 
-        // commissions endpoint is best-effort; don't fail overall fetch if it errors
-        let commissions = {};
-        try {
-          const commissionsRes = await axiosInstance.get('/sales-customers/commissions');
-          commissions = commissionsRes.data || {};
-        } catch (err) {
-          console.warn('Commissions endpoint unavailable, falling back to stats only', err?.message || err);
-        }
+        const followupStats = followupStatsRes.data || {};
+        const orderStats = ordersStatsRes.data || {};
 
-        const followUps = followupRes.data || [];
-        const stats = statsRes.data || {};
-
-        const totalCustomers = followUps.length;
-        const completed = followUps.filter(f => f.status === 'Completed').length;
-        const pending = followUps.filter(f => f.status === 'Pending').length;
-        const rejected = followUps.filter(f => f.status === 'Rejected').length;
-
-        // Calculate commission using standardized function
-        const completedDeals = stats.completedDeals || 0;
-        const averageDealValue = 15000; // Average value per deal
-        const totalSalesValue = completedDeals * averageDealValue;
-        const totalCommission = calculateCommission(totalSalesValue);
-
-        setData({
-          totalCustomers,
-          completed,
-          pending,
-          rejected,
-          totalCommission,
+        setFollowupMetrics({
+          total: followupStats.total || 0,
+          completed: followupStats.completed || 0,
+          pending: followupStats.pending || 0,
+          overdue: followupStats.overdue || 0,
         });
-        
+
+        setDeliveredOrders(orderStats.deliveredOrders || 0);
+
+      const completedCustomers = Array.isArray(completedCustomersRes.data) ? completedCustomersRes.data : [];
+      const commissionSum = completedCustomers.reduce((sum, customer) => {
+        const netCommission = Number(customer?.commission?.netCommission ?? 0);
+        return sum + (Number.isFinite(netCommission) ? netCommission : 0);
+      }, 0);
+      setTotalCommission(commissionSum);
+
         // Set task data
         setTasks(tasksRes);
         setTaskStats(taskStatsRes);
@@ -156,11 +143,11 @@ const Dashboard = () => {
   }, []);
 
   const chartData = {
-    labels: ['Completed', 'Pending', 'Rejected'],
+    labels: ['Completed', 'Pending', 'Overdue'],
     datasets: [
       {
         label: 'Follow-ups',
-        data: [data.completed, data.pending, data.rejected],
+        data: [followupMetrics.completed, followupMetrics.pending, followupMetrics.overdue],
         backgroundColor: ['#4CAF50', '#FFC107', '#F44336'],
         borderRadius: 5,
       },
@@ -206,78 +193,61 @@ const Dashboard = () => {
         <>
           {error && <Text color="red.500">{error}</Text>
 }
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={4} mb={6}>
-            <Card 
-              boxShadow="md" 
-              _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }} 
-              bg="blue.400" 
-              color="white"
-              transition="all 0.2s"
-            >
-              <CardBody textAlign="center">
-                <Icon as={MdPeople} w={8} h={8} mb={3} />
-                <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">{data.totalCustomers}</Text>
-                <Text>Total Customers</Text>
-              </CardBody>
-            </Card>
+          <SimpleGrid columns={{ base: 1, md: 3, lg: 4 }} spacing={3} mb={6}>
+            {[
+              {
+                icon: MdPeople,
+                value: formatNumber(followupMetrics.total),
+                label: 'Total Follow-ups',
+                bg: 'blue.400'
+              },
+              {
+                icon: MdCheckCircle,
+                value: formatNumber(followupMetrics.completed),
+                label: 'Completed Follow-ups',
+                bg: 'green.400'
+              },
+              {
+                icon: MdPendingActions,
+                value: formatNumber(followupMetrics.pending),
+                label: 'Pending Follow-ups',
+                bg: 'yellow.400'
+              },
+              {
+                icon: MdError,
+                value: formatNumber(followupMetrics.overdue),
+                label: 'Overdue Follow-ups',
+                bg: 'red.400'
+              },
+              {
+                icon: FiCheckCircle,
+                value: formatNumber(deliveredOrders),
+                label: 'Delivered Orders',
+                bg: 'teal.500'
+              },
+              {
+                icon: MdNote,
+                value: formatCurrency(totalCommission),
+                label: 'Total Commission',
+                bg: 'purple.500'
+              }
+            ].map((card) => (
+              <Card
+                key={card.label}
+                boxShadow="md"
+                _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }}
+                bg={card.bg}
+                color="white"
+                transition="all 0.2s"
+              >
+                <CardBody textAlign="center" py={4} px={3}>
+                  <Icon as={card.icon} w={6} h={6} mb={2} />
+                  <Text fontSize="xl" fontWeight="bold">{card.value}</Text>
+                  <Text fontSize="xs">{card.label}</Text>
+                </CardBody>
+              </Card>
+            ))}
 
-            <Card 
-              boxShadow="md" 
-              _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }} 
-              bg="green.400" 
-              color="white"
-              transition="all 0.2s"
-            >
-              <CardBody textAlign="center">
-                <Icon as={MdCheckCircle} w={8} h={8} mb={3} />
-                <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">{data.completed}</Text>
-                <Text>Completed Follow-ups</Text>
-              </CardBody>
-            </Card>
-
-            <Card 
-              boxShadow="md" 
-              _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }} 
-              bg="yellow.400" 
-              color="white"
-              transition="all 0.2s"
-            >
-              <CardBody textAlign="center">
-                <Icon as={MdPendingActions} w={8} h={8} mb={3} />
-                <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">{data.pending}</Text>
-                <Text>Pending Follow-ups</Text>
-              </CardBody>
-            </Card>
-
-            <Card 
-              boxShadow="md" 
-              _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }} 
-              bg="red.400" 
-              color="white"
-              transition="all 0.2s"
-            >
-              <CardBody textAlign="center">
-                <Icon as={MdError} w={8} h={8} mb={3} />
-                <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">{data.rejected}</Text>
-                <Text>Rejected Follow-ups</Text>
-              </CardBody>
-            </Card>
-
-            <Card 
-              boxShadow="md" 
-              _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }} 
-              bg="purple.500" 
-              color="white"
-              transition="all 0.2s"
-            >
-              <CardBody textAlign="center">
-                <Icon as={FiCheckCircle} w={8} h={8} mb={3} />
-                <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">
-                  ETB {Number(data.totalCommission || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </Text>
-                <Text>Total Commission</Text>
-              </CardBody>
-            </Card>
           </SimpleGrid>
 
           <Flex 
