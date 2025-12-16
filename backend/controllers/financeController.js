@@ -93,7 +93,7 @@ const buildExpenseSummary = async () => {
     ]);
   };
 
-  const [breakdown, recentExpenses, weeklyTotals, monthlyTotals, payrollCost, expenseSources] = await Promise.all([
+  const [breakdown, recentExpenses, weeklyTotals, monthlyTotals, payrollCostData, expenseSources] = await Promise.all([
     calculateCategoryBreakdown(),
     Cost.find().sort({ incurredOn: -1 }).limit(5).lean(),
     buildTimeline('week'),
@@ -102,8 +102,10 @@ const buildExpenseSummary = async () => {
     buildSources()
   ]);
 
+  const payrollCost = Number((payrollCostData?.total || 0).toFixed(2));
+  const payrollTypes = payrollCostData?.types || {};
   const totalCostOnly = Number(Object.values(breakdown).reduce((sum, value) => sum + (value || 0), 0).toFixed(2));
-  const totalExpenses = Number((totalCostOnly + (payrollCost || 0)).toFixed(2));
+  const totalExpenses = Number((totalCostOnly + payrollCost).toFixed(2));
 
   const transformTrend = (timeline = []) => timeline.map((bucket) => ({
     label: bucket.label,
@@ -119,7 +121,8 @@ const buildExpenseSummary = async () => {
     monthlyTrend: transformTrend(monthlyTotals),
     weeklyTrend: transformTrend(weeklyTotals),
     recent: recentExpenses,
-    payrollCost: payrollCost || 0,
+    payrollCost,
+    payrollTypes,
     expenseSources
   };
 };
@@ -189,6 +192,7 @@ exports.getFinanceSummary = async (req, res) => {
       invoices: 0,
       totalCostsRecorded: expenseData.totalCostsRecorded || totalExpenses,
       payrollCost: expenseData.payrollCost || 0,
+      payrollTypes: expenseData.payrollTypes || {},
       followupRevenue: revenueData.followupRevenue || 0,
       orderRevenue: revenueData.orderRevenue || 0,
       packageRevenue: revenueData.packageRevenue || 0,
