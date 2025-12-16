@@ -83,7 +83,7 @@ function App() {
       "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
       "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
       "/finance/messages", "/finance/team-requests",
-      "/addcustomer", "/resource", "/videolist", "/uploadpage", 
+      "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
       "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
       "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll"
     ].map((path) => path.toLowerCase());
