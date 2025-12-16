@@ -75,6 +75,28 @@ import RequestPage from "./pages/RequestPage";
 import TeamRequestsPage from "./pages/sales/TeamRequestsPage.jsx";
 
 function App() {
+  const location = useLocation();
+
+  // Define the paths where Sidebar and Navbar should not appear
+    const noNavSidebarRoutes = [
+      "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
+      "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/sales", "/sales/dashboard", "/finance-dashboard", "/finance-dashboard/reports",
+      "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
+      "/finance/messages", "/finance/team-requests",
+      "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
+      "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
+      "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/finance/requests"
+    ].map((path) => path.toLowerCase());
+
+  // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
+  const normalizedPath = location.pathname.toLowerCase();
+  const showNavAndSidebar = !noNavSidebarRoutes.some((route) => {
+    if (route === "/") {
+      return normalizedPath === "/";
+    }
+    return normalizedPath.startsWith(route);
+  });
+
   return (
     <Routes>
         <Route path="/" element={<WelcomePage />} />
@@ -87,6 +109,8 @@ function App() {
         <Route path="/exam" element={<QuizPage />} />
         <Route path="/WaitingForApproval" element={<WaitingForApproval />} />
         <Route path="/sdashboard" element={<Sdashboard />} />
+            <Route path="/sales" element={<Sdashboard />} />
+            <Route path="/sales/dashboard" element={<Sdashboard />} />
         <Route path="/srequest" element={<Srequest />} />
         <Route path="/finance-dashboard" element={<FinanceLayout><FinanceDashboardPage /></FinanceLayout>} />
         <Route path="/finance-dashboard/reports" element={<FinanceLayout><FinanceReportsPage /></FinanceLayout>} />
@@ -142,7 +166,8 @@ function App() {
         <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
         <Route path="/customer-settings" element={<CustomerSettings />} />
         <Route path="/social-media" element={<SocialMediaDashboardPage />} />
-        <Route path="/requests" element={<RequestPage />} />
+            <Route path="/requests" element={<RequestPage />} />
+        <Route path="/finance/requests" element={<RequestPage />} />
         <Route path="/it" element={<ITDashboard />} />
         <Route path="/payroll" element={<PayrollPage />} />
         <Route path="/my-payroll" element={<EmployeePayrollView />} />

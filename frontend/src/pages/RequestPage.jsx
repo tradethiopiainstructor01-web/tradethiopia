@@ -22,13 +22,39 @@ import {
   useToast,
   VStack,
 } from "@chakra-ui/react";
-import { AttachmentIcon, RepeatIcon } from "@chakra-ui/icons";
+import { AttachmentIcon, RepeatIcon, ArrowLeftIcon } from "@chakra-ui/icons";
 import apiClient from "../utils/apiClient";
 import { useUserStore } from "../store/user";
 import { useNavigate } from "react-router-dom";
 import { getUserDepartment } from "../utils/department";
 
 const PRIORITIES = ["High", "Medium", "Low"];
+
+const DEFAULT_BACK_ROUTE = "/dashboard";
+
+const DEPARTMENT_ROUTE_MAP = {
+  sales: "/sales/dashboard",
+  sdashboard: "/sales/dashboard",
+  salesmanager: "/salesmanager",
+  it: "/it",
+  finance: "/finance-dashboard",
+  admin: "/dashboard",
+  hr: "/payroll",
+  payroll: "/payroll",
+  operations: "/coo-dashboard",
+  coo: "/coo-dashboard",
+  customersuccess: "/cdashboard",
+  customerservice: "/cdashboard",
+  customersuccessmanager: "/cdashboard",
+  tradextv: "/tradextv-dashboard",
+  tradex: "/tradextv-dashboard",
+  socialmedia: "/social-media",
+  social: "/social-media",
+  training: "/training",
+};
+
+const normalizeDepartmentKey = (value) =>
+  value ? value.replace(/[\s_-]+/g, "").toLowerCase() : "";
 
 const formatDate = (value) => {
   if (!value) return "No date";
@@ -48,16 +74,14 @@ const getRequestStatusColor = (status) => {
 export default function RequestPage() {
   const toast = useToast();
   const navigateUser = useUserStore((state) => state.currentUser);
-  const customerSuccessRoles = new Set([
-    "customerservice",
-    "customer_success_manager",
-    "customersuccessmanager",
-    "customersuccess",
-  ]);
-  const showSalesReturnButton = navigateUser?.role === "sales";
-  const showCustomerSuccessReturnButton = navigateUser?.role
-    ? customerSuccessRoles.has(navigateUser.role)
-    : false;
+  const initialDepartment = getUserDepartment(navigateUser);
+  const normalizedRoleKey = normalizeDepartmentKey(navigateUser?.role);
+  const normalizedDepartmentKey = normalizeDepartmentKey(initialDepartment);
+  const departmentRoute =
+    DEPARTMENT_ROUTE_MAP[normalizedDepartmentKey] ||
+    DEPARTMENT_ROUTE_MAP[normalizedRoleKey] ||
+    DEFAULT_BACK_ROUTE;
+  const departmentLabel = initialDepartment || navigateUser?.role || "Dashboard";
   const navigate = useNavigate();
   const { colorMode, toggleColorMode } = useColorMode();
   const fileInputRef = useRef(null);
@@ -69,7 +93,6 @@ export default function RequestPage() {
   const cardDividerColor = useColorModeValue("gray.200", "gray.600");
   const recentItemBg = useColorModeValue("gray.50", "gray.600");
 
-  const initialDepartment = getUserDepartment(navigateUser);
   const [form, setForm] = useState(() => ({
     department: initialDepartment || "",
     details: "",
@@ -219,28 +242,30 @@ export default function RequestPage() {
       px={{ base: 4, md: 6 }}
       py={{ base: 6, md: 10 }}
     >
-      <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={3}>
-        <Box maxW={{ base: "100%", md: "70%" }}>
-          <Heading size="2xl">Request Center</Heading>
-          <Text fontSize="md" color={cardHelperColor}>
-            All departments can submit their requests here. Finance reviews and approves everything centrally.
-          </Text>
-          <Text fontSize="sm" mt={2}>
-            Finance is the single source of truth for approvals. Pick a department, add the details, and let the team handle the follow up.
-          </Text>
-        </Box>
+      <Flex justify="space-between" align="flex-start" mb={6} wrap="wrap" gap={3}>
+        <Flex align="flex-start" gap={4} flex="1" minW={0}>
+          <Button
+            size="md"
+            colorScheme="teal"
+            leftIcon={<ArrowLeftIcon />}
+            borderRadius="2xl"
+            onClick={() => navigate(departmentRoute)}
+            aria-label="Back to Department"
+          >
+            Back to {departmentLabel}
+          </Button>
+          <Box maxW={{ base: "100%", md: "70%" }}>
+            <Heading size="2xl">Request Center</Heading>
+            <Text fontSize="md" color={cardHelperColor}>
+              All departments can submit their requests here. Finance reviews and approves everything centrally.
+            </Text>
+            <Text fontSize="sm" mt={2}>
+              Finance is the single source of truth for approvals. Pick a department, add the details, and let the team handle the follow up.
+            </Text>
+          </Box>
+        </Flex>
         <HStack spacing={2}>
           <Tag colorScheme="teal">Submitted by: {submittedByLabel}</Tag>
-          {showSalesReturnButton && (
-            <Button size="sm" variant="ghost" onClick={() => navigate("/sdashboard")}>
-              Back to Sales
-            </Button>
-          )}
-          {showCustomerSuccessReturnButton && (
-            <Button size="sm" variant="ghost" onClick={() => navigate("/Cdashboard")}>
-              Back to Customer Success
-            </Button>
-          )}
           <Button size="sm" variant="outline" leftIcon={<RepeatIcon />} onClick={toggleColorMode}>
             {colorMode === "light" ? "Dark" : "Light"} mode
           </Button>
