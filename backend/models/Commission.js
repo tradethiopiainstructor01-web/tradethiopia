@@ -31,6 +31,15 @@ const commissionSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Add new fields for detailed commission breakdown
+  grossCommission: {
+    type: Number,
+    default: 0
+  },
+  commissionTax: {
+    type: Number,
+    default: 0
+  },
   commissionDetails: [
     {
       customerId: {
@@ -41,6 +50,9 @@ const commissionSchema = new mongoose.Schema({
       saleAmount: Number,
       commissionRate: Number,
       commissionAmount: Number,
+      grossCommission: Number,
+      commissionTax: Number,
+      netCommission: Number,
       date: Date
     }
   ],

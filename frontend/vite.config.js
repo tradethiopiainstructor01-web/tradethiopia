@@ -13,8 +13,7 @@ export default defineConfig({
   },
   server: {
     host: 'localhost',
-    port: 3000,             // The port Vite will use
+    port: 3002,             // Changed to port 3002 to avoid conflicts
     open: true              // Automatically opens the browser when the server starts (optional)
   }
 });
-

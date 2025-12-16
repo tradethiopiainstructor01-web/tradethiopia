@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create an axios instance with default config
 const axiosInstance = axios.create({
-  baseURL: 'http://localhost:5000/api', // Updated to use port 5000
+  baseURL: 'http://localhost:5000/api', // Backend running on port 5000
   headers: {
     'Content-Type': 'application/json',
   },

@@ -265,6 +265,20 @@ const getPayrollList = async (req, res) => {
         return record;
       } else {
         // Create a placeholder record for users without existing payroll data
+        const basicSalary = user.salary || 0;
+        
+        // For placeholder records, we only have basic salary (no overtime, commissions, or allowances)
+        const grossSalary = basicSalary;
+        
+        // Calculate income tax on gross salary
+        const incomeTax = calculateEthiopianIncomeTax(grossSalary);
+        
+        // Calculate pension (7% of basic salary)
+        const pension = calculatePension(basicSalary);
+        
+        // Calculate net salary (gross - tax - pension)
+        const netSalary = grossSalary - incomeTax - pension;
+        
         const placeholderRecord = {
           _id: `placeholder-${userIdStr}`, // Add a temporary ID for frontend use
           userId: user._id,
@@ -272,10 +286,10 @@ const getPayrollList = async (req, res) => {
           department: user.jobTitle || user.role || 'general', // Use jobTitle or role as fallback
           month,
           year: parseInt(year) || new Date().getFullYear(),
-          basicSalary: user.salary || 0,
-          grossSalary: user.salary || 0,
-          incomeTax: 0,
-          pension: 0,
+          basicSalary: basicSalary,
+          grossSalary: grossSalary,
+          incomeTax: incomeTax,
+          pension: pension,
           overtimeHours: 0,
           overtimePay: 0,
           lateDays: 0,
@@ -287,7 +301,7 @@ const getPayrollList = async (req, res) => {
           hrAllowances: 0,
           financeAllowances: 0,
           financeDeductions: 0,
-          netSalary: user.salary || 0,
+          netSalary: netSalary,
           status: 'draft',
           auditLog: []
         };
@@ -547,7 +561,38 @@ const getPayrollDetails = async (req, res) => {
       .populate('lockedBy', 'username fullName');
     
     if (!payrollRecord) {
-      return res.status(404).json({ message: 'Payroll record not found' });
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'Payroll record not found' });
+      }
+      const placeholder = {
+        userId: user._id,
+        employeeName: user.fullName || user.username,
+        department: user.jobTitle || user.department || 'general',
+        month,
+        year,
+        basicSalary: user.salary || 0,
+        grossSalary: user.salary || 0,
+        incomeTax: 0,
+        pension: 0,
+        overtimeHours: 0,
+        overtimePay: 0,
+        lateDays: 0,
+        lateDeduction: 0,
+        absenceDays: 0,
+        absenceDeduction: 0,
+        numberOfSales: 0,
+        salesCommission: 0,
+        hrAllowances: 0,
+        financeAllowances: 0,
+        financeDeductions: 0,
+        netSalary: user.salary || 0,
+        status: 'draft',
+        auditLog: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      return res.json(placeholder);
     }
     
     res.json(payrollRecord);
@@ -596,6 +641,8 @@ const finalizePayrollForFinance = asyncHandler(async (req, res) => {
     year: payrollRecord.year,
     numberOfSales: sales.length,
     totalCommission: totals.net,
+    grossCommission: totals.gross,  // Add gross commission
+    commissionTax: totals.tax,      // Add commission tax
     commissionDetails,
     submittedBy: req.user._id
   });
@@ -750,7 +797,7 @@ const getCommissionByUser = async (req, res) => {
 // POST /payroll/commission → Submit or update commission data
 const submitCommission = async (req, res) => {
   try {
-    const { userId, month, year, numberOfSales, totalCommission, commissionDetails } = req.body;
+    const { userId, month, year, numberOfSales, totalCommission, grossCommission, commissionTax, commissionDetails } = req.body;
     
     // Validate required fields
     if (!userId || !month || !year) {
@@ -772,6 +819,8 @@ const submitCommission = async (req, res) => {
         year,
         numberOfSales: numberOfSales || 0,
         totalCommission: totalCommission || 0,
+        grossCommission: grossCommission || 0,    // Add gross commission
+        commissionTax: commissionTax || 0,        // Add commission tax
         commissionDetails: commissionDetails || []
       },
       { upsert: true, new: true }
@@ -859,8 +908,31 @@ const getSalesDataForCommission = async (req, res) => {
     }
     
     // Get sales for this agent with filters
-    const sales = await SalesCustomer.find(filter)
+    let sales = await SalesCustomer.find(filter)
       .sort({ date: -1 });
+    
+    // Filter out sales that have already been paid in previous finalized payrolls
+    // We check if these sales exist in any commission records with the same agentId
+    const paidSales = await Commission.find({
+      userId: agentId,
+      'commissionDetails.customerId': { $in: sales.map(sale => sale._id) }
+    }, {
+      'commissionDetails.customerId': 1,
+      _id: 0
+    });
+    
+    // Extract the IDs of paid sales
+    const paidSaleIds = new Set();
+    paidSales.forEach(record => {
+      record.commissionDetails.forEach(detail => {
+        if (detail.customerId) {
+          paidSaleIds.add(detail.customerId.toString());
+        }
+      });
+    });
+    
+    // Filter out already paid sales
+    sales = sales.filter(sale => !paidSaleIds.has(sale._id.toString()));
     
     // Calculate total commission
     let totalCommission = 0;

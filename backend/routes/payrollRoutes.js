@@ -21,8 +21,22 @@ const { authorize } = require('../middleware/roleAuth');
 // All payroll routes require authentication
 router.use(protect);
 
+// More specific routes should come before generic ones
+
 // GET /payroll/history ƒ+' List payroll history
 router.get('/history', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getPayrollHistory);
+
+// GET /payroll/commission/:userId → Get commission data for a user
+// Access: Admin, Finance, HR
+router.get('/commission/:userId', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getCommissionByUser);
+
+// GET /payroll/sales-data/:agentId → Get sales data for commission calculation
+// Access: Admin, Finance, HR
+router.get('/sales-data/:agentId', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getSalesDataForCommission);
+
+// GET /payroll/:userId/details → detailed payroll view
+// Access: HR, Finance, Admin, Employee (own data only)
+router.get('/:userId/details', getPayrollDetails);
 
 // GET /payroll/:month → full payroll list
 // Access: HR, Finance, Admin
@@ -43,18 +57,6 @@ router.post('/finance-adjust', authorize('finance', 'Finance'), submitFinanceAdj
 // POST /payroll/commission → Submit or update commission data
 // Access: Admin, Finance
 router.post('/commission', authorize('admin', 'finance', 'Finance'), submitCommission);
-
-// GET /payroll/commission/:userId → Get commission data for a user
-// Access: Admin, Finance, HR
-router.get('/commission/:userId', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getCommissionByUser);
-
-// GET /payroll/sales-data/:agentId → Get sales data for commission calculation
-// Access: Admin, Finance, HR
-router.get('/sales-data/:agentId', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getSalesDataForCommission);
-
-// GET /payroll/:userId/details → detailed payroll view
-// Access: HR, Finance, Admin, Employee (own data only)
-router.get('/:userId/details', getPayrollDetails);
 
 // POST /payroll/:id/finalize ƒ+' Finance finalization
 router.post('/:id/finalize', authorize('finance', 'Finance'), finalizePayrollForFinance);

@@ -34,9 +34,10 @@ const EmployeePayrollView = () => {
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const headerBg = useColorModeValue('blue.500', 'blue.700');
-  const headerColor = useColorModeValue('white', 'white');
+  const headerColor = useColorModeValue('blue.600', 'blue.200'); // Changed to make it more visible
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
+  const textColor = useColorModeValue('gray.800', 'white'); // Added for better text visibility
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -104,7 +105,7 @@ const EmployeePayrollView = () => {
             boxSize={6} 
             color="blue.500"
           />
-          <Heading as="h1" size="lg" color={headerColor}>
+          <Heading as="h1" size="lg" color={textColor}> {/* Changed from headerColor to textColor */}
             Payroll Details for {payrollData?.employeeName || 'Employee'}
           </Heading>
         </Box>
@@ -640,10 +641,20 @@ const EmployeePayrollView = () => {
                         </Text>
                       </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        {payrollData.hrSubmittedBy?.fullName || payrollData.financeReviewedBy?.fullName || payrollData.approvedBy?.fullName || 'N/A'}
+                        {/* Fixed the logic for displaying updated by information */}
+                        {payrollData.hrSubmittedBy ? payrollData.hrSubmittedBy.fullName || payrollData.hrSubmittedBy.username || 'HR User' :
+                         payrollData.financeReviewedBy ? payrollData.financeReviewedBy.fullName || payrollData.financeReviewedBy.username || 'Finance User' :
+                         payrollData.approvedBy ? payrollData.approvedBy.fullName || payrollData.approvedBy.username || 'Admin User' :
+                         payrollData.lockedBy ? payrollData.lockedBy.fullName || payrollData.lockedBy.username || 'Admin User' :
+                         'N/A'}
                       </Td>
                       <Td py={{ base: 1, md: 2 }} px={{ base: 2, md: 3 }} fontSize={{ base: "xs", md: "sm" }} borderBottom="1px solid" borderColor={borderColor}>
-                        {payrollData.updatedAt ? new Date(payrollData.updatedAt).toLocaleString() : 'N/A'}
+                        {/* Fixed the logic for displaying timestamp */}
+                        {payrollData.hrSubmittedAt ? new Date(payrollData.hrSubmittedAt).toLocaleString() :
+                         payrollData.financeReviewedAt ? new Date(payrollData.financeReviewedAt).toLocaleString() :
+                         payrollData.approvedAt ? new Date(payrollData.approvedAt).toLocaleString() :
+                         payrollData.lockedAt ? new Date(payrollData.lockedAt).toLocaleString() :
+                         payrollData.updatedAt ? new Date(payrollData.updatedAt).toLocaleString() : 'N/A'}
                       </Td>
                     </Tr>
                   </Tbody>
