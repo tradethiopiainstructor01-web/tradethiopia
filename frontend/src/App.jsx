@@ -80,7 +80,7 @@ function App() {
   // Define the paths where Sidebar and Navbar should not appear
     const noNavSidebarRoutes = [
       "/", "/login", "/secondpage", "/employee-info", "/employee-file-upload", 
-      "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/finance-dashboard", "/finance-dashboard/reports",
+      "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/sales", "/sales/dashboard", "/finance-dashboard", "/finance-dashboard/reports",
       "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
       "/finance/messages", "/finance/team-requests",
       "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
@@ -110,6 +110,8 @@ function App() {
             <Route path="/exam" element={<QuizPage />} />
             <Route path="/WaitingForApproval" element={<WaitingForApproval />} />
             <Route path="/sdashboard" element={<Sdashboard />} />
+            <Route path="/sales" element={<Sdashboard />} />
+            <Route path="/sales/dashboard" element={<Sdashboard />} />
             <Route path="/finance-dashboard" element={<FinanceDashboardPage />} />
             <Route path="/finance-dashboard/reports" element={<FinanceReportsPage />} />
             <Route path="/finance-dashboard/inventory" element={<InventoryPage />} />
