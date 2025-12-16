@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import CreatePage from "./pages/CreatePage";
 import CreateQuiz from "./pages/CreateQuiz";
