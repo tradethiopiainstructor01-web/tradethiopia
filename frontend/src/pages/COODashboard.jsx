@@ -73,6 +73,7 @@ import NotificationsPanel from '../components/NotificationsPanel';
 import DailyFollowupSuccess from '../components/DailyFollowupSuccess';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
+import NotesLauncher from '../components/notes/NotesLauncher';
 import {
   Drawer,
   DrawerBody,
@@ -1034,6 +1035,16 @@ const COODashboard = () => {
                   colorScheme="blue"
                 />
               </Tooltip>
+              
+              <NotesLauncher
+                buttonProps={{
+                  variant: 'ghost',
+                  size: 'sm',
+                  'aria-label': 'Notes',
+                  colorScheme: 'blue',
+                }}
+                tooltipLabel="Notes"
+              />
               
               <Menu placement="bottom-end" isLazy>
                 <MenuButton

@@ -13,21 +13,19 @@ import {
   MenuItem,
   Text,
   useColorMode,
-  useDisclosure,
   MenuDivider,
   useBreakpointValue,
   Badge,
   Spinner
 } from '@chakra-ui/react';
-import { FaBell, FaUserCircle, FaMoon, FaSun, FaStickyNote, FaBars, FaCheck } from 'react-icons/fa';
-import NotesDrawer from './NoteDrawer';
+import { FaBell, FaUserCircle, FaMoon, FaSun, FaBars, FaCheck } from 'react-icons/fa';
+import NotesLauncher from '../notes/NotesLauncher';
 import { useUserStore } from '../../store/user';
 import { useNavigate } from 'react-router-dom';
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../services/notificationService';
 
 const Snavbar = ({ onToggleSidebar }) => {
   const { colorMode, toggleColorMode } = useColorMode();
-  const { isOpen, onOpen, onClose } = useDisclosure();
   const navigate = useNavigate();
   const isMobile = useBreakpointValue({ base: true, md: false });
 
@@ -282,12 +280,14 @@ const Snavbar = ({ onToggleSidebar }) => {
               </Box>
             </MenuList>
           </Menu>
-          <IconButton
-            icon={<FaStickyNote />}
-            aria-label="Notes"
-            variant="ghost"
-            color="white"
-            onClick={onOpen}
+          <NotesLauncher
+            buttonProps={{
+              variant: 'ghost',
+              color: 'white',
+              size: 'md',
+              'aria-label': 'Notes',
+            }}
+            tooltipLabel="Notes"
           />
           <IconButton
             icon={colorMode === 'light' ? <FaMoon /> : <FaSun />}
@@ -316,7 +316,6 @@ const Snavbar = ({ onToggleSidebar }) => {
           </Menu>
         </HStack>
       </Flex>
-      <NotesDrawer isOpen={isOpen} onClose={onClose} />
     </Box>
   );
 };

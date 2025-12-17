@@ -88,8 +88,9 @@ import {
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import { useUserStore } from '../store/user';
 import axios from 'axios';
-import NotificationsPanel from '../components/NotificationsPanel';
 import { getNotifications } from '../services/notificationService';
+import NotificationsPanel from '../components/NotificationsPanel';
+import NotesLauncher from '../components/notes/NotesLauncher';
 import MessagesPage from './MessagesPage';
 const defaultServiceOptions = ['Promotional video', 'Motion graphics', 'Graphics design', 'Brand promo video'];
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -923,9 +924,19 @@ const TradexTVDashboard = () => {
           transition="margin-left 0.3s ease"
         >
           <Flex justify="flex-end" align="center" mb={4} gap={3}>
-            <Menu placement="bottom-end" isLazy>
-              <MenuButton
-                as={Button}
+            <HStack spacing={2}>
+              <NotesLauncher
+                buttonProps={{
+                  variant: 'ghost',
+                  size: 'sm',
+                  colorScheme: 'purple',
+                  'aria-label': 'Notes',
+                }}
+                tooltipLabel="Notes"
+              />
+              <Menu placement="bottom-end" isLazy>
+                <MenuButton
+                  as={Button}
                 variant="ghost"
                 rightIcon={<FiChevronDown />}
                 leftIcon={<Avatar size="sm" name={currentUser?.username || currentUser?.name || 'User'} />}
@@ -951,6 +962,7 @@ const TradexTVDashboard = () => {
                 </MenuItem>
               </MenuList>
             </Menu>
+            </HStack>
           </Flex>
           <Tabs index={tabIndex} onChange={handleTabsChange} variant="enclosed" colorScheme="purple" width="100%">
             <TabList>

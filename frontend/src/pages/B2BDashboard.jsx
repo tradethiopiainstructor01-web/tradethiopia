@@ -60,6 +60,7 @@ import BuyerForm from '../components/BuyerForm';
 import SellerForm from '../components/SellerForm';
 import MatchDetails from '../components/MatchDetails';
 import CustomerDetails from '../components/CustomerDetails';
+import NotesLauncher from '../components/notes/NotesLauncher';
 
 const B2BDashboard = () => {
   const [buyers, setBuyers] = useState([]);
@@ -460,14 +461,25 @@ const B2BDashboard = () => {
       <Box p={6}>
         <Flex justifyContent="space-between" alignItems="center" mb={6}>
           <Heading as="h1" size="xl">B2B International Marketplace</Heading>
-          <Button 
-            leftIcon={<RepeatIcon />} 
-            colorScheme="teal" 
-            onClick={runMatching}
-            isLoading={loading}
-          >
-            Run Matching
-          </Button>
+          <HStack spacing={3}>
+            <Button 
+              leftIcon={<RepeatIcon />} 
+              colorScheme="teal" 
+              onClick={runMatching}
+              isLoading={loading}
+            >
+              Run Matching
+            </Button>
+            <NotesLauncher
+              buttonProps={{
+                size: 'sm',
+                variant: 'ghost',
+                colorScheme: 'teal',
+                'aria-label': 'Notes',
+              }}
+              tooltipLabel="Notes"
+            />
+          </HStack>
         </Flex>
 
         <Card mb={6}>

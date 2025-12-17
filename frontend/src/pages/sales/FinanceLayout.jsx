@@ -47,7 +47,7 @@ import {
 } from 'react-icons/fa';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUserStore } from '../../store/user';
-import NotesDrawer from '../../components/sales/NoteDrawer';
+import NotesLauncher from '../../components/notes/NotesLauncher';
 import { keyframes } from '@emotion/react';
 import apiClient from '../../utils/apiClient';
 import { getLatestRequestTimestamp, getRequestCreatedAt, markTeamRequestsAsRead, getTeamRequestsLastSeenAt } from '../../utils/teamRequestHelpers';
@@ -69,7 +69,6 @@ const bellPulse = keyframes`
 
 const FinanceLayout = ({ children }) => {
   const { isOpen: isSidebarOpen, onOpen, onClose } = useDisclosure();
-  const { isOpen: isNotesOpen, onOpen: onNotesOpen, onClose: onNotesClose } = useDisclosure();
   const navigate = useNavigate();
   const location = useLocation();
   const { colorMode, toggleColorMode } = useColorMode();
@@ -524,12 +523,13 @@ const FinanceLayout = ({ children }) => {
                       </MenuItem>
                     </MenuList>
                   </Menu>
-                <IconButton
-                  icon={<FaStickyNote />}
-                  aria-label="Notes"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onNotesOpen}
+                <NotesLauncher
+                  buttonProps={{
+                    variant: 'ghost',
+                    size: 'sm',
+                    'aria-label': 'Notes',
+                  }}
+                  tooltipLabel="Notes"
                 />
                 <IconButton
                   icon={colorMode === 'light' ? <FaMoon /> : <FaSun />}
@@ -571,7 +571,6 @@ const FinanceLayout = ({ children }) => {
           </Box>
         </Box>
       </Box>
-      <NotesDrawer isOpen={isNotesOpen} onClose={onNotesClose} />
     </Box>
   );
 };
