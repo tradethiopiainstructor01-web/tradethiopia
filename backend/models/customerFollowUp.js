@@ -23,7 +23,7 @@ const CustomerFollowUpSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Pending', 'Completed', 'Rejected'],
+      enum: ['Pending', 'Completed', 'Rejected', 'Imported'],
       default: 'Pending',
     },
     notes: {

@@ -1,4 +1,3 @@
-// eslint-disable-next-line no-unused-vars
 import React, { useState, useEffect } from 'react';
 import {
   Drawer,
@@ -29,17 +28,16 @@ const NotesDrawer = ({ isOpen, onClose }) => {
   const [content, setContent] = useState('');
   const [notes, setNotes] = useState([]);
   const [selectedNoteId, setSelectedNoteId] = useState(null);
-  const toast = useToast(); // For toast notifications
+  const toast = useToast();
 
-  // Fetch notes when the drawer is open
   useEffect(() => {
     if (isOpen) {
       axios.get(`${import.meta.env.VITE_API_URL}/api/notes`)
-        .then(response => {
+        .then((response) => {
           setNotes(response.data);
         })
-        .catch(error => {
-          console.error("Error fetching notes:", error);
+        .catch((error) => {
+          console.error('Error fetching notes:', error);
         });
     }
   }, [isOpen]);
@@ -48,64 +46,59 @@ const NotesDrawer = ({ isOpen, onClose }) => {
     const noteData = { title, content };
 
     if (selectedNoteId) {
-      // Edit existing note
       axios.put(`${import.meta.env.VITE_API_URL}/api/notes/${selectedNoteId}`, noteData)
-        .then(response => {
-          const updatedNotes = notes.map(note =>
+        .then((response) => {
+          const updatedNotes = notes.map((note) =>
             note._id === selectedNoteId ? response.data : note
           );
           setNotes(updatedNotes);
-          // Show success toast
           toast({
-            title: "Note updated.",
-            description: "Your note was updated successfully.",
-            status: "success",
+            title: 'Note updated.',
+            description: 'Your note was updated successfully.',
+            status: 'success',
             duration: 5000,
             isClosable: true,
           });
         })
-        .catch(error => {
-          console.error("Error updating note:", error);
+        .catch((error) => {
+          console.error('Error updating note:', error);
         });
     } else {
-      // Create new note
       axios.post(`${import.meta.env.VITE_API_URL}/api/notes`, noteData)
-        .then(response => {
+        .then((response) => {
           setNotes([...notes, response.data]);
-          // Show success toast
           toast({
-            title: "Note saved.",
-            description: "Your note was saved successfully.",
-            status: "success",
+            title: 'Note saved.',
+            description: 'Your note was saved successfully.',
+            status: 'success',
             duration: 2000,
             isClosable: true,
           });
         })
-        .catch(error => {
-          console.error("Error saving note:", error);
+        .catch((error) => {
+          console.error('Error saving note:', error);
         });
     }
 
-    // Reset form after saving
     setTitle('');
     setContent('');
     setSelectedNoteId(null);
   };
 
   const handleEdit = (noteId) => {
-    const note = notes.find(n => n._id === noteId);
-    setTitle(note.title);
-    setContent(note.content);
+    const note = notes.find((n) => n._id === noteId);
+    setTitle(note?.title || '');
+    setContent(note?.content || '');
     setSelectedNoteId(noteId);
   };
 
   const handleDelete = (noteId) => {
     axios.delete(`${import.meta.env.VITE_API_URL}/api/notes/${noteId}`)
       .then(() => {
-        setNotes(prevNotes => prevNotes.filter(note => note._id !== noteId));
+        setNotes((prevNotes) => prevNotes.filter((note) => note._id !== noteId));
       })
-      .catch(error => {
-        console.error("Error deleting note:", error);
+      .catch((error) => {
+        console.error('Error deleting note:', error);
       });
   };
 
@@ -143,15 +136,15 @@ const NotesDrawer = ({ isOpen, onClose }) => {
                 theme="snow"
                 modules={{
                   toolbar: [
-                    [{ 'header': '1' }, { 'header': '2' }, { 'font': [] }],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    [{ 'align': [] }],
+                    [{ header: '1' }, { header: '2' }, { font: [] }],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    [{ align: [] }],
                     ['bold', 'italic', 'underline'],
                     ['link'],
-                    [{ 'color': [] }, { 'background': [] }],
+                    [{ color: [] }, { background: [] }],
                     ['emoji'],
-                    ['clean']
-                  ]
+                    ['clean'],
+                  ],
                 }}
                 style={{ minHeight: '200px', maxHeight: '300px' }}
               />

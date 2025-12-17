@@ -14,9 +14,9 @@ const getCustomers = asyncHandler(async (req, res) => {
   if (!privilegedRoles.includes(role)) {
     filter.agentId = req.user.id;
   }
-  // Optional followupStatus filter
+  // Optional followupStatus filter (case insensitive exact match)
   if (req.query.followupStatus) {
-    filter.followupStatus = req.query.followupStatus;
+    filter.followupStatus = { $regex: new RegExp(`^${req.query.followupStatus}$`, 'i') };
   }
   const customers = await SalesCustomer.find(filter).lean();
 

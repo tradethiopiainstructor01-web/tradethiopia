@@ -10,8 +10,8 @@ import AssetDashboard from '../components/AssetDashboard';
 
 const Dashboard = () => {
   return (
-    // Reduce padding to move content upwards
-    <Box pt={3} p={4} mt={-65}>
+    // Remove negative margin since AppLayout now handles the navbar positioning
+    <Box pt={3} p={4}>
    {/* <Box mb={1} textAlign="left">
       <Text
         fontSize={{ base: '1xl', md: '2xl' }}         // Responsive font sizes

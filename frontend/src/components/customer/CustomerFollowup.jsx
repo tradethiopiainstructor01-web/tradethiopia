@@ -367,18 +367,47 @@ const CustomerFollowup = () => {
         setLoadingTraining(false);
         return;
       }
-      // Use the correct endpoint and pass followupStatus as a query parameter
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers`, {
-        params: { 
-          followupStatus: "Completed"
-        },
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      
+      // First try to get completed sales from SalesCustomer collection
+      let completedSalesData = [];
+      let hasSalesCustomerData = false;
+      
+      try {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers`, {
+          params: { 
+            followupStatus: "Completed"
+          },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
-      if (Array.isArray(response.data)) {
-        const completed = response.data
-          // The backend already filters by followupStatus, but we'll keep this as a safety check
-          .filter((item) => (item.followupStatus || "").toLowerCase() === "completed")
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          completedSalesData = response.data;
+          hasSalesCustomerData = true;
+        }
+      } catch (err) {
+        console.warn("Failed to fetch from sales-customers, trying followups:", err);
+      }
+      
+      // If no data from SalesCustomer, try Followup collection
+      if (!hasSalesCustomerData) {
+        try {
+          const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/followups`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          
+          if (Array.isArray(response.data)) {
+            // Filter for completed status in Followup collection
+            completedSalesData = response.data.filter(item => 
+              (item.followupStatus || "").toLowerCase() === "completed"
+            );
+          }
+        } catch (err) {
+          console.warn("Failed to fetch from followups:", err);
+        }
+      }
+
+      if (Array.isArray(completedSalesData) && completedSalesData.length > 0) {
+        const completed = completedSalesData
           .map((item) => {
             // The backend should now include agentName and agentUsername in the response
             const agentName = item.agentName || 
@@ -388,8 +417,8 @@ const CustomerFollowup = () => {
             return {
               id: item._id || item.id,
               agentName,
-              customerName: item.customerName || item.clientName || "N/A",
-              trainingProgram: item.contactTitle || item.trainingProgram || "Not specified",
+              customerName: item.customerName || item.clientName || item.companyName || "N/A",
+              trainingProgram: item.contactTitle || item.trainingProgram || item.serviceProvided || item.packageType || "Not specified",
               phone: item.phone || item.phoneNumber || "N/A",
               email: item.email || "N/A",
               schedulePreference: item.schedulePreference || item.scheduleShift || "-",
@@ -400,7 +429,10 @@ const CustomerFollowup = () => {
         setCompletedSales(completed);
       } else {
         setCompletedSales([]);
-        setTrainingError("Invalid data format received from server");
+        // Only show error if we couldn't fetch from either source
+        if (!hasSalesCustomerData) {
+          setTrainingError("No completed sales found for training.");
+        }
       }
     } catch (err) {
       console.error("API Error:", err);

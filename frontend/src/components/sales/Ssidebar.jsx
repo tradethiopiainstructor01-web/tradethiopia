@@ -33,7 +33,7 @@ const sidebarItems = [
   { label: 'Monthly Report', icon: FaChartLine },
   { label: 'Notice Board', icon: FiMessageSquare },
   { label: 'Requests', icon: FaClipboardList },
-  { label: 'Financial Reports', icon: FaChartLine },
+  // { label: 'Financial Reports', icon: FaChartLine },
 ];
 
 const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) => {

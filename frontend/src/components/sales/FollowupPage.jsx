@@ -362,14 +362,23 @@ const FollowupPage = () => {
       if (!matchesSearch) return false;
     }
     
+    if ((customer.followupStatus || '').toLowerCase() === 'imported') {
+      return false;
+    }
+
     // Call status filter
     if (filters.callStatus && customer.callStatus !== filters.callStatus) {
       return false;
     }
     
     // Follow-up status filter
-    if (filters.followupStatus && customer.followupStatus !== filters.followupStatus) {
-      return false;
+    if (filters.followupStatus) {
+      if (filters.followupStatus === 'Not Imported' && customer.followupStatus === 'Imported') {
+        return false;
+      }
+      if (filters.followupStatus !== 'Not Imported' && customer.followupStatus !== filters.followupStatus) {
+        return false;
+      }
     }
     // Schedule filter
     if (scheduleFilter && (customer.schedulePreference || '') !== scheduleFilter) {
@@ -774,10 +783,13 @@ const FollowupPage = () => {
             value={filters.followupStatus}
             onChange={(e) => handleFilterChange('followupStatus', e.target.value)}
           >
+            <option value="">All</option>
             <option value="Pending">Pending</option>
             <option value="Completed">Completed</option>
             <option value="Scheduled">Scheduled</option>
             <option value="Cancelled">Cancelled</option>
+            <option value="Imported">Imported</option>
+            <option value="Not Imported">Not Imported</option>
           </Select>
           
           <Select 

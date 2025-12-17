@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Table,
@@ -32,11 +32,19 @@ import {
   DrawerContent,
   DrawerCloseButton,
   useDisclosure,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay
 } from '@chakra-ui/react';
 
 const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }) => {
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
+  const [isStatusWarningOpen, setIsStatusWarningOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState(null);
   const [addingRow, setAddingRow] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     customerName: '',
@@ -51,6 +59,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const [drawerCustomer, setDrawerCustomer] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const warningCancelRef = useRef(null);
 
   const userToken = localStorage.getItem('userToken');
   const userRole = localStorage.getItem('userRole') || 'agent';
@@ -108,15 +117,26 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   };
 
   const handleCellClick = (customer, field) => {
+    if (field === 'followupStatus' && (customer.followupStatus || '').toLowerCase() === 'completed') {
+      return;
+    }
     const canEdit = canUserEditField(field, userRole);
     if (!canEdit) return;
     setEditingCell({ id: customer._id, field });
     setEditValue(customer[field] || '');
   };
 
-  const handleSave = (customer) => {
+  const handleSave = (customer, forcedValue = null) => {
     if (editingCell) {
-      const updated = { ...customer, [editingCell.field]: editValue };
+      const value = forcedValue !== null ? forcedValue : editValue;
+
+      if (editingCell.field === 'followupStatus' && value === 'Completed' && forcedValue === null) {
+        setPendingStatusChange({ customer, value });
+        setIsStatusWarningOpen(true);
+        return;
+      }
+
+      const updated = { ...customer, [editingCell.field]: value };
 
       // If course selection changed, sync courseId/price
       if (editingCell.field === 'contactTitle') {
@@ -132,7 +152,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       }
 
       // If we're updating the followupStatus to "Completed", calculate commission
-      if (editingCell.field === 'followupStatus' && editValue === 'Completed') {
+      if (editingCell.field === 'followupStatus' && value === 'Completed') {
         const courseDetails = getCourseDetails(customer.contactTitle, customer.courseId);
         if (courseDetails) {
           const commission = calculateCommission(courseDetails.name, courseDetails.price);
@@ -161,6 +181,21 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const handleCancel = () => {
     setEditingCell(null);
     setEditValue('');
+  };
+
+  const cancelStatusWarning = () => {
+    setIsStatusWarningOpen(false);
+    setPendingStatusChange(null);
+    setEditingCell(null);
+    setEditValue('');
+  };
+
+  const confirmStatusChange = () => {
+    if (pendingStatusChange) {
+      handleSave(pendingStatusChange.customer, pendingStatusChange.value);
+    }
+    setPendingStatusChange(null);
+    setIsStatusWarningOpen(false);
   };
 
   const handleInputChange = (e) => setEditValue(e.target.value);
@@ -298,6 +333,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   <option value="Completed">Completed</option>
                   <option value="Scheduled">Scheduled</option>
                   <option value="Cancelled">Cancelled</option>
+                  {/* <option value="Imported">Imported</option> */}
                 </>
               )}
             </Select>
@@ -394,6 +430,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   <option value="Completed">Completed</option>
                   <option value="Scheduled">Scheduled</option>
                   <option value="Cancelled">Cancelled</option>
+                  <option value="Imported">Imported</option>
                 </>
               )}
             </Select>
@@ -452,6 +489,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         case 'Pending': return 'yellow';
         case 'Scheduled': return 'purple';
         case 'Cancelled': return 'red';
+        case 'Imported': return 'cyan';
         default: return 'gray';
       }
     }
@@ -739,6 +777,33 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           ))}
         </Tbody>
       </Table>
+
+      <AlertDialog
+        isOpen={isStatusWarningOpen}
+        leastDestructiveRef={warningCancelRef}
+        onClose={cancelStatusWarning}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Confirm Status Change
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Marking this follow-up as <strong>Completed</strong> will finalize the sale.
+              Please ensure all notes and payments are recorded before proceeding.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={warningCancelRef} onClick={cancelStatusWarning}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={confirmStatusChange} ml={3}>
+                Confirm Completed
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
 
       {/* Customer Details Drawer */}
       <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="lg">

@@ -107,7 +107,7 @@ const Sidebar = ({ isCollapsed, onToggleCollapse, topOffset = "52px" }) => {
     { label: "Employee Document", path: "/EmployeeDocument", icon: FiFolder },
     { label: "Quiz Center", path: "/quiz", icon: FiSearch },
     { label: "Customer List", path: "/FollowUpList", icon: FiUsers },
-    { label: "Customer Report", path: "/adminCustomerReport", icon: FiFileText },
+    // { label: "Customer Report", path: "/adminCustomerReport", icon: FiFileText },
     { label: "Training", path: "/admin-training-upload", icon: FiBookOpen },
     { label: "Requests", path: "/requests", icon: FiClipboard },
     { label: "Payroll", path: "/payroll", icon: FiDollarSign },

@@ -1,9 +1,7 @@
 {
-  "dependencies": {
-    "formik": "^2.4.6",
-    "yup": "^1.7.1"
-  },
-  "devDependencies": {
-    "axios": "^1.12.2"
+  "name": "tradethiopia-root",
+  "private": true,
+  "scripts": {
+    "build": "npm install --prefix frontend && npm run build --prefix frontend"
   }
 }

@@ -55,7 +55,7 @@ const followupSchema = new Schema(
     ],
     followupStatus: {
       type: String,
-      enum: ['Prospect','Pending','Completed','Scheduled','Cancelled'],
+      enum: ['Prospect','Pending','Completed','Scheduled','Cancelled','Imported'],
       default: 'Pending'
     },
     schedulePreference: {
