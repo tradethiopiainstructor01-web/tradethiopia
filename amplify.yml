@@ -1,0 +1,19 @@
+version: 1
+frontend:
+  appRoot: frontend
+  phases:
+    preBuild:
+      commands:
+        - npm ci --prefix frontend
+    build:
+      commands:
+        - npm run build --prefix frontend
+        - rm -rf dist
+        - cp -r frontend/dist
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/node_modules/**/*
