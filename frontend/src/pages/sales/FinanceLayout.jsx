@@ -116,7 +116,6 @@ const FinanceLayout = ({ children }) => {
     { label: 'Purchase', icon: FaUsers, path: '/finance-dashboard/purchase' },
     { label: 'Costs', icon: FaMoneyBillWave, path: '/finance-dashboard/costs' },
     { label: 'Payroll', icon: FaDollarSign, path: '/finance-dashboard/payroll' },
-    { label: 'KPI Scorecard', icon: FaChartLine, path: '/kpi-scorecard' },
     { label: 'Requests', icon: FaStickyNote, path: '/finance/requests' },
     { label: 'Team Requests', icon: FaClipboardList, path: '/finance/team-requests' },
     { label: 'Notice Board', icon: FaCommentDots, path: '/finance/messages' },

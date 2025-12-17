@@ -475,69 +475,6 @@ const FinanceDashboard = () => {
         </HStack>
       </Flex>
 
-      {/* KPI Cards */}
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 6 }} spacing={4} mb={6}>
-        <Card>
-          <CardBody>
-            <Stat>
-              <StatLabel>Total Items</StatLabel>
-              <StatNumber>{totalItems}</StatNumber>
-              <StatHelpText>In inventory</StatHelpText>
-            </Stat>
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <Stat>
-              <StatLabel>Total Value</StatLabel>
-              <StatNumber>ETB {totalValue.toLocaleString()}</StatNumber>
-              <StatHelpText>Inventory worth</StatHelpText>
-            </Stat>
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <Stat>
-              <StatLabel>Categories</StatLabel>
-              <StatNumber>{totalCategories}</StatNumber>
-              <StatHelpText>Product types</StatHelpText>
-            </Stat>
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <Stat>
-              <StatLabel>Suppliers</StatLabel>
-              <StatNumber>{totalSuppliers}</StatNumber>
-              <StatHelpText>Partners</StatHelpText>
-            </Stat>
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <Stat>
-              <StatLabel>Low Stock</StatLabel>
-              <StatNumber color="orange.500">{lowStockItems}</StatNumber>
-              <StatHelpText>Under 10 units</StatHelpText>
-            </Stat>
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <Stat>
-              <StatLabel>Out of Stock</StatLabel>
-              <StatNumber color="red.500">{outOfStockItems}</StatNumber>
-              <StatHelpText>No inventory</StatHelpText>
-            </Stat>
-          </CardBody>
-        </Card>
-      </SimpleGrid>
-
       {/* Charts */}
       <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={6} mb={6}>
         <Card>
