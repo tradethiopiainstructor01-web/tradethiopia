@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import Layout from './Layout';
 import jsPDF from "jspdf";
@@ -44,7 +44,11 @@ import {
   FormLabel,
   NumberInput,
   NumberInputField,
-  Select
+  Select,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription
 } from "@chakra-ui/react";
 import { 
   FiDownload, 
@@ -271,26 +275,26 @@ const CustomerReport = () => {
   const secondaryTextColor = useColorModeValue("gray.500", "gray.400");
   const modalBg = useColorModeValue("white", "gray.800");
 
-  const getAgentName = (item) =>
+  const getAgentName = useCallback((item) =>
     item.agentName ||
     item.agentUsername ||
     item.assignedTo ||
     item.agent ||
     item.creator?.username ||
-    "Unassigned";
+    "Unassigned", []);
 
-  const getActualValue = (label, fallback) => {
+  const getActualValue = useCallback((label, fallback) => {
     const v = actualOverrides[label];
     if (v === undefined || v === null || v === "") return fallback;
     const parsed = Number(v);
     return Number.isNaN(parsed) ? fallback : parsed;
-  };
+  }, [actualOverrides]);
 
-  const setActualValue = (label, value) => {
+  const setActualValue = useCallback((label, value) => {
     setActualOverrides((prev) => ({ ...prev, [label]: value }));
-  };
+  }, []);
 
-  const metricOptions = () => {
+  const metricOptions = useCallback(() => {
     const base = [
       { label: "User Manuals Sent", defaultVal: activityTotals.materialUpdates },
       { label: "Training Videos Shared", defaultVal: activityTotals.progressUpdates },
@@ -344,205 +348,223 @@ const CustomerReport = () => {
     });
 
     return base;
-  };
+  }, [activityTotals, customerServiceUsers, interactionPerformance, targets]);
 
   const openActualModal = () => {
     setActualModal((prev) => ({ ...prev, isOpen: true }));
   };
 
+  // Memoize expensive calculations
+  const processedReportData = useMemo(() => {
+    if (!report || report.length === 0) return { stats: {}, activityTotals: {}, interactionPerformance: [] };
+    
+    // Calculate stats
+    const totalCustomers = report.length;
+    const completedFollowups = report.filter(item => 
+      item.dailyProgress && item.dailyProgress > 0
+    ).length;
+    const activeFollowups = totalCustomers - completedFollowups;
+    const avgRating = report.reduce((sum, item) => 
+      sum + (item.creator?.rating || 0), 0) / Math.max(report.length, 1);
+
+    const boolToInt = (val) => (val ? 1 : 0);
+
+    const totals = report.reduce((acc, item) => {
+      const materialCount =
+        Number(item.materialUpdates || 0) +
+        boolToInt(item.materialStatusUpdated);
+      const progressCount =
+        Number(item.progressUpdates || 0) +
+        boolToInt(item.progressUpdated);
+      const serviceCount =
+        Number(item.serviceUpdates || 0) +
+        boolToInt(item.serviceUpdated);
+      const packageCount =
+        Number(item.packageStatusUpdates || 0) +
+        boolToInt(item.packageStatusUpdated);
+      const updateAttemptCount =
+        Number(item.updateAttempts || 0) +
+        Number(item.notes?.length || 0) +
+        Number(item.communicationLogs?.length || item.communications?.length || 0);
+
+      acc.registered += 1;
+      acc.followupAttempts +=
+        (item.call_count || item.callAttempts || 0) +
+        (item.message_count || item.messageAttempts || 0) +
+        (item.email_count || item.emailAttempts || 0) +
+        (item.followupAttempts || 0);
+      acc.updateAttempts += updateAttemptCount;
+      acc.importedTraining += boolToInt(item.trainingImported);
+      acc.importedB2B += boolToInt(item.b2bImported);
+      acc.materialUpdates += materialCount;
+      acc.progressUpdates += progressCount;
+      acc.serviceUpdates += serviceCount;
+      acc.packageStatusUpdates += packageCount;
+      return acc;
+    }, {
+      registered: 0,
+      followupAttempts: 0,
+      updateAttempts: 0,
+      importedTraining: 0,
+      importedB2B: 0,
+      materialUpdates: 0,
+      progressUpdates: 0,
+      serviceUpdates: 0,
+      packageStatusUpdates: 0,
+    });
+
+    // Aggregate interactions by assigned agent (fallback to creator)
+    const perUser = report.reduce((acc, item) => {
+      const uname = getAgentName(item);
+      const agentId = item.agentId || item.assignedTo || item.agent || item.creator?._id || null;
+      if (!acc[uname]) {
+        acc[uname] = {
+          username: uname,
+          agentId: agentId || undefined,
+          registered: 0,
+          followupAttempts: 0,
+          updateAttempts: 0,
+          importedTraining: 0,
+          importedB2B: 0,
+          materialUpdates: 0,
+          progressUpdates: 0,
+          serviceUpdates: 0,
+          packageStatusUpdates: 0,
+          rating: item.creator?.rating || 0,
+          points: item.creator?.points || 0,
+        };
+      }
+      acc[uname].registered += 1;
+      acc[uname].followupAttempts +=
+        (item.call_count || item.callAttempts || 0) +
+        (item.message_count || item.messageAttempts || 0) +
+        (item.email_count || item.emailAttempts || 0) +
+        (item.followupAttempts || 0);
+      const updateAttemptCount =
+        Number(item.updateAttempts || 0) +
+        Number(item.notes?.length || 0) +
+        Number(item.communicationLogs?.length || item.communications?.length || 0);
+      const materialCount =
+        Number(item.materialUpdates || 0) +
+        boolToInt(item.materialStatusUpdated);
+      const progressCount =
+        Number(item.progressUpdates || 0) +
+        boolToInt(item.progressUpdated);
+      const serviceCount =
+        Number(item.serviceUpdates || 0) +
+        boolToInt(item.serviceUpdated);
+      const packageCount =
+        Number(item.packageStatusUpdates || 0) +
+        boolToInt(item.packageStatusUpdated);
+
+      acc[uname].updateAttempts += updateAttemptCount;
+      acc[uname].importedTraining += boolToInt(item.trainingImported);
+      acc[uname].importedB2B += boolToInt(item.b2bImported);
+      acc[uname].materialUpdates += materialCount;
+      acc[uname].progressUpdates += progressCount;
+      acc[uname].serviceUpdates += serviceCount;
+      acc[uname].packageStatusUpdates += packageCount;
+      return acc;
+    }, {});
+    
+    return {
+      stats: {
+        totalCustomers,
+        activeFollowups,
+        completedFollowups,
+        avgRating: parseFloat(avgRating.toFixed(1))
+      },
+      activityTotals: totals,
+      interactionPerformance: Object.values(perUser)
+    };
+  }, [report, getAgentName]);
+
   useEffect(() => {
-    const fetchReportData = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem("userToken");
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        
-        const [reportRes, usersRes] = await Promise.all([
-          axios.get(`${API_URL}/api/followups/report`, { headers }),
-          axios.get(`${API_URL}/api/users`, { headers })
-        ]);
+    // Update state with processed data
+    if (processedReportData.stats) {
+      setStats(processedReportData.stats);
+    }
+    if (processedReportData.activityTotals) {
+      setActivityTotals(processedReportData.activityTotals);
+    }
+    if (processedReportData.interactionPerformance) {
+      setInteractionPerformance(processedReportData.interactionPerformance);
+    }
+  }, [processedReportData]);
 
-        // Filter and set customer service users
-        const usersRaw = Array.isArray(usersRes.data)
-          ? usersRes.data
-          : Array.isArray(usersRes.data?.users)
-            ? usersRes.data.users
-            : [];
+  const fetchReportData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem("userToken");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      
+      // Use Promise.all to fetch data concurrently
+      const [reportRes, usersRes] = await Promise.all([
+        axios.get(`${API_URL}/api/followups/report`, { headers }),
+        axios.get(`${API_URL}/api/users`, { headers })
+      ]);
 
-        const filteredCS = usersRaw
-          .filter(user => {
-            const role = (user.role || user.roleName || '').toLowerCase().replace(/[\s_-]+/g, '');
-            return role.includes('customerservice');
-          })
-          .map(user => ({
+      // Process users data
+      const usersRaw = Array.isArray(usersRes.data)
+        ? usersRes.data
+        : Array.isArray(usersRes.data?.users)
+          ? usersRes.data.users
+          : [];
+
+      const filteredCS = usersRaw
+        .filter(user => {
+          const role = (user.role || user.roleName || '').toLowerCase().replace(/[\s_-]+/g, '');
+          return role.includes('customerservice');
+        })
+        .map(user => ({
+          id: user._id || user.id,
+          name: user.name || user.username || 'Unknown User',
+          email: user.email || '',
+          username: user.username,
+          role: 'Customer Service Officer'
+        }));
+
+      const customerServiceUsers = filteredCS.length
+        ? filteredCS
+        : usersRaw.map(user => ({
             id: user._id || user.id,
             name: user.name || user.username || 'Unknown User',
             email: user.email || '',
             username: user.username,
-            role: 'Customer Service Officer'
+            role: user.role || user.roleName || ''
           }));
+      
+      setCustomerServiceUsers(customerServiceUsers);
+      
+      const reportPayload = reportRes.data || {};
+      const reportData = Array.isArray(reportPayload.report) ? reportPayload.report : [];
+      const creatorPerf = Array.isArray(reportPayload.creatorPerformance) ? reportPayload.creatorPerformance : [];
 
-        const customerServiceUsers = filteredCS.length
-          ? filteredCS
-          : usersRaw.map(user => ({
-              id: user._id || user.id,
-              name: user.name || user.username || 'Unknown User',
-              email: user.email || '',
-              username: user.username,
-              role: user.role || user.roleName || ''
-            }));
-        
-        setCustomerServiceUsers(customerServiceUsers);
-        
-        const reportPayload = reportRes.data || {};
-        const reportData = Array.isArray(reportPayload.report) ? reportPayload.report : [];
-        const creatorPerf = Array.isArray(reportPayload.creatorPerformance) ? reportPayload.creatorPerformance : [];
-
-        if (Array.isArray(reportData)) {
-          setReport(reportData);
-          setCreatorPerformance(creatorPerf);
-          
-          // Calculate stats
-          const totalCustomers = reportData.length;
-          const completedFollowups = reportData.filter(item => 
-            item.dailyProgress && item.dailyProgress > 0
-          ).length;
-          const activeFollowups = totalCustomers - completedFollowups;
-          const avgRating = reportData.reduce((sum, item) => 
-            sum + (item.creator?.rating || 0), 0) / Math.max(reportData.length, 1);
-
-          const boolToInt = (val) => (val ? 1 : 0);
-
-          const totals = reportData.reduce((acc, item) => {
-            const materialCount =
-              Number(item.materialUpdates || 0) +
-              boolToInt(item.materialStatusUpdated);
-            const progressCount =
-              Number(item.progressUpdates || 0) +
-              boolToInt(item.progressUpdated);
-            const serviceCount =
-              Number(item.serviceUpdates || 0) +
-              boolToInt(item.serviceUpdated);
-            const packageCount =
-              Number(item.packageStatusUpdates || 0) +
-              boolToInt(item.packageStatusUpdated);
-            const updateAttemptCount =
-              Number(item.updateAttempts || 0) +
-              Number(item.notes?.length || 0) +
-              Number(item.communicationLogs?.length || item.communications?.length || 0);
-
-            acc.registered += 1;
-            acc.followupAttempts +=
-              (item.call_count || item.callAttempts || 0) +
-              (item.message_count || item.messageAttempts || 0) +
-              (item.email_count || item.emailAttempts || 0) +
-              (item.followupAttempts || 0);
-            acc.updateAttempts += updateAttemptCount;
-            acc.importedTraining += boolToInt(item.trainingImported);
-            acc.importedB2B += boolToInt(item.b2bImported);
-            acc.materialUpdates += materialCount;
-            acc.progressUpdates += progressCount;
-            acc.serviceUpdates += serviceCount;
-            acc.packageStatusUpdates += packageCount;
-            return acc;
-          }, {
-            registered: 0,
-            followupAttempts: 0,
-            updateAttempts: 0,
-            importedTraining: 0,
-            importedB2B: 0,
-            materialUpdates: 0,
-            progressUpdates: 0,
-            serviceUpdates: 0,
-            packageStatusUpdates: 0,
-          });
-
-          // Aggregate interactions by assigned agent (fallback to creator)
-          const perUser = reportData.reduce((acc, item) => {
-            const uname = getAgentName(item);
-            const agentId = item.agentId || item.assignedTo || item.agent || item.creator?._id || null;
-            if (!acc[uname]) {
-              acc[uname] = {
-                username: uname,
-                agentId: agentId || undefined,
-                registered: 0,
-                followupAttempts: 0,
-                updateAttempts: 0,
-                importedTraining: 0,
-                importedB2B: 0,
-                materialUpdates: 0,
-                progressUpdates: 0,
-                serviceUpdates: 0,
-                packageStatusUpdates: 0,
-                rating: item.creator?.rating || 0,
-                points: item.creator?.points || 0,
-              };
-            }
-            acc[uname].registered += 1;
-            acc[uname].followupAttempts +=
-              (item.call_count || item.callAttempts || 0) +
-              (item.message_count || item.messageAttempts || 0) +
-              (item.email_count || item.emailAttempts || 0) +
-              (item.followupAttempts || 0);
-            const updateAttemptCount =
-              Number(item.updateAttempts || 0) +
-              Number(item.notes?.length || 0) +
-              Number(item.communicationLogs?.length || item.communications?.length || 0);
-            const materialCount =
-              Number(item.materialUpdates || 0) +
-              boolToInt(item.materialStatusUpdated);
-            const progressCount =
-              Number(item.progressUpdates || 0) +
-              boolToInt(item.progressUpdated);
-            const serviceCount =
-              Number(item.serviceUpdates || 0) +
-              boolToInt(item.serviceUpdated);
-            const packageCount =
-              Number(item.packageStatusUpdates || 0) +
-              boolToInt(item.packageStatusUpdated);
-
-            acc[uname].updateAttempts += updateAttemptCount;
-            acc[uname].importedTraining += boolToInt(item.trainingImported);
-            acc[uname].importedB2B += boolToInt(item.b2bImported);
-            acc[uname].materialUpdates += materialCount;
-            acc[uname].progressUpdates += progressCount;
-            acc[uname].serviceUpdates += serviceCount;
-            acc[uname].packageStatusUpdates += packageCount;
-            return acc;
-          }, {});
-          
-          setStats({
-            totalCustomers,
-            activeFollowups,
-            completedFollowups,
-            avgRating: parseFloat(avgRating.toFixed(1))
-          });
-          setActivityTotals(totals);
-          setInteractionPerformance(Object.values(perUser));
-          
-          // If you had API endpoints for targets, you would set them here
-          // setTargets(targetsRes.data);
-          
-        } else {
-          setError("Invalid report data format.");
-        }
-      } catch (err) {
-        console.error("Error fetching report data:", err);
-        setError("Failed to fetch report. Please try again later.");
-        toast({
-          title: "Error",
-          description: "Failed to load report data",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setLoading(false);
+      if (Array.isArray(reportData)) {
+        setReport(reportData);
+        setCreatorPerformance(creatorPerf);
+      } else {
+        setError("Invalid report data format.");
       }
-    };
+    } catch (err) {
+      console.error("Error fetching report data:", err);
+      setError("Failed to fetch report. Please try again later.");
+      toast({
+        title: "Error",
+        description: "Failed to load report data",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
+  useEffect(() => {
     fetchReportData();
-  }, []);
+  }, [fetchReportData]);
 
   const handleExportPDF = async () => {
     try {
@@ -814,19 +836,29 @@ const CustomerReport = () => {
     }
   };
 
+  const handleRefresh = () => {
+    fetchReportData();
+  };
+
   if (loading) {
     return (
       <Layout>
         <Box p={6}>
-          <Skeleton height="40px" width="300px" mb={6} />
+          <Flex justify="space-between" align="center" mb={6}>
+            <Skeleton height="40px" width="300px" />
+            <HStack>
+              <Skeleton height="40px" width="100px" />
+              <Skeleton height="40px" width="150px" />
+            </HStack>
+          </Flex>
           <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={8}>
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} height="120px" borderRadius="lg" />
             ))}
           </SimpleGrid>
-          <Skeleton height="400px" borderRadius="lg" mb={6} />
-          <Skeleton height="400px" borderRadius="lg" mb={6} />
-          <Skeleton height="400px" borderRadius="lg" />
+          <Skeleton height="200px" borderRadius="lg" mb={6} />
+          <Skeleton height="300px" borderRadius="lg" mb={6} />
+          <Skeleton height="300px" borderRadius="lg" />
         </Box>
       </Layout>
     );
@@ -848,10 +880,10 @@ const CustomerReport = () => {
                 </Text>
                 <Button 
                   colorScheme="blue" 
-                  onClick={() => window.location.reload()}
+                  onClick={handleRefresh}
                   leftIcon={<FiRefreshCw />}
                 >
-                  Refresh Page
+                  Refresh Data
                 </Button>
               </Flex>
             </CardBody>
