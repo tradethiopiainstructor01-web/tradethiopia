@@ -184,25 +184,40 @@ const parseDateValue = (value) => {
 
 exports.createRequest = async (req, res) => {
   try {
-    const { details, priority, date } = req.body;
+    const { title, details, priority, dueDate, platform, requestType } = req.body;
+    const normalizedTitle = title?.toString().trim();
     const normalizedDetails = details?.toString().trim();
+    
+    if (!normalizedTitle) {
+      return res.status(400).json({ message: "Title is required." });
+    }
+    
     if (!normalizedDetails) {
       return res.status(400).json({ message: "Details are required." });
     }
+    
     const userDepartment = getUserDepartment(req.user);
     if (!userDepartment) {
       return res.status(400).json({ message: "Unable to determine your department." });
     }
+    
     const payload = {
       department: userDepartment,
+      title: normalizedTitle,
       details: normalizedDetails,
       priority: sanitizePriority(priority) || "Medium",
-      date: parseDateValue(date),
-      createdBy: req.user?.fullName || req.user?.username || req.user?.email || "Unknown user",
-      createdById: req.user?._id || null,
+      dueDate: dueDate ? parseDateValue(dueDate) : undefined,
+      platform: platform || undefined,
+      requestType: requestType || "General",
+      requestedBy: req.user?.fullName || req.user?.username || req.user?.email || "Unknown user",
+      requestedById: req.user?._id || null,
       status: sanitizeStatus(req.body.status) || "Pending",
       attachment: buildAttachmentPayload(req.file),
     };
+    
+    // Remove undefined fields
+    Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+    
     const request = await Request.create(payload);
     return res.status(201).json({ data: request });
   } catch (err) {
@@ -213,37 +228,43 @@ exports.createRequest = async (req, res) => {
 
 exports.listRequests = async (req, res) => {
   try {
-    const { department, priority, status, fromDate, toDate, createdBy } = req.query;
+    const { department, priority, status, fromDate, toDate, requestedBy } = req.query;
     const filter = {};
+    
     if (priority && ALLOWED_PRIORITIES.includes(priority.trim())) {
       filter.priority = priority.trim();
     }
+    
     if (status && ALLOWED_STATUSES.includes(status.trim())) {
       filter.status = status.trim();
     }
-    if (createdBy) {
-      filter.createdBy = { $regex: new RegExp(createdBy.trim(), "i") };
+    
+    if (requestedBy) {
+      filter.requestedBy = { $regex: new RegExp(requestedBy.trim(), "i") };
     }
+    
     if (fromDate || toDate) {
-      filter.date = {};
+      filter.dueDate = {};
       if (fromDate) {
         const parsedFrom = new Date(fromDate);
         if (!Number.isNaN(parsedFrom.getTime())) {
-          filter.date.$gte = parsedFrom;
+          filter.dueDate.$gte = parsedFrom;
         }
       }
       if (toDate) {
         const parsedTo = new Date(toDate);
         if (!Number.isNaN(parsedTo.getTime())) {
-          filter.date.$lte = parsedTo;
+          filter.dueDate.$lte = parsedTo;
         }
       }
-      if (Object.keys(filter.date).length === 0) {
-        delete filter.date;
+      if (Object.keys(filter.dueDate).length === 0) {
+        delete filter.dueDate;
       }
     }
+    
     const userDepartment = getUserDepartment(req.user);
     const userIsPrivileged = isFinanceOrAdmin(req.user);
+    
     if (!userIsPrivileged) {
       if (!userDepartment) {
         return res.status(403).json({ message: "Unable to determine your department." });
@@ -252,6 +273,7 @@ exports.listRequests = async (req, res) => {
     } else if (department) {
       filter.department = { $regex: new RegExp(`^${department.trim()}$`, "i") };
     }
+    
     const requests = await Request.find(filter).sort({ createdAt: -1 }).lean();
     return res.status(200).json({ data: requests });
   } catch (err) {

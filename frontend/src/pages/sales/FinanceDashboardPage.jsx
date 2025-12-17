@@ -52,7 +52,6 @@ import {
 } from 'react-icons/fa';
 import { useTeamRequests } from '../../hooks/useTeamRequests';
 import FinanceDashboard from '../../components/finance/FinanceDashboard';
-import FinanceLayout from './FinanceLayout';
 import MonthlyReport from '../../components/finance/MonthlyReport';
 import FinanceMessagesPage from '../FinanceMessagesPage';
 
@@ -112,25 +111,24 @@ const FinanceDashboardPage = () => {
   };
 
   return (
-    <FinanceLayout>
-      <Box>
-        <Flex justify="space-between" align="center" mb={6}>
-          <Heading as="h1" size="xl" color={headerColor}>
+      <Box py={1} px={2}>
+        <Flex justify="space-between" align="center" mb={2}>
+          <Heading as="h1" size="md" color={headerColor}>
             Enterprise Finance Dashboard
           </Heading>
-        <HStack spacing={3}>
-          <Button colorScheme="teal">Generate Report</Button>
-          <Button colorScheme="blue">Export Data</Button>
+        <HStack spacing={1}>
+          <Button size="xs" colorScheme="teal" height="24px" minH="unset">Generate Report</Button>
+          <Button size="xs" colorScheme="blue" height="24px" minH="unset">Export Data</Button>
         </HStack>
       </Flex>
 
-      <Box mb={8}>
-        <Card bg={cardBg} boxShadow="md">
-          <CardBody>
-            <Flex justify="space-between" align="center" flexWrap="wrap" gap={2}>
+      <Box mb={3}>
+        <Card bg={cardBg} boxShadow="xs" size="sm">
+          <CardBody py={2} px={3}>
+            <Flex justify="space-between" align="center" flexWrap="wrap" gap={1}>
               <Box>
-                <Heading size="md">Payroll</Heading>
-                <Text color="gray.500" fontSize="sm">
+                <Heading size="xs">Payroll</Heading>
+                <Text color="gray.500" fontSize="xs">
                   View submitted payroll data, adjustments, and approvals without leaving the finance dashboard.
                 </Text>
               </Box>
@@ -139,6 +137,8 @@ const FinanceDashboardPage = () => {
                 to="/payroll"
                 colorScheme="purple"
                 variant="outline"
+                size="xs"
+                height="24px" minH="unset"
               >
                 Open Payroll
               </Button>
@@ -148,55 +148,55 @@ const FinanceDashboardPage = () => {
       </Box>
 
       {/* Financial Overview Cards */}
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 6 }} spacing={6} mb={8}>
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 6 }} spacing={2} mb={3}>
         {financialMetrics.map((metric, index) => (
-            <Card key={index} bg={cardBg} boxShadow="md">
-              <CardBody>
-                <Flex justify="space-between" align="center" mb={2}>
-                  <Icon as={metric.icon} boxSize={8} color={`${metric.color}.500`} />
-                  <Badge colorScheme={metric.change.startsWith('+') ? 'green' : 'red'}>
+            <Card key={index} bg={cardBg} boxShadow="xs" size="sm">
+              <CardBody py={2} px={3}>
+                <Flex justify="space-between" align="center" mb={1}>
+                  <Icon as={metric.icon} boxSize={5} color={`${metric.color}.500`} />
+                  <Badge fontSize="xs" colorScheme={metric.change.startsWith('+') ? 'green' : 'red'} px={1} py={0.5}>
                     {metric.change}
                   </Badge>
                 </Flex>
                 <Stat>
-                  <StatLabel fontSize="sm" mb={1}>{metric.title}</StatLabel>
-                  <StatNumber fontSize="lg" fontWeight="bold">{metric.value}</StatNumber>
+                  <StatLabel fontSize="xs" mb={0.5}>{metric.title}</StatLabel>
+                  <StatNumber fontSize="sm" fontWeight="bold">{metric.value}</StatNumber>
                 </Stat>
               </CardBody>
             </Card>
           ))}
         </SimpleGrid>
 
-        <Tabs variant="enclosed" colorScheme="teal" mb={8}>
+        <Tabs variant="enclosed" colorScheme="teal" mb={3} size="sm">
           <TabList>
-            <Tab>Financial Overview</Tab>
-            <Tab>Monthly Report</Tab>
+            <Tab px={3} py={2}>Financial Overview</Tab>
+            <Tab px={3} py={2}>Monthly Report</Tab>
           </TabList>
           <TabPanels>
-            <TabPanel>
+            <TabPanel px={0} py={2}>
               {/* Financial Charts and Reports */}
-              <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={6} mb={8}>
-                <Card bg={cardBg} boxShadow="md">
-                  <CardHeader>
-                    <Heading as="h2" size="md">Revenue Overview</Heading>
+              <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={3} mb={4}>
+                <Card bg={cardBg} boxShadow="xs" size="sm">
+                  <CardHeader py={2} px={3}>
+                    <Heading as="h2" size="xs">Revenue Overview</Heading>
                   </CardHeader>
-                  <CardBody>
-                  <Box height="300px" display="flex" alignItems="center" justifyContent="center">
-                    <Text color={helperTextColor}>Revenue chart visualization would appear here</Text>
+                  <CardBody py={2} px={3}>
+                  <Box height="150px" display="flex" alignItems="center" justifyContent="center">
+                    <Text color={helperTextColor} fontSize="xs">Revenue chart visualization would appear here</Text>
                   </Box>
                   </CardBody>
                 </Card>
                 
-                <Card bg={cardBg} boxShadow="md">
-                  <CardHeader>
-                    <Heading as="h2" size="md">Top Products</Heading>
+                <Card bg={cardBg} boxShadow="xs" size="sm">
+                  <CardHeader py={2} px={3}>
+                    <Heading as="h2" size="xs">Top Products</Heading>
                   </CardHeader>
-                  <CardBody>
-                    <VStack align="stretch" spacing={4}>
+                  <CardBody py={2} px={3}>
+                    <VStack align="stretch" spacing={2}>
                       {[1, 2, 3, 4, 5].map((item) => (
                         <Flex key={item} justify="space-between" align="center">
-                      <Text color={cardTextColor}>Product {item}</Text>
-                      <Text fontWeight="bold" color={cardTextColor}>
+                      <Text fontSize="sm" color={cardTextColor}>Product {item}</Text>
+                      <Text fontWeight="bold" color={cardTextColor} fontSize="sm">
                         ETB {Math.floor(Math.random() * 10000) + 5000}
                       </Text>
                     </Flex>
@@ -206,7 +206,7 @@ const FinanceDashboardPage = () => {
                 </Card>
               </Grid>
             </TabPanel>
-            <TabPanel>
+            <TabPanel px={0} py={2}>
               <MonthlyReport />
             </TabPanel>
           </TabPanels>
@@ -214,124 +214,124 @@ const FinanceDashboardPage = () => {
 
         <Box 
           bg={cardBg} 
-          boxShadow="md" 
-          borderRadius="lg" 
-          mb={8} 
-          p={{ base: 3, md: 4 }} 
-          maxH="600px" 
+          boxShadow="xs" 
+          borderRadius="md" 
+          mb={4} 
+          p={{ base: 1, md: 2 }} 
+          maxH="300px" 
           overflow="hidden"
         >
           <FinanceMessagesPage embedded />
         </Box>
 
         {/* Inventory Management Section */}
-        <Card bg={cardBg} boxShadow="md" mb={8}>
-          <CardHeader>
-            <Heading as="h2" size="md">Inventory Management</Heading>
+        <Card bg={cardBg} boxShadow="xs" mb={4} size="sm">
+          <CardHeader py={2} px={3}>
+            <Heading as="h2" size="xs">Inventory Management</Heading>
           </CardHeader>
-          <CardBody>
+          <CardBody py={2} px={3}>
             <FinanceDashboard />
           </CardBody>
         </Card>
 
         {/* Recent Transactions */}
-        <Card bg={cardBg} boxShadow="md">
-          <CardHeader>
-            <Heading as="h2" size="md">Recent Transactions</Heading>
+        <Card bg={cardBg} boxShadow="xs" mb={4} size="sm">
+          <CardHeader py={2} px={3}>
+            <Heading as="h2" size="xs">Recent Transactions</Heading>
           </CardHeader>
-          <CardBody>
-            <VStack align="stretch" spacing={4}>
+          <CardBody py={2} px={3}>
+            <VStack align="stretch" spacing={2}>
               {[1, 2, 3, 4, 5].map((item) => (
                 <Flex
                   key={item}
                   justify="space-between"
                   align="center"
-                  p={3}
+                  p={2}
                   borderRadius="md"
                   _hover={{ bg: insetBg }}
                 >
-                  <VStack align="start" spacing={1}>
-                    <Text fontWeight="bold" color={cardTextColor}>
+                  <VStack align="start" spacing={0}>
+                    <Text fontWeight="bold" color={cardTextColor} fontSize="sm">
                       Transaction #{1000 + item}
                     </Text>
-                    <Text fontSize="sm" color={helperTextColor}>
+                    <Text fontSize="xs" color={helperTextColor}>
                       Customer Name {item}
                     </Text>
                   </VStack>
-                  <Text fontWeight="bold" color="green.500">+ETB {Math.floor(Math.random() * 5000) + 1000}</Text>
-                  <Badge colorScheme="green">Completed</Badge>
+                  <Text fontWeight="bold" color="green.500" fontSize="sm">+ETB {Math.floor(Math.random() * 5000) + 1000}</Text>
+                  <Badge fontSize="xs" colorScheme="green">Completed</Badge>
                 </Flex>
               ))}
             </VStack>
           </CardBody>
         </Card>
 
-        <Card bg={cardBg} boxShadow="md" mt={6}>
-          <CardHeader>
+        <Card bg={cardBg} boxShadow="xs" size="sm">
+          <CardHeader py={2} px={3}>
             <Flex direction={{ base: "column", md: "row" }} align="center" justify="space-between" gap={2}>
               <Box>
-                <Heading size="md">Team requests</Heading>
-                <Text fontSize="sm" color={helperTextColor}>
+                <Heading size="xs">Team requests</Heading>
+                <Text fontSize="xs" color={helperTextColor}>
                   A quick summary of the most recent department requests.
                 </Text>
               </Box>
-              <HStack spacing={2}>
-                <Button size="sm" variant="outline" onClick={refreshTeamRequests} isLoading={teamRequestsLoading}>
+              <HStack spacing={1}>
+                <Button size="xs" variant="outline" onClick={refreshTeamRequests} isLoading={teamRequestsLoading} height="24px" minH="unset">
                   Refresh
                 </Button>
-                <Button size="sm" colorScheme="teal" as={Link} to="/finance/team-requests">
+                <Button size="xs" colorScheme="teal" as={Link} to="/finance/team-requests" height="24px" minH="unset">
                   Manage requests
                 </Button>
               </HStack>
             </Flex>
           </CardHeader>
-          <CardBody>
-            <SimpleGrid columns={{ base: 1, md: 3 }} gap={4} mb={4}>
-              <Box p={3} borderRadius="md" border="1px solid" borderColor={borderColor} bg={insetBg}>
+          <CardBody py={2} px={3}>
+            <SimpleGrid columns={{ base: 1, md: 3 }} gap={2} mb={2}>
+              <Box p={2} borderRadius="md" border="1px solid" borderColor={borderColor} bg={insetBg}>
                 <Text fontSize="xs" color={helperTextColor}>
                   Total requests
                 </Text>
-                <Heading size="md">{requestSummary.total}</Heading>
+                <Heading size="xs">{requestSummary.total}</Heading>
               </Box>
-              <Box p={3} borderRadius="md" border="1px solid" borderColor={borderColor} bg={insetBg}>
+              <Box p={2} borderRadius="md" border="1px solid" borderColor={borderColor} bg={insetBg}>
                 <Text fontSize="xs" color={helperTextColor}>
                   Open
                 </Text>
-                <Heading size="md">{requestSummary.open}</Heading>
+                <Heading size="xs">{requestSummary.open}</Heading>
               </Box>
-              <Box p={3} borderRadius="md" border="1px solid" borderColor={borderColor} bg={insetBg}>
+              <Box p={2} borderRadius="md" border="1px solid" borderColor={borderColor} bg={insetBg}>
                 <Text fontSize="xs" color={helperTextColor}>
                   High priority
                 </Text>
-                <Heading size="md">{requestSummary.highPriority}</Heading>
+                <Heading size="xs">{requestSummary.highPriority}</Heading>
               </Box>
             </SimpleGrid>
-            <VStack align="stretch" spacing={3}>
+            <VStack align="stretch" spacing={2}>
               {teamRequestsLoading ? (
-                <Text textAlign="center" color={helperTextColor}>Loading requests...</Text>
+                <Text textAlign="center" color={helperTextColor} fontSize="xs">Loading requests...</Text>
               ) : teamRequests.length === 0 ? (
-                <Text textAlign="center" color={helperTextColor}>No team requests yet.</Text>
+                <Text textAlign="center" color={helperTextColor} fontSize="xs">No team requests yet.</Text>
               ) : (
                 teamRequests.slice(0, 3).map((request) => {
                   const label = request.title || `${request.department || "Team"} request`;
                   return (
                     <Box
                       key={request._id || request.createdAt || label}
-                      p={4}
+                      p={2}
                       borderRadius="md"
                       border="1px solid"
                       borderColor={borderColor}
                       bg={insetBg}
                     >
                       <Flex justify="space-between" align="center" mb={1}>
-                        <Text fontWeight="semibold" fontSize="sm" isTruncated maxW="70%">
+                        <Text fontWeight="semibold" fontSize="xs" isTruncated maxW="70%">
                           {label}
                         </Text>
-                        <Badge colorScheme={getPriorityColor(request.priority)} fontSize="10px">
+                        <Badge colorScheme={getPriorityColor(request.priority)} fontSize="xs" px={1} py={0.5}>
                           {request.priority || "Medium"}
                         </Badge>
                       </Flex>
-                      <HStack spacing={2} fontSize="xs" color="gray.500" mb={1}>
+                      <HStack spacing={1} fontSize="xs" color="gray.500" mb={1}>
                         <Text>{request.department || "Department"}</Text>
                         <Text>-</Text>
                         <Badge colorScheme={getStatusColor(request.status)} fontSize="xx-small">
@@ -341,7 +341,7 @@ const FinanceDashboardPage = () => {
                         <Text>{formatRequestDate(request.createdAt || request.date)}</Text>
                       </HStack>
                       {request.details && (
-                        <Text fontSize="sm" color={detailTextColor} noOfLines={2}>
+                        <Text fontSize="xs" color={detailTextColor} noOfLines={2}>
                           {request.details}
                         </Text>
                       )}
@@ -353,10 +353,7 @@ const FinanceDashboardPage = () => {
           </CardBody>
         </Card>
       </Box>
-    </FinanceLayout>
   );
 };
 
 export default FinanceDashboardPage;
-
-

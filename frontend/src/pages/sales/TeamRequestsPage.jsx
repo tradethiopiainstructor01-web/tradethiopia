@@ -18,7 +18,6 @@ import {
   Badge,
   useColorModeValue,
 } from '@chakra-ui/react';
-import FinanceLayout from './FinanceLayout';
 import { REQUEST_DEPARTMENTS, REQUEST_PRIORITIES, REQUEST_STATUSES, useTeamRequests } from '../../hooks/useTeamRequests';
 
 const TeamRequestsPage = () => {
@@ -69,8 +68,7 @@ const TeamRequestsPage = () => {
   };
 
   return (
-    <FinanceLayout>
-      <Box>
+    <Box>
         <Flex justify="space-between" align="center" mb={6} flexWrap="wrap">
           <Heading size="xl" color={headerColor}>
             Team Requests
@@ -244,7 +242,6 @@ const TeamRequestsPage = () => {
           </CardBody>
         </Card>
       </Box>
-    </FinanceLayout>
   );
 };
 

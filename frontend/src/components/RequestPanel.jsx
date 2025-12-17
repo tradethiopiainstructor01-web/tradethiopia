@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Badge,
   Box,
@@ -47,11 +47,17 @@ const RequestPanel = ({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
   const currentUser = useUserStore((state) => state.currentUser);
   const cardBg = useColorModeValue("white", "gray.700");
   const borderColor = useColorModeValue("gray.200", "gray.600");
 
-  const defaultPlatform = platformOptions[0] || "";
+  // Fix: Only update platform when platformOptions actually change
+  const defaultPlatform = useMemo(() => platformOptions[0] || "", [platformOptions]);
+  
   const [form, setForm] = useState({
     title: "",
     platform: defaultPlatform,
@@ -61,12 +67,19 @@ const RequestPanel = ({
     details: "",
   });
 
+  // Fix: Only update form.platform when defaultPlatform actually changes
   useEffect(() => {
-    setForm((prev) => ({
-      ...prev,
-      platform: platformOptions[0] || "",
-    }));
-  }, [platformOptions]);
+    setForm((prev) => {
+      // Only update if the platform value is actually different
+      if (prev.platform !== defaultPlatform) {
+        return {
+          ...prev,
+          platform: defaultPlatform,
+        };
+      }
+      return prev;
+    });
+  }, [defaultPlatform]);
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -77,12 +90,12 @@ const RequestPanel = ({
       const data = Array.isArray(response.data?.data)
         ? response.data.data
         : Array.isArray(response.data)
-          ? response.data
-          : [];
+        ? response.data
+        : [];
       setRequests(data);
     } catch (err) {
       console.error("Failed to load requests:", err);
-      toast({
+      toastRef.current?.({
         title: "Unable to load requests",
         description: err.message || "Please try again later",
         status: "error",
@@ -90,7 +103,7 @@ const RequestPanel = ({
     } finally {
       setLoading(false);
     }
-  }, [department, toast]);
+  }, [department]);
 
   useEffect(() => {
     fetchRequests();
@@ -99,7 +112,7 @@ const RequestPanel = ({
   const resetForm = () => {
     setForm({
       title: "",
-      platform: platformOptions[0] || "",
+      platform: defaultPlatform,
       requestType: REQUEST_TYPES[0],
       priority: "Medium",
       dueDate: "",

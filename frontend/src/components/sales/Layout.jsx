@@ -12,6 +12,9 @@ import SalesTargetsPage from './SalesTargetsPage.jsx';
 import TaskDashboard from './TaskDashboard.jsx';
 import MonthlyReport from './MonthlyReport.jsx';
 import SalesMessagesPage from '../../pages/SalesMessagesPage';
+import RequestPage from '../../pages/RequestPage';
+import { useUserStore } from '../../store/user';
+import { getUserDepartment } from '../../utils/department';
 
 const Layout = ({ children, initialActiveItem }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
@@ -36,6 +39,9 @@ const Layout = ({ children, initialActiveItem }) => {
   useEffect(() => {
     localStorage.setItem('salesActiveItem', activeItem);
   }, [activeItem]);
+
+  const currentUser = useUserStore((state) => state.currentUser);
+  const userDepartment = getUserDepartment(currentUser) || 'sales';
 
   const renderContent = () => {
     switch (activeItem) {
@@ -67,8 +73,7 @@ const Layout = ({ children, initialActiveItem }) => {
       case 'Notice Board':
         return <SalesMessagesPage />;
       case 'Requests':
-        window.location.href = '/requests';
-        return null;
+        return <RequestPage />;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }

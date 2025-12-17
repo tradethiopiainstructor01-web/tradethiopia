@@ -1,11 +1,6 @@
 import React from 'react';
-import FinanceLayout from './FinanceLayout';
 import PayrollPage from '../../components/Payroll/PayrollPage';
 
-const FinancePayrollPage = () => (
-  <FinanceLayout>
-    <PayrollPage wrapLayout={false} />
-  </FinanceLayout>
-);
+const FinancePayrollPage = () => <PayrollPage wrapLayout={false} />;
 
 export default FinancePayrollPage;

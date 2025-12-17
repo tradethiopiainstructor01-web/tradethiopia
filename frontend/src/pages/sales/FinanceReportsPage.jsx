@@ -18,7 +18,6 @@ import {
   Flex
 } from '@chakra-ui/react';
 import { FaChartBar, FaChartPie, FaFileInvoice } from 'react-icons/fa';
-import FinanceLayout from './FinanceLayout';
 import { getExpenseReport, getRevenueReport } from '../../services/financeService';
 
 const FinanceReportsPage = () => {
@@ -85,8 +84,7 @@ const FinanceReportsPage = () => {
   const monthlyExpensesList = monthlyExpenses;
 
   return (
-    <FinanceLayout>
-      <Box>
+    <Box>
         <HStack justify="space-between" mb={6}>
           <Heading as="h1" size="xl" color={headerColor}>
             Financial Reports
@@ -352,7 +350,6 @@ const FinanceReportsPage = () => {
           </SimpleGrid>
         )}
       </Box>
-    </FinanceLayout>
   );
 };
 

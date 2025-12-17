@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { 
+import {
   Avatar,
   Badge,
   Box,
@@ -119,13 +119,14 @@ const FinanceLayout = ({ children }) => {
     { label: 'Notice Board', icon: FaCommentDots, path: '/finance/messages' },
     { label: 'Settings', icon: FaCogs, path: '/finance-dashboard/settings' },
   ];
-  // Set active item based on current location
+  
+  // Set active item based on current location - Fixed to avoid infinite loops
   useEffect(() => {
     const currentItem = navItems.find(item => location.pathname === item.path);
     if (currentItem) {
       setActiveItem(currentItem.label);
     }
-  }, [location.pathname]);
+  }, [location.pathname]); // Dependency array is correct
   
     const handleNavigation = (path) => {
       navigate(path);
@@ -237,15 +238,7 @@ const FinanceLayout = ({ children }) => {
     }
   };
 
-  const getActiveItem = () => {
-    const currentItem = navItems.find(item => isCurrentPath(item.path));
-    return currentItem ? currentItem.label : 'Dashboard';
-  };
-
-  // Update active item when location changes
-  useEffect(() => {
-    setActiveItem(getActiveItem());
-  }, [location.pathname]);
+  // Removed duplicate useEffect for active item
 
   const SidebarItem = ({ icon, label, path, isActive, onClick, badgeLabel }) => {
     return (
