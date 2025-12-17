@@ -30,8 +30,8 @@ import {
   useToast,
   Spinner
 } from '@chakra-ui/react';
-import { FaPlus, FaTrash, FaShoppingCart, FaChartBar, FaDollarSign, FaSave } from 'react-icons/fa';
-import { getPurchases, createPurchase, updatePurchase, deletePurchase } from '../../services/financeService';
+import { FaPlus, FaTrash, FaShoppingCart, FaChartBar, FaDollarSign, FaSave, FaFileExport } from 'react-icons/fa';
+import { getPurchases, createPurchase, updatePurchase, deletePurchase, exportPurchases } from '../../services/financeService';
 
 const PurchasePage = () => {
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -64,6 +64,10 @@ const PurchasePage = () => {
   const [saving, setSaving] = useState(false);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  
+  // Date filter states
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Units dropdown options
   const unitOptions = [
@@ -124,10 +128,10 @@ const PurchasePage = () => {
     return recalculateItems(mappedItems);
   };
 
-  const loadLatestPurchase = async () => {
+  const loadLatestPurchase = async (filters = {}) => {
     setHistoryLoading(true);
     try {
-      const purchases = await getPurchases();
+      const purchases = await getPurchases(filters);
       setPurchaseHistory(Array.isArray(purchases) ? purchases : []);
 
       if (!Array.isArray(purchases) || purchases.length === 0) {
@@ -160,8 +164,8 @@ const PurchasePage = () => {
   };
 
   useEffect(() => {
-    loadLatestPurchase();
-  }, []);
+    loadLatestPurchase({ dateFrom, dateTo });
+  }, [dateFrom, dateTo]);
 
   const prepareItemsForSubmission = () => {
     return purchaseItems.map((item) => ({
@@ -318,6 +322,72 @@ const PurchasePage = () => {
     }
   };
 
+  // Export purchase data to CSV
+  const exportToCSV = async () => {
+    try {
+      const response = await exportPurchases({ dateFrom, dateTo });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `purchase_export_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Export successful",
+        description: "Purchase data has been exported to CSV",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: "Failed to export purchase data",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  // Export purchase history to CSV
+  const exportHistoryToCSV = async () => {
+    try {
+      const response = await exportPurchases({ dateFrom, dateTo });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `purchase_history_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Export successful",
+        description: "Purchase history has been exported to CSV",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: "Failed to export purchase history",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
   // Calculate summary statistics
   const totalItems = purchaseItems.length;
   const totalDeclarationValue = purchaseItems.reduce((sum, item) => sum + parseFloat(item.declarationValue || 0), 0);
@@ -343,6 +413,16 @@ const PurchasePage = () => {
                 py={1}
               >
                 Add Item
+              </Button>
+              <Button 
+                leftIcon={<FaFileExport />} 
+                colorScheme="blue" 
+                onClick={exportToCSV}
+                size="sm"
+                px={3}
+                py={1}
+              >
+                Export
               </Button>
             </HStack>
         </Flex>
@@ -607,10 +687,55 @@ const PurchasePage = () => {
 
         <Card mt={6} bg={cardBg} boxShadow="sm">
           <CardHeader>
-            <Heading as="h2" size="sm" color={headerColor}>
-              Recent Purchases
-            </Heading>
+            <Flex justify="space-between" align="center" width="100%">
+              <Heading as="h2" size="sm" color={headerColor}>
+                Recent Purchases
+              </Heading>
+              <Button 
+                leftIcon={<FaFileExport />} 
+                colorScheme="blue" 
+                onClick={exportHistoryToCSV}
+                size="sm"
+                px={3}
+                py={1}
+              >
+                Export History
+              </Button>
+            </Flex>
           </CardHeader>
+          <Divider borderColor={borderColor} />
+          {/* Date Filters */}
+          <Flex p={3} gap={3} flexWrap="wrap">
+            <Box>
+              <Text fontSize="sm" mb={1}>From Date</Text>
+              <Input 
+                type="date" 
+                size="sm" 
+                value={dateFrom} 
+                onChange={(e) => setDateFrom(e.target.value)} 
+                maxW="150px"
+              />
+            </Box>
+            <Box>
+              <Text fontSize="sm" mb={1}>To Date</Text>
+              <Input 
+                type="date" 
+                size="sm" 
+                value={dateTo} 
+                onChange={(e) => setDateTo(e.target.value)} 
+                maxW="150px"
+              />
+            </Box>
+            <Button 
+              size="sm" 
+              colorScheme="teal" 
+              onClick={() => { setDateFrom(''); setDateTo(''); }}
+              alignSelf="flex-end"
+              mb={1}
+            >
+              Clear Filters
+            </Button>
+          </Flex>
           <Divider borderColor={borderColor} />
           <CardBody>
             {historyLoading ? (

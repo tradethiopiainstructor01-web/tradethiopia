@@ -24,11 +24,12 @@ export const getPurchaseSummary = () => api.get('/finance/purchase-summary').the
 export const getRecentPurchases = () => api.get('/finance/recent-purchases').then(extractData);
 
 // Purchase CRUD Operations
-export const getPurchases = () => api.get('/purchases').then(extractData);
+export const getPurchases = (filters = {}) => api.get('/purchases', { params: filters }).then(extractData);
 export const getPurchase = (id) => api.get(`/purchases/${id}`);
 export const createPurchase = (purchaseData) => api.post('/purchases', purchaseData);
 export const updatePurchase = (id, purchaseData) => api.put(`/purchases/${id}`, purchaseData);
 export const deletePurchase = (id) => api.delete(`/purchases/${id}`);
+export const exportPurchases = (filters = {}) => api.get('/purchases/export', { params: filters, responseType: 'blob' });
 
 // Order Management APIs
 export const getOrders = (opts = {}) => api.get('/orders', { params: opts });
