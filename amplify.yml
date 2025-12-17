@@ -1,6 +1,5 @@
 version: 1
 frontend:
-  appRoot: frontend
   phases:
     preBuild:
       commands:
@@ -9,7 +8,7 @@ frontend:
       commands:
         - npm run build --prefix frontend
         - rm -rf dist
-        - cp -r frontend/dist
+        - cp -r frontend/dist dist
   artifacts:
     baseDirectory: dist
     files:
