@@ -1,9 +1,29 @@
 const TrainingFollowup = require("../models/TrainingFollowup");
+const SalesCustomer = require("../models/SalesCustomer");
 
 // Create Training follow-up
 const createTrainingFollowup = async (req, res) => {
   try {
     const doc = await TrainingFollowup.create(req.body);
+    
+    // Update the follow-up status in SalesCustomer collection
+    // We'll look for a customer with matching email or customerName
+    const { email, customerName } = req.body;
+    
+    if (email || customerName) {
+      const filter = {};
+      if (email) {
+        filter.email = email;
+      } else if (customerName) {
+        filter.customerName = customerName;
+      }
+      
+      // Update the followupStatus to "Imported" for matching customers
+      await SalesCustomer.updateMany(filter, {
+        followupStatus: "Imported"
+      });
+    }
+    
     res.status(201).json(doc);
   } catch (err) {
     res.status(400).json({ message: err.message });

@@ -23,6 +23,7 @@ import {
   FiBook,
   FiClipboard,
   FiFileText,
+  FiBarChart2,
 } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
 import { MdLibraryBooks } from "react-icons/md";
@@ -166,17 +167,7 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, acti
         boxShadow="md"
       />
 
-      {/* Scroll Up Button */}
-      {/* <Flex justify="center" align="center" p={1}>
-        <IconButton
-          icon={<span style={{fontSize:18}}>&uarr;</span>}
-          variant="ghost"
-          color="white"
-          aria-label="Scroll Up"
-          onClick={scrollUp}
-          size="sm"
-        />
-      </Flex> */}
+      
 
       {/* Sidebar Links with scroll */}
   <Box flex="1" overflowY="auto" minHeight={0} maxHeight="100vh" ref={scrollBoxRef}>
@@ -221,17 +212,6 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, acti
           />
           <SidebarLink
             isCollapsed={isCollapsed}
-            to="/addcustomer"
-            icon={<FiPlusCircle />}
-            label="Add Customer"
-            active={isActive("/addcustomer")}
-            iconColor={iconColor}
-            activeIconColor={activeIconColor}
-            textColor={textColor}
-            activeTextColor={activeTextColor}
-          />
-          <SidebarLink
-            isCollapsed={isCollapsed}
             to="/customer/messages"
             icon={<FiMessageSquare />}
             label="Notice Board"
@@ -262,39 +242,32 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, acti
             textColor={textColor}
             activeTextColor={activeTextColor}
           />
-          <SidebarLink
-            isCollapsed={isCollapsed}
-            to="/resources"
-            icon={<FiBook />}
-            label="Resources"
-            active={isActive("/resources")}
-            iconColor={iconColor}
-            activeIconColor={activeIconColor}
-            textColor={textColor}
-            activeTextColor={activeTextColor}
-          />
-          <SidebarLink
-            isCollapsed={isCollapsed}
-            to="/videolist"
-            icon={<MdLibraryBooks />}
-            label="Videos"
-            active={isActive("/videolist")}
-            iconColor={iconColor}
-            activeIconColor={activeIconColor}
-            textColor={textColor}
-            activeTextColor={activeTextColor}
-          />
-          <SidebarLink
-            isCollapsed={isCollapsed}
-            to="/uploadpage"
-            icon={<FiFileText />}
-            label="Upload"
-            active={isActive("/uploadpage")}
-            iconColor={iconColor}
-            activeIconColor={activeIconColor}
-            textColor={textColor}
-            activeTextColor={activeTextColor}
-          />
+          {isCSM && (
+            <SidebarLink
+              isCollapsed={isCollapsed}
+              to="/customerreport"
+              icon={<FiBarChart2 />}
+              label="Reports"
+              active={isActive("/customerreport")}
+              iconColor={iconColor}
+              activeIconColor={activeIconColor}
+              textColor={textColor}
+              activeTextColor={activeTextColor}
+            />
+          )}
+          {isCSM && (
+            <SidebarLink
+              isCollapsed={isCollapsed}
+              to="/followup-report"
+              icon={<FiBarChart2 />}
+              label="Follow Up Report"
+              active={isActive("/followup-report")}
+              iconColor={iconColor}
+              activeIconColor={activeIconColor}
+              textColor={textColor}
+              activeTextColor={activeTextColor}
+            />
+          )}
           <SidebarLink
             isCollapsed={isCollapsed}
             to="/training"
@@ -306,17 +279,19 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, acti
             textColor={textColor}
             activeTextColor={activeTextColor}
           />
-          <SidebarLink
-            isCollapsed={isCollapsed}
-            to="/customer-settings"
-            icon={<FiSettings />}
-            label="Settings"
-            active={isActive("/customer-settings")}
-            iconColor={iconColor}
-            activeIconColor={activeIconColor}
-            textColor={textColor}
-            activeTextColor={activeTextColor}
-          />
+          {isCSM && (
+            <SidebarLink
+              isCollapsed={isCollapsed}
+              to="/customer-settings"
+              icon={<FiSettings />}
+              label="Settings"
+              active={isActive("/customer-settings")}
+              iconColor={iconColor}
+              activeIconColor={activeIconColor}
+              textColor={textColor}
+              activeTextColor={activeTextColor}
+            />
+          )}
         </VStack>
       </Box>
 
