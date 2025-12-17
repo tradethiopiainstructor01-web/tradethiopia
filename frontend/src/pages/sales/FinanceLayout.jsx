@@ -43,7 +43,8 @@ import {
   FaMoneyBillWave,
   FaCogs,
   FaArrowRight,
-  FaCommentDots
+  FaCommentDots,
+  FaChartLine
 } from 'react-icons/fa';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUserStore } from '../../store/user';
@@ -51,6 +52,7 @@ import NotesDrawer from '../../components/sales/NoteDrawer';
 import { keyframes } from '@emotion/react';
 import apiClient from '../../utils/apiClient';
 import { getLatestRequestTimestamp, getRequestCreatedAt, markTeamRequestsAsRead, getTeamRequestsLastSeenAt } from '../../utils/teamRequestHelpers';
+import { getNotifications } from '../../services/notificationService';
 
 const bellPulse = keyframes`
   0% {
@@ -101,6 +103,7 @@ const FinanceLayout = ({ children }) => {
   const [teamRequestsLoading, setTeamRequestsLoading] = useState(false);
   const [lastTeamRequestSeen, setLastTeamRequestSeen] = useState(() => getTeamRequestsLastSeenAt() || new Date(0));
   const [isBellPulsing, setIsBellPulsing] = useState(false);
+  const [unreadNoticeCount, setUnreadNoticeCount] = useState(0);
   const unreadCountRef = useRef(0);
 
   // Navigation items
@@ -114,6 +117,7 @@ const FinanceLayout = ({ children }) => {
     { label: 'Purchase', icon: FaUsers, path: '/finance-dashboard/purchase' },
     { label: 'Costs', icon: FaMoneyBillWave, path: '/finance-dashboard/costs' },
     { label: 'Payroll', icon: FaDollarSign, path: '/finance-dashboard/payroll' },
+    { label: 'KPI Scorecard', icon: FaChartLine, path: '/kpi-scorecard' },
     { label: 'Requests', icon: FaStickyNote, path: '/finance/requests' },
     { label: 'Team Requests', icon: FaClipboardList, path: '/finance/team-requests' },
     { label: 'Notice Board', icon: FaCommentDots, path: '/finance/messages' },
@@ -155,6 +159,23 @@ const FinanceLayout = ({ children }) => {
       const interval = setInterval(fetchTeamRequestsForNotifications, 30000);
       return () => clearInterval(interval);
     }, [fetchTeamRequestsForNotifications]);
+
+    const fetchUnreadNoticeCount = useCallback(async () => {
+      try {
+        const data = await getNotifications();
+        const broadcastMessages = data.filter(msg => msg.type === 'general');
+        const unread = broadcastMessages.filter(msg => !msg.read).length;
+        setUnreadNoticeCount(unread);
+      } catch (err) {
+        console.error('Error fetching notice count:', err);
+      }
+    }, []);
+
+    useEffect(() => {
+      fetchUnreadNoticeCount();
+      const interval = setInterval(fetchUnreadNoticeCount, 30000);
+      return () => clearInterval(interval);
+    }, [fetchUnreadNoticeCount]);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!isSidebarCollapsed);
@@ -245,30 +266,31 @@ const FinanceLayout = ({ children }) => {
       <Tooltip label={isSidebarCollapsed ? label : ''} placement="right" hasArrow>
           <HStack
             as="button"
-            spacing={isSidebarCollapsed ? 0 : 3}
-            p={isSidebarCollapsed ? 2 : 3}
+            spacing={isSidebarCollapsed ? 0 : 2}
+            p={isSidebarCollapsed ? 1 : 2}
             w="100%"
             bg={isActive ? 'teal.600' : 'gray.700'}
-            _hover={{ bg: isActive ? 'teal.500' : 'gray.600', transform: 'translateX(2px)', transition: 'all 0.2s ease' }}
-            borderRadius="lg"
+            _hover={{ bg: isActive ? 'teal.500' : 'gray.600', transform: 'translateX(1px)', transition: 'all 0.2s ease' }}
+            borderRadius="md"
             justifyContent={isSidebarCollapsed ? 'center' : 'flex-start'}
             transition="all 0.3s ease"
             onClick={onClick}
-            boxShadow={isActive ? 'md' : 'sm'}
+            boxShadow={isActive ? 'sm' : 'xs'}
             cursor="pointer"
             position="relative"
+            minHeight="36px"
           >
-            <Box as={icon} fontSize={isSidebarCollapsed ? "18px" : "20px"} />
+            <Box as={icon} fontSize={isSidebarCollapsed ? "16px" : "18px"} />
             {!isSidebarCollapsed && (
               <>
-                <Text fontSize="sm" fontWeight="medium">{label}</Text>
+                <Text fontSize="xs" fontWeight="medium">{label}</Text>
                 {badgeLabel && (
                   <Badge
                     colorScheme="red"
                     borderRadius="full"
-                    fontSize="10px"
-                    px={2}
-                    py={1}
+                    fontSize="9px"
+                    px={1.5}
+                    py={0.5}
                   >
                     {badgeLabel}
                   </Badge>
@@ -278,11 +300,11 @@ const FinanceLayout = ({ children }) => {
             {isSidebarCollapsed && badgeLabel && (
               <Badge
                 position="absolute"
-                top="6px"
-                right="6px"
+                top="4px"
+                right="4px"
                 colorScheme="red"
                 borderRadius="full"
-                fontSize="9px"
+                fontSize="8px"
                 px={1}
                 py={0}
               >
@@ -309,7 +331,7 @@ const FinanceLayout = ({ children }) => {
           position="fixed"
           top={0}
           left={0}
-          width={isSidebarCollapsed ? "70px" : "240px"}
+          width={isSidebarCollapsed ? "50px" : "200px"}
           height="100vh"
           transition="width 0.3s"
           display={{ base: "none", md: "block" }}
@@ -318,9 +340,9 @@ const FinanceLayout = ({ children }) => {
           color={textColor}
         >
           <Flex direction="column" h="100%">
-            <HStack justifyContent="space-between" alignItems="center" mb={4} mt={2} px={3}>
+            <HStack justifyContent="space-between" alignItems="center" mb={2} mt={1} px={2}>
               {!isSidebarCollapsed && (
-                <Text fontSize="sm" fontWeight="bold" textTransform="uppercase" color="teal.300">
+                <Text fontSize="xs" fontWeight="bold" textTransform="uppercase" color="teal.300">
                   Finance Portal
                 </Text>
               )}
@@ -335,7 +357,7 @@ const FinanceLayout = ({ children }) => {
               />
             </HStack>
             <Divider mb={3} borderColor={borderColor} />
-                <VStack align="stretch" spacing={1} px={2} flex="1">
+                <VStack align="stretch" spacing={0.5} px={1.5} flex="1">
                   {navItems.map((item) => (
                     <SidebarItem
                       key={item.label}
@@ -343,7 +365,7 @@ const FinanceLayout = ({ children }) => {
                       label={item.label}
                       path={item.path}
                       isActive={activeItem === item.label}
-                      badgeLabel={item.label === 'Team Requests' ? teamRequestsBadgeLabel : undefined}
+                      badgeLabel={item.label === 'Team Requests' ? teamRequestsBadgeLabel : item.label === 'Notice Board' ? (unreadNoticeCount > 0 ? (unreadNoticeCount > 99 ? '99+' : `${unreadNoticeCount}`) : undefined) : undefined}
                       onClick={() => {
                         setActiveItem(item.label);
                         handleNavigation(item.path);
@@ -359,8 +381,8 @@ const FinanceLayout = ({ children }) => {
           <DrawerOverlay />
           <DrawerContent>
             <Flex direction="column" h="100%" bg={sidebarBg} color={textColor}>
-              <HStack justifyContent="space-between" alignItems="center" mb={4} mt={2} px={3}>
-                <Text fontSize="sm" fontWeight="bold" textTransform="uppercase" color="teal.300">
+              <HStack justifyContent="space-between" alignItems="center" mb={2} mt={1} px={2}>
+                <Text fontSize="xs" fontWeight="bold" textTransform="uppercase" color="teal.300">
                   Finance Portal
                 </Text>
                 <IconButton
@@ -373,8 +395,8 @@ const FinanceLayout = ({ children }) => {
                   _hover={{ bg: 'whiteAlpha.200' }}
                 />
               </HStack>
-              <Divider mb={3} borderColor={borderColor} />
-              <VStack align="stretch" spacing={1} px={2} flex="1">
+              <Divider mb={2} borderColor={borderColor} />
+              <VStack align="stretch" spacing={0.5} px={1.5} flex="1">
                 {navItems.map((item) => (
                   <SidebarItem
                     key={item.label}
@@ -382,7 +404,7 @@ const FinanceLayout = ({ children }) => {
                     label={item.label}
                     path={item.path}
                     isActive={activeItem === item.label}
-                    badgeLabel={item.label === 'Team Requests' ? teamRequestsBadgeLabel : undefined}
+                    badgeLabel={item.label === 'Team Requests' ? teamRequestsBadgeLabel : item.label === 'Notice Board' ? (unreadNoticeCount > 0 ? (unreadNoticeCount > 99 ? '99+' : `${unreadNoticeCount}`) : undefined) : undefined}
                     onClick={() => {
                       setActiveItem(item.label);
                       handleNavigation(item.path);
@@ -398,7 +420,7 @@ const FinanceLayout = ({ children }) => {
         <Box
           ml={{
             base: 0,
-            md: isSidebarCollapsed ? "70px" : "240px",
+            md: isSidebarCollapsed ? "50px" : "200px",
           }}
           transition="margin-left 0.3s"
           flex="1"
@@ -418,13 +440,6 @@ const FinanceLayout = ({ children }) => {
           >
             <Flex justify="space-between" align="center">
               <HStack spacing={2}>
-                <IconButton
-                  icon={<FaArrowLeft />}
-                  aria-label="Back to Sales"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/sdashboard')}
-                />
                 <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("teal.600", "teal.200")}>
                   Finance Dashboard
                 </Text>
@@ -563,8 +578,8 @@ const FinanceLayout = ({ children }) => {
           {/* Page Content */}
           <Box 
             flex="1"
-            p={{ base: 4, md: 6 }} 
-            pt={{ base: 6, md: 6 }}
+            p={{ base: 2, md: 4 }} 
+            pt={{ base: 4, md: 4 }}
             overflowY="auto"
           >
             {children}
