@@ -19,7 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowBackIcon } from '@chakra-ui/icons';
-import Layout from '../Layout';
+
 import { getPayrollDetails, fetchSalesDataForCommission } from '../../services/payrollService';
 
 const EmployeePayrollView = () => {
