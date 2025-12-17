@@ -139,7 +139,7 @@ const calculateTotals = (items = []) => {
 
 exports.listPurchases = async (req, res) => {
   try {
-    const { supplier, status, reference, page = 1, limit = 25 } = req.query;
+    const { supplier, status, reference, dateFrom, dateTo, page = 1, limit = 25 } = req.query;
     const filter = {};
 
     if (supplier) {
@@ -152,6 +152,17 @@ exports.listPurchases = async (req, res) => {
 
     if (reference) {
       filter.referenceNumber = new RegExp(escapeRegex(reference), 'i');
+    }
+
+    // Add date filtering
+    if (dateFrom || dateTo) {
+      filter.purchaseDate = {};
+      if (dateFrom) {
+        filter.purchaseDate.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        filter.purchaseDate.$lte = new Date(dateTo);
+      }
     }
 
     const safeLimit = Math.min(Number(limit) || 25, 100);
@@ -387,5 +398,58 @@ exports.getPurchaseStats = async (req, res) => {
   } catch (err) {
     console.error('Error fetching purchase stats:', err);
     res.status(500).json({ message: 'Failed to fetch purchase statistics', error: err.message });
+  }
+};
+
+// Export purchases to CSV
+exports.exportPurchasesToCSV = async (req, res) => {
+  try {
+    const { supplier, status, reference, dateFrom, dateTo } = req.query;
+    const filter = {};
+
+    if (supplier) {
+      filter.supplier = new RegExp(escapeRegex(supplier), 'i');
+    }
+
+    if (status) {
+      filter.status = status;
+    }
+
+    if (reference) {
+      filter.referenceNumber = new RegExp(escapeRegex(reference), 'i');
+    }
+
+    // Add date filtering
+    if (dateFrom || dateTo) {
+      filter.purchaseDate = {};
+      if (dateFrom) {
+        filter.purchaseDate.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        filter.purchaseDate.$lte = new Date(dateTo);
+      }
+    }
+
+    const purchases = await Purchase.find(filter)
+      .sort({ purchaseDate: -1 })
+      .populate('createdBy', 'username fullName');
+
+    // Create CSV content
+    let csvContent = 'Reference Number,Supplier,Date,Status,Items,Selling Price\n';
+    
+    purchases.forEach(purchase => {
+      const date = purchase.purchaseDate ? purchase.purchaseDate.toISOString().split('T')[0] : '';
+      const items = purchase.totals?.totalItems || purchase.items?.length || 0;
+      const sellingPrice = purchase.totals?.totalSellingPrice || 0;
+      csvContent += `${purchase.referenceNumber},${purchase.supplier},${date},${purchase.status},${items},${sellingPrice}\n`;
+    });
+
+    // Set headers for CSV download
+    res.header('Content-Type', 'text/csv');
+    res.attachment(`purchases_${new Date().toISOString().slice(0, 10)}.csv`);
+    res.send(csvContent);
+  } catch (err) {
+    console.error('Error exporting purchases:', err);
+    res.status(500).json({ message: 'Failed to export purchases', error: err.message });
   }
 };

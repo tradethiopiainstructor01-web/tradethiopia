@@ -68,6 +68,7 @@ import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
 import MessagesPage from "./pages/MessagesPage";
 import SalesMessagesPage from "./pages/SalesMessagesPage";
 import FinanceMessagesPage from "./pages/FinanceMessagesPage";
+import KPIScorecardPage from "./pages/sales/KPIScorecardPage";
 import ITMessagesPage from "./pages/ITMessagesPage";
 import RedirectMessagesPage from "./pages/RedirectMessagesPage";
 import SocialMediaDashboardPage from "./pages/socialmedia/SocialMediaDashboardPage";
@@ -139,6 +140,7 @@ function App() {
           </FinanceLayout>
         }
       />
+        <Route path="/kpi-scorecard" element={<FinanceLayout><KPIScorecardPage /></FinanceLayout>} />
       <Route path="/resource" element={<Navigate to="/resources" replace />} />
       <Route path="/employee-info" element={<EmployeeInfoPage />} />
       <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />

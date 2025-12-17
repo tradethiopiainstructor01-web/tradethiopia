@@ -97,6 +97,7 @@ app.set('connectedUsers', connectedUsers);
 // CORS configuration
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  'https://main.d21vr1wgzmn1c2.amplifyapp.com',
   'https://tradethiopia-pied.vercel.app',
   'https://tradethiopia.vercel.app',
   'http://localhost:5173',
@@ -111,15 +112,26 @@ const corsOptions = {
   origin: (origin, callback) => {
     console.log('CORS check - Origin:', origin);
     console.log('Allowed origins:', allowedOrigins);
-    // Allow requests with no origin (mobile apps, curl) or if whitelisted
-    if (!origin || allowedOrigins.includes(origin)) {
+
+    // Allow requests with no origin (Postman, curl, mobile apps)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
+
     console.warn('CORS blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
   },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With'
+  ],
   credentials: true
 };
+
 
 // Middleware
 app.use(cors(corsOptions));
