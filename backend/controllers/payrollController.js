@@ -251,9 +251,11 @@ const getPayrollList = async (req, res) => {
     // Combine existing records with placeholders for users without records
     const payrollRecords = allActiveUsers.map(user => {
       const userIdStr = user._id.toString();
+      const currentSalary = user.salary || 0;
       if (payrollRecordMap[userIdStr]) {
         // Return existing record (make sure department is populated)
-        const record = payrollRecordMap[userIdStr];
+        const doc = payrollRecordMap[userIdStr];
+        const record = doc.toObject ? doc.toObject() : doc;
         // Ensure department is set from user's jobTitle if not already set or is 'general'
         if ((!record.department || record.department === 'general') && user.jobTitle) {
           record.department = user.jobTitle;
@@ -262,10 +264,11 @@ const getPayrollList = async (req, res) => {
         if (!record.department || record.department === 'general') {
           record.department = user.jobTitle || user.role || 'general';
         }
+        record.basicSalary = currentSalary;
         return record;
       } else {
         // Create a placeholder record for users without existing payroll data
-        const basicSalary = user.salary || 0;
+        const basicSalary = currentSalary;
         
         // For placeholder records, we only have basic salary (no overtime, commissions, or allowances)
         const grossSalary = basicSalary;

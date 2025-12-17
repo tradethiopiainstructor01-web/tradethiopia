@@ -35,7 +35,6 @@ import {
   Icon
 } from '@chakra-ui/react';
 import { FaChartBar, FaChartPie, FaDollarSign, FaUsers, FaMedal, FaTrophy } from 'react-icons/fa';
-import FinanceLayout from './FinanceLayout';
 import MonthlyReport from '../../components/finance/MonthlyReport';
 
 const RevenuePage = () => {
@@ -70,8 +69,7 @@ const RevenuePage = () => {
   ];
 
   return (
-    <FinanceLayout>
-      <Box>
+    <Box>
         <HStack justify="space-between" mb={6}>
           <Heading as="h1" size="xl" color={headerColor}>
             Revenue Management
@@ -238,7 +236,6 @@ const RevenuePage = () => {
           </TabPanels>
         </Tabs>
       </Box>
-    </FinanceLayout>
   );
 };
 

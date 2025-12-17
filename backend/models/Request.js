@@ -14,6 +14,7 @@ const attachmentSchema = new mongoose.Schema(
 const RequestSchema = new mongoose.Schema(
   {
     department: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
     details: { type: String, required: true, trim: true },
     priority: {
       type: String,
@@ -21,9 +22,16 @@ const RequestSchema = new mongoose.Schema(
       default: "Medium",
       trim: true,
     },
-    date: { type: Date, required: true },
-    createdBy: { type: String, required: true, trim: true },
-    createdById: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    dueDate: { type: Date },
+    platform: { type: String, trim: true },
+    requestType: { 
+      type: String, 
+      enum: ["Creative", "Approval", "Collaboration", "Strategy", "General"],
+      default: "General",
+      trim: true,
+    },
+    requestedBy: { type: String, required: true, trim: true },
+    requestedById: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     status: {
       type: String,
       enum: ["Pending", "Approved", "Completed"],

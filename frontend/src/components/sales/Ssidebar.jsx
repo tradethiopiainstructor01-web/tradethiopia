@@ -14,16 +14,27 @@ import {
 import {
   FaHome,
   FaChartLine,
-  FaUsers,
   FaArrowLeft,
   FaArrowRight,
   FaVideo,
   FaMoneyBillWave,
   FaShoppingCart,
-  FaClipboardList
+  FaClipboardList,
 } from 'react-icons/fa';
 import { FiCheckCircle, FiMessageSquare } from 'react-icons/fi';
 import { getNotifications } from '../../services/notificationService';
+
+const sidebarItems = [
+  { label: 'Home', icon: FaHome },
+  { label: 'Followup', icon: FaMoneyBillWave },
+  { label: 'Orders', icon: FaShoppingCart },
+  { label: 'Tutorials', icon: FaVideo },
+  { label: 'Tasks', icon: FiCheckCircle },
+  { label: 'Monthly Report', icon: FaChartLine },
+  { label: 'Notice Board', icon: FiMessageSquare },
+  { label: 'Requests', icon: FaClipboardList },
+  { label: 'Financial Reports', icon: FaChartLine },
+];
 
 const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) => {
   // Color mode values
@@ -75,38 +86,20 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
       </HStack>
       <Divider mb={4} borderColor={borderColor} />
       <VStack align="stretch" spacing={2} px={2}>
-          {['Home', 'Followup', 'Orders', 'Tutorials', 'Tasks', 'Monthly Report', 'Notice Board', 'Requests', 'Financial Reports'].map((label) => (
+        {sidebarItems.map((item) => (
           <SidebarItem
-            key={label}
-            icon={
-              label === 'Home'
-                ? FaHome
-                : label === 'Followup'
-                ? FaMoneyBillWave
-                : label === 'Orders'
-                ? FaShoppingCart
-                : label === 'Resources'
-                ? FaChartLine
-                : label === 'Tasks'
-                ? FiCheckCircle
-                : label === 'Notice Board'
-                ? FiMessageSquare
-                : label === 'Requests'
-                ? FaClipboardList
-                : label === 'Financial Reports'
-                ? FaChartLine
-                : FaVideo
-            }
-            label={label}
+            key={item.label}
+            icon={item.icon}
+            label={item.label}
             isCollapsed={isCollapsed}
-            isActive={activeItem === label}
+            isActive={activeItem === item.label}
             onClick={() => {
-              setActiveItem(label);
-              if (label === 'Notice Board') {
+              setActiveItem(item.label);
+              if (item.label === 'Notice Board') {
                 fetchUnreadCount();
               }
             }}
-            unreadCount={label === 'Notice Board' ? unreadCount : 0}
+            unreadCount={item.label === 'Notice Board' ? unreadCount : 0}
           />
         ))}
       </VStack>
@@ -115,46 +108,55 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
 };
 
 const SidebarItem = ({ icon, label, isCollapsed, isActive, onClick, unreadCount }) => {
+  const button = (
+    <HStack
+      as="button"
+      type="button"
+      spacing={isCollapsed ? 0 : 4}
+      p={3}
+      w="100%"
+      bg={isActive ? 'teal.600' : 'gray.700'}
+      _hover={{ bg: isActive ? 'teal.500' : 'gray.600', transform: 'translateX(2px)', transition: 'all 0.2s ease' }}
+      borderRadius="lg"
+      justifyContent={isCollapsed ? 'center' : 'flex-start'}
+      transition="all 0.3s ease"
+      onClick={onClick}
+      boxShadow={isActive ? 'md' : 'sm'}
+      position="relative"
+    >
+      <Box as={icon} fontSize="20px" />
+      {!isCollapsed && (
+        <>
+          <Text fontSize="md" fontWeight="medium">{label}</Text>
+          {unreadCount > 0 && (
+            <Badge
+              colorScheme="red"
+              borderRadius="full"
+              position="absolute"
+              top="8px"
+              right="8px"
+              fontSize="10px"
+              w="18px"
+              h="18px"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+            >
+              {unreadCount}
+            </Badge>
+          )}
+        </>
+      )}
+    </HStack>
+  );
+
+  if (!isCollapsed) {
+    return button;
+  }
+
   return (
-    <Tooltip label={isCollapsed ? label : ''} placement="right" hasArrow>
-      <HStack
-        as="button"
-        spacing={isCollapsed ? 0 : 4}
-        p={3}
-        w="100%"
-        bg={isActive ? 'teal.600' : 'gray.700'}
-        _hover={{ bg: isActive ? 'teal.500' : 'gray.600', transform: 'translateX(2px)', transition: 'all 0.2s ease' }}
-        borderRadius="lg"
-        justifyContent={isCollapsed ? 'center' : 'flex-start'}
-        transition="all 0.3s ease"
-        onClick={onClick}
-        boxShadow={isActive ? 'md' : 'sm'}
-        position="relative"
-      >
-        <Box as={icon} fontSize="20px" />
-        {!isCollapsed && (
-          <>
-            <Text fontSize="md" fontWeight="medium">{label}</Text>
-            {unreadCount > 0 && (
-              <Badge
-                colorScheme="red"
-                borderRadius="full"
-                position="absolute"
-                top="8px"
-                right="8px"
-                fontSize="10px"
-                w="18px"
-                h="18px"
-                display="flex"
-                alignItems="center"
-                justifyContent="center"
-              >
-                {unreadCount}
-              </Badge>
-            )}
-          </>
-        )}
-      </HStack>
+    <Tooltip label={label} placement="right" hasArrow>
+      {button}
     </Tooltip>
   );
 };

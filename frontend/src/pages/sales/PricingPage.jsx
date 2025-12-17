@@ -26,7 +26,6 @@ import {
   useToast
 } from "@chakra-ui/react";
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon } from "@chakra-ui/icons";
-import FinanceLayout from "./FinanceLayout";
 import { fetchCourses, createCourse, updateCourse, deleteCourse } from "../../services/api";
 
 const emptyCourse = {
@@ -164,8 +163,7 @@ const PricingPage = () => {
   };
 
   return (
-    <FinanceLayout>
-      <Box>
+    <Box>
         <HStack justify="space-between" mb={6} align={{ base: "flex-start", md: "center" }} spacing={4} flexDir={{ base: "column", md: "row" }}>
           <Box>
             <Heading as="h1" size="xl" color={headerColor} mb={1}>
@@ -290,9 +288,7 @@ const PricingPage = () => {
           </CardBody>
         </Card>
       </Box>
-    </FinanceLayout>
   );
 };
 
 export default PricingPage;
-

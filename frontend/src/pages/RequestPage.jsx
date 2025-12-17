@@ -255,7 +255,7 @@ export default function RequestPage() {
             Back to {departmentLabel}
           </Button>
           <Box maxW={{ base: "100%", md: "70%" }}>
-            <Heading size="2xl">Unified Request Center</Heading>
+            <Heading size="2xl">Request Center</Heading>
             <Text fontSize="md" color={cardHelperColor}>
               All departments can submit their requests here. Finance reviews and approves everything centrally.
             </Text>

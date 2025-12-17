@@ -5,6 +5,7 @@ const Purchase = require('../models/Purchase');
 const Cost = require('../models/Cost');
 const { calculateRevenueSummary, buildRevenueTimeline } = require('../utils/revenue');
 const { calculatePayrollCost, calculateCategoryBreakdown } = require('../utils/expence');
+const { calculateCommission } = require('../utils/commission');
 
 const buildExpenseSummary = async () => {
   const buildTimeline = async (period) => {

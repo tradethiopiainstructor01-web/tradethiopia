@@ -83,8 +83,16 @@ const getAllSales = asyncHandler(async (req, res) => {
     // Attach agent information to sales
     const salesWithAgents = sales.map(sale => {
       const saleObj = sale.toObject();
+      const commissionData = calculateCommission(Number(sale.coursePrice) || 0);
+
       return {
         ...saleObj,
+        commission: {
+          ...(saleObj.commission || {}),
+          grossCommission: commissionData.grossCommission,
+          commissionTax: commissionData.commissionTax,
+          netCommission: commissionData.netCommission
+        },
         agentId: agentMap[sale.agentId] || null
       };
     });

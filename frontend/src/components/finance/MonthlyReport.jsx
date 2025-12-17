@@ -118,8 +118,8 @@ const MonthlyReport = () => {
 
   if (loading) {
     return (
-      <Flex justify="center" align="center" minH="300px">
-        <Spinner size="xl" />
+      <Flex justify="center" align="center" minH="150px">
+        <Spinner size="md" />
       </Flex>
     );
   }
@@ -127,21 +127,21 @@ const MonthlyReport = () => {
   return (
     <Box>
       {error && (
-        <Alert status="warning" variant="left-accent" borderRadius="md" mb={4}>
+        <Alert status="warning" variant="left-accent" borderRadius="md" mb={2} size="sm">
           <AlertIcon />
           <Box flex="1">
-            <AlertTitle>Warning</AlertTitle>
-            <AlertDescription display="block">
+            <AlertTitle fontSize="xs">Warning</AlertTitle>
+            <AlertDescription display="block" fontSize="xs">
               {error}
             </AlertDescription>
           </Box>
         </Alert>
       )}
       
-      <Flex justify="space-between" align="center" mb={6}>
+      <Flex justify="space-between" align="center" mb={3}>
         <Heading 
           as="h2" 
-          size="lg"
+          size="xs"
           color={headerColor}
           fontWeight="bold"
         >
@@ -149,12 +149,13 @@ const MonthlyReport = () => {
         </Heading>
         <Flex align="center">
           <Select 
-            size="sm" 
+            size="xs" 
             w="fit-content" 
             value={timeRange}
             onChange={(e) => handleTimeRangeChange(e.target.value)}
             variant="filled"
-            mr={2}
+            mr={1}
+            height="24px"
           >
             <option value="week">This Week</option>
             <option value="month">This Month</option>
@@ -165,28 +166,31 @@ const MonthlyReport = () => {
           <IconButton 
             aria-label="Refresh data" 
             icon={<FaSync />} 
-            size="sm" 
+            size="xs" 
             onClick={handleRefresh}
+            height="24px"
+            minW="24px"
           />
         </Flex>
       </Flex>
 
       {/* Summary Cards */}
       {reportData && (
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} mb={6}>
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={2} mb={3}>
           <Card 
             bg={cardBg} 
-            boxShadow="md"
-            _hover={{ transform: 'translateY(-2px)', boxShadow: 'lg' }}
+            boxShadow="xs"
+            _hover={{ transform: 'translateY(-1px)', boxShadow: 'sm' }}
             transition="all 0.2s"
+            size="sm"
           >
-            <CardBody textAlign="center">
-              <Flex justify="center" mb={2}>
-                <Box as={FaUsers} fontSize="24px" color="blue.500" />
+            <CardBody py={2} px={3} textAlign="center">
+              <Flex justify="center" mb={1}>
+                <Box as={FaUsers} fontSize="16px" color="blue.500" />
               </Flex>
               <Stat>
-                <StatLabel fontSize="sm" color="gray.500" mb={1}>Total Agents</StatLabel>
-                <StatNumber fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold" color="blue.500">
+                <StatLabel fontSize="xs" color="gray.500" mb={0.5}>Total Agents</StatLabel>
+                <StatNumber fontSize="sm" fontWeight="bold" color="blue.500">
                   {reportData.teamStats?.totalAgents || 0}
                 </StatNumber>
               </Stat>
@@ -195,17 +199,18 @@ const MonthlyReport = () => {
 
           <Card 
             bg={cardBg} 
-            boxShadow="md"
-            _hover={{ transform: 'translateY(-2px)', boxShadow: 'lg' }}
+            boxShadow="xs"
+            _hover={{ transform: 'translateY(-1px)', boxShadow: 'sm' }}
             transition="all 0.2s"
+            size="sm"
           >
-            <CardBody textAlign="center">
-              <Flex justify="center" mb={2}>
-                <Box as={FaChartLine} fontSize="24px" color="green.500" />
+            <CardBody py={2} px={3} textAlign="center">
+              <Flex justify="center" mb={1}>
+                <Box as={FaChartLine} fontSize="16px" color="green.500" />
               </Flex>
               <Stat>
-                <StatLabel fontSize="sm" color="gray.500" mb={1}>Total Sales</StatLabel>
-                <StatNumber fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold" color="green.500">
+                <StatLabel fontSize="xs" color="gray.500" mb={0.5}>Total Sales</StatLabel>
+                <StatNumber fontSize="sm" fontWeight="bold" color="green.500">
                   {reportData.teamStats?.totalTeamSales || 0}
                 </StatNumber>
               </Stat>
@@ -214,17 +219,18 @@ const MonthlyReport = () => {
 
           <Card 
             bg={cardBg} 
-            boxShadow="md"
-            _hover={{ transform: 'translateY(-2px)', boxShadow: 'lg' }}
+            boxShadow="xs"
+            _hover={{ transform: 'translateY(-1px)', boxShadow: 'sm' }}
             transition="all 0.2s"
+            size="sm"
           >
-            <CardBody textAlign="center">
-              <Flex justify="center" mb={2}>
-                <Box as={FaMedal} fontSize="24px" color="purple.500" />
+            <CardBody py={2} px={3} textAlign="center">
+              <Flex justify="center" mb={1}>
+                <Box as={FaMedal} fontSize="16px" color="purple.500" />
               </Flex>
               <Stat>
-                <StatLabel fontSize="sm" color="gray.500" mb={1}>Gross Commission</StatLabel>
-                <StatNumber fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold" color="purple.500">
+                <StatLabel fontSize="xs" color="gray.500" mb={0.5}>Gross Commission</StatLabel>
+                <StatNumber fontSize="sm" fontWeight="bold" color="purple.500">
                   ETB {(reportData.teamStats?.totalTeamGrossCommission || 0).toLocaleString()}
                 </StatNumber>
               </Stat>
@@ -233,17 +239,18 @@ const MonthlyReport = () => {
 
           <Card 
             bg={cardBg} 
-            boxShadow="md"
-            _hover={{ transform: 'translateY(-2px)', boxShadow: 'lg' }}
+            boxShadow="xs"
+            _hover={{ transform: 'translateY(-1px)', boxShadow: 'sm' }}
             transition="all 0.2s"
+            size="sm"
           >
-            <CardBody textAlign="center">
-              <Flex justify="center" mb={2}>
-                <Box as={FaMedal} fontSize="24px" color="orange.500" />
+            <CardBody py={2} px={3} textAlign="center">
+              <Flex justify="center" mb={1}>
+                <Box as={FaMedal} fontSize="16px" color="orange.500" />
               </Flex>
               <Stat>
-                <StatLabel fontSize="sm" color="gray.500" mb={1}>Net Commission</StatLabel>
-                <StatNumber fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold" color="orange.500">
+                <StatLabel fontSize="xs" color="gray.500" mb={0.5}>Net Commission</StatLabel>
+                <StatNumber fontSize="sm" fontWeight="bold" color="orange.500">
                   ETB {(reportData.teamStats?.totalTeamNetCommission || 0).toLocaleString()}
                 </StatNumber>
               </Stat>
@@ -256,56 +263,57 @@ const MonthlyReport = () => {
       {topPerformers.length > 0 && (
         <Card 
           bg={cardBg} 
-          boxShadow="md"
-          borderRadius="lg"
-          mb={6}
+          boxShadow="xs"
+          borderRadius="md"
+          mb={3}
+          size="sm"
         >
-          <CardBody>
+          <CardBody py={2} px={3}>
             <Heading 
               as="h3" 
-              size="md" 
+              size="xs" 
               color={headerColor}
-              mb={4}
+              mb={2}
             >
               Top Performing Agents
             </Heading>
             
             <Box overflowX="auto">
-              <Table variant="simple">
+              <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
-                    <Th>Rank</Th>
-                    <Th>Agent</Th>
-                    <Th isNumeric>Sales</Th>
-                    <Th isNumeric>Gross Commission</Th>
-                    <Th isNumeric>Net Commission</Th>
+                    <Th fontSize="xs" p={1}>Rank</Th>
+                    <Th fontSize="xs" p={1}>Agent</Th>
+                    <Th isNumeric fontSize="xs" p={1}>Sales</Th>
+                    <Th isNumeric fontSize="xs" p={1}>Gross Commission</Th>
+                    <Th isNumeric fontSize="xs" p={1}>Net Commission</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
                   {topPerformers.map((agent, index) => (
                     <Tr key={agent._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
-                      <Td>
+                      <Td p={1}>
                         <Badge 
                           colorScheme={index === 0 ? "yellow" : index === 1 ? "gray" : index === 2 ? "orange" : "gray"}
-                          fontSize="md"
-                          p={1}
+                          fontSize="xs"
+                          p={0.5}
                         >
                           #{index + 1}
                         </Badge>
                       </Td>
-                      <Td>
-                        <Text fontWeight="medium">{agent.fullName || agent.username}</Text>
+                      <Td p={1}>
+                        <Text fontSize="xs" fontWeight="medium">{agent.fullName || agent.username}</Text>
                       </Td>
-                      <Td isNumeric>
-                        <Text fontWeight="bold" color="blue.500">{agent.completedDeals}</Text>
+                      <Td isNumeric p={1}>
+                        <Text fontSize="xs" fontWeight="bold" color="blue.500">{agent.completedDeals}</Text>
                       </Td>
-                      <Td isNumeric>
-                        <Text fontWeight="bold" color="purple.500">
+                      <Td isNumeric p={1}>
+                        <Text fontSize="xs" fontWeight="bold" color="purple.500">
                           ETB {agent.totalGrossCommission.toLocaleString()}
                         </Text>
                       </Td>
-                      <Td isNumeric>
-                        <Text fontWeight="bold" color="orange.500">
+                      <Td isNumeric p={1}>
+                        <Text fontSize="xs" fontWeight="bold" color="orange.500">
                           ETB {agent.totalNetCommission.toLocaleString()}
                         </Text>
                       </Td>
@@ -322,29 +330,30 @@ const MonthlyReport = () => {
       {reportData && reportData.agentPerformance && reportData.agentPerformance.length > 0 && (
         <Card 
           bg={cardBg} 
-          boxShadow="md"
-          borderRadius="lg"
+          boxShadow="xs"
+          borderRadius="md"
+          size="sm"
         >
-          <CardBody>
+          <CardBody py={2} px={3}>
             <Heading 
               as="h3" 
-              size="md" 
+              size="xs" 
               color={headerColor}
-              mb={4}
+              mb={2}
             >
               All Agent Performance Details
             </Heading>
             
             <Box overflowX="auto">
-              <Table variant="simple">
+              <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
-                    <Th>Agent</Th>
-                    <Th isNumeric>Completed Sales</Th>
-                    <Th isNumeric>Total Sales Value</Th>
-                    <Th isNumeric>Gross Commission</Th>
-                    <Th isNumeric>Tax Deduction</Th>
-                    <Th isNumeric>Net Commission</Th>
+                    <Th fontSize="xs" p={1}>Agent</Th>
+                    <Th isNumeric fontSize="xs" p={1}>Completed Sales</Th>
+                    <Th isNumeric fontSize="xs" p={1}>Total Sales Value</Th>
+                    <Th isNumeric fontSize="xs" p={1}>Gross Commission</Th>
+                    <Th isNumeric fontSize="xs" p={1}>Tax Deduction</Th>
+                    <Th isNumeric fontSize="xs" p={1}>Net Commission</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -354,29 +363,29 @@ const MonthlyReport = () => {
                     
                     return (
                       <Tr key={agent._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
-                        <Td>
-                          <Text fontWeight="medium">{agent.fullName || agent.username}</Text>
+                        <Td p={1}>
+                          <Text fontSize="xs" fontWeight="medium">{agent.fullName || agent.username}</Text>
                         </Td>
-                        <Td isNumeric>
-                          <Text fontWeight="bold" color="blue.500">{agent.completedDeals}</Text>
+                        <Td isNumeric p={1}>
+                          <Text fontSize="xs" fontWeight="bold" color="blue.500">{agent.completedDeals}</Text>
                         </Td>
-                        <Td isNumeric>
-                          <Text fontWeight="bold" color="green.500">
+                        <Td isNumeric p={1}>
+                          <Text fontSize="xs" fontWeight="bold" color="green.500">
                             ETB {agent.totalSales.toLocaleString()}
                           </Text>
                         </Td>
-                        <Td isNumeric>
-                          <Text fontWeight="bold" color="purple.500">
+                        <Td isNumeric p={1}>
+                          <Text fontSize="xs" fontWeight="bold" color="purple.500">
                             ETB {commissionData.grossCommission.toLocaleString()}
                           </Text>
                         </Td>
-                        <Td isNumeric>
-                          <Text fontWeight="bold" color="red.500">
+                        <Td isNumeric p={1}>
+                          <Text fontSize="xs" fontWeight="bold" color="red.500">
                             ETB {commissionData.commissionTax.toLocaleString()}
                           </Text>
                         </Td>
-                        <Td isNumeric>
-                          <Text fontWeight="bold" color="orange.500">
+                        <Td isNumeric p={1}>
+                          <Text fontSize="xs" fontWeight="bold" color="orange.500">
                             ETB {commissionData.netCommission.toLocaleString()}
                           </Text>
                         </Td>
@@ -392,9 +401,9 @@ const MonthlyReport = () => {
 
       {/* No data message */}
       {reportData && reportData.agentPerformance && reportData.agentPerformance.length === 0 && (
-        <Card bg={cardBg} boxShadow="md" borderRadius="lg">
-          <CardBody textAlign="center" py={10}>
-            <Text fontSize="lg" color="gray.500">
+        <Card bg={cardBg} boxShadow="xs" borderRadius="md" size="sm">
+          <CardBody textAlign="center" py={4} px={3}>
+            <Text fontSize="xs" color="gray.500">
               No agent performance data available for the selected time period.
             </Text>
           </CardBody>

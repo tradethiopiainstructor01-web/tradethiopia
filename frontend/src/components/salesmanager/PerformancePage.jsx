@@ -73,6 +73,8 @@ const PerformancePage = () => {
   };
   const formatCurrency = (value) => `ETB ${formatNumber(value, { maximumFractionDigits: 0 })}`;
 
+  const rankBadges = ['🥇', '🥈', '🥉'];
+
   const fetchPerformanceData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -80,10 +82,10 @@ const PerformancePage = () => {
 
       // Process agent performance data for charts
       const processedAgentPerformance = data.agentPerformance.map(agent => ({
-        name: agent.agentName,
-        sales: agent.completedDeals,
-        revenue: agent.totalCommission,
-        id: agent.agentId
+        name: agent.fullName || agent.agentName || agent.username || 'Agent',
+        sales: Number(agent.completedDeals || 0),
+        revenue: Number(agent.totalNetCommission ?? agent.totalGrossCommission ?? agent.totalCommission ?? 0),
+        id: agent._id || agent.agentId || `${agent.username}-${Math.random()}`
       })).sort((a, b) => b.sales - a.sales); // Sort by sales descending
 
       // Ensure we have at least some data for display
@@ -662,6 +664,7 @@ const PerformancePage = () => {
                     const avgSale = agent.sales > 0 && Number.isFinite(agent.revenue / agent.sales)
                       ? Math.round(agent.revenue / agent.sales)
                       : 0;
+                    const rankLabel = rankBadges[index] || `#${index + 1}`;
                     return (
                       <Box 
                         as="tr" 
@@ -679,7 +682,7 @@ const PerformancePage = () => {
                           fontWeight={index < 3 ? 'bold' : 'normal'}
                           whiteSpace="nowrap"
                         >
-                          {index === 0 ? 'ðŸ¥‡' : index === 1 ? 'ðŸ¥ˆ' : index === 2 ? 'ðŸ¥‰' : `#${index + 1}`}
+                          {rankLabel}
                         </Box>
                         <Box 
                           as="td" 

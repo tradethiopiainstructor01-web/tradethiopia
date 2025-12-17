@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserStore } from '../../store/user';
-import RequestPanel from '../RequestPanel';
 import {
   Avatar,
   Badge,
