@@ -116,6 +116,7 @@ const WEEKLY_TARGET_POINTS = 40;
 const TASK_STORAGE_KEY = 'tradethiopia_it_tasks';
 const TARGET_STORAGE_KEY = 'tradethiopia_weekly_target';
 import NoticeBoardPanel from '../NoticeBoardPanel';
+import NotesLauncher from '../notes/NotesLauncher';
 
 const STATUS_PROGRESS = {
   pending: 25,
@@ -1340,6 +1341,15 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
                 <Button colorScheme="teal" variant="outline" onClick={() => navigate("/requests")}>
                   Requests
                 </Button>
+                <NotesLauncher
+                  buttonProps={{
+                    size: 'sm',
+                    variant: 'ghost',
+                    colorScheme: 'blue',
+                    'aria-label': 'Notes',
+                  }}
+                  tooltipLabel="Notes"
+                />
               </HStack>
             </Flex>
             <Box

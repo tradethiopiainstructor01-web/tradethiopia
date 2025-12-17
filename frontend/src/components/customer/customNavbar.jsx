@@ -5,7 +5,6 @@ import {
   IconButton,
   HStack,
   Spacer,
-  Avatar,
   Menu,
   MenuButton,
   MenuList,
@@ -23,10 +22,9 @@ import {
   Tooltip,
   useColorMode,
   useColorModeValue,
-  Icon,
 } from "@chakra-ui/react";
-import { FaBell, FaUserCircle } from "react-icons/fa";
-import { FiMenu, FiHome, FiUsers, FiBookOpen } from "react-icons/fi";
+import { FiMenu, FiHome, FiUsers, FiBookOpen, FiBell, FiUser, FiFileText } from "react-icons/fi";
+import NotesLauncher from "../notes/NotesLauncher";
 import { Link as RouterLink } from "react-router-dom";
 import { useUserStore } from "../../store/user";
 import { useNavigate } from "react-router-dom";
@@ -43,6 +41,16 @@ const Cnavbar = () => {
   const accentBar = useColorModeValue("linear(to-b, blue.400, purple.400)", "linear(to-b, teal.300, cyan.400)");
   const textPrimary = useColorModeValue("gray.800", "white");
   const textSecondary = useColorModeValue("gray.600", "teal.100");
+  const actionHoverColor = useColorModeValue("blue.600", "teal.200");
+  const actionActiveBg = useColorModeValue("rgba(0,0,0,0.04)", "rgba(255,255,255,0.08)");
+
+  const actionButtonProps = {
+    size: "md",
+    variant: "ghost",
+    color: textPrimary,
+    _hover: { color: actionHoverColor, bg: actionActiveBg },
+    _active: { bg: actionActiveBg },
+  };
 
   const currentUser = useUserStore((state) => state.currentUser);
   const clearUser = useUserStore((state) => state.clearUser);
@@ -107,7 +115,7 @@ const Cnavbar = () => {
           <Spacer />
 
            {/* Icons and Profile */}
-           <HStack spacing={4}>
+          <HStack spacing={4} align="center">
             <Tooltip label={`Switch to ${colorMode === "light" ? "dark" : "light"} mode`}>
               <IconButton
                 aria-label="Toggle color mode"
@@ -115,63 +123,75 @@ const Cnavbar = () => {
                 onClick={toggleColorMode}
                 variant="ghost"
                 color={useColorModeValue("blue.600", "yellow.300")}
+                size="md"
+                _hover={{ bg: "transparent" }}
               />
             </Tooltip>
-            {/* Notifications Dropdown */}
-            <Menu>
-              <MenuButton
-                as={IconButton}
-                icon={<FaBell />}
-                aria-label="Notifications"
-                variant="ghost"
-                color={textPrimary}
-              />
-              <MenuList>
-                {notifications.length > 0 ? (
-                  <>
-                    {notifications.map((notification) => (
-                      <MenuItem key={notification.id}>
-                        <Box>
-                          <Text fontWeight="bold">{notification.message}</Text>
-                          <Text fontSize="sm" color="gray.500">
-                            {notification.timestamp}
-                          </Text>
-                        </Box>
-                      </MenuItem>
-                    ))}
-                    <MenuDivider />
-                    <MenuItem onClick={clearNotifications}>Clear All</MenuItem>
-                  </>
-                ) : (
-                  <MenuItem>
-                    <Text>No new notifications</Text>
-                  </MenuItem>
-                )}
-              </MenuList>
-            </Menu>
+            <HStack spacing={3} align="center">
+              {/* Notifications Dropdown */}
+              <Menu>
+                <MenuButton
+                  as={IconButton}
+                  icon={<FiBell size={20} />}
+                  aria-label="Notifications"
+                  {...actionButtonProps}
+                />
+                <MenuList>
+                  {notifications.length > 0 ? (
+                    <>
+                      {notifications.map((notification) => (
+                        <MenuItem key={notification.id}>
+                          <Box>
+                            <Text fontWeight="bold">{notification.message}</Text>
+                            <Text fontSize="sm" color="gray.500">
+                              {notification.timestamp}
+                            </Text>
+                          </Box>
+                        </MenuItem>
+                      ))}
+                      <MenuDivider />
+                      <MenuItem onClick={clearNotifications}>Clear All</MenuItem>
+                    </>
+                  ) : (
+                    <MenuItem>
+                      <Text>No new notifications</Text>
+                    </MenuItem>
+                  )}
+                </MenuList>
+              </Menu>
 
-            {/* Profile Dropdown */}
-            <Menu>
-              <MenuButton
-                as={IconButton}
-                icon={<FaUserCircle fontSize="20px" />}
-                aria-label="User Profile"
-                variant="ghost"
-                color={textPrimary}
+              {/* Notes Launcher */}
+              <NotesLauncher
+                buttonProps={{
+                  ...actionButtonProps,
+                  icon: <FiFileText size={20} />,
+                  "aria-label": "Notes",
+                }}
+                tooltipLabel="Notes"
               />
-              <MenuList>
-                <Box p={4}>
-                  <Text fontWeight="bold" fontSize="lg">
-                    {currentUser?.username || "User"}
-                  </Text>
-                  <Text fontSize="sm" color="gray.500">
-                    {currentUser?.role || "Role not available"}
-                  </Text>
-                </Box>
-                <MenuDivider />
-                <MenuItem onClick={handleLogout}>Logout</MenuItem>
-              </MenuList>
-            </Menu>
+
+              {/* Profile Dropdown */}
+              <Menu>
+                <MenuButton
+                  as={IconButton}
+                  icon={<FiUser size={20} />}
+                  aria-label="User Profile"
+                  {...actionButtonProps}
+                />
+                <MenuList>
+                  <Box p={4}>
+                    <Text fontWeight="bold" fontSize="lg">
+                      {currentUser?.username || "User"}
+                    </Text>
+                    <Text fontSize="sm" color="gray.500">
+                      {currentUser?.role || "Role not available"}
+                    </Text>
+                  </Box>
+                  <MenuDivider />
+                  <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                </MenuList>
+              </Menu>
+            </HStack>
           </HStack>
         </Flex>
       </Box>

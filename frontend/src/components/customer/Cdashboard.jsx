@@ -428,16 +428,17 @@ const CDashboard = ({ initialTab = 'dashboard' }) => {
         <CustomerMessagesPage embedded />
       ) : (
         <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
-          <Heading 
-            as="h1" 
-            size={{ base: "lg", md: "xl" }} 
-            color={headerColor}
-            textAlign={{ base: "center", md: "left" }}
-            fontWeight="bold"
-            mb={6}
-          >
-            Customer Dashboard
-          </Heading>
+          <Flex justify="space-between" align="center" wrap="wrap" gap={4} mb={6}>
+            <Heading 
+              as="h1" 
+              size={{ base: "lg", md: "xl" }} 
+              color={headerColor}
+              textAlign={{ base: "center", md: "left" }}
+              fontWeight="bold"
+            >
+              Customer Dashboard
+            </Heading>
+          </Flex>
 
           {/* Stats Cards */}
           <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4} mb={6}>

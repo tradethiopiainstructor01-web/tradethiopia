@@ -15,6 +15,7 @@ import { MoonIcon, SunIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
 import { useUserStore } from "../../store/user";
 import SocialMediaManager from "../../components/socialmedia/SocialMediaManager";
+import NotesLauncher from "../../components/notes/NotesLauncher";
 const SocialMediaDashboardPage = () => {
   const navigate = useNavigate();
   const currentUser = useUserStore((state) => state.currentUser);
@@ -93,6 +94,15 @@ const SocialMediaDashboardPage = () => {
           <Button size="sm" variant="outline" colorScheme="teal" onClick={handleRequestNav}>
             Request center
           </Button>
+          <NotesLauncher
+            buttonProps={{
+              size: 'sm',
+              variant: 'outline',
+              colorScheme: 'teal',
+              'aria-label': 'Notes',
+            }}
+            tooltipLabel="Notes"
+          />
           <IconButton
             aria-label="Toggle color mode"
             icon={colorMode === "light" ? <MoonIcon /> : <SunIcon />}
