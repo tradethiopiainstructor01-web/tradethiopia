@@ -166,6 +166,7 @@ const fetchPayrollDataHandler = async () => {
   };
 
   const filteredPayrollHistory = payrollHistory.filter((entry) => {
+    console.log('Processing history entry:', entry);
     const userFilter = historyFilters.username.toLowerCase().trim();
     const monthFilter = historyFilters.month;
     const departmentFilter = historyFilters.department.toLowerCase().trim();
@@ -1913,11 +1914,11 @@ const fetchPayrollDataHandler = async () => {
                       <Tr key={entry._id}>
                         <Td px={2} py={1} fontSize="xs">{entry.month} {entry.year}</Td>
                         <Td px={2} py={1} fontSize="xs">{entry.employeeName}</Td>
-                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.payrollData?.grossSalary || entry.payrollData?.basicSalary || 0)}</Td>
-                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.payrollData?.netSalary || 0)}</Td>
-                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.grossCommission || 0)}</Td>
-                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.commissionTax || 0)}</Td>
-                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.netCommission || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.payrollData?.grossSalary || entry.payrollData?.basicSalary || entry.grossSalary || entry.basicSalary || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.payrollData?.netSalary || entry.netSalary || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.grossCommission || entry.grossCommission || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.commissionTax || entry.commissionTax || 0)}</Td>
+                        <Td px={2} py={1} fontSize="xs" isNumeric>{formatCurrency(entry.commissionData?.netCommission || entry.netCommission || 0)}</Td>
                         <Td px={2} py={1} fontSize="xs">{entry.finalizedByName || entry.finalizedBy || 'Finance'}</Td>
                         <Td px={2} py={1} fontSize="xs">{entry.finalizedAt ? new Date(entry.finalizedAt).toLocaleDateString() : '?'}</Td>
                         <Td px={2} py={1} fontSize="xs">

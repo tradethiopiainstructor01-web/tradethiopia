@@ -44,6 +44,7 @@ import COODashboard from './pages/COODashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
 import AwardsPage from './pages/AwardsPage';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
+import FinanceDashboard from './components/finance/FinanceDashboard.jsx'
 
 function App() {
   const location = useLocation();
@@ -54,7 +55,7 @@ function App() {
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", 
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
     "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard",
-    "/coo-dashboard"
+    "/coo-dashboard", "/finance-dashboard"
     , "/tradextv-dashboard"
   ];
 
@@ -119,6 +120,7 @@ function App() {
             <Route path="/admin-training-upload" element={<AdminTrainingUpload />} />
             <Route path="/adminCustomerReport" element={<AdminCustomerReport />} />
             <Route path="/b2b-dashboard" element={<B2BDashboard />} />
+            <Route path="/finance-dashboard" element={<FinanceDashboard />} />
             <Route
               path="/coo-dashboard"
               element={
