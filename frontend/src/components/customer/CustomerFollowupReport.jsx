@@ -69,6 +69,15 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+// Create axios instance with timeout
+const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 5000, // 5 second timeout to prevent hanging
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
 const CustomerFollowupReport = () => {
   const [followups, setFollowups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,25 +106,42 @@ const CustomerFollowupReport = () => {
   const secondaryTextColor = useColorModeValue("gray.500", "gray.400");
 
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 2; // Reduce retries to prevent excessive attempts
+    
     const fetchFollowups = async () => {
       try {
         setLoading(true);
+        const startTime = performance.now();
         const token = localStorage.getItem("userToken");
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        
+        // Log request start
+        console.log(`Starting followup data fetch (attempt ${retryCount + 1})`);
+        // Request smaller chunks of data to prevent timeouts
         const [response, trainingRes, usersRes] = await Promise.all([
-          axios.get(`${API_URL}/api/followups`, { headers }),
-          axios.get(`${API_URL}/api/training-followups`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/api/users`, { headers }).catch(() => ({ data: [] }))
+          apiClient.get(`/api/followups?limit=100&page=1`, { headers }),
+          apiClient.get(`/api/training-followups?limit=100&page=1`, { headers }).catch(() => ({ data: [] })),
+          apiClient.get(`/api/users`, { headers }).catch(() => ({ data: [] }))
         ]);
         
-        if (response.data && Array.isArray(response.data)) {
+        // Handle the new response format from followups API
+        if (response.data && Array.isArray(response.data.data)) {
+          setFollowups(response.data.data);
+          calculateStats(response.data.data);
+        } else if (response.data && Array.isArray(response.data)) {
+          // Fallback for old format
           setFollowups(response.data);
           calculateStats(response.data);
         } else {
           setError("Invalid data format received from server");
         }
 
-        if (Array.isArray(trainingRes.data)) {
+        // Handle the new response format from training followups API
+        if (trainingRes.data && Array.isArray(trainingRes.data.data)) {
+          setTrainingFollowupsData(trainingRes.data.data);
+        } else if (Array.isArray(trainingRes.data)) {
+          // Fallback for old format
           setTrainingFollowupsData(trainingRes.data);
         } else {
           setTrainingFollowupsData([]);
@@ -134,16 +160,49 @@ const CustomerFollowupReport = () => {
           }
         });
         setUsersMap(map);
+        
+        // Log request completion time
+        const endTime = performance.now();
+        console.log(`Followup data fetch completed in ${(endTime - startTime).toFixed(2)}ms`);
       } catch (err) {
         console.error("Error fetching followups:", err);
-        setError("Failed to load follow-up data. Please try again later.");
-        toast({
-          title: "Error",
-          description: "Failed to load follow-up data",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
+        
+        // Log more detailed error information
+        if (err.response) {
+          console.error("Response data:", err.response.data);
+          console.error("Response status:", err.response.status);
+          console.error("Response headers:", err.response.headers);
+        } else if (err.request) {
+          console.error("Request data:", err.request);
+        }
+        
+        // Handle timeout errors specifically
+        if ((err.code === 'ECONNABORTED' || err.message.includes('timeout')) && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Retry attempt ${retryCount} after timeout`);
+          // Adaptive delay - increase with each retry
+          const delay = retryCount * 750; // 750ms, 1500ms, etc.
+          setTimeout(fetchFollowups, delay);
+          return;
+        } else if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+          setError("Request timed out after multiple attempts. Please check your connection and try again.");
+          toast({
+            title: "Timeout Error",
+            description: "The request took too long to complete after multiple attempts.",
+            status: "warning",
+            duration: 5000,
+            isClosable: true,
+          });
+        } else {
+          setError("Failed to load follow-up data. Please try again later.");
+          toast({
+            title: "Error",
+            description: "Failed to load follow-up data",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -443,7 +502,11 @@ const CustomerFollowupReport = () => {
                 </Text>
                 <Button 
                   colorScheme="blue" 
-                  onClick={() => window.location.reload()}
+                  onClick={() => {
+                    // Reset error and trigger reload
+                    setError(null);
+                    window.location.reload();
+                  }}
                 >
                   Retry
                 </Button>

@@ -94,7 +94,7 @@ const FollowupTabPage = ({
                   size="md"
                   borderRadius="md"
                   borderColor={borderColor}
-                  leftElement={<SearchIcon color="gray.300" />}
+                  leftIcon={<SearchIcon color="gray.300" />}
                 />
               </Flex>
 

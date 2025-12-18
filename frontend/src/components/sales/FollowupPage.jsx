@@ -350,6 +350,11 @@ const FollowupPage = () => {
   };
 
   // Filter customers based on filters
+  const normalizeStatus = (value) => {
+    if (value == null) return '';
+    return value.toString().trim().toLowerCase();
+  };
+
   const filteredCustomers = customers.filter(customer => {
     // Search filter
     if (filters.search) {
@@ -361,8 +366,8 @@ const FollowupPage = () => {
         (customer.email && customer.email.toLowerCase().includes(searchTerm));
       if (!matchesSearch) return false;
     }
-    
-    if ((customer.followupStatus || '').toLowerCase() === 'imported') {
+    const followupStatusNormalized = normalizeStatus(customer.followupStatus);
+    if (followupStatusNormalized === 'imported') {
       return false;
     }
 
@@ -373,10 +378,12 @@ const FollowupPage = () => {
     
     // Follow-up status filter
     if (filters.followupStatus) {
-      if (filters.followupStatus === 'Not Imported' && customer.followupStatus === 'Imported') {
-        return false;
-      }
-      if (filters.followupStatus !== 'Not Imported' && customer.followupStatus !== filters.followupStatus) {
+      const filterStatusNormalized = normalizeStatus(filters.followupStatus);
+      if (filterStatusNormalized === 'not imported') {
+        if (followupStatusNormalized === 'imported') {
+          return false;
+        }
+      } else if (followupStatusNormalized !== filterStatusNormalized) {
         return false;
       }
     }
@@ -788,7 +795,6 @@ const FollowupPage = () => {
             <option value="Completed">Completed</option>
             <option value="Scheduled">Scheduled</option>
             <option value="Cancelled">Cancelled</option>
-            <option value="Imported">Imported</option>
             <option value="Not Imported">Not Imported</option>
           </Select>
           

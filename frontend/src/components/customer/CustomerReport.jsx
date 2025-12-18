@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import Layout from './Layout';
 import jsPDF from "jspdf";
@@ -44,7 +44,12 @@ import {
   FormLabel,
   NumberInput,
   NumberInputField,
-  Select
+  Select,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Spinner
 } from "@chakra-ui/react";
 import { 
   FiDownload, 
@@ -70,10 +75,40 @@ import {
   FiRefreshCw
 } from "react-icons/fi";
 
-const API_URL = import.meta.env.VITE_API_URL;
+// Create axios instance with default config
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  timeout: 8000, // Further reduced to prevent hanging
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+// Add request interceptor to add auth token
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("userToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for better error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error("API Error:", error);
+    return Promise.reject(error);
+  }
+);
 
 // Helper Components
-const StatCard = ({ title, value, icon: Icon, colorScheme, trend, trendValue, isRating = false }) => {
+const StatCard = React.memo(({ title, value, icon: Icon, colorScheme, trend, trendValue, isRating = false }) => {
   const cardBg = useColorModeValue("white", "gray.800");
   const textColor = useColorModeValue("gray.800", "white");
   const secondaryTextColor = useColorModeValue("gray.500", "gray.400");
@@ -88,7 +123,7 @@ const StatCard = ({ title, value, icon: Icon, colorScheme, trend, trendValue, is
                 {title}
               </StatLabel>
               <StatNumber fontSize="2xl" fontWeight="bold" color={textColor} mt={1}>
-                {isRating ? `${value}/5` : value.toLocaleString()}
+                {isRating ? `${value}/5` : (value || 0).toLocaleString()}
                 {trend && (
                   <StatHelpText mb={0}>
                     <StatArrow type={trend === 'up' ? 'increase' : 'decrease'} />
@@ -110,9 +145,9 @@ const StatCard = ({ title, value, icon: Icon, colorScheme, trend, trendValue, is
       </CardBody>
     </Card>
   );
-};
+});
 
-const ActivityMetric = ({ label, value, icon: Icon }) => (
+const ActivityMetric = React.memo(({ label, value, icon: Icon }) => (
   <Box textAlign="center" p={4} bg="white" borderRadius="md" boxShadow="sm">
     <Icon size={24} color="#4A90E2" />
     <Text fontSize="xl" fontWeight="bold" mt={2}>
@@ -122,9 +157,9 @@ const ActivityMetric = ({ label, value, icon: Icon }) => (
       {label}
     </Text>
   </Box>
-);
+));
 
-const TargetRow = ({ label, target, actual, isPercentage = false, onActualChange }) => {
+const TargetRow = React.memo(({ label, target, actual, isPercentage = false, onActualChange }) => {
   const numericTarget = parseFloat(target) || 0;
   const numericActual = parseFloat(actual) || 0;
   const gap = numericActual - numericTarget;
@@ -158,9 +193,9 @@ const TargetRow = ({ label, target, actual, isPercentage = false, onActualChange
       </Td>
     </Tr>
   );
-};
+});
 
-const QualityMetricRow = ({ label, target, actual, isTime = false }) => {
+const QualityMetricRow = React.memo(({ label, target, actual, isTime = false }) => {
   let progress, displayValue, progressColor;
   
   if (isTime) {
@@ -202,7 +237,7 @@ const QualityMetricRow = ({ label, target, actual, isTime = false }) => {
       </Td>
     </Tr>
   );
-};
+});
 
 const CustomerReport = () => {
   const [report, setReport] = useState([]);
@@ -260,6 +295,11 @@ const CustomerReport = () => {
       renewals: 20
     }
   });
+  const [loadingStage, setLoadingStage] = useState("Initializing..."); // Track loading stages
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50); // Show 50 items per page
 
   const tableRef = useRef(null);
   const toast = useToast();
@@ -271,26 +311,26 @@ const CustomerReport = () => {
   const secondaryTextColor = useColorModeValue("gray.500", "gray.400");
   const modalBg = useColorModeValue("white", "gray.800");
 
-  const getAgentName = (item) =>
+  const getAgentName = useCallback((item) =>
     item.agentName ||
     item.agentUsername ||
     item.assignedTo ||
     item.agent ||
     item.creator?.username ||
-    "Unassigned";
+    "Unassigned", []);
 
-  const getActualValue = (label, fallback) => {
+  const getActualValue = useCallback((label, fallback) => {
     const v = actualOverrides[label];
     if (v === undefined || v === null || v === "") return fallback;
     const parsed = Number(v);
     return Number.isNaN(parsed) ? fallback : parsed;
-  };
+  }, [actualOverrides]);
 
-  const setActualValue = (label, value) => {
+  const setActualValue = useCallback((label, value) => {
     setActualOverrides((prev) => ({ ...prev, [label]: value }));
-  };
+  }, []);
 
-  const metricOptions = () => {
+  const metricOptions = useCallback(() => {
     const base = [
       { label: "User Manuals Sent", defaultVal: activityTotals.materialUpdates },
       { label: "Training Videos Shared", defaultVal: activityTotals.progressUpdates },
@@ -344,205 +384,313 @@ const CustomerReport = () => {
     });
 
     return base;
-  };
+  }, [activityTotals, customerServiceUsers, interactionPerformance, targets]);
 
   const openActualModal = () => {
     setActualModal((prev) => ({ ...prev, isOpen: true }));
   };
 
+  // Memoize expensive calculations with pagination support
+  const processedReportData = useMemo(() => {
+    // Always calculate to maintain consistent hook order
+    // Initialize with default values
+    const defaultStats = {
+      totalCustomers: 0,
+      activeFollowups: 0,
+      completedFollowups: 0,
+      avgRating: 0
+    };
+    
+    const defaultActivityTotals = {
+      registered: 0,
+      followupAttempts: 0,
+      updateAttempts: 0,
+      importedTraining: 0,
+      importedB2B: 0,
+      materialUpdates: 0,
+      progressUpdates: 0,
+      serviceUpdates: 0,
+      packageStatusUpdates: 0,
+    };
+    
+    // Return early if no report data
+    if (!report || report.length === 0) {
+      return { 
+        stats: defaultStats,
+        activityTotals: defaultActivityTotals,
+        interactionPerformance: []
+      };
+    }
+    
+    // Calculate stats
+    const totalCustomers = report.length;
+    const completedFollowups = report.filter(item => 
+      item.dailyProgress && item.dailyProgress > 0
+    ).length;
+    const activeFollowups = totalCustomers - completedFollowups;
+    const avgRating = report.reduce((sum, item) => 
+      sum + (item.creator?.rating || 0), 0) / Math.max(report.length, 1);
+
+    const boolToInt = (val) => (val ? 1 : 0);
+
+    const totals = report.reduce((acc, item) => {
+      const materialCount =
+        Number(item.materialUpdates || 0) +
+        boolToInt(item.materialStatusUpdated);
+      const progressCount =
+        Number(item.progressUpdates || 0) +
+        boolToInt(item.progressUpdated);
+      const serviceCount =
+        Number(item.serviceUpdates || 0) +
+        boolToInt(item.serviceUpdated);
+      const packageCount =
+        Number(item.packageStatusUpdates || 0) +
+        boolToInt(item.packageStatusUpdated);
+      const updateAttemptCount =
+        Number(item.updateAttempts || 0) +
+        Number(item.notes?.length || 0) +
+        Number(item.communicationLogs?.length || item.communications?.length || 0);
+
+      acc.registered += 1;
+      acc.followupAttempts +=
+        (item.call_count || item.callAttempts || 0) +
+        (item.message_count || item.messageAttempts || 0) +
+        (item.email_count || item.emailAttempts || 0) +
+        (item.followupAttempts || 0);
+      acc.updateAttempts += updateAttemptCount;
+      acc.importedTraining += boolToInt(item.trainingImported);
+      acc.importedB2B += boolToInt(item.b2bImported);
+      acc.materialUpdates += materialCount;
+      acc.progressUpdates += progressCount;
+      acc.serviceUpdates += serviceCount;
+      acc.packageStatusUpdates += packageCount;
+      return acc;
+    }, {...defaultActivityTotals});
+
+    // Aggregate interactions by assigned agent (fallback to creator)
+    const perUser = report.reduce((acc, item) => {
+      const uname = getAgentName(item);
+      const agentId = item.agentId || item.assignedTo || item.agent || item.creator?._id || null;
+      if (!acc[uname]) {
+        acc[uname] = {
+          username: uname,
+          agentId: agentId || undefined,
+          registered: 0,
+          followupAttempts: 0,
+          updateAttempts: 0,
+          importedTraining: 0,
+          importedB2B: 0,
+          materialUpdates: 0,
+          progressUpdates: 0,
+          serviceUpdates: 0,
+          packageStatusUpdates: 0,
+          rating: item.creator?.rating || 0,
+          points: item.creator?.points || 0,
+        };
+      }
+      acc[uname].registered += 1;
+      acc[uname].followupAttempts +=
+        (item.call_count || item.callAttempts || 0) +
+        (item.message_count || item.messageAttempts || 0) +
+        (item.email_count || item.emailAttempts || 0) +
+        (item.followupAttempts || 0);
+      const updateAttemptCount =
+        Number(item.updateAttempts || 0) +
+        Number(item.notes?.length || 0) +
+        Number(item.communicationLogs?.length || item.communications?.length || 0);
+      const materialCount =
+        Number(item.materialUpdates || 0) +
+        boolToInt(item.materialStatusUpdated);
+      const progressCount =
+        Number(item.progressUpdates || 0) +
+        boolToInt(item.progressUpdated);
+      const serviceCount =
+        Number(item.serviceUpdates || 0) +
+        boolToInt(item.serviceUpdated);
+      const packageCount =
+        Number(item.packageStatusUpdates || 0) +
+        boolToInt(item.packageStatusUpdated);
+
+      acc[uname].updateAttempts += updateAttemptCount;
+      acc[uname].importedTraining += boolToInt(item.trainingImported);
+      acc[uname].importedB2B += boolToInt(item.b2bImported);
+      acc[uname].materialUpdates += materialCount;
+      acc[uname].progressUpdates += progressCount;
+      acc[uname].serviceUpdates += serviceCount;
+      acc[uname].packageStatusUpdates += packageCount;
+      return acc;
+    }, {});
+    
+    return {
+      stats: {
+        totalCustomers,
+        activeFollowups,
+        completedFollowups,
+        avgRating: parseFloat(avgRating.toFixed(1))
+      },
+      activityTotals: totals,
+      interactionPerformance: Object.values(perUser)
+    };
+  }, [report, getAgentName]);
+
   useEffect(() => {
-    const fetchReportData = async () => {
-      setLoading(true);
+    // Update state with processed data
+    if (processedReportData.stats) {
+      setStats(processedReportData.stats);
+    }
+    if (processedReportData.activityTotals) {
+      setActivityTotals(processedReportData.activityTotals);
+    }
+    if (processedReportData.interactionPerformance) {
+      setInteractionPerformance(processedReportData.interactionPerformance);
+    }
+  }, [processedReportData]);
+
+  const fetchReportData = useCallback(async (retryCount = 0) => {
+    setLoading(true);
+    setError(null);
+    setLoadingStage("Initializing...");
+    
+    try {
+      setLoadingStage("Fetching follow-up report...");
+      
+      // Try to fetch report data with better error handling
+      let reportRes;
       try {
-        const token = localStorage.getItem("userToken");
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        // Use a more aggressive timeout strategy
+        reportRes = await apiClient.get("/api/followups/report");
+      } catch (err) {
+        console.error("Error fetching follow-up report:", err);
         
-        const [reportRes, usersRes] = await Promise.all([
-          axios.get(`${API_URL}/api/followups/report`, { headers }),
-          axios.get(`${API_URL}/api/users`, { headers })
-        ]);
+        // Implement retry mechanism for timeouts
+        if ((err.code === 'ECONNABORTED' || err.message?.includes('timeout')) && retryCount < 1) {
+          setLoadingStage(`Quick retry... (${retryCount + 1}/1)`);
+          // Reduce retry delay
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          return fetchReportData(retryCount + 1);
+        }
+        
+        // Handle specific timeout case
+        if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+          throw new Error("Server is taking too long to respond. Please try again in a moment.");
+        }
+        
+        throw new Error(`Failed to fetch follow-up report: ${err.message || 'Unknown error'}`);
+      }
+      
+      setLoadingStage("Fetching user data...");
+      
+      // Try to fetch user data
+      let usersRes;
+      try {
+        // Use a more aggressive timeout strategy
+        usersRes = await apiClient.get("/api/users");
+      } catch (err) {
+        console.error("Error fetching user data:", err);
+        
+        // Implement retry mechanism for timeouts
+        if ((err.code === 'ECONNABORTED' || err.message?.includes('timeout')) && retryCount < 1) {
+          setLoadingStage(`Quick retry... (${retryCount + 1}/1)`);
+          // Reduce retry delay
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          return fetchReportData(retryCount + 1);
+        }
+        
+        // Handle specific timeout case
+        if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+          throw new Error("Server is taking too long to respond. Please try again in a moment.");
+        }
+        
+        throw new Error(`Failed to fetch user data: ${err.message || 'Unknown error'}`);
+      }
 
-        // Filter and set customer service users
-        const usersRaw = Array.isArray(usersRes.data)
-          ? usersRes.data
-          : Array.isArray(usersRes.data?.users)
-            ? usersRes.data.users
-            : [];
+      // Process users data
+      const usersRaw = Array.isArray(usersRes.data)
+        ? usersRes.data
+        : Array.isArray(usersRes.data?.users)
+          ? usersRes.data.users
+          : [];
 
-        const filteredCS = usersRaw
-          .filter(user => {
-            const role = (user.role || user.roleName || '').toLowerCase().replace(/[\s_-]+/g, '');
-            return role.includes('customerservice');
-          })
-          .map(user => ({
+      const filteredCS = usersRaw
+        .filter(user => {
+          const role = (user.role || user.roleName || '').toLowerCase().replace(/[\s_-]+/g, '');
+          return role.includes('customerservice');
+        })
+        .map(user => ({
+          id: user._id || user.id,
+          name: user.name || user.username || 'Unknown User',
+          email: user.email || '',
+          username: user.username,
+          role: 'Customer Service Officer'
+        }));
+
+      const customerServiceUsers = filteredCS.length
+        ? filteredCS
+        : usersRaw.map(user => ({
             id: user._id || user.id,
             name: user.name || user.username || 'Unknown User',
             email: user.email || '',
             username: user.username,
-            role: 'Customer Service Officer'
+            role: user.role || user.roleName || ''
           }));
+      
+      setCustomerServiceUsers(customerServiceUsers);
+      
+      const reportPayload = reportRes.data || {};
+      const reportData = Array.isArray(reportPayload.report) ? reportPayload.report : [];
+      const creatorPerf = Array.isArray(reportPayload.creatorPerformance) ? reportPayload.creatorPerformance : [];
 
-        const customerServiceUsers = filteredCS.length
-          ? filteredCS
-          : usersRaw.map(user => ({
-              id: user._id || user.id,
-              name: user.name || user.username || 'Unknown User',
-              email: user.email || '',
-              username: user.username,
-              role: user.role || user.roleName || ''
-            }));
-        
-        setCustomerServiceUsers(customerServiceUsers);
-        
-        const reportPayload = reportRes.data || {};
-        const reportData = Array.isArray(reportPayload.report) ? reportPayload.report : [];
-        const creatorPerf = Array.isArray(reportPayload.creatorPerformance) ? reportPayload.creatorPerformance : [];
-
-        if (Array.isArray(reportData)) {
-          setReport(reportData);
-          setCreatorPerformance(creatorPerf);
-          
-          // Calculate stats
-          const totalCustomers = reportData.length;
-          const completedFollowups = reportData.filter(item => 
-            item.dailyProgress && item.dailyProgress > 0
-          ).length;
-          const activeFollowups = totalCustomers - completedFollowups;
-          const avgRating = reportData.reduce((sum, item) => 
-            sum + (item.creator?.rating || 0), 0) / Math.max(reportData.length, 1);
-
-          const boolToInt = (val) => (val ? 1 : 0);
-
-          const totals = reportData.reduce((acc, item) => {
-            const materialCount =
-              Number(item.materialUpdates || 0) +
-              boolToInt(item.materialStatusUpdated);
-            const progressCount =
-              Number(item.progressUpdates || 0) +
-              boolToInt(item.progressUpdated);
-            const serviceCount =
-              Number(item.serviceUpdates || 0) +
-              boolToInt(item.serviceUpdated);
-            const packageCount =
-              Number(item.packageStatusUpdates || 0) +
-              boolToInt(item.packageStatusUpdated);
-            const updateAttemptCount =
-              Number(item.updateAttempts || 0) +
-              Number(item.notes?.length || 0) +
-              Number(item.communicationLogs?.length || item.communications?.length || 0);
-
-            acc.registered += 1;
-            acc.followupAttempts +=
-              (item.call_count || item.callAttempts || 0) +
-              (item.message_count || item.messageAttempts || 0) +
-              (item.email_count || item.emailAttempts || 0) +
-              (item.followupAttempts || 0);
-            acc.updateAttempts += updateAttemptCount;
-            acc.importedTraining += boolToInt(item.trainingImported);
-            acc.importedB2B += boolToInt(item.b2bImported);
-            acc.materialUpdates += materialCount;
-            acc.progressUpdates += progressCount;
-            acc.serviceUpdates += serviceCount;
-            acc.packageStatusUpdates += packageCount;
-            return acc;
-          }, {
-            registered: 0,
-            followupAttempts: 0,
-            updateAttempts: 0,
-            importedTraining: 0,
-            importedB2B: 0,
-            materialUpdates: 0,
-            progressUpdates: 0,
-            serviceUpdates: 0,
-            packageStatusUpdates: 0,
-          });
-
-          // Aggregate interactions by assigned agent (fallback to creator)
-          const perUser = reportData.reduce((acc, item) => {
-            const uname = getAgentName(item);
-            const agentId = item.agentId || item.assignedTo || item.agent || item.creator?._id || null;
-            if (!acc[uname]) {
-              acc[uname] = {
-                username: uname,
-                agentId: agentId || undefined,
-                registered: 0,
-                followupAttempts: 0,
-                updateAttempts: 0,
-                importedTraining: 0,
-                importedB2B: 0,
-                materialUpdates: 0,
-                progressUpdates: 0,
-                serviceUpdates: 0,
-                packageStatusUpdates: 0,
-                rating: item.creator?.rating || 0,
-                points: item.creator?.points || 0,
-              };
-            }
-            acc[uname].registered += 1;
-            acc[uname].followupAttempts +=
-              (item.call_count || item.callAttempts || 0) +
-              (item.message_count || item.messageAttempts || 0) +
-              (item.email_count || item.emailAttempts || 0) +
-              (item.followupAttempts || 0);
-            const updateAttemptCount =
-              Number(item.updateAttempts || 0) +
-              Number(item.notes?.length || 0) +
-              Number(item.communicationLogs?.length || item.communications?.length || 0);
-            const materialCount =
-              Number(item.materialUpdates || 0) +
-              boolToInt(item.materialStatusUpdated);
-            const progressCount =
-              Number(item.progressUpdates || 0) +
-              boolToInt(item.progressUpdated);
-            const serviceCount =
-              Number(item.serviceUpdates || 0) +
-              boolToInt(item.serviceUpdated);
-            const packageCount =
-              Number(item.packageStatusUpdates || 0) +
-              boolToInt(item.packageStatusUpdated);
-
-            acc[uname].updateAttempts += updateAttemptCount;
-            acc[uname].importedTraining += boolToInt(item.trainingImported);
-            acc[uname].importedB2B += boolToInt(item.b2bImported);
-            acc[uname].materialUpdates += materialCount;
-            acc[uname].progressUpdates += progressCount;
-            acc[uname].serviceUpdates += serviceCount;
-            acc[uname].packageStatusUpdates += packageCount;
-            return acc;
-          }, {});
-          
-          setStats({
-            totalCustomers,
-            activeFollowups,
-            completedFollowups,
-            avgRating: parseFloat(avgRating.toFixed(1))
-          });
-          setActivityTotals(totals);
-          setInteractionPerformance(Object.values(perUser));
-          
-          // If you had API endpoints for targets, you would set them here
-          // setTargets(targetsRes.data);
-          
-        } else {
-          setError("Invalid report data format.");
-        }
-      } catch (err) {
-        console.error("Error fetching report data:", err);
-        setError("Failed to fetch report. Please try again later.");
-        toast({
-          title: "Error",
-          description: "Failed to load report data",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setLoading(false);
+      if (Array.isArray(reportData)) {
+        setReport(reportData);
+        setCreatorPerformance(creatorPerf);
+        setLoadingStage("Processing data...");
+      } else {
+        throw new Error("Invalid report data format received from server");
       }
-    };
+    } catch (err) {
+      console.error("Error in fetchReportData:", err);
+      
+      // More detailed error handling
+      let errorMessage = "Failed to fetch report. Please try again later.";
+      
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        errorMessage = "Server timeout - the server took too long to respond. Please try again in a moment.";
+      } else if (err.response) {
+        if (err.response.status === 401) {
+          errorMessage = "Authentication required. Please log in again.";
+        } else if (err.response.status === 403) {
+          errorMessage = "Access denied. You don't have permission to view this report.";
+        } else if (err.response.status === 404) {
+          errorMessage = "Report endpoint not found. Please check if the API is running.";
+        } else if (err.response.status >= 500) {
+          errorMessage = `Server error (${err.response.status}). Please try again later.`;
+        } else {
+          errorMessage = `Error: ${err.response.status} - ${err.response.statusText || 'Unknown error'}`;
+        }
+      } else if (err.request) {
+        errorMessage = "Network error - please check your connection and try again.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      
+      toast({
+        title: "Error Loading Report",
+        description: errorMessage,
+        status: "error",
+        duration: 7000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+      setLoadingStage("");
+    }
+  }, [toast]);
 
+  useEffect(() => {
     fetchReportData();
-  }, []);
+  }, [fetchReportData]);
 
   const handleExportPDF = async () => {
     try {
@@ -814,19 +962,41 @@ const CustomerReport = () => {
     }
   };
 
+  const handleRefresh = () => {
+    fetchReportData();
+  };
+
   if (loading) {
     return (
       <Layout>
         <Box p={6}>
-          <Skeleton height="40px" width="300px" mb={6} />
+          <Flex justify="space-between" align="center" mb={6}>
+            <Skeleton height="40px" width="300px" />
+            <HStack>
+              <Skeleton height="40px" width="100px" />
+              <Skeleton height="40px" width="150px" />
+            </HStack>
+          </Flex>
+          
+          {/* Loading indicator with stage */}
+          <Flex direction="column" align="center" justify="center" py={10} mb={6}>
+            <Spinner size="xl" color="blue.500" mb={4} />
+            <Text fontSize="lg" fontWeight="bold" color="blue.500" mb={2}>
+              Loading Report Data
+            </Text>
+            <Text color={secondaryTextColor}>
+              {loadingStage}
+            </Text>
+          </Flex>
+          
           <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={8}>
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} height="120px" borderRadius="lg" />
             ))}
           </SimpleGrid>
-          <Skeleton height="400px" borderRadius="lg" mb={6} />
-          <Skeleton height="400px" borderRadius="lg" mb={6} />
-          <Skeleton height="400px" borderRadius="lg" />
+          <Skeleton height="200px" borderRadius="lg" mb={6} />
+          <Skeleton height="300px" borderRadius="lg" mb={6} />
+          <Skeleton height="300px" borderRadius="lg" />
         </Box>
       </Layout>
     );
@@ -848,10 +1018,10 @@ const CustomerReport = () => {
                 </Text>
                 <Button 
                   colorScheme="blue" 
-                  onClick={() => window.location.reload()}
+                  onClick={handleRefresh}
                   leftIcon={<FiRefreshCw />}
                 >
-                  Refresh Page
+                  Refresh Data
                 </Button>
               </Flex>
             </CardBody>
@@ -1088,7 +1258,7 @@ const CustomerReport = () => {
                   actual={getActualValue(
                     "Customer Success Manager",
                     interactionPerformance.reduce(
-                      (sum, officer) => sum + officer.followupAttempts + officer.updateAttempts, 
+                      (sum, officer) => sum + (officer.followupAttempts || 0) + (officer.updateAttempts || 0), 
                       0
                     )
                   )}

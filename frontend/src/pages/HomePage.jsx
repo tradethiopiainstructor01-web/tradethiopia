@@ -40,10 +40,12 @@ const HomePage = () => {
     }, [fetchUsers]);
 
     const filteredUsers = users.filter(user => {
+        // Filter out users with username "." or ".."
+        const isValidUser = user.username !== "." && user.username !== "..";
         const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                              user.email.toLowerCase().includes(searchTerm.toLowerCase());
+                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = selectedRole ? user.role === selectedRole : true;
-        return matchesSearch && matchesRole;
+        return isValidUser && matchesSearch && matchesRole;
     });
 
     const sortedUsers = filteredUsers.sort((a, b) => {
