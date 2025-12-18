@@ -127,7 +127,8 @@ const SalesManagerNavbar = ({ onMenuClick, onToggleSidebar, isSidebarCollapsed }
     if (!currentUser?._id) return;
     
     // Create Socket.IO connection
-    const newSocket = io('http://localhost:5000');
+    const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+
     
     // Register user with the server
     newSocket.emit('registerUser', currentUser._id);
