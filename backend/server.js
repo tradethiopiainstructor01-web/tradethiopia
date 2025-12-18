@@ -97,6 +97,8 @@ app.set('connectedUsers', connectedUsers);
 // CORS configuration
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  'https://www.tradeethiopian.com',
+  'https://tradeethiopian.com',
   'https://main.d21vr1wgzmn1c2.amplifyapp.com',
   'https://tradethiopia-pied.vercel.app',
   'https://tradethiopia.vercel.app',
