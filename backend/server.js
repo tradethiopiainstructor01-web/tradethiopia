@@ -46,6 +46,7 @@ const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
 const itRoutes = require('./routes/itRoutes.js');
 const demandRoutes = require('./routes/demandRoutes.js');
 const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
+const awardRoutes = require('./routes/awardRoutes.js');
 
 const costRoutes = require('./routes/costRoutes.js');
 const requestRoutes = require('./routes/requestRoutes.js');
@@ -284,6 +285,8 @@ app.use('/api/demands', demandRoutes);
 app.use('/api/payroll', payrollRoutes); // Add this line
 app.use('/api/requests', requestRoutes);
 app.use('/api/social-requests', requestRoutes);
+// Awards
+app.use('/api/awards', awardRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
