@@ -1,0 +1,22 @@
+diff --git a/frontend/src/components/Payroll/PayrollPage.jsx b/frontend/src/components/Payroll/PayrollPage.jsx
+index xxxxxxx..yyyyyyy 100644
+--- a/frontend/src/components/Payroll/PayrollPage.jsx
++++ b/frontend/src/components/Payroll/PayrollPage.jsx
+@@ -1373,7 +1373,13 @@
+                   Actions
+                 </Th>
+               </Tr>
+             </Thead>
+-            <Tbody>
+-              {payrollData.map((employee) => (
++            <Tbody>
++              {payrollData
++                .filter(employee => {
++                  // Filter out employees with username "." or ".."
++                  const username = employee.userId?.username;
++                  return username !== "." && username !== "..";
++                })
++                .map((employee) => (
+                 <Tr 
+                   key={employee._id}
+                   _hover={{ bg: rowHoverBg }}

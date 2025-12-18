@@ -40,7 +40,7 @@ const HomePage = () => {
     }, [fetchUsers]);
 
     const filteredUsers = users.filter(user => {
-        // Filter out users with username "." or ".."
+        // Filter out users with username 
         const isValidUser = user.username !== "." && user.username !== "..";
         const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           user.email.toLowerCase().includes(searchTerm.toLowerCase());

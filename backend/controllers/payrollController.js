@@ -245,17 +245,23 @@ const getPayrollList = async (req, res) => {
     // Create a map of existing payroll records by userId for quick lookup
     const payrollRecordMap = {};
     existingPayrollRecords.forEach(record => {
-      payrollRecordMap[record.userId._id.toString()] = record;
-    });
+      // Skip records with missing userId
+      if (record.userId) {
+        payrollRecordMap[record.userId._id.toString()] = record;
+      }    });
     
     // Combine existing records with placeholders for users without records
     const payrollRecords = allActiveUsers.map(user => {
       const userIdStr = user._id.toString();
       const currentSalary = user.salary || 0;
       if (payrollRecordMap[userIdStr]) {
-        // Return existing record (make sure department is populated)
+        // Return existing record (make sure department and employeeName are populated)
         const doc = payrollRecordMap[userIdStr];
         const record = doc.toObject ? doc.toObject() : doc;
+        // Ensure employeeName is set from user data if not already set
+        if (!record.employeeName) {
+          record.employeeName = user.fullName || user.username;
+        }
         // Ensure department is set from user's jobTitle if not already set or is 'general'
         if ((!record.department || record.department === 'general') && user.jobTitle) {
           record.department = user.jobTitle;

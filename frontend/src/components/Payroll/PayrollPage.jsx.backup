@@ -170,7 +170,7 @@ const fetchPayrollDataHandler = async () => {
     const monthFilter = historyFilters.month;
     const departmentFilter = historyFilters.department.toLowerCase().trim();
 
-    const entryUser = (entry.employeeName || '').toLowerCase();
+    const entryUser = (entry.payrollData?.employeeName || '').toLowerCase();
     if (userFilter && !entryUser.includes(userFilter)) {
       return false;
     }
@@ -432,7 +432,7 @@ const fetchPayrollDataHandler = async () => {
       const csvContent = [
         headers.join(','),
         ...payrollData.map(employee => [
-          `"${employee.employeeName || employee.userId?.fullName || employee.userId?.username || 'Unknown Employee'}"`,
+          `"${employee.employeeName || employee.userId?.fullName || employee.userId?.username}"`,
           employee.department,
           employee.basicSalary || 0,
           employee.grossSalary || employee.basicSalary || 0,
@@ -491,7 +491,7 @@ const fetchPayrollDataHandler = async () => {
       pdfContent += `Period: ${selectedMonth} ${selectedYear}\n\n`;
       
       payrollData.forEach(employee => {
-        pdfContent += `${employee.employeeName || employee.userId?.fullName || employee.userId?.username || 'Unknown Employee'}\n`;
+        pdfContent += `${employee.employeeName || employee.userId?.fullName || employee.userId?.username}\n`;
         pdfContent += `  Department: ${employee.department}\n`;
         pdfContent += `  Basic Salary: ${formatCurrency(employee.basicSalary || 0)}\n`;
         pdfContent += `  Gross Salary: ${formatCurrency(employee.grossSalary || employee.basicSalary || 0)}\n`;
@@ -1373,13 +1373,7 @@ const fetchPayrollDataHandler = async () => {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {payrollData
-                    .filter(employee => {
-                      // Filter out employees with username "." or ".."
-                      const username = employee.userId?.username;
-                      return username !== "." && username !== "..";
-                    })
-                    .map((employee) => (
+                  {payrollData.map((employee) => (
                     <Tr 
                       key={employee._id}
                       _hover={{ bg: rowHoverBg }}
@@ -1387,7 +1381,7 @@ const fetchPayrollDataHandler = async () => {
                     >
                       <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         <Text fontWeight="bold">
-                          {employee.employeeName || employee.userId?.fullName || employee.userId?.username || 'Unknown Employee'}
+                          {employee.employeeName || employee.userId?.fullName || employee.userId?.username}
                         </Text>
                       </Td>
                       <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
@@ -1904,12 +1898,7 @@ const fetchPayrollDataHandler = async () => {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {filteredPayrollHistory
-                      .filter(entry => {
-                        // Filter out entries with employeeName "." or ".."
-                        return entry.employeeName !== "." && entry.employeeName !== "..";
-                      })
-                      .map((entry) => (
+                    {filteredPayrollHistory.map((entry) => (
                       <Tr key={entry._id}>
                         <Td px={2} py={1} fontSize="xs">{entry.month} {entry.year}</Td>
                         <Td px={2} py={1} fontSize="xs">{entry.employeeName}</Td>
