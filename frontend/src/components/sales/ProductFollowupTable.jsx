@@ -85,7 +85,7 @@ const ProductFollowupTable = ({ items, onDelete, onUpdate, onAdd }) => {
     // fetch inventory from finance (stock API), fall back to sample list
     try {
       const token = localStorage.getItem('userToken');
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/stock`, {
+      const res = await fetch( `${import.meta.env.VITE_API_URL}/api/stock`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (res.ok) {
