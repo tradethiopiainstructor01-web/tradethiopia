@@ -17,13 +17,17 @@ import {
   Badge,
   Button,
   HStack,
+  IconButton,
 } from '@chakra-ui/react';
+import { ArrowBackIcon } from '@chakra-ui/icons';
+import { useNavigate } from 'react-router-dom';
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../services/notificationService';
 
 const CustomerMessagesPage = ({ embedded = false }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
   
   // Customer dashboard specific colors
   const cardBg = useColorModeValue('white', 'gray.700');
@@ -88,9 +92,18 @@ const CustomerMessagesPage = ({ embedded = false }) => {
   return (
     <Box p={padding} bg={backgroundColor} minH={minHeight}>
       <Box mb={8}>
-        <Heading as="h1" size="xl" mb={2} color={headerColor}>
-          Notice Board
-        </Heading>
+        <HStack spacing={4} mb={4}>
+          <IconButton
+            aria-label="Go back"
+            icon={<ArrowBackIcon />}
+            onClick={() => navigate(-1)}
+            colorScheme="blue"
+            variant="outline"
+          />
+          <Heading as="h1" size="xl" mb={2} color={headerColor}>
+            Notice Board
+          </Heading>
+        </HStack>
         <Text color="gray.500" mb={4}>
           View all broadcast messages from management
         </Text>

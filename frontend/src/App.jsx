@@ -56,6 +56,7 @@ import ITDashboard from "./pages/ITDashboard";
 import SalesManagerLayout from "./components/salesmanager/Layout";
 import SalesManagerDashboard from "./components/salesmanager/SalesManagerDashboard";
 import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerProtectedRoute";
+import CustomerMessagesPage from "./pages/CustomerMessagesPage.jsx";
 import AllSalesPage from "./components/salesmanager/AllSalesPage";
 import PerformancePage from "./components/salesmanager/PerformancePage";
 import TeamManagementPage from "./components/salesmanager/TeamManagementPage";
@@ -184,6 +185,7 @@ function App() {
       <Route path="/my-payroll" element={<EmployeePayrollView />} />
       <Route path="/messages" element={<RedirectMessagesPage />} />
       <Route path="/sales/messages" element={<SalesMessagesPage />} />
+      <Route path="/customer/messages" element={<CustomerMessagesPage />} />
       <Route
         path="/salesmanager/*"
         element={
