@@ -48,7 +48,8 @@ import {
   Alert,
   AlertIcon,
   AlertTitle,
-  AlertDescription
+  AlertDescription,
+  Spinner
 } from "@chakra-ui/react";
 import { 
   FiDownload, 
@@ -74,10 +75,40 @@ import {
   FiRefreshCw
 } from "react-icons/fi";
 
-const API_URL = import.meta.env.VITE_API_URL;
+// Create axios instance with default config
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  timeout: 8000, // Further reduced to prevent hanging
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+// Add request interceptor to add auth token
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("userToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for better error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error("API Error:", error);
+    return Promise.reject(error);
+  }
+);
 
 // Helper Components
-const StatCard = ({ title, value, icon: Icon, colorScheme, trend, trendValue, isRating = false }) => {
+const StatCard = React.memo(({ title, value, icon: Icon, colorScheme, trend, trendValue, isRating = false }) => {
   const cardBg = useColorModeValue("white", "gray.800");
   const textColor = useColorModeValue("gray.800", "white");
   const secondaryTextColor = useColorModeValue("gray.500", "gray.400");
@@ -92,7 +123,7 @@ const StatCard = ({ title, value, icon: Icon, colorScheme, trend, trendValue, is
                 {title}
               </StatLabel>
               <StatNumber fontSize="2xl" fontWeight="bold" color={textColor} mt={1}>
-                {isRating ? `${value}/5` : value.toLocaleString()}
+                {isRating ? `${value}/5` : (value || 0).toLocaleString()}
                 {trend && (
                   <StatHelpText mb={0}>
                     <StatArrow type={trend === 'up' ? 'increase' : 'decrease'} />
@@ -114,9 +145,9 @@ const StatCard = ({ title, value, icon: Icon, colorScheme, trend, trendValue, is
       </CardBody>
     </Card>
   );
-};
+});
 
-const ActivityMetric = ({ label, value, icon: Icon }) => (
+const ActivityMetric = React.memo(({ label, value, icon: Icon }) => (
   <Box textAlign="center" p={4} bg="white" borderRadius="md" boxShadow="sm">
     <Icon size={24} color="#4A90E2" />
     <Text fontSize="xl" fontWeight="bold" mt={2}>
@@ -126,9 +157,9 @@ const ActivityMetric = ({ label, value, icon: Icon }) => (
       {label}
     </Text>
   </Box>
-);
+));
 
-const TargetRow = ({ label, target, actual, isPercentage = false, onActualChange }) => {
+const TargetRow = React.memo(({ label, target, actual, isPercentage = false, onActualChange }) => {
   const numericTarget = parseFloat(target) || 0;
   const numericActual = parseFloat(actual) || 0;
   const gap = numericActual - numericTarget;
@@ -162,9 +193,9 @@ const TargetRow = ({ label, target, actual, isPercentage = false, onActualChange
       </Td>
     </Tr>
   );
-};
+});
 
-const QualityMetricRow = ({ label, target, actual, isTime = false }) => {
+const QualityMetricRow = React.memo(({ label, target, actual, isTime = false }) => {
   let progress, displayValue, progressColor;
   
   if (isTime) {
@@ -206,7 +237,7 @@ const QualityMetricRow = ({ label, target, actual, isTime = false }) => {
       </Td>
     </Tr>
   );
-};
+});
 
 const CustomerReport = () => {
   const [report, setReport] = useState([]);
@@ -264,6 +295,11 @@ const CustomerReport = () => {
       renewals: 20
     }
   });
+  const [loadingStage, setLoadingStage] = useState("Initializing..."); // Track loading stages
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50); // Show 50 items per page
 
   const tableRef = useRef(null);
   const toast = useToast();
@@ -354,9 +390,37 @@ const CustomerReport = () => {
     setActualModal((prev) => ({ ...prev, isOpen: true }));
   };
 
-  // Memoize expensive calculations
+  // Memoize expensive calculations with pagination support
   const processedReportData = useMemo(() => {
-    if (!report || report.length === 0) return { stats: {}, activityTotals: {}, interactionPerformance: [] };
+    // Always calculate to maintain consistent hook order
+    // Initialize with default values
+    const defaultStats = {
+      totalCustomers: 0,
+      activeFollowups: 0,
+      completedFollowups: 0,
+      avgRating: 0
+    };
+    
+    const defaultActivityTotals = {
+      registered: 0,
+      followupAttempts: 0,
+      updateAttempts: 0,
+      importedTraining: 0,
+      importedB2B: 0,
+      materialUpdates: 0,
+      progressUpdates: 0,
+      serviceUpdates: 0,
+      packageStatusUpdates: 0,
+    };
+    
+    // Return early if no report data
+    if (!report || report.length === 0) {
+      return { 
+        stats: defaultStats,
+        activityTotals: defaultActivityTotals,
+        interactionPerformance: []
+      };
+    }
     
     // Calculate stats
     const totalCustomers = report.length;
@@ -401,17 +465,7 @@ const CustomerReport = () => {
       acc.serviceUpdates += serviceCount;
       acc.packageStatusUpdates += packageCount;
       return acc;
-    }, {
-      registered: 0,
-      followupAttempts: 0,
-      updateAttempts: 0,
-      importedTraining: 0,
-      importedB2B: 0,
-      materialUpdates: 0,
-      progressUpdates: 0,
-      serviceUpdates: 0,
-      packageStatusUpdates: 0,
-    });
+    }, {...defaultActivityTotals});
 
     // Aggregate interactions by assigned agent (fallback to creator)
     const perUser = report.reduce((acc, item) => {
@@ -492,18 +546,63 @@ const CustomerReport = () => {
     }
   }, [processedReportData]);
 
-  const fetchReportData = useCallback(async () => {
+  const fetchReportData = useCallback(async (retryCount = 0) => {
     setLoading(true);
     setError(null);
+    setLoadingStage("Initializing...");
+    
     try {
-      const token = localStorage.getItem("userToken");
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      setLoadingStage("Fetching follow-up report...");
       
-      // Use Promise.all to fetch data concurrently
-      const [reportRes, usersRes] = await Promise.all([
-        axios.get(`${API_URL}/api/followups/report`, { headers }),
-        axios.get(`${API_URL}/api/users`, { headers })
-      ]);
+      // Try to fetch report data with better error handling
+      let reportRes;
+      try {
+        // Use a more aggressive timeout strategy
+        reportRes = await apiClient.get("/api/followups/report");
+      } catch (err) {
+        console.error("Error fetching follow-up report:", err);
+        
+        // Implement retry mechanism for timeouts
+        if ((err.code === 'ECONNABORTED' || err.message?.includes('timeout')) && retryCount < 1) {
+          setLoadingStage(`Quick retry... (${retryCount + 1}/1)`);
+          // Reduce retry delay
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          return fetchReportData(retryCount + 1);
+        }
+        
+        // Handle specific timeout case
+        if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+          throw new Error("Server is taking too long to respond. Please try again in a moment.");
+        }
+        
+        throw new Error(`Failed to fetch follow-up report: ${err.message || 'Unknown error'}`);
+      }
+      
+      setLoadingStage("Fetching user data...");
+      
+      // Try to fetch user data
+      let usersRes;
+      try {
+        // Use a more aggressive timeout strategy
+        usersRes = await apiClient.get("/api/users");
+      } catch (err) {
+        console.error("Error fetching user data:", err);
+        
+        // Implement retry mechanism for timeouts
+        if ((err.code === 'ECONNABORTED' || err.message?.includes('timeout')) && retryCount < 1) {
+          setLoadingStage(`Quick retry... (${retryCount + 1}/1)`);
+          // Reduce retry delay
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          return fetchReportData(retryCount + 1);
+        }
+        
+        // Handle specific timeout case
+        if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+          throw new Error("Server is taking too long to respond. Please try again in a moment.");
+        }
+        
+        throw new Error(`Failed to fetch user data: ${err.message || 'Unknown error'}`);
+      }
 
       // Process users data
       const usersRaw = Array.isArray(usersRes.data)
@@ -544,21 +643,48 @@ const CustomerReport = () => {
       if (Array.isArray(reportData)) {
         setReport(reportData);
         setCreatorPerformance(creatorPerf);
+        setLoadingStage("Processing data...");
       } else {
-        setError("Invalid report data format.");
+        throw new Error("Invalid report data format received from server");
       }
     } catch (err) {
-      console.error("Error fetching report data:", err);
-      setError("Failed to fetch report. Please try again later.");
+      console.error("Error in fetchReportData:", err);
+      
+      // More detailed error handling
+      let errorMessage = "Failed to fetch report. Please try again later.";
+      
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        errorMessage = "Server timeout - the server took too long to respond. Please try again in a moment.";
+      } else if (err.response) {
+        if (err.response.status === 401) {
+          errorMessage = "Authentication required. Please log in again.";
+        } else if (err.response.status === 403) {
+          errorMessage = "Access denied. You don't have permission to view this report.";
+        } else if (err.response.status === 404) {
+          errorMessage = "Report endpoint not found. Please check if the API is running.";
+        } else if (err.response.status >= 500) {
+          errorMessage = `Server error (${err.response.status}). Please try again later.`;
+        } else {
+          errorMessage = `Error: ${err.response.status} - ${err.response.statusText || 'Unknown error'}`;
+        }
+      } else if (err.request) {
+        errorMessage = "Network error - please check your connection and try again.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      
       toast({
-        title: "Error",
-        description: "Failed to load report data",
+        title: "Error Loading Report",
+        description: errorMessage,
         status: "error",
-        duration: 5000,
+        duration: 7000,
         isClosable: true,
       });
     } finally {
       setLoading(false);
+      setLoadingStage("");
     }
   }, [toast]);
 
@@ -851,6 +977,18 @@ const CustomerReport = () => {
               <Skeleton height="40px" width="150px" />
             </HStack>
           </Flex>
+          
+          {/* Loading indicator with stage */}
+          <Flex direction="column" align="center" justify="center" py={10} mb={6}>
+            <Spinner size="xl" color="blue.500" mb={4} />
+            <Text fontSize="lg" fontWeight="bold" color="blue.500" mb={2}>
+              Loading Report Data
+            </Text>
+            <Text color={secondaryTextColor}>
+              {loadingStage}
+            </Text>
+          </Flex>
+          
           <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={8}>
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} height="120px" borderRadius="lg" />
@@ -1120,7 +1258,7 @@ const CustomerReport = () => {
                   actual={getActualValue(
                     "Customer Success Manager",
                     interactionPerformance.reduce(
-                      (sum, officer) => sum + officer.followupAttempts + officer.updateAttempts, 
+                      (sum, officer) => sum + (officer.followupAttempts || 0) + (officer.updateAttempts || 0), 
                       0
                     )
                   )}

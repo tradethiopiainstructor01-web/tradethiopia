@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
     username: {
         type: String,
         required: true, // Required
+        index: true, // Add index for faster queries
     },
     email: {
         type: String,
@@ -27,11 +28,13 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['admin', 'HR', 'sales', 'salesmanager', 'tradextv', 'customerservice', 'SocialmediaManager', 'CustomerSuccessManager', 'TETV', 'IT', 'HR', 'SalesSupervisor', 'Instructor', 'EventManager', 'COO', 'TradeXTV', 'finance'],
         default: 'sales',
+        index: true, // Add index for faster queries
     },
     status: {
         type: String,
         enum: ['active', 'inactive'],
         default: 'inactive',
+        index: true, // Add index for faster queries
     },
     fullName: {
         type: String,

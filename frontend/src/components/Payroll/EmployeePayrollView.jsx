@@ -17,6 +17,7 @@ import {
   Text, 
   useColorModeValue 
 } from '@chakra-ui/react';
+import Layout from '../Layout';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowBackIcon } from '@chakra-ui/icons';
 
