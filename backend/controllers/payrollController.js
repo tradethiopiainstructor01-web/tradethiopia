@@ -222,8 +222,8 @@ const calculatePayrollForEmployee = async (userData, attendanceData, commissionD
 // GET /payroll/:month → full payroll list
 const getPayrollList = async (req, res) => {
   try {
-    const { month, year } = req.params;
-    const { department, role } = req.query;
+    const { month } = req.params;
+    const { year, department, role } = req.query;
     
     // Build query for existing payroll records
     let query = { month };

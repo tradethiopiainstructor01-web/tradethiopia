@@ -1,8 +1,16 @@
 import axios from 'axios';
 
+const defaultApiHost = import.meta.env.VITE_API_URL;
+
+const normalizeApiBase = (url) => {
+  if (!url) return '';
+  const trimmedUrl = url.replace(/\/+$/, '');
+  return trimmedUrl.endsWith('/api') ? trimmedUrl : `${trimmedUrl}/api`;
+};
+
 // Create an axios instance with default config
 const axiosInstance = axios.create({
-  baseURL: 'http://localhost:5000/api', // Backend running on port 5000
+  baseURL: normalizeApiBase(defaultApiHost),
   headers: {
     'Content-Type': 'application/json',
   },

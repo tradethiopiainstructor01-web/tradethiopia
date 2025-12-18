@@ -23,9 +23,6 @@ router.use(protect);
 
 // More specific routes should come before generic ones
 
-// GET /payroll/history ƒ+' List payroll history
-router.get('/history', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getPayrollHistory);
-
 // GET /payroll/commission/:userId → Get commission data for a user
 // Access: Admin, Finance, HR
 router.get('/commission/:userId', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getCommissionByUser);
@@ -41,6 +38,10 @@ router.get('/:userId/details', getPayrollDetails);
 // GET /payroll/:month → full payroll list
 // Access: HR, Finance, Admin
 router.get('/:month', getPayrollList);
+
+// GET /payroll/history ƒ+' List payroll history
+// Moved to the end to avoid conflicts with generic routes
+router.get('/history', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getPayrollHistory);
 
 // POST /payroll/calculate → run payroll engine
 // Access: Admin, HR
