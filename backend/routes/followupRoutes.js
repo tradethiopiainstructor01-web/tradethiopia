@@ -26,6 +26,8 @@ router.patch("/:id/priority", followupController.updatePriority);
 router.get("/", followupController.getFollowups);
 // Stats must come before any :id routes to avoid casting "stats" as an ID
 router.get("/stats", followupController.getFollowupStats);
+// Analytics endpoint must be defined explicitly before the catch-all :id route
+router.get("/analytics", followupController.getFollowupAnalytics);
 
 // Create a new follow-up
 router.post("/", followupController.createFollowup);

@@ -643,6 +643,7 @@ const getPendingB2BCustomers = async (req, res) => {
 };
 
 module.exports = {
+  getFollowupAnalytics,
   getCustomerReport,
   createFollowup,
   getFollowups,
