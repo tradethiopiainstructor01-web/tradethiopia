@@ -1,4 +1,5 @@
 import { Box, Text, VStack, Button, useColorModeValue } from '@chakra-ui/react';
+import { Link as RouterLink } from 'react-router-dom';
 import { useUserStore } from '../store/user'; // Ensure this path is correct
 import { useNavigate } from 'react-router-dom'; // Import useNavigate instead of useHistory
 
@@ -30,6 +31,7 @@ const Esidebar = () => {
                 <Text fontSize="lg" fontWeight="bold" color={textColor}>User Information</Text>
                 <Text fontSize="md" color={textColor}>Username: {currentUser?.username || 'N/A'}</Text>
                 <Text fontSize="md" color={textColor}>Role: {currentUser?.role || 'N/A'}</Text>
+                <Button as={RouterLink} to="/awards" variant="ghost" size="sm">Awards</Button>
                 <Button colorScheme="teal" onClick={handleLogout}>
                     Logout
                 </Button>
