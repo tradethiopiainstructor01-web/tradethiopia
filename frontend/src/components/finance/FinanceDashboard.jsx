@@ -90,7 +90,7 @@ const FinanceDashboard = () => {
                   <>
                     <StatArrow type="increase" />
                     {' '}
-                    {`Follow-ups ${formatCurrency(financeSummary.followupRevenue)} · Orders ${formatCurrency(financeSummary.orderRevenue)} · Packages ${formatCurrency(financeSummary.packageRevenue)}`}
+                    {`Follow-ups ${formatCurrency(financeSummary.followupRevenue)} | Orders ${formatCurrency(financeSummary.orderRevenue)} | Packages ${formatCurrency(financeSummary.packageRevenue)}`}
                   </>
                 ) : (
                   <>
@@ -126,7 +126,7 @@ const FinanceDashboard = () => {
                 {financeSummary ? formatCurrency(financeSummary.profit) : '$0'}
               </StatNumber>
               <StatHelpText fontSize="xs">
-                {financeSummary ? 'Revenue − Expenses' : 'Loading...'}
+                {financeSummary ? 'Revenue - Expenses' : 'Loading...'}
               </StatHelpText>
             </Stat>
           </CardBody>

@@ -44,7 +44,9 @@ import COODashboard from './pages/COODashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
 import AwardsPage from './pages/AwardsPage';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
-import FinanceDashboard from './components/finance/FinanceDashboard.jsx'
+import FinanceDashboardPage from "./pages/sales/FinanceDashboardPage";
+import FinanceReportsPage from "./pages/sales/FinanceReportsPage";
+import FinanceLayout from "./pages/sales/FinanceLayout";
 
 function App() {
   const location = useLocation();
@@ -55,8 +57,7 @@ function App() {
     "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", 
     "/AddCustomer", "/Resource", "/VideoList", "/UploadPage", 
     "/Cdashboard", "/waitingForApproval", "/training","/ComingSoonPage", "/CustomerReport", "/CustomerFollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/finance-dashboard"
-    , "/tradextv-dashboard"
+    "/coo-dashboard", "/finance-dashboard", "/finance-dashboard/reports", "/tradextv-dashboard"
   ];
 
   // Check if the current path is a no-sidebar, no-navbar route
@@ -90,6 +91,22 @@ function App() {
             <Route path="/exam" element={<QuizPage />} />
             <Route path="/WaitingForApproval" element={<WaitingForApproval />} />
             <Route path="/sdashboard" element={<Sdashboard />} />
+            <Route
+              path="/finance-dashboard"
+              element={
+                <FinanceLayout>
+                  <FinanceDashboardPage />
+                </FinanceLayout>
+              }
+            />
+            <Route
+              path="/finance-dashboard/reports"
+              element={
+                <FinanceLayout>
+                  <FinanceReportsPage />
+                </FinanceLayout>
+              }
+            />
             <Route path="/employee-info" element={<EmployeeInfoPage />} />
             <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
             <Route path="/users" element={<HomePage />} />
