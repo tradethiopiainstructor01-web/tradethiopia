@@ -7,7 +7,10 @@ export const fetchAssets = () => axiosInstance.get('/assets').then(response => r
 export const fetchCategories = () => axiosInstance.get('/categories').then(response => response.data);
 
 // Fetch users
-export const fetchUsers = () => axiosInstance.get('/users').then(response => response.data);
+export const fetchUsers = () =>
+  axiosInstance
+    .get("/users")
+    .then((response) => response.data?.data || response.data);
 
 // Fetch user counts
 export const fetchUserCounts = () => axiosInstance.get('/users/count').then(response => response.data);

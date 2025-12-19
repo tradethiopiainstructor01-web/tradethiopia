@@ -9,6 +9,7 @@ import {
   Heading,
   HStack,
   Input,
+  Select,
   Table,
   Tbody,
   Td,
@@ -17,6 +18,7 @@ import {
   Thead,
   Tr,
   VStack,
+  useColorModeValue,
 } from "@chakra-ui/react";
 
 const CompactHeaderCell = ({ children, borderColor }) => (
@@ -64,6 +66,19 @@ const TrainingFollowupTabPage = ({
   setTrainingSortAsc,
   trainingFollowupColumnsToRender,
   filteredTrainingFollowups,
+  selectedTrainingFollowupCount,
+  trainingBulkStartDate,
+  trainingBulkEndDate,
+  setTrainingBulkStartDate,
+  setTrainingBulkEndDate,
+  applyTrainingDates,
+  isApplyingTrainingDates,
+  trainingAgentOptions,
+  selectedAgentForAssignment,
+  setSelectedAgentForAssignment,
+  handleAssignAgent,
+  isAssigningAgent,
+  isCustomerSuccessManager,
   isMobile,
   tableMinWidth = "900px",
   children, // for grouped cards
@@ -173,6 +188,82 @@ const TrainingFollowupTabPage = ({
               </Button>
             </HStack>
           </Flex>
+
+          {isCustomerSuccessManager && (
+            <Box
+              border="1px solid"
+              borderColor={borderColor}
+              borderRadius="lg"
+              p={3}
+              bg={useColorModeValue("gray.50", "gray.700")}
+            >
+              <Flex
+                direction={isMobile ? "column" : "row"}
+                gap={3}
+                align="center"
+                justify="space-between"
+                flexWrap="wrap"
+              >
+                <Text fontSize="sm" fontWeight="semibold">
+                  {selectedTrainingFollowupCount} selected
+                </Text>
+                <HStack spacing={2} flexWrap="wrap" align="center">
+                  <Text fontSize="xs">Start Date</Text>
+                  <Input
+                    size="sm"
+                    type="date"
+                    value={trainingBulkStartDate}
+                    onChange={(e) => setTrainingBulkStartDate(e.target.value)}
+                    maxW="180px"
+                  />
+                  <Text fontSize="xs">End Date</Text>
+                  <Input
+                    size="sm"
+                    type="date"
+                    value={trainingBulkEndDate}
+                    onChange={(e) => setTrainingBulkEndDate(e.target.value)}
+                    maxW="180px"
+                  />
+                </HStack>
+                <Button
+                  size="sm"
+                  colorScheme="teal"
+                  onClick={applyTrainingDates}
+                  isLoading={isApplyingTrainingDates}
+                  isDisabled={
+                    !selectedTrainingFollowupCount ||
+                    (!trainingBulkStartDate && !trainingBulkEndDate)
+                  }
+                >
+                  Apply Dates
+                </Button>
+                <HStack spacing={2} flexWrap="wrap" align="center">
+                <Select
+                  size="sm"
+                  value={selectedAgentForAssignment}
+                  onChange={(e) => setSelectedAgentForAssignment(e.target.value)}
+                  placeholder="Assign agent"
+                  minW="180px"
+                >
+                  {trainingAgentOptions.map((agent) => (
+                    <option key={agent.value} value={agent.value}>
+                      {agent.label}
+                    </option>
+                  ))}
+                </Select>
+                  <Button
+                    size="sm"
+                    colorScheme="purple"
+                    onClick={handleAssignAgent}
+                    isLoading={isAssigningAgent}
+                    isDisabled={!selectedTrainingFollowupCount || !selectedAgentForAssignment}
+                  >
+                    Assign Agent
+                  </Button>
+                </HStack>
+              </Flex>
+            </Box>
+          )}
 
           <TableContainer
             overflowX="auto"

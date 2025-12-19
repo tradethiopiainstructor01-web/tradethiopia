@@ -89,6 +89,7 @@ import {
   fetchEnsraFollowups,
   createEnsraFollowup,
   deleteEnsraFollowup,
+  fetchUsers,
 } from "../../services/api";
 
 const CustomerFollowup = () => {
@@ -121,6 +122,14 @@ const CustomerFollowup = () => {
   const [trainingMaterialFilter, setTrainingMaterialFilter] = useState("all");
   const [trainingStartDateFilter, setTrainingStartDateFilter] = useState("");
   const [trainingCourseFilter, setTrainingCourseFilter] = useState("all");
+  const [selectedTrainingFollowupIds, setSelectedTrainingFollowupIds] = useState([]);
+  const [trainingBulkStartDate, setTrainingBulkStartDate] = useState("");
+  const [trainingBulkEndDate, setTrainingBulkEndDate] = useState("");
+  const [isApplyingTrainingDates, setIsApplyingTrainingDates] = useState(false);
+  const [assignableAgents, setAssignableAgents] = useState([]);
+  const [trainingAgentOptions, setTrainingAgentOptions] = useState([]);
+  const [selectedAgentForAssignment, setSelectedAgentForAssignment] = useState("");
+  const [isAssigningAgent, setIsAssigningAgent] = useState(false);
   const [ensraSearch, setEnsraSearch] = useState("");
   const [ensraTypeFilter, setEnsraTypeFilter] = useState("all");
   const [ensraSortAsc, setEnsraSortAsc] = useState(true);
@@ -252,6 +261,7 @@ const CustomerFollowup = () => {
       schedulePreference: true,
     },
     trainingFollowup: {
+      select: true,
       startDate: true,
       endDate: true,
       agentName: true,
@@ -314,7 +324,53 @@ const CustomerFollowup = () => {
       console.error("Failed to load column preferences", err);
     }
   }, [columnPreferenceKey]);
-  const toast = useToast();
+  const normalizeTrainingFollowupId = (value) => {
+    if (!value) return "";
+    return typeof value === "string" ? value : value.toString();
+  };
+
+  const getTrainingFollowupId = (item) =>
+    item ? normalizeTrainingFollowupId(item._id || item.id) : "";
+  const normalizeRoleValue = (value = "") =>
+    value
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+  const normalizeDisplayName = (value = "") =>
+    value
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  const currentUserName = useMemo(
+    () => (localStorage.getItem("userName") || "").toString().trim(),
+    []
+  );
+  const currentUserRole = useMemo(
+    () =>
+      normalizeRoleValue(
+        localStorage.getItem("userRole") ||
+          localStorage.getItem("userRoleRaw") ||
+          ""
+      ),
+    []
+  );
+  const normalizedUserDisplayName = useMemo(
+    () => normalizeDisplayName(currentUserName),
+    [currentUserName]
+  );
+  const CUSTOMER_SUCCESS_ROLES = new Set([
+    "customersuccessmanager",
+    "customersuccess",
+    "customerservice",
+  ]);
+  const isCustomerSuccessManager = currentUserRole === "customersuccessmanager";
+  const isCustomerSuccessAgent =
+    CUSTOMER_SUCCESS_ROLES.has(currentUserRole) &&
+    currentUserRole !== "customersuccessmanager";
+ const toast = useToast();
   
   // Responsive breakpoints
   const [isLargerThan768] = useMediaQuery("(min-width: 768px)");
@@ -791,6 +847,126 @@ const loadTrainingFollowups = async () => {
   }
 };
 
+const handleApplyTrainingDates = async () => {
+  if (selectedTrainingFollowupIds.length === 0) {
+    toast({
+      title: "No trainings selected",
+      description: "Select at least one training to update dates.",
+      status: "warning",
+      duration: 3000,
+      isClosable: true,
+    });
+    return;
+  }
+  if (!trainingBulkStartDate && !trainingBulkEndDate) {
+    toast({
+      title: "Missing dates",
+      description: "Provide at least a start or end date to apply.",
+      status: "warning",
+      duration: 3000,
+      isClosable: true,
+    });
+    return;
+  }
+
+  const payload = {};
+  if (trainingBulkStartDate) {
+    payload.startDate = new Date(trainingBulkStartDate).toISOString();
+  }
+  if (trainingBulkEndDate) {
+    payload.endDate = new Date(trainingBulkEndDate).toISOString();
+  }
+
+  setIsApplyingTrainingDates(true);
+  try {
+    await Promise.all(
+      selectedTrainingFollowupIds.map((id) => updateTrainingFollowup(id, payload))
+    );
+    toast({
+      title: "Training dates saved",
+      description: `Updated ${selectedTrainingFollowupIds.length} record(s).`,
+      status: "success",
+      duration: 4000,
+      isClosable: true,
+    });
+    await loadTrainingFollowups();
+    resetTrainingSelection();
+    setTrainingBulkStartDate("");
+    setTrainingBulkEndDate("");
+  } catch (err) {
+    console.error("Failed to apply training dates", err);
+    toast({
+      title: "Failed to update training dates",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  } finally {
+    setIsApplyingTrainingDates(false);
+  }
+};
+
+const handleAssignAgentToSelected = async () => {
+  if (selectedTrainingFollowupIds.length === 0) {
+    toast({
+      title: "No trainings selected",
+      description: "Select at least one training to assign.",
+      status: "warning",
+      duration: 3000,
+      isClosable: true,
+    });
+    return;
+  }
+
+  if (!selectedAgentForAssignment) {
+    toast({
+      title: "Select an agent",
+      description: "Choose a Customer Success agent to assign to the selected trainings.",
+      status: "warning",
+      duration: 3000,
+      isClosable: true,
+    });
+    return;
+  }
+
+  const matchedOption = trainingAgentOptions.find(
+    (option) => option.value === selectedAgentForAssignment
+  );
+  const agentDisplay =
+    matchedOption?.label || selectedAgentForAssignment || "Customer Success Agent";
+
+  setIsAssigningAgent(true);
+  try {
+    await Promise.all(
+      selectedTrainingFollowupIds.map((id) =>
+        updateTrainingFollowup(id, { agentName: agentDisplay })
+      )
+    );
+    toast({
+      title: "Agent assigned",
+      description: `Assigned ${selectedTrainingFollowupIds.length} training(s) to ${agentDisplay}.`,
+      status: "success",
+      duration: 4000,
+      isClosable: true,
+    });
+    await loadTrainingFollowups();
+    resetTrainingSelection();
+    setSelectedAgentForAssignment("");
+  } catch (err) {
+    console.error("Failed to assign agent to trainings", err);
+    toast({
+      title: "Failed to assign agent",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  } finally {
+    setIsAssigningAgent(false);
+  }
+};
+
 const loadEnsraFollowups = async () => {
   try {
     const result = await fetchEnsraFollowups();
@@ -818,6 +994,59 @@ const loadEnsraFollowups = async () => {
     };
     fetchPackagesList();
   }, []);
+
+  useEffect(() => {
+    if (!isCustomerSuccessManager) {
+      setAssignableAgents([]);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchAssignableAgents = async () => {
+      try {
+        const users = await fetchUsers();
+        const list = Array.isArray(users) ? users : [];
+        const filtered = list.filter((user) =>
+          CUSTOMER_SUCCESS_ROLES.has(normalizeRoleValue(user.role))
+        );
+        if (isMounted) {
+          setAssignableAgents(filtered);
+        }
+      } catch (err) {
+        console.error("Failed to load Customer Success agents", err);
+      }
+    };
+
+    fetchAssignableAgents();
+    return () => {
+      isMounted = false;
+    };
+  }, [isCustomerSuccessManager]);
+
+  useEffect(() => {
+    const primaryOptions = assignableAgents.map((agent) => {
+      const label =
+        agent.fullName?.trim() ||
+        agent.username?.trim() ||
+        agent.email?.trim() ||
+        `Agent ${agent._id}`;
+      return {
+        value: agent._id,
+        label,
+      };
+    });
+
+    const existingLabels = new Set(primaryOptions.map((opt) => opt.label));
+    const fallbackNames = Array.from(
+      new Set(
+        trainingFollowups
+          .map((item) => item.agentName)
+          .filter((name) => name && !existingLabels.has(name))
+      )
+    ).map((name) => ({ value: name, label: name }));
+
+    setTrainingAgentOptions([...primaryOptions, ...fallbackNames]);
+  }, [assignableAgents, trainingFollowups]);
 
 const handleDeleteTrainingFollowup = async (id) => {
   if (!window.confirm("Delete this training follow-up?")) return;
@@ -937,12 +1166,16 @@ const saveEnsraEdit = async () => {
   }
 };
   // Derived, filtered, and sorted arrays for Training Follow-Up
-  const trainingCourseOptions = Array.from(
-    new Set(
-      (trainingFollowups || [])
-        .map((item) => item.trainingType)
-        .filter(Boolean)
-    )
+  const trainingCourseOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (trainingFollowups || [])
+            .map((item) => item.trainingType)
+            .filter(Boolean)
+        )
+      ),
+    [trainingFollowups]
   );
 
   const todayMidnight = useMemo(() => {
@@ -984,6 +1217,11 @@ const saveEnsraEdit = async () => {
     .filter((item) => {
       if (trainingCourseFilter === "all") return true;
       return (item.trainingType || "").toLowerCase() === trainingCourseFilter.toLowerCase();
+    })
+    .filter((item) => {
+      if (!isCustomerSuccessAgent || !normalizedUserDisplayName) return true;
+      const agentIdentifier = normalizeDisplayName(item.agentName || "");
+      return agentIdentifier.includes(normalizedUserDisplayName);
     })
     .sort((a, b) => {
       const nameA = (a.customerName || "").toLowerCase();
@@ -1066,7 +1304,7 @@ const saveEnsraEdit = async () => {
     );
   };
 
-  useEffect(() => {
+useEffect(() => {
   fetchData();
   fetchPendingB2BCustomers();
   fetchCompletedSales();
@@ -1261,6 +1499,43 @@ const saveEnsraEdit = async () => {
   };
 
   const clearSelection = () => setSelectedFollowupIds([]);
+
+  const toggleTrainingSelection = (id) => {
+    setSelectedTrainingFollowupIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllTrainingFollowups = (checked) => {
+    if (!Array.isArray(filteredTrainingFollowups)) return;
+    if (checked) {
+      const ids = filteredTrainingFollowups
+        .map((item) => getTrainingFollowupId(item))
+        .filter(Boolean);
+      setSelectedTrainingFollowupIds(ids);
+    } else {
+      setSelectedTrainingFollowupIds([]);
+    }
+  };
+
+  const resetTrainingSelection = () => setSelectedTrainingFollowupIds([]);
+
+  useEffect(() => {
+    setSelectedTrainingFollowupIds((prev) =>
+      prev.filter((id) =>
+        trainingFollowups.some((item) => getTrainingFollowupId(item) === id)
+      )
+    );
+  }, [trainingFollowups]);
+
+  useEffect(() => {
+    if (!isCustomerSuccessManager) {
+      setSelectedTrainingFollowupIds([]);
+      setTrainingBulkStartDate("");
+      setTrainingBulkEndDate("");
+      setSelectedAgentForAssignment("");
+    }
+  }, [isCustomerSuccessManager]);
 
   const openBulkEmail = () => {
     if (selectedFollowupIds.length === 0) {
@@ -1563,6 +1838,7 @@ const saveEnsraEdit = async () => {
   ];
 
   const trainingFollowupColumnOptions = [
+    { key: "select", label: "Select" },
     { key: "startDate", label: "Training Start Date" },
     { key: "endDate", label: "Training End Date" },
     { key: "agentName", label: "Agent Name" },
@@ -2000,7 +2276,39 @@ const saveEnsraEdit = async () => {
     }
   ].filter((col) => col.visible);
 
+  const trainingSelectAllChecked =
+    Array.isArray(filteredTrainingFollowups) &&
+    filteredTrainingFollowups.length > 0 &&
+    filteredTrainingFollowups.every((item) =>
+      selectedTrainingFollowupIds.includes(getTrainingFollowupId(item))
+    );
+  const trainingSelectAllIndeterminate =
+    selectedTrainingFollowupIds.length > 0 && !trainingSelectAllChecked;
+
   const trainingFollowupColumnsToRender = [
+    {
+      key: "select",
+      visible: isCustomerSuccessManager && visibleColumns.trainingFollowup.select !== false,
+      header: (
+        <Checkbox
+          aria-label="Select all training follow-ups"
+          isChecked={trainingSelectAllChecked}
+          isIndeterminate={trainingSelectAllIndeterminate}
+          onChange={(e) => selectAllTrainingFollowups(e.target.checked)}
+        />
+      ),
+      render: (item) => {
+        const itemId = getTrainingFollowupId(item);
+        return (
+          <CompactCell>
+            <Checkbox
+              isChecked={selectedTrainingFollowupIds.includes(itemId)}
+              onChange={() => toggleTrainingSelection(itemId)}
+            />
+          </CompactCell>
+        );
+      },
+    },
     {
       key: "startDate",
       visible: visibleColumns.trainingFollowup.startDate,
@@ -2449,6 +2757,20 @@ const saveEnsraEdit = async () => {
                 setTrainingSortAsc={setTrainingSortAsc}
                 trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
                 filteredTrainingFollowups={filteredTrainingFollowups}
+                selectedTrainingFollowupCount={selectedTrainingFollowupIds.length}
+                trainingBulkStartDate={trainingBulkStartDate}
+                trainingBulkEndDate={trainingBulkEndDate}
+                setTrainingBulkStartDate={setTrainingBulkStartDate}
+                setTrainingBulkEndDate={setTrainingBulkEndDate}
+                applyTrainingDates={handleApplyTrainingDates}
+                isApplyingTrainingDates={isApplyingTrainingDates}
+                assignableAgents={assignableAgents}
+                trainingAgentOptions={trainingAgentOptions}
+                selectedAgentForAssignment={selectedAgentForAssignment}
+                setSelectedAgentForAssignment={setSelectedAgentForAssignment}
+                handleAssignAgent={handleAssignAgentToSelected}
+                isAssigningAgent={isAssigningAgent}
+                isCustomerSuccessManager={isCustomerSuccessManager}
                 isMobile={isMobile}
                 tableMinWidth="900px"
               >

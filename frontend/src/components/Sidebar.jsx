@@ -9,10 +9,9 @@ import {
   Icon,
   useBreakpointValue,
 } from "@chakra-ui/react";
-import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase, FiBarChart } from "react-icons/fi";
+import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase, FiBarChart, FiDollarSign } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
 import { FiFileText } from 'react-icons/fi';
-
 const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const breakpointValue = useBreakpointValue({ base: true, md: false });
@@ -119,7 +118,15 @@ const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
           </Flex>
         </Link>
 
-         {/* Training Tab */}
+        {/* Payroll Link */}
+        <Link as={RouterLink} to="/payroll" _hover={{ textDecoration: "none" }}>
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiDollarSign} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Payroll</Text>}
+          </Flex>
+        </Link>
+
+        {/* Training Tab */}
         <Link as={RouterLink} to="/admin-training-upload" _hover={{ textDecoration: "none" }}>
           <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
             <Icon as={FiBookOpen} boxSize={4} />
