@@ -218,7 +218,7 @@ const DocumentUploadForm = () => {
                                        <option value="Customer Service">Customer Service</option>
                                        <option value="Socialmedia Manager">Socialmedia Manager</option>
                                        <option value="Instructor">Instructor</option>
-                                       <option value="Sales Supervisor">Sales Supervisor</option>
+                                        <option value="Supervisor">Supervisor</option>
                                        <option value="Operational Manager">Operational Manager</option>
                                        <option value="IT">IT</option>
                                        <option value="TETV">TETV</option>

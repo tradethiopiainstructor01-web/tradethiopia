@@ -135,7 +135,7 @@ return (
                             <option value="customerservice">Customer Service</option>
                             <option value="CustomerSuccessManager">Customer Success Manager</option>
                             <option value="SocialmediaManager">Socialmedia Manager</option>
-                            <option value="SalesSupervisor">Sales Supervisor</option>
+                            <option value="supervisor">Supervisor</option>
                             <option value="tradextv">tradextv</option>
                             <option value="IT">IT</option>
                             <option value="finance">Finance</option>

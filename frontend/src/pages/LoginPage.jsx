@@ -73,6 +73,9 @@ const handleLogin = async () => {
                     case 'socialmediamanager':
                         navigate('/social-media'); // Add social media role navigation
                         break;
+                    case 'supervisor':
+                        navigate('/supervisor');
+                        break;
                     default:
                         navigate('/ComingSoonPage'); // Optional: handle unknown roles
                         break;
