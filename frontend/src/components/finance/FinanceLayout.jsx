@@ -14,6 +14,7 @@ import {
   DrawerBody,
   useDisclosure,
   Divider,
+  Badge,
 } from '@chakra-ui/react';
 import {
   FiMenu,
