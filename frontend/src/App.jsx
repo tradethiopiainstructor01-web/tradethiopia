@@ -80,9 +80,6 @@ import AppLayout from "./components/AppLayout"; // Import the new AppLayout comp
 import SupervisorLayout from "./pages/supervisor/SupervisorLayout.jsx";
 import SupervisorDashboardPage from "./pages/supervisor/SupervisorDashboardPage.jsx";
 import SupervisorAccountPage from "./pages/supervisor/SupervisorAccountPage.jsx";
-import TeamRequestsPage from "./pages/sales/TeamRequestsPage.jsx";
-import FinanceMessagesPage from "./pages/FinanceMessagesPage.jsx";
-import RevenuePage from "./pages/sales/RevenuePage.jsx";
 
 function App() {
   const location = useLocation();
