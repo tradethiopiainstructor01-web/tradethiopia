@@ -16,11 +16,6 @@ router.get('/', purchaseController.listPurchases);
 // @access  Private
 router.get('/stats', purchaseController.getPurchaseStats);
 
-// @desc    Export purchases to CSV
-// @route   GET /export
-// @access  Private
-router.get('/export', purchaseController.exportPurchasesToCSV);
-
 // @desc    Create new purchase
 // @route   POST /
 // @access  Private

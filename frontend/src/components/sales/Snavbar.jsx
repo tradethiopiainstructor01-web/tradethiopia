@@ -304,15 +304,73 @@ const Snavbar = ({ onToggleSidebar }) => {
                 size="sm"
                 bg="teal.300"
                 icon={<FaUserCircle fontSize="20px" />}
+                cursor="pointer"
               />
             </MenuButton>
-            <MenuList>
-              <Box p={4}>
-                <Text fontWeight="bold" fontSize="lg">{currentUser?.username || "User"}</Text>
-                <Text fontSize="sm" color="gray.500">{currentUser?.role || "Role not available"}</Text>
+            <MenuList p={0} maxW="300px">
+              {/* Simplified Profile Header */}
+              <Box 
+                px={4} 
+                pt={4}
+                pb={3}
+                bgGradient={colorMode === 'light' ? 'linear(to-br, teal.50, white)' : 'linear(to-br, teal.900, gray.800)'}
+              >
+                <Flex align="center" gap={3}>
+                  <Avatar 
+                    name={currentUser?.username || "User"} 
+                    size="md" 
+                    bg="teal.500"
+                  />
+                  <Box>
+                    <Text fontWeight="bold" fontSize="lg">{currentUser?.username || "User"}</Text>
+                  </Box>
+                </Flex>
               </Box>
+              
+              <MenuDivider mt={0} mb={2} />
+              
+              {/* Logout Card Only */}
+              <Box 
+                px={4} 
+                pb={3}
+              >
+                {/* Logout Card */}
+                <Box 
+                  bg={colorMode === 'light' ? 'red.50' : 'red.900'}
+                  borderRadius="md"
+                  p={3}
+                  border="1px solid"
+                  borderColor={colorMode === 'light' ? 'red.200' : 'red.700'}
+                >
+                  <Flex justify="space-between" align="center">
+                    <Text fontSize="sm" fontWeight="medium">Logout</Text>
+                    <Button 
+                      size="sm" 
+                      colorScheme="red" 
+                      variant="solid"
+                      onClick={handleLogout}
+                    >
+                      Confirm Logout
+                    </Button>
+                  </Flex>
+                </Box>
+              </Box>
+              
               <MenuDivider />
-              <MenuItem onClick={handleLogout}>Logout</MenuItem>
+              
+              {/* View Profile Button */}
+              <Box p={3}>
+                <Button 
+                  leftIcon={<FaUserCircle />} 
+                  colorScheme="teal" 
+                  variant="outline" 
+                  size="sm" 
+                  width="full"
+                  onClick={() => navigate('/supervisor/account')}
+                >
+                  View Profile
+                </Button>
+              </Box>
             </MenuList>
           </Menu>
         </HStack>

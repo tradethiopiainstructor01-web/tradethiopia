@@ -30,8 +30,8 @@ import {
   useToast,
   Spinner
 } from '@chakra-ui/react';
-import { FaPlus, FaTrash, FaShoppingCart, FaChartBar, FaDollarSign, FaSave, FaFileExport } from 'react-icons/fa';
-import { getPurchases, createPurchase, updatePurchase, deletePurchase, exportPurchases } from '../../services/financeService';
+import { FaPlus, FaTrash, FaShoppingCart, FaChartBar, FaDollarSign, FaSave } from 'react-icons/fa';
+import { getPurchases, createPurchase, updatePurchase, deletePurchase } from '../../services/financeService';
 
 const PurchasePage = () => {
   const cardBg = useColorModeValue('white', 'gray.800');

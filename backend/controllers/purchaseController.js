@@ -139,7 +139,7 @@ const calculateTotals = (items = []) => {
 
 exports.listPurchases = async (req, res) => {
   try {
-    const { supplier, status, reference, dateFrom, dateTo, page = 1, limit = 25 } = req.query;
+    const { supplier, status, reference, page = 1, limit = 25 } = req.query;
     const filter = {};
 
     if (supplier) {

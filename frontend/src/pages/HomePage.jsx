@@ -121,7 +121,7 @@ const HomePage = () => {
                             <option value="CustomerSuccessManager">Customer Success Manager</option>
                             <option value="SocialmediaManager">Socialmedia Manager</option>
                             <option value="salesmanager">Sales Manager</option>
-                            <option value="SalesSupervisor">Sales Supervisor</option>
+                            <option value="supervisor">Supervisor</option>
                             <option value="tradextv">tradextv</option>
                             <option value="IT">IT</option>
                             <option value="HR">HR</option>
