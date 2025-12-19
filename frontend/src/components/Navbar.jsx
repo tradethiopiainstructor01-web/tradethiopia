@@ -28,7 +28,7 @@ import { useEffect, useState } from "react";
 const NavbarPage = () => {
     const { colorMode, toggleColorMode } = useColorMode();
     const gradient = useColorModeValue(
-        "linear(to-r, #2dd4bf, #0ea5e9)",
+        "linear(to-r,rgb(11, 11, 25),rgb(47, 24, 174))",
         "linear(to-r, #0f172a, #111827)"
     );
     const textColor = useColorModeValue("gray.900", "gray.100");
@@ -86,8 +86,8 @@ const NavbarPage = () => {
                         fontWeight="bold"
                         textTransform="uppercase"
                         letterSpacing="wide"
-                        color={textColor}
-                        textShadow="0 2px 8px rgba(0,0,0,0.35)"
+                        color="white"
+                        textShadow="0 2px 8px rgba(241, 233, 233, 0.35)"
                     >
                         Dashboard
                     </Text>

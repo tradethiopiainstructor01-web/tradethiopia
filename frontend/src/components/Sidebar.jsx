@@ -6,29 +6,39 @@ import {
   VStack,
   Link,
   Text,
+  Icon,
   useBreakpointValue,
 } from "@chakra-ui/react";
 import { FiFolder, FiHome, FiPlusCircle, FiMenu, FiUsers, FiBookOpen, FiSearch, FiBriefcase, FiBarChart } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
 import { FiFileText } from 'react-icons/fi';
 
-const Sidebar = () => {
+const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const breakpointValue = useBreakpointValue({ base: true, md: false });
+  
+  // Use controlled prop if provided, otherwise use internal state
+  const effectiveIsCollapsed = controlledIsCollapsed !== undefined ? controlledIsCollapsed : isCollapsed;
 
   useEffect(() => {
-    setIsCollapsed(breakpointValue);
-  }, [breakpointValue]);
+    // Only set initial collapse state if not controlled by parent
+    if (controlledIsCollapsed === undefined) {
+      setIsCollapsed(breakpointValue);
+    }
+  }, [breakpointValue, controlledIsCollapsed]);
 
   const toggleCollapse = () => {
-    setIsCollapsed((prevState) => !prevState);
+    if (onToggleCollapse) {
+      onToggleCollapse();
+    } else {
+      setIsCollapsed((prevState) => !prevState);
+    }
   };
 
   return (
     <Box
       as="nav"
-      width={isCollapsed ? "70px" : "250px"}
-      height="100vh"
+      width={effectiveIsCollapsed ? "50px" : "200px"}      height="100vh"
       position="fixed"
       left={0}
       top={0}
@@ -41,7 +51,7 @@ const Sidebar = () => {
       {/* Collapse Toggle Button */}
       <Flex justify="flex-end" align="center" p={4}>
         <IconButton
-          icon={<FiMenu />}
+          icon={<Icon as={FiMenu} boxSize={4} />}
           variant="ghost"
           color="white"
           onClick={toggleCollapse}
@@ -50,12 +60,12 @@ const Sidebar = () => {
       </Flex>
 
       {/* Sidebar Links */}
-      <VStack align="start" spacing={4} p={4}>
+      <VStack align="start" spacing={1} p={1}>
         {/* Dashboard Link */}
         <Link as={RouterLink} to="/dashboard" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiHome />
-            {!isCollapsed && <Text ml={3}>Dashboard</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiHome} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Dashboard</Text>}
           </Flex>
         </Link>
 
@@ -63,75 +73,73 @@ const Sidebar = () => {
 
         {/* Account Management Link */}
         <Link as={RouterLink} to="/users" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiUsers />
-            {!isCollapsed && <Text ml={3}>Account Management</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiUsers} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Account Management</Text>}
           </Flex>
         </Link>
 
         {/* Asset Management Link */}
         <Link as={RouterLink} to="/assets" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiBriefcase />
-            {!isCollapsed && <Text ml={3}>Asset Management</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiBriefcase} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Asset Management</Text>}
           </Flex>
         </Link>
 
         {/* Company Documents Link */}
         <Link as={RouterLink} to="/documentlist" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiBookOpen />
-            {!isCollapsed && <Text ml={3}>Company Documents</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiBookOpen} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Company Documents</Text>}
           </Flex>
         </Link>
 
         {/* Employee Document Link */}
         <Link as={RouterLink} to="/EmployeeDocument" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiFolder />
-            {!isCollapsed && <Text ml={3}>Employee Document</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiFolder} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Employee Document</Text>}
           </Flex>
         </Link>
 
         {/* Quiz Center Link */}
         <Link as={RouterLink} to="/quiz" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiSearch />
-            {!isCollapsed && <Text ml={3}>Quiz Center</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiSearch} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Quiz Center</Text>}
           </Flex>
         </Link>
 
         {/* Customer List Link */}
         <Link as={RouterLink} to="/FollowUpList" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiUsers />
-            {!isCollapsed && <Text ml={3}>Customer List</Text>}
-          </Flex>
-        </Link>
-
-       
-
-                {/*  Customer Report */}
-        <Link as={RouterLink} to="/adminCustomerReport" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiFileText />
-            {!isCollapsed && <Text ml={3}>Customer  Report</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiUsers} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Customer List</Text>}
           </Flex>
         </Link>
 
          {/* Training Tab */}
         <Link as={RouterLink} to="/admin-training-upload" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiBookOpen />
-            {!isCollapsed && <Text ml={3}>Training</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiBookOpen} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Training</Text>}
           </Flex>
         </Link>
 
         {/* Awards Link */}
         <Link as={RouterLink} to="/awards" _hover={{ textDecoration: "none" }}>
-          <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.700" }}>
-            <FiBarChart />
-            {!isCollapsed && <Text ml={3}>Awards</Text>}
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiBarChart} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Awards</Text>}
+          </Flex>
+        </Link>
+      
+        {/* Notes Board Link */}
+        <Link as={RouterLink} to="/customer/messages" _hover={{ textDecoration: "none" }}>
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiFileText} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Notes Board</Text>}
           </Flex>
         </Link>
       </VStack>

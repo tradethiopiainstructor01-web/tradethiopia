@@ -23,7 +23,7 @@ const AppLayout = ({ children }) => {
         
         <Box 
           flex="1" 
-          ml={isSidebarCollapsed ? "70px" : "260px"}
+          ml={isSidebarCollapsed ? "50px" : "200px"}
           transition="margin-left 0.3s"
           p={4}
         >

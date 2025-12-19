@@ -12,6 +12,7 @@ import {
 import AwardsPanel from '../components/AwardsPanel';
 import { useUserStore } from '../store/user';
 import { calculateAwards } from '../services/awardService';
+import Layout from '../components/Layout';
 
 const ADMIN_ROLES = new Set(['admin', 'hr', 'coo']);
 
@@ -72,6 +73,7 @@ const AwardsPage = () => {
   };
 
   return (
+    <Layout>
     <Box p={4}>
       <Heading size="lg" mb={4}>
         Monthly Employee Awards
@@ -115,6 +117,7 @@ const AwardsPage = () => {
         onAwardsLoaded={(list) => setAwardsPublished(Boolean(list && list.length))}
       />
     </Box>
+    </Layout>
   );
 };
 
