@@ -76,8 +76,9 @@ import RedirectMessagesPage from "./pages/RedirectMessagesPage";
 import SocialMediaDashboardPage from "./pages/socialmedia/SocialMediaDashboardPage";
 import RequestPage from "./pages/RequestPage";
 import TeamRequestsPage from "./pages/sales/TeamRequestsPage.jsx";
+import NotesBoardPage from "./pages/NotesBoardPage";
+import AwardsPage from "./pages/AwardsPage";
 import AppLayout from "./components/AppLayout"; // Import the new AppLayout component
-
 function App() {
   const location = useLocation();
 
@@ -124,6 +125,7 @@ return (
       <Route path="/sales" element={<Sdashboard />} />
       <Route path="/sales/dashboard" element={<Sdashboard />} />
       <Route path="/srequest" element={<Srequest />} />
+      <Route path="/awards" element={<AwardsPage />} />
       <Route path="/finance-dashboard" element={<FinanceLayout><FinanceDashboardPage /></FinanceLayout>} />
       <Route path="/finance-dashboard/reports" element={<FinanceLayout><FinanceReportsPage /></FinanceLayout>} />
       <Route path="/finance-dashboard/inventory" element={<FinanceLayout><InventoryPage /></FinanceLayout>} />
@@ -134,6 +136,7 @@ return (
       <Route path="/finance-dashboard/costs" element={<FinanceLayout><CostManagementPage /></FinanceLayout>} />
       <Route path="/finance-dashboard/payroll" element={<FinanceLayout><FinancePayrollPage /></FinanceLayout>} />
       <Route path="/finance/team-requests" element={<FinanceLayout><TeamRequestsPage /></FinanceLayout>} />
+      
       <Route
         path="/finance/messages"
         element={
@@ -166,7 +169,7 @@ return (
       <Route path="/AddCustomer" element={<LayoutWrapper><AddCustomer /></LayoutWrapper>} />
       <Route path="/VideoList" element={<LayoutWrapper><VideoList /></LayoutWrapper>} />
 
-<Route path="/UploadPage" element={<LayoutWrapper><UploadResource /></LayoutWrapper>} />
+      <Route path="/UploadPage" element={<LayoutWrapper><UploadResource /></LayoutWrapper>} />
       <Route path="/Cdashboard" element={<CDashboard />} />
       <Route path="/CustomerReport" element={<LayoutWrapper><CustomerReport /></LayoutWrapper>} />
       <Route path="/followup-report" element={<LayoutWrapper><CustomerFollowupReport /></LayoutWrapper>} />
@@ -184,17 +187,18 @@ return (
       <Route path="/it" element={<ITDashboard />} />
       <Route path="/payroll" element={<LayoutWrapper><PayrollPage /></LayoutWrapper>} />
       <Route path="/my-payroll" element={<EmployeePayrollView />} />
+      <Route path="/notes" element={<LayoutWrapper><NotesBoardPage /></LayoutWrapper>} />
       <Route path="/messages" element={<RedirectMessagesPage />} />
       <Route path="/sales/messages" element={<SalesMessagesPage />} />
       <Route path="/customer/messages" element={<CustomerMessagesPage />} />
-      <Route
-        path="/salesmanager/*"
-        element={
-          <SalesManagerProtectedRoute>
-            <SalesManagerLayout />
-          </SalesManagerProtectedRoute>
-        }
-      >
+        <Route
+          path="/salesmanager/*"
+          element={
+            <SalesManagerProtectedRoute>
+              <SalesManagerLayout />
+            </SalesManagerProtectedRoute>
+          }
+        >
         <Route index element={<SalesManagerDashboard />} />
         <Route path="dashboard" element={<SalesManagerDashboard />} />
         <Route path="all-sales" element={<AllSalesPage />} />
