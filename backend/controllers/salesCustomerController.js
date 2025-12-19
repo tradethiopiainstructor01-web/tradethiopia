@@ -10,7 +10,18 @@ const getCustomers = asyncHandler(async (req, res) => {
   const role = (req.user?.role || '').toLowerCase();
   const filter = {};
   // Allow privileged roles to view all; others limited to their own records
-  const privilegedRoles = ['admin', 'customerservice', 'customer service', 'coo', 'sales_manager', 'sales manager', 'finance'];
+  const privilegedRoles = [
+    'admin',
+    'customerservice',
+    'customer service',
+    'customersuccessmanager',
+    'customer success manager',
+    'customer_success_manager',
+    'coo',
+    'sales_manager',
+    'sales manager',
+    'finance',
+  ];
   if (!privilegedRoles.includes(role)) {
     filter.agentId = req.user.id;
   }
