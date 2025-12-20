@@ -10,6 +10,8 @@ import {
   HStack,
   IconButton,
   Input,
+  InputGroup,
+  InputLeftElement,
   Spinner,
   Table,
   Tbody,
@@ -87,15 +89,19 @@ const FollowupTabPage = ({
               align="center"
             >
               <Flex flex={1} maxWidth={isMobile ? "100%" : "300px"}>
-                <Input
-                  placeholder="Search by client or company..."
-                  value={searchQuery}
-                  onChange={handleSearch}
-                  size="md"
-                  borderRadius="md"
-                  borderColor={borderColor}
-                  leftIcon={<SearchIcon color="gray.300" />}
-                />
+                <InputGroup>
+                  <InputLeftElement pointerEvents="none">
+                    <SearchIcon color="gray.300" />
+                  </InputLeftElement>
+                  <Input
+                    placeholder="Search by client or company..."
+                    value={searchQuery}
+                    onChange={handleSearch}
+                    size="md"
+                    borderRadius="md"
+                    borderColor={borderColor}
+                  />
+                </InputGroup>
               </Flex>
 
               <HStack spacing={2}>

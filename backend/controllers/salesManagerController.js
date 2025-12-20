@@ -12,7 +12,7 @@ const getAllSales = asyncHandler(async (req, res) => {
     console.log('User:', req.user);
     console.log('Query parameters:', req.query);
     
-    // Only sales managers can access this
+    // Only sales managers, HR, Finance, and Admin can access this
     if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
       console.log('Access denied - User role:', req.user.role);
       res.status(403);
@@ -109,13 +109,13 @@ const getAllSales = asyncHandler(async (req, res) => {
 
 // @desc    Update supervisor comment for a sale
 // @route   PUT /api/sales-manager/sales/:id/supervisor-comment
-// @access  Private (Sales Manager only)
+// @access  Private (Sales Manager, HR, Finance, Admin)
 const updateSupervisorComment = asyncHandler(async (req, res) => {
   try {
-    // Only sales managers can access this
-    if (req.user.role !== 'salesmanager') {
+    // Only sales managers, HR, Finance, and Admin can access this
+    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
       res.status(403);
-      throw new Error('Access denied. Sales managers only.');
+      throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
 
     const { supervisorComment } = req.body;
@@ -144,13 +144,13 @@ const updateSupervisorComment = asyncHandler(async (req, res) => {
 
 // @desc    Get all sales agents with performance data
 // @route   GET /api/sales-manager/agents
-// @access  Private (Sales Manager only)
+// @access  Private (Sales Manager, HR, Finance, Admin)
 const getAllAgents = asyncHandler(async (req, res) => {
   try {
-    // Only sales managers can access this
-    if (req.user.role !== 'salesmanager') {
+    // Only sales managers, HR, Finance, and Admin can access this
+    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
       res.status(403);
-      throw new Error('Access denied. Sales managers only.');
+      throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
 
     // Get all sales agents with basic info
@@ -198,13 +198,13 @@ const getAllAgents = asyncHandler(async (req, res) => {
 
 // @desc    Get team performance stats for sales manager
 // @route   GET /api/sales-manager/team-performance
-// @access  Private (Sales Manager only)
+// @access  Private (Sales Manager, HR, Finance, Admin)
 const getTeamPerformance = asyncHandler(async (req, res) => {
   try {
-    // Only sales managers can access this
-    if (req.user.role !== 'salesmanager') {
+    // Only sales managers, HR, Finance, and Admin can access this
+    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
       res.status(403);
-      throw new Error('Access denied. Sales managers only.');
+      throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
 
     // Build date filter based on time range
@@ -387,13 +387,13 @@ const getTeamPerformance = asyncHandler(async (req, res) => {
 
 // @desc    Get sales manager dashboard stats
 // @route   GET /api/sales-manager/dashboard-stats
-// @access  Private (Sales Manager only)
+// @access  Private (Sales Manager, HR, Finance, Admin)
 const getDashboardStats = asyncHandler(async (req, res) => {
   try {
-    // Only sales managers can access this
-    if (req.user.role !== 'salesmanager') {
+    // Only sales managers, HR, Finance, and Admin can access this
+    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
       res.status(403);
-      throw new Error('Access denied. Sales managers only.');
+      throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
 
     // Get all sales agents count
@@ -442,13 +442,13 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 
 // @desc    Get sales data for a specific agent
 // @route   GET /api/sales-manager/agent-sales/:agentId
-// @access  Private (Sales Manager only)
+// @access  Private (Sales Manager, HR, Finance, Admin)
 const getAgentSales = asyncHandler(async (req, res) => {
   try {
-    // Only sales managers can access this
-    if (req.user.role !== 'salesmanager') {
+    // Only sales managers, HR, Finance, and Admin can access this
+    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
       res.status(403);
-      throw new Error('Access denied. Sales managers only.');
+      throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
 
     const { agentId } = req.params;

@@ -139,7 +139,7 @@ const calculateTotals = (items = []) => {
 
 exports.listPurchases = async (req, res) => {
   try {
-    const { supplier, status, reference, page = 1, limit = 25 } = req.query;
+    const { supplier, status, reference, dateFrom, dateTo, page = 1, limit = 25 } = req.query;
     const filter = {};
 
     if (supplier) {
@@ -157,11 +157,17 @@ exports.listPurchases = async (req, res) => {
     // Add date filtering
     if (dateFrom || dateTo) {
       filter.purchaseDate = {};
-      if (dateFrom) {
-        filter.purchaseDate.$gte = new Date(dateFrom);
+      if (dateFrom && dateFrom.trim() !== '') {
+        const fromDate = new Date(dateFrom);
+        if (!isNaN(fromDate.getTime())) {
+          filter.purchaseDate.$gte = fromDate;
+        }
       }
-      if (dateTo) {
-        filter.purchaseDate.$lte = new Date(dateTo);
+      if (dateTo && dateTo.trim() !== '') {
+        const toDate = new Date(dateTo);
+        if (!isNaN(toDate.getTime())) {
+          filter.purchaseDate.$lte = toDate;
+        }
       }
     }
 
@@ -422,11 +428,17 @@ exports.exportPurchasesToCSV = async (req, res) => {
     // Add date filtering
     if (dateFrom || dateTo) {
       filter.purchaseDate = {};
-      if (dateFrom) {
-        filter.purchaseDate.$gte = new Date(dateFrom);
+      if (dateFrom && dateFrom.trim() !== '') {
+        const fromDate = new Date(dateFrom);
+        if (!isNaN(fromDate.getTime())) {
+          filter.purchaseDate.$gte = fromDate;
+        }
       }
-      if (dateTo) {
-        filter.purchaseDate.$lte = new Date(dateTo);
+      if (dateTo && dateTo.trim() !== '') {
+        const toDate = new Date(dateTo);
+        if (!isNaN(toDate.getTime())) {
+          filter.purchaseDate.$lte = toDate;
+        }
       }
     }
 

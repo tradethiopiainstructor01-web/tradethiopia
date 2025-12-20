@@ -91,6 +91,7 @@ import {
   Filler
 } from 'chart.js';
 import { getDashboardStats, getSalesForecast, getTeamPerformance, getAllAgents } from '../../services/salesManagerService';
+import { getPendingReceptionCustomers, assignCustomerToAgent } from '../../services/salesWorkflowService';
 import { getTasksForManager, getTaskStats } from '../../services/taskService';
 import { useUserStore } from '../../store/user';
 
@@ -173,6 +174,7 @@ const SalesManagerDashboard = () => {
   
   // Get current user from store
   const currentUser = useUserStore((state) => state.currentUser);
+  const toast = useToast();
   console.log('Current user in dashboard:', currentUser);
   console.log('User role:', currentUser?.role);
   console.log('LocalStorage userRole:', localStorage.getItem('userRole'));
@@ -211,6 +213,11 @@ const SalesManagerDashboard = () => {
     overdueTasks: 0
   });
   const [loading, setLoading] = useState(true);
+  const [pendingAssignments, setPendingAssignments] = useState([]);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [assigningCustomerId, setAssigningCustomerId] = useState(null);
+  const [agentRoster, setAgentRoster] = useState([]);
+  const [selectedAssignees, setSelectedAssignees] = useState({});
   const [error, setError] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const chartRef = useRef(null);
@@ -368,6 +375,76 @@ const SalesManagerDashboard = () => {
     });
   };
 
+  const fetchAgentRoster = useCallback(async () => {
+    try {
+      const roster = await getAllAgents();
+      setAgentRoster(Array.isArray(roster) ? roster : []);
+    } catch (error) {
+      console.error('Error loading agent roster:', error);
+    }
+  }, []);
+
+  const fetchPendingAssignments = useCallback(async () => {
+    setAssignmentLoading(true);
+    try {
+      const data = await getPendingReceptionCustomers();
+      setPendingAssignments(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching pending assignments:', error);
+    } finally {
+      setAssignmentLoading(false);
+    }
+  }, []);
+
+  const handleAssigneeChange = (customerId, agentId) => {
+    setSelectedAssignees((prev) => ({
+      ...prev,
+      [customerId]: agentId
+    }));
+  };
+
+  const handleAssign = async (customerId) => {
+    const agentId = selectedAssignees[customerId];
+    if (!agentId) {
+      toast({
+        title: 'Agent required',
+        description: 'Please pick an agent before assigning.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    setAssigningCustomerId(customerId);
+    try {
+      await assignCustomerToAgent(customerId, agentId);
+      toast({
+        title: 'Customer assigned',
+        description: 'The sales agent will be notified shortly.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true
+      });
+      setSelectedAssignees((prev) => ({
+        ...prev,
+        [customerId]: ''
+      }));
+      fetchPendingAssignments();
+      await fetchDashboardStats();
+    } catch (error) {
+      toast({
+        title: 'Assignment failed',
+        description: error.response?.data?.message || 'Unable to assign this customer.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setAssigningCustomerId(null);
+    }
+  };
+
   const fetchAllData = useCallback(async () => {
     console.log('Starting data fetch...');
     console.log('Current timeRange:', timeRange);
@@ -380,7 +457,9 @@ const SalesManagerDashboard = () => {
         fetchTeamPerformance(),
         fetchAgentData(),
         fetchRecentActivities(),
-        fetchTaskData()
+        fetchTaskData(),
+        fetchAgentRoster(),
+        fetchPendingAssignments()
       ]);
     } catch (err) {
       // soften the failure: use mock data and keep page usable
@@ -395,7 +474,7 @@ const SalesManagerDashboard = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [timeRange]);
+  }, [timeRange, fetchAgentRoster, fetchPendingAssignments]);
 
   useEffect(() => {
     console.log('SalesManagerDashboard mounted or updated');
@@ -906,6 +985,96 @@ const SalesManagerDashboard = () => {
 
           {/* Right Column */}
           <Box>
+            {/* Pending assignments */}
+            <Card
+              bg={cardBg}
+              borderWidth="1px"
+              borderColor={useColorModeValue('gray.100', 'gray.700')}
+              boxShadow="sm"
+              borderRadius="lg"
+              mb={4}
+            >
+              <CardHeader pb={2}>
+                <Flex justify="space-between" align="center">
+                  <Heading size="sm" color={textColor}>
+                    Pending Assignments
+                  </Heading>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={fetchPendingAssignments}
+                    isLoading={assignmentLoading}
+                  >
+                    Refresh
+                  </Button>
+                </Flex>
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  {pendingAssignments.length} new leads in queue
+                </Text>
+              </CardHeader>
+              <CardBody pt={0}>
+                {assignmentLoading ? (
+                  <Flex justify="center">
+                    <Spinner size="sm" />
+                  </Flex>
+                ) : pendingAssignments.length === 0 ? (
+                  <Text fontSize="sm" color="gray.500">
+                    No new reception leads at the moment.
+                  </Text>
+                ) : (
+                  <Stack spacing={3}>
+                    {pendingAssignments.slice(0, 5).map((customer) => (
+                      <Box
+                        key={customer._id}
+                        p={3}
+                        borderWidth="1px"
+                        borderRadius="md"
+                        borderColor={borderColor}
+                      >
+                        <Flex justify="space-between" align="center" mb={1}>
+                          <Text fontWeight="semibold" fontSize="sm">
+                            {customer.customerName || 'Unnamed lead'}
+                          </Text>
+                          <Badge colorScheme="orange" fontSize="0.7rem">
+                            {customer.pipelineStatus || 'Pending Assignment'}
+                          </Badge>
+                        </Flex>
+                        <Text fontSize="xs" color="gray.500">
+                          Phone: {customer.phone || '—'}
+                        </Text>
+                        <Text fontSize="xs" color="gray.500" mb={2}>
+                          Interest: {customer.productInterest || customer.courseName || 'General inquiry'}
+                        </Text>
+                        <Select
+                          size="sm"
+                          placeholder={agentRoster.length ? 'Choose agent' : 'No agents available'}
+                          value={selectedAssignees[customer._id] || ''}
+                          onChange={(e) => handleAssigneeChange(customer._id, e.target.value)}
+                        >
+                          {agentRoster.map((agent) => (
+                            <option key={agent._id} value={agent._id}>
+                              {agent.fullName || agent.username || agent._id}
+                            </option>
+                          ))}
+                        </Select>
+                        <Button
+                          mt={2}
+                          size="xs"
+                          colorScheme="blue"
+                          width="100%"
+                          onClick={() => handleAssign(customer._id)}
+                          isLoading={assigningCustomerId === customer._id}
+                          isDisabled={!selectedAssignees[customer._id]}
+                        >
+                          Assign to agent
+                        </Button>
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+              </CardBody>
+            </Card>
+
             {/* Recent Activities */}
             <Card 
               bg={cardBg}

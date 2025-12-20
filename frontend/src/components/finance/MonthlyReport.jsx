@@ -63,6 +63,7 @@ const MonthlyReport = () => {
   const cardBg = useColorModeValue('white', 'gray.800');
   const headerColor = useColorModeValue('teal.600', 'teal.200');
   const textColor = useColorModeValue('gray.700', 'gray.200');
+  const tableRowHoverBg = useColorModeValue('gray.50', 'gray.700');
 
   // Refresh data
   const handleRefresh = () => {
@@ -291,7 +292,7 @@ const MonthlyReport = () => {
                 </Thead>
                 <Tbody>
                   {topPerformers.map((agent, index) => (
-                    <Tr key={agent._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+                    <Tr key={agent._id} _hover={{ bg: tableRowHoverBg }}>
                       <Td p={1}>
                         <Badge 
                           colorScheme={index === 0 ? "yellow" : index === 1 ? "gray" : index === 2 ? "orange" : "gray"}
@@ -362,7 +363,7 @@ const MonthlyReport = () => {
                     const commissionData = calculateCommission(agent.totalSales);
                     
                     return (
-                      <Tr key={agent._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+                      <Tr key={agent._id} _hover={{ bg: tableRowHoverBg }}>
                         <Td p={1}>
                           <Text fontSize="xs" fontWeight="medium">{agent.fullName || agent.username}</Text>
                         </Td>

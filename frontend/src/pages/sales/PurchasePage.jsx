@@ -30,7 +30,7 @@ import {
   useToast,
   Spinner
 } from '@chakra-ui/react';
-import { FaPlus, FaTrash, FaShoppingCart, FaChartBar, FaDollarSign, FaSave } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaShoppingCart, FaChartBar, FaDollarSign, FaSave, FaFileExport } from 'react-icons/fa';
 import { getPurchases, createPurchase, updatePurchase, deletePurchase } from '../../services/financeService';
 
 const PurchasePage = () => {
@@ -288,13 +288,28 @@ const PurchasePage = () => {
     if (!validatePurchaseData()) return;
     setSaving(true);
     try {
-      // In a real implementation, you would collect form data like reference number, supplier, etc.
+      // Collect form data for purchase creation
       const submissionItems = prepareItemsForSubmission();
+      
+      // Calculate totals for the purchase
+      const totals = {
+        totalItems: submissionItems.length,
+        totalQuantity: submissionItems.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0),
+        totalDeclarationValue: submissionItems.reduce((sum, item) => sum + parseFloat(item.declarationValue || 0), 0),
+        totalCustomValue: submissionItems.reduce((sum, item) => sum + parseFloat(item.customValue || 0), 0),
+        totalOtherCost: submissionItems.reduce((sum, item) => sum + parseFloat(item.otherCost || 0), 0),
+        totalProfitMargin: submissionItems.reduce((sum, item) => sum + parseFloat(item.profitMargin || 0), 0),
+        totalSellingPrice: submissionItems.reduce((sum, item) => sum + parseFloat(item.sellingPrice || 0), 0),
+        totalCost: submissionItems.reduce((sum, item) => sum + parseFloat(item.totalCost || 0), 0)
+      };
+      
       const purchaseData = {
         referenceNumber: `PUR-${Date.now()}`,
         supplier: 'Sample Supplier',
         items: submissionItems,
-        notes: 'Sample purchase'
+        totals: totals,
+        notes: 'Sample purchase',
+        purchaseDate: new Date().toISOString()
       };
       
       await createPurchase(purchaseData);
@@ -760,7 +775,7 @@ const PurchasePage = () => {
                       <Tr key={record._id}>
                         <Td>{record.referenceNumber}</Td>
                         <Td>{record.supplier}</Td>
-                        <Td>{record.purchaseDate ? new Date(record.purchaseDate).toLocaleDateString() : 'No date'}</Td>
+                        <Td>{record.purchaseDate ? new Date(record.purchaseDate).toLocaleDateString() : record.createdAt ? new Date(record.createdAt).toLocaleDateString() : 'No date'}</Td>
                         <Td>
                           <Badge colorScheme={record.status === 'received' ? 'green' : record.status === 'cancelled' ? 'red' : 'orange'}>
                             {record.status}

@@ -142,6 +142,7 @@ return (
                             <option value="Instructor">Instructor</option>
                             <option value="EventManager">Event Manager</option>
                             <option value="salesmanager">Sales Manager</option>
+                            <option value="reception">Reception</option>
                         </Select>
                         <Input
                             placeholder="Salary"

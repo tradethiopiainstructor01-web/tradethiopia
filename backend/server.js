@@ -126,7 +126,7 @@ const corsOptions = {
     console.warn('CORS blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
@@ -291,9 +291,10 @@ app.use('/api/awards', awardRoutes);
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ 
-    success: false, 
-    message: 'Internal server error',
+  const statusCode = res.statusCode >= 400 ? res.statusCode : 500;
+  res.status(statusCode).json({
+    success: false,
+    message: err.message || 'Internal server error',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined,
     vercel: !!process.env.VERCEL
   });
@@ -319,7 +320,7 @@ if (require.main === module) {
         io.attach(server, {
           cors: {
             origin: '*',
-            methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PATCH'],
             credentials: true
           }
         });

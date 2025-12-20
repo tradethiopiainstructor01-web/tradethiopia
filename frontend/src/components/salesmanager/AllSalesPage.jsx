@@ -47,8 +47,9 @@ import {
   TabPanel,
   SimpleGrid,
 } from '@chakra-ui/react';
-import { FiSearch, FiDollarSign, FiEdit2, FiCalendar, FiFilter, FiChevronDown, FiDownload } from 'react-icons/fi';
+import { FiSearch, FiDollarSign, FiEdit2, FiCalendar, FiFilter, FiChevronDown, FiDownload, FiUserCheck } from 'react-icons/fi';
 import { getAllSales, getAllAgents, updateSupervisorComment } from '../../services/salesManagerService';
+import { assignCustomerToAgent } from '../../services/salesWorkflowService';
 import * as XLSX from 'xlsx';
 
 const AllSalesPage = () => {
@@ -60,6 +61,10 @@ const AllSalesPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentSale, setCurrentSale] = useState(null);
   const [supervisorComment, setSupervisorComment] = useState('');
+  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [agentModalSale, setAgentModalSale] = useState(null);
+  const [agentSelection, setAgentSelection] = useState('');
+  const [agentAssigning, setAgentAssigning] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     agent: '',
@@ -74,6 +79,7 @@ const AllSalesPage = () => {
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const headerColor = useColorModeValue('teal.600', 'teal.200');
+  const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
 
   // Fetch all sales and agents
   useEffect(() => {
@@ -125,6 +131,60 @@ const AllSalesPage = () => {
         duration: 5000,
         isClosable: true,
       });
+    }
+  };
+
+  const resolveAgentId = (sale) => {
+    if (!sale) return '';
+    if (typeof sale.agentId === 'object' && sale.agentId?._id) {
+      return sale.agentId._id;
+    }
+    return sale.agentId || '';
+  };
+
+  const openAgentModal = (sale) => {
+    setAgentModalSale(sale);
+    setAgentSelection(resolveAgentId(sale));
+    setIsAgentModalOpen(true);
+  };
+
+  const handleSaveAgent = async () => {
+    if (!agentModalSale) return;
+    if (!agentSelection) {
+      toast({
+        title: 'Agent required',
+        description: 'Please select an agent before saving.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    setAgentAssigning(true);
+    try {
+      await assignCustomerToAgent(agentModalSale._id, agentSelection);
+      toast({
+        title: 'Agent updated',
+        description: 'Customer assignment has been updated.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true
+      });
+      fetchData();
+      setIsAgentModalOpen(false);
+      setAgentModalSale(null);
+      setAgentSelection('');
+    } catch (error) {
+      toast({
+        title: 'Update failed',
+        description: error.response?.data?.message || 'Unable to change the agent.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setAgentAssigning(false);
     }
   };
 
@@ -509,7 +569,7 @@ const AllSalesPage = () => {
                 </Tr>
               ) : (
                 filteredCustomers.map((customer) => (
-                  <Tr key={customer._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+                  <Tr key={customer._id} _hover={{ bg: rowHoverBg }}>
                     <Td>
                       <Text fontWeight="semibold" fontSize="sm">{customer.customerName}</Text>
                     </Td>
@@ -537,15 +597,26 @@ const AllSalesPage = () => {
                       </Badge>
                     </Td>
                     <Td>
-                      <Tooltip label="Edit Supervisor Comment">
-                        <IconButton
-                          icon={<FiEdit2 />}
-                          size="sm"
-                          onClick={() => openEditModal(customer)}
-                          variant="ghost"
-                          colorScheme="teal"
-                        />
-                      </Tooltip>
+                      <HStack spacing={2}>
+                        <Tooltip label="Edit Supervisor Comment">
+                          <IconButton
+                            icon={<FiEdit2 />}
+                            size="sm"
+                            onClick={() => openEditModal(customer)}
+                            variant="ghost"
+                            colorScheme="teal"
+                          />
+                        </Tooltip>
+                        <Tooltip label="Change assigned agent">
+                          <IconButton
+                            icon={<FiUserCheck />}
+                            size="sm"
+                            onClick={() => openAgentModal(customer)}
+                            variant="ghost"
+                            colorScheme="blue"
+                          />
+                        </Tooltip>
+                      </HStack>
                     </Td>
                   </Tr>
                 ))
@@ -580,6 +651,46 @@ const AllSalesPage = () => {
               Cancel
             </Button>
             <Button colorScheme="teal" onClick={handleSaveComment}>
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={isAgentModalOpen} onClose={() => { setIsAgentModalOpen(false); setAgentModalSale(null); setAgentSelection(''); }} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Change Assigned Agent</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>Customer</FormLabel>
+              <Text fontWeight="bold" mb={3}>
+                {agentModalSale?.customerName || 'Unknown customer'}
+              </Text>
+              <FormLabel>Agent</FormLabel>
+              <Select
+                placeholder="Select agent"
+                value={agentSelection}
+                onChange={(e) => setAgentSelection(e.target.value)}
+              >
+                {agents.map((agent) => (
+                  <option key={agent._id} value={agent._id}>
+                    {agent.fullName || agent.username || agent._id}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={() => setIsAgentModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleSaveAgent}
+              isLoading={agentAssigning}
+            >
               Save
             </Button>
           </ModalFooter>

@@ -12,7 +12,7 @@ const {
 } = require('../controllers/salesManagerController');
 
 // All routes are protected
-// /all-sales endpoint also allows HR, Finance, and Admin roles to access sales data for payroll purposes
+// All endpoints allow Sales Manager, HR, Finance, and Admin roles to access data
 router.route('/all-sales')
   .get(protect, authorize('salesmanager', 'hr', 'HR', 'finance', 'Finance', 'admin'), getAllSales);
 
