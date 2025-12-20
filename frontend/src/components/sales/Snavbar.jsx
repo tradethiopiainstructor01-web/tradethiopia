@@ -16,7 +16,8 @@ import {
   MenuDivider,
   useBreakpointValue,
   Badge,
-  Spinner
+  Spinner,
+  Button
 } from '@chakra-ui/react';
 import { FaBell, FaUserCircle, FaMoon, FaSun, FaBars, FaCheck } from 'react-icons/fa';
 import NotesLauncher from '../notes/NotesLauncher';
