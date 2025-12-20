@@ -60,7 +60,8 @@ import {
   Divider,
   Tooltip,
 } from '@chakra-ui/react';
-import { DownloadIcon, ExternalLinkIcon, ChevronDownIcon, HamburgerIcon, SunIcon, MoonIcon } from '@chakra-ui/icons';
+import { DownloadIcon, ExternalLinkIcon, ChevronDownIcon, ChevronUpIcon, HamburgerIcon, SunIcon, MoonIcon, InfoIcon, BellIcon } from '@chakra-ui/icons';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { chakra } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -68,7 +69,6 @@ import { useUserStore } from '../store/user';
 
 const MotionBox = chakra(motion.div);
 import KpiCards from '../components/kpiCards';
-import AnalyticsGraphs from '../components/AnalyticsGraphs';
 import NotificationsPanel from '../components/NotificationsPanel';
 import DailyFollowupSuccess from '../components/DailyFollowupSuccess';
 import { useEffect, useMemo, useState, useCallback } from 'react';
@@ -81,6 +81,7 @@ import {
   DrawerOverlay,
   DrawerContent,
   DrawerCloseButton,
+  DrawerFooter,
 } from '@chakra-ui/react';
 
 const buildPolyline = (data, key, width = 260, height = 120) => {
@@ -141,6 +142,187 @@ const COODashboard = () => {
   const { isOpen: isSidePanelOpen, onOpen: onOpenSidePanel, onClose: onCloseSidePanel } = useDisclosure();
   const { isOpen: isDeptDrawerOpen, onOpen: onOpenDeptDrawer, onClose: onCloseDeptDrawer } = useDisclosure();
   const { isOpen: isBroadcastOpen, onOpen: onOpenBroadcast, onClose: onCloseBroadcast } = useDisclosure();
+  const { isOpen: isActionDetailOpen, onOpen: onOpenActionDetail, onClose: onCloseActionDetail } = useDisclosure();
+  
+  // KPI Expandable States
+  const [expandedKpi, setExpandedKpi] = useState(null);
+  
+  const toggleKpiExpansion = (kpiName) => {
+    setExpandedKpi(expandedKpi === kpiName ? null : kpiName);
+  };
+  
+  // Action Items State
+  const [isActionItemsOpen, setIsActionItemsOpen] = useState(true);
+  const [actionItemsFilter, setActionItemsFilter] = useState('all'); // all, high, medium, low
+  const [selectedActionItem, setSelectedActionItem] = useState(null);
+  
+  // Mobile Navigation State
+  const [currentMobileTab, setCurrentMobileTab] = useState('overview');
+  
+  // Sample action items data with enhanced priority system
+  const actionItems = useMemo(() => [
+    {
+      id: 1,
+      title: 'Urgent IT Infrastructure Upgrade Required',
+      description: 'Server capacity reaching 90% utilization, upgrade needed within 48 hours',
+      priority: 'critical',
+      department: 'IT',
+      timestamp: '2025-12-19T10:30:00Z',
+      assignee: 'System Admin',
+      dueDate: '2025-12-21T10:30:00Z',
+      status: 'open'
+    },
+    {
+      id: 2,
+      title: 'Finance Report Submission Delay',
+      description: 'Q4 financial reports overdue by 3 days, requires immediate attention',
+      priority: 'high',
+      department: 'Finance',
+      timestamp: '2025-12-19T09:15:00Z',
+      assignee: 'Finance Manager',
+      dueDate: '2025-12-20T09:15:00Z',
+      status: 'in-progress'
+    },
+    {
+      id: 3,
+      title: 'Customer Satisfaction Drop Detected',
+      description: 'CSAT scores declined 15% last week, investigation needed',
+      priority: 'high',
+      department: 'Customer Success',
+      timestamp: '2025-12-18T14:20:00Z',
+      assignee: 'CS Team Lead',
+      dueDate: '2025-12-25T14:20:00Z',
+      status: 'open'
+    },
+    {
+      id: 4,
+      title: 'Sales Target Adjustment Needed',
+      description: 'Q4 targets may not be achievable given current trajectory',
+      priority: 'medium',
+      department: 'Sales',
+      timestamp: '2025-12-18T11:45:00Z',
+      assignee: 'Sales Director',
+      dueDate: '2025-12-30T11:45:00Z',
+      status: 'review'
+    },
+    {
+      id: 5,
+      title: 'Marketing Campaign Review',
+      description: 'Q1 marketing budget allocation requires COO approval',
+      priority: 'low',
+      department: 'Marketing',
+      timestamp: '2025-12-17T16:30:00Z',
+      assignee: 'Marketing Head',
+      dueDate: '2026-01-15T16:30:00Z',
+      status: 'pending'
+    },
+    {
+      id: 6,
+      title: 'HR Compliance Training Due',
+      description: 'Annual compliance training for all employees must be completed',
+      priority: 'medium',
+      department: 'HR',
+      timestamp: '2025-12-16T09:00:00Z',
+      assignee: 'HR Manager',
+      dueDate: '2025-12-31T23:59:59Z',
+      status: 'open'
+    }
+  ], []);
+  
+  // Priority configuration
+  const priorityConfig = {
+    critical: { 
+      label: 'Critical', 
+      colorScheme: 'red', 
+      sortOrder: 1,
+      urgency: 'Immediate attention required'
+    },
+    high: { 
+      label: 'High', 
+      colorScheme: 'orange', 
+      sortOrder: 2,
+      urgency: 'High priority'
+    },
+    medium: { 
+      label: 'Medium', 
+      colorScheme: 'yellow', 
+      sortOrder: 3,
+      urgency: 'Medium priority'
+    },
+    low: { 
+      label: 'Low', 
+      colorScheme: 'green', 
+      sortOrder: 4,
+      urgency: 'Low priority'
+    }
+  };
+  
+  // Status configuration
+  const statusConfig = {
+    'open': { label: 'Open', color: 'red.500' },
+    'in-progress': { label: 'In Progress', color: 'blue.500' },
+    'review': { label: 'Review', color: 'yellow.500' },
+    'pending': { label: 'Pending', color: 'gray.500' },
+    'completed': { label: 'Completed', color: 'green.500' }
+  };
+  
+  // Sort action items by priority
+  const sortedActionItems = useMemo(() => {
+    return [...actionItems].sort((a, b) => {
+      return priorityConfig[a.priority].sortOrder - priorityConfig[b.priority].sortOrder;
+    });
+  }, [actionItems]);
+  
+  // Filter action items based on priority
+  const filteredActionItems = useMemo(() => {
+    if (actionItemsFilter === 'all') return sortedActionItems;
+    return sortedActionItems.filter(item => item.priority === actionItemsFilter);
+  }, [sortedActionItems, actionItemsFilter]);
+  
+  // Handle opening action detail drawer
+  const openActionDetail = (actionItem) => {
+    setSelectedActionItem(actionItem);
+    onOpenActionDetail();
+  };
+  
+  // Count action items by priority
+  const actionItemCount = useMemo(() => {
+    return {
+      all: actionItems.length,
+      critical: actionItems.filter(item => item.priority === 'critical').length,
+      high: actionItems.filter(item => item.priority === 'high').length,
+      medium: actionItems.filter(item => item.priority === 'medium').length,
+      low: actionItems.filter(item => item.priority === 'low').length
+    };
+  }, [actionItems]);
+  
+  // Sample data for Storyline section
+  const timelineData = useMemo(() => [
+    { date: '2025-10-15', event: 'Q3 Results Published', value: 85, color: 'green.500' },
+    { date: '2025-11-01', event: 'New Product Launch', value: 70, color: 'blue.500' },
+    { date: '2025-11-15', event: 'Infrastructure Upgrade', value: 90, color: 'purple.500' },
+    { date: '2025-12-01', event: 'Holiday Season Prep', value: 65, color: 'orange.500' },
+    { date: '2025-12-15', event: 'Q4 Performance Review', value: 75, color: 'red.500' },
+  ], []);
+  
+  const heatmapData = useMemo(() => {
+    const departments = ['Sales', 'Finance', 'IT', 'Customer Success', 'Marketing'];
+    const weeks = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'];
+    return departments.map(dept => ({
+      department: dept,
+      weeks: weeks.map(week => ({
+        week,
+        value: Math.floor(Math.random() * 100), // Random values for demo
+      }))
+    }));
+  }, []);
+  
+  const progressBarData = useMemo(() => [
+    { label: 'Q4 Revenue Target', current: 12500000, target: 15000000, color: 'blue.500' },
+    { label: 'Customer Satisfaction', current: 87, target: 90, color: 'green.500', unit: '%' },
+    { label: 'Employee Engagement', current: 78, target: 85, color: 'purple.500', unit: '%' },
+    { label: 'Operational Efficiency', current: 92, target: 95, color: 'orange.500', unit: '%' },
+  ], []);
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingDepts, setLoadingDepts] = useState(true);
   const [excludedDepartments, setExcludedDepartments] = useState(['Host', 'Sales Forces']);
@@ -160,6 +342,7 @@ const COODashboard = () => {
   const [followupSummary, setFollowupSummary] = useState({ total: 0, active: 0, agents: 0, packages: 0 });
   const [loadingRevenueOps, setLoadingRevenueOps] = useState(false);
   const [csStats, setCsStats] = useState({ total: 0, active: 0, completed: 0, newCustomers: 0, returningCustomers: 0 });
+  const [followupStats, setFollowupStats] = useState({ overdue: 0, pending: 0, completed: 0 });
   const [loadingCsStats, setLoadingCsStats] = useState(false);
   const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0, totalCostsRecorded: 0 });
   const [loadingFinance, setLoadingFinance] = useState(false);
@@ -167,6 +350,150 @@ const COODashboard = () => {
   const [loadingFinanceReports, setLoadingFinanceReports] = useState(false);
   const [revenueActuals, setRevenueActuals] = useState([]);
   const monthOrder = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+  const fallbackRevenueChartData = [
+    { month: 'Jan 2025', revenue: 4000000, target: 4500000 },
+    { month: 'Feb 2025', revenue: 3000000, target: 3500000 },
+    { month: 'Mar 2025', revenue: 2000000, target: 3000000 },
+    { month: 'Apr 2025', revenue: 2780000, target: 3200000 },
+    { month: 'May 2025', revenue: 1890000, target: 2800000 },
+    { month: 'Jun 2025', revenue: 2390000, target: 3000000 },
+    { month: 'Jul 2025', revenue: 3490000, target: 3800000 },
+    { month: 'Aug 2025', revenue: 2800000, target: 3200000 },
+    { month: 'Sep 2025', revenue: 3100000, target: 3500000 },
+    { month: 'Oct 2025', revenue: 3700000, target: 4000000 },
+    { month: 'Nov 2025', revenue: 4200000, target: 4500000 },
+    { month: 'Dec 2025', revenue: 4500000, target: 5000000 },
+  ];
+
+  const fallbackDepartmentPerformanceData = [
+    { department: 'Sales', score: 85, color: '#6366F1' },
+    { department: 'Finance', score: 78, color: '#0EA5E9' },
+    { department: 'IT', score: 92, color: '#22C55E' },
+    { department: 'Customer Success', score: 88, color: '#F97316' },
+    { department: 'Marketing', score: 75, color: '#A855F7' },
+  ];
+
+  const fallbackRiskDistributionData = [
+    { name: 'High', value: 12, color: '#EF4444' },
+    { name: 'Medium', value: 24, color: '#F59E0B' },
+    { name: 'Low', value: 36, color: '#10B981' },
+  ];
+
+  const revenueChartData = useMemo(() => {
+    if (!Array.isArray(revenueActuals) || revenueActuals.length === 0) {
+      return fallbackRevenueChartData;
+    }
+    const aggregated = revenueActuals.reduce((acc, row) => {
+      const rawMonth = (row.month || '').toString().trim();
+      const normalized = rawMonth.slice(0, 3).toLowerCase();
+      const year = Number(row.year) || new Date().getFullYear();
+      const key = `${normalized}-${year}`;
+      if (!acc[key]) {
+        acc[key] = {
+          month: rawMonth || 'Month',
+          year,
+          revenue: 0,
+          target: 0,
+          monthIndex: monthOrder.indexOf(normalized) >= 0 ? monthOrder.indexOf(normalized) : 12,
+        };
+      }
+      acc[key].revenue += Number(row.actual) || 0;
+      acc[key].target += Number(row.target) || 0;
+      return acc;
+    }, {});
+
+    const sorted = Object.values(aggregated).sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return (a.monthIndex || 12) - (b.monthIndex || 12);
+    });
+
+    if (!sorted.length) {
+      return fallbackRevenueChartData;
+    }
+
+    return sorted
+      .slice(-12)
+      .map((row) => ({
+        month: `${row.month} ${row.year}`.trim(),
+        revenue: row.revenue,
+        target: row.target,
+      }));
+  }, [revenueActuals]);
+
+  const departmentPerformanceData = useMemo(() => {
+    const rawMetrics = [
+      { department: 'Sales', value: salesStats.completedDeals || 0, color: '#6366F1' },
+      { department: 'Finance', value: financeStats.profit || 0, color: '#0EA5E9' },
+      { department: 'IT', value: itSummary.points || 0, color: '#22C55E' },
+      { department: 'Customer Success', value: csStats.completed || 0, color: '#F97316' },
+      { department: 'Operations', value: followupSummary.active || 0, color: '#A855F7' },
+    ];
+    const maxValue = Math.max(
+      ...rawMetrics.map((item) => Math.max(item.value, 0)),
+      1
+    );
+    const normalized = rawMetrics.map((item) => ({
+      department: item.department,
+      score: Math.min(100, Math.round((item.value / maxValue) * 100)),
+      color: item.color,
+      hasRealValue: item.value > 0,
+    }));
+    const hasLiveValue = normalized.some((item) => item.hasRealValue);
+    return hasLiveValue ? normalized : fallbackDepartmentPerformanceData;
+  }, [salesStats, financeStats, itSummary, csStats, followupSummary]);
+
+  const riskDistributionData = useMemo(() => {
+    const high = followupStats.overdue || 0;
+    const medium = followupStats.pending || 0;
+    const low = followupStats.completed || 0;
+    const total = high + medium + low;
+    if (total === 0) {
+      return fallbackRiskDistributionData;
+    }
+    return [
+      { name: 'High', value: high, color: '#EF4444' },
+      { name: 'Medium', value: medium, color: '#F59E0B' },
+      { name: 'Low', value: low, color: '#10B981' },
+    ];
+  }, [followupStats]);
+  
+  // Sample data for KPI sparklines
+  const revenueTrendData = useMemo(() => [
+    { month: 'Jan', value: 8500000 },
+    { month: 'Feb', value: 9200000 },
+    { month: 'Mar', value: 7800000 },
+    { month: 'Apr', value: 10500000 },
+    { month: 'May', value: 9800000 },
+    { month: 'Jun', value: 11200000 },
+  ], []);
+  
+  const cashFlowTrendData = useMemo(() => [
+    { month: 'Jan', value: 2100000 },
+    { month: 'Feb', value: 2400000 },
+    { month: 'Mar', value: 1900000 },
+    { month: 'Apr', value: 2800000 },
+    { month: 'May', value: 2600000 },
+    { month: 'Jun', value: 3100000 },
+  ], []);
+  
+  const uptimeTrendData = useMemo(() => [
+    { week: 'W1', value: 99.2 },
+    { week: 'W2', value: 98.5 },
+    { week: 'W3', value: 99.7 },
+    { week: 'W4', value: 98.9 },
+    { week: 'W5', value: 99.3 },
+    { week: 'W6', value: 98.7 },
+  ], []);
+  
+  const riskTrendData = useMemo(() => [
+    { month: 'Jan', value: 12 },
+    { month: 'Feb', value: 8 },
+    { month: 'Mar', value: 15 },
+    { month: 'Apr', value: 6 },
+    { month: 'May', value: 9 },
+    { month: 'Jun', value: 7 },
+  ], []);
   const profitLossReport = useMemo(() => {
     const match = financeReports.find((r) => {
       const title = (r?.title || r?.name || '').toLowerCase();
@@ -200,13 +527,21 @@ const COODashboard = () => {
     ];
   }, [revenueActuals]);
 
-  const deptMix = useMemo(() => ([
-    { label: 'Sales', value: 38, color: 'blue.500' },
-    { label: 'Finance', value: 22, color: 'purple.500' },
-    { label: 'Customer Success', value: 18, color: 'green.500' },
-    { label: 'IT', value: 12, color: 'orange.400' },
-    { label: 'Ops', value: 10, color: 'pink.400' },
-  ]), []);
+  const deptMix = useMemo(() => {
+    const metrics = [
+      { label: 'Sales', value: salesStats.completedDeals || salesStats.total || 0, color: 'blue.500' },
+      { label: 'Finance', value: financeStats.revenue || 0, color: 'purple.500' },
+      { label: 'Customer Success', value: csStats.active || 0, color: 'green.500' },
+      { label: 'IT', value: itSummary.points || 0, color: 'orange.400' },
+      { label: 'Ops', value: followupSummary.active || 0, color: 'pink.400' },
+    ];
+    const total = metrics.reduce((sum, item) => sum + Math.max(item.value, 0), 0) || 1;
+    return metrics.map((item) => ({
+      label: item.label,
+      value: Math.min(100, Math.round((item.value / total) * 100)),
+      color: item.color,
+    }));
+  }, [salesStats, financeStats, csStats, itSummary, followupSummary]);
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
@@ -362,27 +697,90 @@ const COODashboard = () => {
     { platform: 'LinkedIn', target: 416, actual: 402 },
   ];
 
+  const formatSla = (completed, total) => {
+    if (!total) return 'N/A';
+    return `${Math.min(100, Math.round((Math.max(completed, 0) / total) * 100))}%`;
+  };
+
+  const computeStatusByRatio = (open, total) => {
+    if (!total) return 'Watch';
+    const ratio = open / total;
+    if (ratio <= 0.2) return 'On track';
+    if (ratio <= 0.5) return 'Watch';
+    return 'Attention';
+  };
+
   // Lightweight department report snapshots for the popup
   const departmentReports = useMemo(() => {
-    const sample = [
-      { status: 'On track', color: 'green', risks: 2, tasks: 14, sla: '93%' },
-      { status: 'Watch', color: 'yellow', risks: 4, tasks: 18, sla: '88%' },
-      { status: 'Attention', color: 'orange', risks: 6, tasks: 22, sla: '84%' },
+    const tradexTasks = followupSummary.total || 0;
+    const tradexOpen = Math.max(tradexTasks - (followupSummary.completed || 0), 0);
+    const tradexRisks = followupStats.overdue || 0;
+    const tradexSla = formatSla(followupSummary.active, tradexTasks);
+
+    const csTasks = csStats.total || 0;
+    const csOpen = Math.max(csTasks - (csStats.completed || 0), 0);
+    const csRisks = Math.max(csOpen, 0);
+    const csSla = formatSla(csStats.completed, csTasks);
+
+    const financeTasks = financeStats.invoices || 0;
+    const financeOpen = financeTasks;
+    const financeRisks = Math.max(Math.round((financeStats.expenses || 0) / 500000), 0);
+    const financeSla = formatSla(financeStats.profit, Math.max((financeStats.revenue || 0) + (financeStats.expenses || 0), 1));
+
+    const salesTasks = salesStats.total || 0;
+    const salesCompleted = salesStats.completedDeals || 0;
+    const salesOpen = Math.max(salesTasks - salesCompleted, 0);
+    const salesRisks = Math.max(salesOpen - (salesStats.calledCustomers || 0), 0);
+    const salesSla = formatSla(salesCompleted, Math.max(salesTasks, 1));
+
+    const itTasks = itSummary.total || 0;
+    const itOpen = itSummary.open || 0;
+    const itRisks = Math.max(itOpen - (itSummary.completed || 0), 0);
+    const itSla = formatSla(itSummary.completed, Math.max(itTasks, 1));
+
+    return [
+      {
+        department: 'TradexTV',
+        status: computeStatusByRatio(tradexOpen, tradexTasks),
+        color: 'green',
+        risks: tradexRisks,
+        tasks: tradexTasks,
+        sla: tradexSla,
+      },
+      {
+        department: 'Customer Succes',
+        status: computeStatusByRatio(csOpen, csTasks),
+        color: 'yellow',
+        risks: csRisks,
+        tasks: csTasks,
+        sla: csSla,
+      },
+      {
+        department: 'Finance',
+        status: computeStatusByRatio(financeOpen, Math.max(financeTasks, 1)),
+        color: 'orange',
+        risks: financeRisks,
+        tasks: financeTasks,
+        sla: financeSla,
+      },
+      {
+        department: 'Sales Manager',
+        status: computeStatusByRatio(salesOpen, Math.max(salesTasks, 1)),
+        color: 'green',
+        risks: salesRisks,
+        tasks: salesTasks,
+        sla: salesSla,
+      },
+      {
+        department: 'IT',
+        status: computeStatusByRatio(itOpen, Math.max(itTasks, 1)),
+        color: 'blue',
+        risks: itRisks,
+        tasks: itTasks,
+        sla: itSla,
+      },
     ];
-    return departments
-      .filter((d) => d !== 'All' && !excludedDepartments.includes(d))
-      .map((dept, idx) => {
-        const ref = sample[idx % sample.length];
-        return {
-          department: dept,
-          status: ref.status,
-          color: ref.color,
-          risks: ref.risks,
-          tasks: ref.tasks,
-          sla: ref.sla,
-        };
-      });
-  }, [departments, excludedDepartments]);
+  }, [departments, excludedDepartments, followupSummary, followupStats, csStats, financeStats, salesStats, itSummary]);
 
   const currentDeptReport = useMemo(() => {
     const fallback = { department: selectedDept, status: 'N/A', color: 'gray', risks: 0, tasks: 0, sla: '—' };
@@ -458,16 +856,25 @@ const COODashboard = () => {
         headers: currentUser?.token ? { Authorization: `Bearer ${currentUser.token}` } : {}
       });
       const data = res.data || {};
+      const totalFollowups = data.total ?? data.totalFollowups ?? 0;
+      const activeFollowups = data.active ?? data.activeFollowups ?? 0;
+      const completedFollowups = data.completed ?? data.completedFollowups ?? 0;
       setCsStats({
-        total: data.totalFollowups || 0,
-        active: data.activeFollowups || 0,
-        completed: data.completedFollowups || 0,
-        newCustomers: data.newCustomers || 0,
-        returningCustomers: data.returningCustomers || 0
+        total: totalFollowups,
+        active: activeFollowups,
+        completed: completedFollowups,
+        newCustomers: data.newCustomers ?? 0,
+        returningCustomers: data.returningCustomers ?? 0
+      });
+      setFollowupStats({
+        overdue: data.overdue ?? 0,
+        pending: data.pending ?? data.pendingFollowups ?? 0,
+        completed: completedFollowups,
       });
     } catch (err) {
       console.warn('Failed to load CS stats', err);
       setCsStats({ total: 0, active: 0, completed: 0, newCustomers: 0, returningCustomers: 0 });
+      setFollowupStats({ overdue: 0, pending: 0, completed: 0 });
     } finally {
       setLoadingCsStats(false);
     }
@@ -586,16 +993,6 @@ const COODashboard = () => {
     if (el) el.classList.remove('dragging');
   };
 
-  useEffect(() => {
-    if (isReportsOpen) {
-      fetchItSummary();
-      fetchSalesStats(timeRange);
-      fetchCsStats();
-      fetchFinanceStats();
-      fetchFinanceReports();
-    }
-  }, [isReportsOpen, fetchItSummary, fetchSalesStats, fetchCsStats, fetchFinanceStats, fetchFinanceReports, timeRange]);
-
   const fetchRevenueAndFollowups = useCallback(async () => {
     if (!import.meta.env.VITE_API_URL) return;
     setLoadingRevenueOps(true);
@@ -648,6 +1045,29 @@ const COODashboard = () => {
       setLoadingRevenueOps(false);
     }
   }, [currencyFormatter, currentUser?.token]);
+
+  useEffect(() => {
+    fetchItSummary();
+    fetchSalesStats(timeRange);
+    fetchCsStats();
+    fetchFinanceStats();
+  }, [fetchItSummary, fetchSalesStats, fetchCsStats, fetchFinanceStats, timeRange]);
+
+  useEffect(() => {
+    if (isReportsOpen) {
+      fetchFinanceReports();
+    }
+  }, [isReportsOpen, fetchFinanceReports]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchRevenueAndFollowups();
+      fetchCsStats();
+      fetchFinanceStats();
+      fetchSalesStats(timeRange);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchRevenueAndFollowups, fetchCsStats, fetchFinanceStats, fetchSalesStats, timeRange]);
 
   useEffect(() => {
     fetchRevenueAndFollowups();
@@ -1098,6 +1518,570 @@ const COODashboard = () => {
           </Flex>
         </Container>
       </MotionBox>
+
+      {/* Sticky KPI Summary Bar with Interactive Cards */}
+      <Box 
+        position="sticky" 
+        top="0" 
+        zIndex="100" 
+        bg={useColorModeValue('white', 'gray.800')} 
+        boxShadow="0 2px 4px rgba(0,0,0,0.1)" 
+        py={2}
+        px={4}
+        mb={6}
+      >
+        {/* 
+          Responsive Grid Layout:
+          - Mobile (base): 1 column - Stacked vertically
+          - Small tablets (sm): 2 columns - Two rows of two cards
+          - Desktop (md): 4 columns - All cards in one row
+          Spacing ensures consistent gutters between cards
+        */}
+        <SimpleGrid 
+          columns={{ base: 1, sm: 2, md: 4 }} 
+          spacing={{ base: 4, sm: 5, md: 6 }}
+          templateColumns={{
+            base: '1fr',           // Mobile: Full width cards
+            sm: 'repeat(2, 1fr)',   // Tablet: Two equal columns
+            md: 'repeat(4, 1fr)'    // Desktop: Four equal columns
+          }}
+        >
+          {/* Revenue KPI Card */}
+          <Box 
+            borderRadius="lg" 
+            border="1px solid" 
+            borderColor="blue.200"
+            overflow="hidden"
+            boxShadow="sm"
+          >
+            <Box 
+              p={3}
+              bg="blue.50"
+              cursor="pointer"
+              onClick={() => toggleKpiExpansion('revenue')}
+              _hover={{ bg: 'blue.100' }}
+            >
+              <Flex justify="space-between" align="center">
+                <Text fontSize="xs" color="blue.700" fontWeight="semibold">REVENUE</Text>
+                <Text fontSize="xs" color="blue.600">
+                  {revenueSummary.change || '—'}
+                </Text>
+              </Flex>
+              <Heading size="sm" color="blue.900" my={1}>
+                {etbFormatter.format(financeStats.revenue || 0)}
+              </Heading>
+              {/* Sparkline */}
+              <Box h="30px" mt={2}>
+                <svg width="100%" height="100%" viewBox="0 0 200 30">
+                  <polyline 
+                    fill="none" 
+                    stroke="#3182CE" 
+                    strokeWidth="2" 
+                    points={buildPolyline(revenueTrendData, 'value', 200, 30)} 
+                  />
+                </svg>
+              </Box>
+            </Box>
+            
+            {/* Expanded Content */}
+            {expandedKpi === 'revenue' && (
+              <Box p={3} bg="white" borderTop="1px solid" borderColor="blue.200">
+                <Text fontSize="sm" mb={2}>Revenue breakdown by department:</Text>
+                <VStack align="stretch" spacing={2} maxH="150px" overflowY="auto">
+                  {departments
+                    .filter(d => d !== 'All' && !excludedDepartments.includes(d))
+                    .slice(0, 3)
+                    .map((dept, idx) => (
+                      <Flex key={dept} justify="space-between" fontSize="sm">
+                        <Text>{dept}</Text>
+                        <Text>{etbFormatter.format((financeStats.revenue || 0) * (0.3 - 0.05 * idx))}</Text>
+                      </Flex>
+                    ))
+                  }
+                </VStack>
+              </Box>
+            )}
+          </Box>
+
+          {/* Cash Flow KPI Card */}
+          <Box 
+            borderRadius="lg" 
+            border="1px solid" 
+            borderColor="green.200"
+            overflow="hidden"
+            boxShadow="sm"
+          >
+            <Box 
+              p={3}
+              bg="green.50"
+              cursor="pointer"
+              onClick={() => toggleKpiExpansion('cashflow')}
+              _hover={{ bg: 'green.100' }}
+            >
+              <Flex justify="space-between" align="center">
+                <Text fontSize="xs" color="green.700" fontWeight="semibold">CASH FLOW</Text>
+                <Text fontSize="xs" color="green.600">
+                  Net
+                </Text>
+              </Flex>
+              <Heading size="sm" color="green.900" my={1}>
+                {etbFormatter.format((financeStats.revenue || 0) - (financeStats.expenses || 0))}
+              </Heading>
+              {/* Sparkline */}
+              <Box h="30px" mt={2}>
+                <svg width="100%" height="100%" viewBox="0 0 200 30">
+                  <polyline 
+                    fill="none" 
+                    stroke="#38A169" 
+                    strokeWidth="2" 
+                    points={buildPolyline(cashFlowTrendData, 'value', 200, 30)} 
+                  />
+                </svg>
+              </Box>
+            </Box>
+            
+            {/* Expanded Content */}
+            {expandedKpi === 'cashflow' && (
+              <Box p={3} bg="white" borderTop="1px solid" borderColor="green.200">
+                <Text fontSize="sm" mb={2}>Cash flow components:</Text>
+                <VStack align="stretch" spacing={1}>
+                  <Flex justify="space-between" fontSize="sm">
+                    <Text>Revenue</Text>
+                    <Text color="blue.500">{etbFormatter.format(financeStats.revenue || 0)}</Text>
+                  </Flex>
+                  <Flex justify="space-between" fontSize="sm">
+                    <Text>Expenses</Text>
+                    <Text color="red.500">{etbFormatter.format(financeStats.expenses || 0)}</Text>
+                  </Flex>
+                  <Flex justify="space-between" fontSize="sm" fontWeight="semibold">
+                    <Text>Net</Text>
+                    <Text>{etbFormatter.format((financeStats.revenue || 0) - (financeStats.expenses || 0))}</Text>
+                  </Flex>
+                </VStack>
+              </Box>
+            )}
+          </Box>
+
+          {/* Operational Uptime KPI Card */}
+          <Box 
+            borderRadius="lg" 
+            border="1px solid" 
+            borderColor="purple.200"
+            overflow="hidden"
+            boxShadow="sm"
+          >
+            <Box 
+              p={3}
+              bg="purple.50"
+              cursor="pointer"
+              onClick={() => toggleKpiExpansion('uptime')}
+              _hover={{ bg: 'purple.100' }}
+            >
+              <Flex justify="space-between" align="center">
+                <Text fontSize="xs" color="purple.700" fontWeight="semibold">UPTIME</Text>
+                <Text fontSize="xs" color="purple.600">
+                  Last 30 days
+                </Text>
+              </Flex>
+              <Heading size="sm" color="purple.900" my={1}>
+                98.7%
+              </Heading>
+              {/* Sparkline */}
+              <Box h="30px" mt={2}>
+                <svg width="100%" height="100%" viewBox="0 0 200 30">
+                  <polyline 
+                    fill="none" 
+                    stroke="#805AD5" 
+                    strokeWidth="2" 
+                    points={buildPolyline(uptimeTrendData, 'value', 200, 30)} 
+                  />
+                </svg>
+              </Box>
+            </Box>
+            
+            {/* Expanded Content */}
+            {expandedKpi === 'uptime' && (
+              <Box p={3} bg="white" borderTop="1px solid" borderColor="purple.200">
+                <Text fontSize="sm" mb={2}>Recent uptime metrics:</Text>
+                <VStack align="stretch" spacing={1}>
+                  <Flex justify="space-between" fontSize="sm">
+                    <Text>Avg Response Time</Text>
+                    <Text>245ms</Text>
+                  </Flex>
+                  <Flex justify="space-between" fontSize="sm">
+                    <Text>SLA Compliance</Text>
+                    <Text color="green.500">99.2%</Text>
+                  </Flex>
+                  <Flex justify="space-between" fontSize="sm">
+                    <Text>Downtime Events</Text>
+                    <Text>2</Text>
+                  </Flex>
+                </VStack>
+              </Box>
+            )}
+          </Box>
+
+          {/* Risk Flags KPI Card */}
+          <Box 
+            borderRadius="lg" 
+            border="1px solid" 
+            borderColor="orange.200"
+            overflow="hidden"
+            boxShadow="sm"
+          >
+            <Box 
+              p={3}
+              bg="orange.50"
+              cursor="pointer"
+              onClick={() => toggleKpiExpansion('risk')}
+              _hover={{ bg: 'orange.100' }}
+            >
+              <Flex justify="space-between" align="center">
+                <Text fontSize="xs" color="orange.700" fontWeight="semibold">RISK FLAGS</Text>
+                <Text fontSize="xs" color="orange.600">
+                  Across departments
+                </Text>
+              </Flex>
+              <Heading size="sm" color="orange.900" my={1}>
+                {departmentReports.reduce((acc, dept) => acc + (dept.risks || 0), 0)}
+              </Heading>
+              {/* Sparkline */}
+              <Box h="30px" mt={2}>
+                <svg width="100%" height="100%" viewBox="0 0 200 30">
+                  <polyline 
+                    fill="none" 
+                    stroke="#DD6B20" 
+                    strokeWidth="2" 
+                    points={buildPolyline(riskTrendData, 'value', 200, 30)} 
+                  />
+                </svg>
+              </Box>
+            </Box>
+            
+            {/* Expanded Content */}
+            {expandedKpi === 'risk' && (
+              <Box p={3} bg="white" borderTop="1px solid" borderColor="orange.200">
+                <Text fontSize="sm" mb={2}>Risk distribution:</Text>
+                <VStack align="stretch" spacing={2} maxH="150px" overflowY="auto">
+                  {departmentReports
+                    .sort((a, b) => (b.risks || 0) - (a.risks || 0))
+                    .slice(0, 3)
+                    .map((dept) => (
+                      <Flex key={dept.department} justify="space-between" fontSize="sm">
+                        <Text>{dept.department}</Text>
+                        <Tag size="sm" colorScheme={dept.color}>{dept.risks} risks</Tag>
+                      </Flex>
+                    ))
+                  }
+                </VStack>
+              </Box>
+            )}
+          </Box>
+        </SimpleGrid>
+      </Box>
+
+      {/* Actionable Alerts Strip */}
+      <Box 
+        bg={useColorModeValue('gray.50', 'gray.700')}
+        borderRadius="lg"
+        border="1px solid"
+        borderColor={useColorModeValue('gray.200', 'gray.600')}
+        mb={6}
+        px={4}
+        py={2}
+      >
+        <Flex justify="space-between" align="center" mb={2}>
+          <Flex align="center" gap={2}>
+            <Text fontWeight="semibold" fontSize="sm">Action Items</Text>
+            <Badge colorScheme="red" fontSize="xs">{actionItemCount.critical} Critical</Badge>
+            <Badge colorScheme="orange" fontSize="xs">{actionItemCount.high} High</Badge>
+            <Badge colorScheme="yellow" fontSize="xs">{actionItemCount.medium} Medium</Badge>
+            <Badge colorScheme="green" fontSize="xs">{actionItemCount.low} Low</Badge>
+          </Flex>
+          <IconButton 
+            aria-label={isActionItemsOpen ? "Collapse action items" : "Expand action items"}
+            icon={isActionItemsOpen ? <ChevronUpIcon /> : <ChevronDownIcon />}
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsActionItemsOpen(!isActionItemsOpen)}
+          />
+        </Flex>
+        
+        {isActionItemsOpen && (
+          <Box>
+            <Flex gap={2} mb={3} wrap="wrap">
+              <Button 
+                size="xs" 
+                variant={actionItemsFilter === 'all' ? 'solid' : 'outline'}
+                colorScheme="blue"
+                onClick={() => setActionItemsFilter('all')}
+              >
+                All ({actionItemCount.all})
+              </Button>
+              <Button 
+                size="xs" 
+                variant={actionItemsFilter === 'critical' ? 'solid' : 'outline'}
+                colorScheme="red"
+                onClick={() => setActionItemsFilter('critical')}
+              >
+                Critical ({actionItemCount.critical})
+              </Button>
+              <Button 
+                size="xs" 
+                variant={actionItemsFilter === 'high' ? 'solid' : 'outline'}
+                colorScheme="orange"
+                onClick={() => setActionItemsFilter('high')}
+              >
+                High ({actionItemCount.high})
+              </Button>
+              <Button 
+                size="xs" 
+                variant={actionItemsFilter === 'medium' ? 'solid' : 'outline'}
+                colorScheme="yellow"
+                onClick={() => setActionItemsFilter('medium')}
+              >
+                Medium ({actionItemCount.medium})
+              </Button>
+              <Button 
+                size="xs" 
+                variant={actionItemsFilter === 'low' ? 'solid' : 'outline'}
+                colorScheme="green"
+                onClick={() => setActionItemsFilter('low')}
+              >
+                Low ({actionItemCount.low})
+              </Button>
+            </Flex>
+            
+            <Box maxH="200px" overflowY="auto" css={{
+              '&::-webkit-scrollbar': {
+                width: '6px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: useColorModeValue('gray.300', 'gray.600'),
+                borderRadius: '3px',
+              },
+            }}>
+              <VStack align="stretch" spacing={2}>
+                {filteredActionItems.length > 0 ? (
+                  filteredActionItems.map((item) => {
+                    const priorityInfo = priorityConfig[item.priority] || priorityConfig.medium;
+                    const statusInfo = statusConfig[item.status] || statusConfig.open;
+                    
+                    return (
+                      <Box 
+                        key={item.id}
+                        p={3}
+                        borderRadius="md"
+                        bg={useColorModeValue('white', 'gray.600')}
+                        border="1px solid"
+                        borderColor={`${priorityInfo.colorScheme}.200`}
+                        cursor="pointer"
+                        _hover={{ bg: useColorModeValue('gray.50', 'gray.500') }}
+                        onClick={() => openActionDetail(item)}
+                        // Touch-friendly enhancements
+                        onTouchStart={(e) => {
+                          e.currentTarget.style.transform = 'scale(0.98)';
+                        }}
+                        onTouchEnd={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                        transition="transform 0.2s"
+                      >
+                        <Flex justify="space-between" align="flex-start" mb={1}>
+                          <Text fontWeight="semibold" fontSize="sm">{item.title}</Text>
+                          <Flex gap={1}>
+                            <Badge 
+                              colorScheme={priorityInfo.colorScheme}
+                              fontSize="xs"
+                            >
+                              {priorityInfo.label}
+                            </Badge>
+                            <Badge 
+                              colorScheme={statusInfo.color.split('.')[0]}
+                              fontSize="xs"
+                            >
+                              {statusInfo.label}
+                            </Badge>
+                          </Flex>
+                        </Flex>
+                        <Text fontSize="xs" color={useColorModeValue('gray.600', 'gray.300')} mb={2}>
+                          {item.description}
+                        </Text>
+                        <Flex justify="space-between" fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')}>
+                          <Text>{item.department}</Text>
+                          <Text>Due: {new Date(item.dueDate).toLocaleDateString()}</Text>
+                        </Flex>
+                      </Box>
+                    );
+                  })
+                ) : (
+                  <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')} textAlign="center" py={4}>
+                    No action items found for selected filter
+                  </Text>
+                )}
+              </VStack>
+            </Box>
+          </Box>
+        )}
+      </Box>
+
+      {/* Visual Storyline Section with Recharts */}
+      <Box 
+        bg={useColorModeValue('white', 'gray.800')}
+        borderRadius="xl"
+        border="1px solid"
+        borderColor={useColorModeValue('gray.200', 'gray.700')}
+        boxShadow="md"
+        mb={6}
+        px={{ base: 4, md: 6 }}
+        py={4}
+      >
+        <Heading size="md" mb={4}>Performance Storyline</Heading>
+        
+        <VStack spacing={8} align="stretch">
+          {/* Revenue Trend Chart */}
+          <Box>
+            <Flex justify="space-between" align="center" mb={3}>
+              <Heading size="sm">Revenue Trend</Heading>
+              <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>Monthly Performance</Text>
+            </Flex>
+            
+            <Box height={{ base: '250px', md: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={revenueChartData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="month" 
+                    tick={{ fontSize: 12 }}
+                    tickMargin={10}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12 }}
+                    tickMargin={10}
+                    tickFormatter={(value) => `ETB ${(value / 1000000).toFixed(1)}M`}
+                  />
+                  <RechartsTooltip 
+                    formatter={(value) => [`ETB ${etbFormatter.format(value)}`, '']}
+                    labelStyle={{ fontWeight: 'bold' }}
+                    contentStyle={{ 
+                      backgroundColor: useColorModeValue('white', 'gray.800'),
+                      border: `1px solid ${useColorModeValue('gray.200', 'gray.700')}`,
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    name="Actual Revenue" 
+                    stroke="#3182CE" 
+                    strokeWidth={2}
+                    dot={{ strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="target" 
+                    name="Target Revenue" 
+                    stroke="#DD6B20" 
+                    strokeWidth={2}
+                    strokeDasharray="3 3"
+                    dot={{ strokeWidth: 2, r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </Box>
+          </Box>
+          
+          {/* Department Performance Chart */}
+          <Box>
+            <Flex justify="space-between" align="center" mb={3}>
+              <Heading size="sm">Department Performance</Heading>
+              <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>Score Comparison</Text>
+            </Flex>
+            
+            <Box height={{ base: '250px', md: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={departmentPerformanceData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="department" 
+                    tick={{ fontSize: 12 }}
+                    tickMargin={10}
+                  />
+                  <YAxis 
+                    domain={[0, 100]}
+                    tick={{ fontSize: 12 }}
+                    tickMargin={10}
+                  />
+                  <RechartsTooltip 
+                    formatter={(value) => [`${value}%`, '']}
+                    labelStyle={{ fontWeight: 'bold' }}
+                    contentStyle={{ 
+                      backgroundColor: useColorModeValue('white', 'gray.800'),
+                      border: `1px solid ${useColorModeValue('gray.200', 'gray.700')}`,
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="score" 
+                    name="Performance Score"
+                  >
+                    {departmentPerformanceData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Box>
+          </Box>
+          
+          {/* Risk Distribution Chart */}
+          <Box>
+            <Flex justify="space-between" align="center" mb={3}>
+              <Heading size="sm">Risk Distribution</Heading>
+              <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>By Severity</Text>
+            </Flex>
+            
+            <Box height={{ base: '250px', md: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={riskDistributionData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={true}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={{ base: 80, md: 100 }}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {riskDistributionData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip 
+                    formatter={(value) => [value, 'Count']}
+                    labelStyle={{ fontWeight: 'bold' }}
+                    contentStyle={{ 
+                      backgroundColor: useColorModeValue('white', 'gray.800'),
+                      border: `1px solid ${useColorModeValue('gray.200', 'gray.700')}`,
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </Box>
+          </Box>
+        </VStack>
+      </Box>
 
         <Flex align="center" gap={3} mb={4} wrap="wrap" px={{ base: 4, md: 6 }}>
           <Button size="sm" variant="ghost" onClick={onOpenDeptDrawer}>Departments</Button>
@@ -2404,10 +3388,7 @@ const COODashboard = () => {
             <MotionBox bg="white" p={4} borderRadius="md" boxShadow="sm" whileHover={{ scale: 1.01 }} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
                 <DailyFollowupSuccess department={effectiveDept} />
             </MotionBox>
-            <MotionBox bg="white" p={4} borderRadius="md" boxShadow="sm" whileHover={{ scale: 1.01 }} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-              <AnalyticsGraphs />
-            </MotionBox>
-          </VStack>
+        </VStack>
 
         </VStack>
 
@@ -2515,6 +3496,179 @@ const COODashboard = () => {
         </DrawerBody>
       </DrawerContent>
     </Drawer>
+
+    {/* Action Item Detail Drawer */}
+    <Drawer isOpen={isActionDetailOpen} onClose={onCloseActionDetail} size="md">
+      <DrawerOverlay />
+      <DrawerContent>
+        <DrawerCloseButton />
+        <DrawerHeader>
+          <Flex justify="space-between" align="center">
+            <Text>Action Item Details</Text>
+            <Flex gap={2}>
+              {selectedActionItem && (
+                <>
+                  <Badge 
+                    colorScheme={priorityConfig[selectedActionItem.priority]?.colorScheme || 'gray'}
+                  >
+                    {priorityConfig[selectedActionItem.priority]?.label || selectedActionItem.priority}
+                  </Badge>
+                  <Badge 
+                    colorScheme={statusConfig[selectedActionItem.status]?.color.split('.')[0] || 'gray'}
+                  >
+                    {statusConfig[selectedActionItem.status]?.label || selectedActionItem.status}
+                  </Badge>
+                </>
+              )}
+            </Flex>
+          </Flex>
+        </DrawerHeader>
+        <DrawerBody>
+          {selectedActionItem && (
+            <VStack align="stretch" spacing={4}>
+              <Box>
+                <Heading size="md" mb={2}>{selectedActionItem.title}</Heading>
+                <Text color={useColorModeValue('gray.600', 'gray.400')}>
+                  {selectedActionItem.description}
+                </Text>
+              </Box>
+              
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <Box p={3} borderRadius="md" bg={useColorModeValue('gray.50', 'gray.700')}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={1}>Department</Text>
+                  <Text>{selectedActionItem.department}</Text>
+                </Box>
+                <Box p={3} borderRadius="md" bg={useColorModeValue('gray.50', 'gray.700')}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={1}>Assignee</Text>
+                  <Text>{selectedActionItem.assignee}</Text>
+                </Box>
+                <Box p={3} borderRadius="md" bg={useColorModeValue('gray.50', 'gray.700')}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={1}>Created</Text>
+                  <Text>{new Date(selectedActionItem.timestamp).toLocaleString()}</Text>
+                </Box>
+                <Box p={3} borderRadius="md" bg={useColorModeValue('gray.50', 'gray.700')}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={1}>Due Date</Text>
+                  <Text>{selectedActionItem.dueDate ? new Date(selectedActionItem.dueDate).toLocaleString() : 'N/A'}</Text>
+                </Box>
+                <Box p={3} borderRadius="md" bg={useColorModeValue('gray.50', 'gray.700')}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={1}>Priority</Text>
+                  <Text>{priorityConfig[selectedActionItem.priority]?.label || selectedActionItem.priority}</Text>
+                </Box>
+                <Box p={3} borderRadius="md" bg={useColorModeValue('gray.50', 'gray.700')}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={1}>Status</Text>
+                  <Text>{statusConfig[selectedActionItem.status]?.label || selectedActionItem.status}</Text>
+                </Box>
+              </SimpleGrid>
+              
+              <Box>
+                <Text fontWeight="semibold" mb={2}>Additional Notes</Text>
+                <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
+                  This action item requires immediate attention. Please coordinate with the {selectedActionItem.department} team to resolve this issue.
+                </Text>
+              </Box>
+              
+              <Box>
+                <Text fontWeight="semibold" mb={2}>Related Tasks</Text>
+                <VStack align="stretch" spacing={2}>
+                  <Box p={3} borderRadius="md" border="1px solid" borderColor={useColorModeValue('gray.200', 'gray.600')}>
+                    <Flex justify="space-between" align="center" mb={1}>
+                      <Text fontWeight="semibold" fontSize="sm">Review infrastructure requirements</Text>
+                      <Badge colorScheme="blue" fontSize="xs">Pending</Badge>
+                    </Flex>
+                    <Text fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')}>Due: Dec 22, 2025</Text>
+                  </Box>
+                  <Box p={3} borderRadius="md" border="1px solid" borderColor={useColorModeValue('gray.200', 'gray.600')}>
+                    <Flex justify="space-between" align="center" mb={1}>
+                      <Text fontWeight="semibold" fontSize="sm">Submit budget approval request</Text>
+                      <Badge colorScheme="green" fontSize="xs">Completed</Badge>
+                    </Flex>
+                    <Text fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')}>Completed: Dec 18, 2025</Text>
+                  </Box>
+                </VStack>
+              </Box>
+            </VStack>
+          )}
+        </DrawerBody>
+        <DrawerFooter>
+          <Button variant="outline" mr={3} onClick={onCloseActionDetail}>
+            Close
+          </Button>
+          <Button colorScheme="blue">Take Action</Button>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+
+    {/* Bottom Navigation Bar for Mobile */}
+    <Box 
+      display={{ base: 'flex', md: 'none' }}
+      position="fixed" 
+      bottom="0" 
+      left="0" 
+      right="0" 
+      bg={useColorModeValue('white', 'gray.800')}
+      borderTop="1px solid"
+      borderColor={useColorModeValue('gray.200', 'gray.700')}
+      boxShadow="0 -2px 10px rgba(0,0,0,0.1)"
+      zIndex="1000"
+    >
+      <Flex flex="1" justify="space-around" align="center" py={2}>
+        <Flex 
+          direction="column" 
+          align="center" 
+          flex="1" 
+          py={2}
+          onClick={() => setCurrentMobileTab('overview')}
+          cursor="pointer"
+          bg={currentMobileTab === 'overview' ? useColorModeValue('blue.50', 'blue.900') : 'transparent'}
+          borderRadius="md"
+        >
+          <InfoIcon boxSize={5} color={currentMobileTab === 'overview' ? 'blue.500' : useColorModeValue('gray.500', 'gray.400')} />
+          <Text fontSize="xs" mt={1} color={currentMobileTab === 'overview' ? 'blue.500' : useColorModeValue('gray.500', 'gray.400')}>Overview</Text>
+        </Flex>
+        
+        <Flex 
+          direction="column" 
+          align="center" 
+          flex="1" 
+          py={2}
+          onClick={() => setCurrentMobileTab('finance')}
+          cursor="pointer"
+          bg={currentMobileTab === 'finance' ? useColorModeValue('blue.50', 'blue.900') : 'transparent'}
+          borderRadius="md"
+        >
+          <BellIcon boxSize={5} color={currentMobileTab === 'finance' ? 'blue.500' : useColorModeValue('gray.500', 'gray.400')} />
+          <Text fontSize="xs" mt={1} color={currentMobileTab === 'finance' ? 'blue.500' : useColorModeValue('gray.500', 'gray.400')}>Finance</Text>
+        </Flex>
+        
+        <Flex 
+          direction="column" 
+          align="center" 
+          flex="1" 
+          py={2}
+          onClick={() => setCurrentMobileTab('operations')}
+          cursor="pointer"
+          bg={currentMobileTab === 'operations' ? useColorModeValue('blue.50', 'blue.900') : 'transparent'}
+          borderRadius="md"
+        >
+          <HamburgerIcon boxSize={5} color={currentMobileTab === 'operations' ? 'blue.500' : useColorModeValue('gray.500', 'gray.400')} />
+          <Text fontSize="xs" mt={1} color={currentMobileTab === 'operations' ? 'blue.500' : useColorModeValue('gray.500', 'gray.400')}>Operations</Text>
+        </Flex>
+        
+        <Flex 
+          direction="column" 
+          align="center" 
+          flex="1" 
+          py={2}
+          onClick={() => setCurrentMobileTab('alerts')}
+          cursor="pointer"
+          bg={currentMobileTab === 'alerts' ? useColorModeValue('blue.50', 'blue.900') : 'transparent'}
+          borderRadius="md"
+        >
+          <BellIcon boxSize={5} color={currentMobileTab === 'alerts' ? 'blue.500' : useColorModeValue('gray.500', 'gray.400')} />
+          <Text fontSize="xs" mt={1} color={currentMobileTab === 'alerts' ? 'blue.500' : useColorModeValue('gray.500', 'gray.400')}>Alerts</Text>
+        </Flex>
+      </Flex>
+    </Box>
 
     </Box>
   );

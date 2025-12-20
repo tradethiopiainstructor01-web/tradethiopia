@@ -132,86 +132,76 @@ const AnalyticsGraphs = () => {
   }
 
   return (
-    <Box p={5} pl={{ base: 5, md: 10 }} pr={{ base: 2, md: 10 }} bg={colorMode === "light" ? "gray.100" : "gray.800"}> {/* Change background based on color mode */}
-      <Flex direction={{ base: 'column', md: 'row' }} mb={5} gap={5}>
-        {/* Stats Box */}
-        <Box
-          bg={colorMode === "light" ? "white" : "gray.700"} // Change box background
-          p={5}
-          borderRadius="md"
-          boxShadow="lg"
-          flex="2"
-          transition="all 0.3s ease"
-          _hover={{
-            boxShadow: 'xl',
-            transform: 'translateY(-5px)',
-          }}
-        >
-          <Flex direction="column" mb={5}>
-            <Text fontSize="lg" fontWeight="bold" mb={2} color={colorMode === "light" ? "black" : "white"}>Filter Metrics:</Text>
-            <Select
-              width="100%"
-              maxWidth="300px"
-              value={selectedMetric}
-              onChange={(e) => setSelectedMetric(e.target.value)}
-              bg={colorMode === "light" ? "white" : "gray.600"} // Change select background
-              color={colorMode === "light" ? "black" : "white"} // Change select text color
-            >
-              <option value="status">Status</option>
-              <option value="date">Follow-Up Dates</option>
-            </Select>
-          </Flex>
+    <Box p={5} pl={{ base: 5, md: 10 }} pr={{ base: 2, md: 10 }} bg={colorMode === "light" ? "gray.100" : "gray.800"}>
+      <Box
+        bg={colorMode === "light" ? "white" : "gray.700"}
+        p={5}
+        borderRadius="md"
+        boxShadow="lg"
+        transition="all 0.3s ease"
+        _hover={{
+          boxShadow: 'xl',
+          transform: 'translateY(-5px)',
+        }}
+      >
+        <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={3}>
+          <Text fontSize="lg" fontWeight="bold" color={colorMode === "light" ? "black" : "white"}>Analytics Overview</Text>
+          <Select
+            width="100%"
+            maxWidth="240px"
+            value={selectedMetric}
+            onChange={(e) => setSelectedMetric(e.target.value)}
+            bg={colorMode === "light" ? "white" : "gray.600"}
+            color={colorMode === "light" ? "black" : "white"}
+          >
+            <option value="status">Status</option>
+            <option value="date">Follow-Up Dates</option>
+          </Select>
+        </Flex>
 
-          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-            <Stat
-              bg={colorMode === "light" ? "white" : "gray.700"} // Change stat background
-              p={5}
-              borderRadius="md"
-              boxShadow="md"
-              textAlign="center"
-              transition="all 0.3s ease"
-              _hover={{
-                boxShadow: 'lg',
-                transform: 'translateY(-5px)',
-              }}
-            >
-              <StatLabel color={colorMode === "light" ? "black" : "white"}>Unique Statuses</StatLabel>
-              <StatNumber color={colorMode === "light" ? "black" : "white"}>{Object.keys(statusCounts).length}</StatNumber>
-              <StatHelpText color={colorMode === "light" ? "gray.600" : "gray.300"}>Across all records</StatHelpText>
-            </Stat>
-            <Stat
-              bg={colorMode === "light" ? "white" : "gray.700"} // Change stat background
-              p={5}
-              borderRadius="md"
-              boxShadow="md"
-              textAlign="center"
-              transition="all 0.3s ease"
-              _hover={{
-                boxShadow: 'lg',
-                transform: 'translateY(-5px)',
-              }}
-            >
-              <StatLabel color={colorMode === "light" ? "black" : "white"}>Last Follow-Up Date</StatLabel>
-              <StatNumber color={colorMode === "light" ? "black" : "white"}>
-                {lastFollowUpDate}
-              </StatNumber>
-              <StatHelpText color={colorMode === "light" ? "gray.600" : "gray.300"}>Most recent</StatHelpText>
-            </Stat>
-          </SimpleGrid>
-        </Box>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={6}>
+          <Stat
+            bg={colorMode === "light" ? "white" : "gray.700"}
+            p={5}
+            borderRadius="md"
+            boxShadow="md"
+            textAlign="center"
+            transition="all 0.3s ease"
+            _hover={{
+              boxShadow: 'lg',
+              transform: 'translateY(-5px)',
+            }}
+          >
+            <StatLabel color={colorMode === "light" ? "black" : "white"}>Unique Statuses</StatLabel>
+            <StatNumber color={colorMode === "light" ? "black" : "white"}>{Object.keys(statusCounts).length}</StatNumber>
+            <StatHelpText color={colorMode === "light" ? "gray.600" : "gray.300"}>Across all records</StatHelpText>
+          </Stat>
+          <Stat
+            bg={colorMode === "light" ? "white" : "gray.700"}
+            p={5}
+            borderRadius="md"
+            boxShadow="md"
+            textAlign="center"
+            transition="all 0.3s ease"
+            _hover={{
+              boxShadow: 'lg',
+              transform: 'translateY(-5px)',
+            }}
+          >
+            <StatLabel color={colorMode === "light" ? "black" : "white"}>Last Follow-Up Date</StatLabel>
+            <StatNumber color={colorMode === "light" ? "black" : "white"}>
+              {lastFollowUpDate}
+            </StatNumber>
+            <StatHelpText color={colorMode === "light" ? "gray.600" : "gray.300"}>Most recent</StatHelpText>
+          </Stat>
+        </SimpleGrid>
 
-        {/* Charts Box */}
         <Box
-          bg={colorMode === "light" ? "white" : "gray.700"} // Change chart box background
-          p={5}
           borderRadius="md"
-          boxShadow="lg"
-          flex="2"
-          transition="all 0.3s ease"
-          _hover={{
-            boxShadow: 'xl',
-            transform: 'translateY(-5px)',
-          }}
+          border="1px solid"
+          borderColor={colorMode === "light" ? "gray.200" : "gray.600"}
+          bg={colorMode === "light" ? "white" : "gray.700"}
+          p={4}
         >
           {selectedMetric === 'status' ? (
             <PieChart width={400} height={300}>
@@ -237,11 +227,11 @@ const AnalyticsGraphs = () => {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="count" stroke={colorMode === "light" ? "#8884d8" : "#82ca9d"} /> {/* Change line color */}
+              <Line type="monotone" dataKey="count" stroke={colorMode === "light" ? "#8884d8" : "#82ca9d"} />
             </LineChart>
           )}
         </Box>
-      </Flex>
+      </Box>
     </Box>
   );
 };
