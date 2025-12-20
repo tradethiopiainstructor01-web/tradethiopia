@@ -329,6 +329,10 @@ const fetchPayrollDataHandler = async () => {
       isClosable: true,
     });
     fetchPayrollDataHandler();
+    if (data?.history) {
+      setPayrollHistory((prev) => [data.history, ...prev]);
+    }
+    setHistoryFilters({ username: '', month: '', department: '' });
     fetchPayrollHistoryHandler({});
   } catch (err) {
     console.error('Error finalizing payroll:', err);
@@ -406,6 +410,12 @@ const fetchPayrollDataHandler = async () => {
   const isAdminUser = () => {
     const role = getCurrentUserRole();
     return  role === 'hr'|| role === 'admin';
+  };
+
+  // Finance or Admin can finalize payroll
+  const canFinalizePayroll = () => {
+    const role = getCurrentUserRole();
+    return role === 'finance' || role === 'admin';
   };
 
   // Export to CSV
@@ -1509,7 +1519,7 @@ const fetchPayrollDataHandler = async () => {
                             </Tooltip>
                           )}
                           
-                          {isFinanceRoleUser() && employee.status !== 'approved' && employee.status !== 'locked' && !String(employee._id).startsWith('placeholder-') && (
+                          {canFinalizePayroll() && employee.status !== 'approved' && employee.status !== 'locked' && !String(employee._id).startsWith('placeholder-') && (
                             <Tooltip label="Finalize Payroll">
                               <IconButton
                                 icon={<CheckIcon />}

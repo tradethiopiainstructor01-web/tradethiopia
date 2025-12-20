@@ -656,13 +656,23 @@ const finalizePayrollForFinance = asyncHandler(async (req, res) => {
     submittedBy: req.user._id
   });
 
+  const user = await User.findById(payrollRecord.userId).select('fullName username jobTitle department');
+  const payrollSnapshot = payrollRecord.toObject();
+  const employeeName = payrollSnapshot.employeeName || user?.fullName || user?.username || 'Unknown';
+  const department =
+    payrollSnapshot.department && payrollSnapshot.department !== 'general'
+      ? payrollSnapshot.department
+      : user?.jobTitle || user?.department || 'general';
+  payrollSnapshot.employeeName = employeeName;
+  payrollSnapshot.department = department;
+
   const historyEntry = await PayrollHistory.create({
     userId: payrollRecord.userId,
-    employeeName: payrollRecord.employeeName,
-    department: payrollRecord.department,
+    employeeName,
+    department,
     month: payrollRecord.month,
     year: payrollRecord.year,
-    payrollData: payrollRecord.toObject(),
+    payrollData: payrollSnapshot,
     commissionData: {
       numberOfSales: commissionRecord.numberOfSales,
       totalCommission: commissionRecord.totalCommission,
