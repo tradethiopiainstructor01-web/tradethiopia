@@ -13,6 +13,8 @@ const trainingFollowupSchema = new Schema(
     specialRequirements: { type: String },
     previousTraining: { type: String },
     agentName: { type: String, index: true },
+    salesAgent: { type: String, index: true },
+    assignedInstructor: { type: String, index: true },
     customerName: { type: String, index: true },
     email: { type: String, index: true },
     phoneNumber: { type: String },

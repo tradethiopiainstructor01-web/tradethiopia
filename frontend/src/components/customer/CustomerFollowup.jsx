@@ -130,6 +130,10 @@ const CustomerFollowup = () => {
   const [trainingAgentOptions, setTrainingAgentOptions] = useState([]);
   const [selectedAgentForAssignment, setSelectedAgentForAssignment] = useState("");
   const [isAssigningAgent, setIsAssigningAgent] = useState(false);
+  const [assignableInstructors, setAssignableInstructors] = useState([]);
+  const [trainingInstructorOptions, setTrainingInstructorOptions] = useState([]);
+  const [selectedInstructorForAssignment, setSelectedInstructorForAssignment] = useState("");
+  const [isAssigningInstructor, setIsAssigningInstructor] = useState(false);
   const [ensraSearch, setEnsraSearch] = useState("");
   const [ensraTypeFilter, setEnsraTypeFilter] = useState("all");
   const [ensraSortAsc, setEnsraSortAsc] = useState(true);
@@ -265,6 +269,8 @@ const CustomerFollowup = () => {
       startDate: true,
       endDate: true,
       agentName: true,
+      salesAgent: true,
+      assignedInstructor: true,
       customerName: true,
       email: true,
       phone: true,
@@ -967,6 +973,66 @@ const handleAssignAgentToSelected = async () => {
   }
 };
 
+const handleAssignInstructorToSelected = async () => {
+  if (selectedTrainingFollowupIds.length === 0) {
+    toast({
+      title: "No trainings selected",
+      description: "Select at least one training to assign.",
+      status: "warning",
+      duration: 3000,
+      isClosable: true,
+    });
+    return;
+  }
+
+  if (!selectedInstructorForAssignment) {
+    toast({
+      title: "Select an instructor",
+      description: "Choose an instructor to assign to the selected trainings.",
+      status: "warning",
+      duration: 3000,
+      isClosable: true,
+    });
+    return;
+  }
+
+  const matchedOption = trainingInstructorOptions.find(
+    (option) => option.value === selectedInstructorForAssignment
+  );
+  const instructorDisplay =
+    matchedOption?.label || selectedInstructorForAssignment || "Instructor";
+
+  setIsAssigningInstructor(true);
+  try {
+    await Promise.all(
+      selectedTrainingFollowupIds.map((id) =>
+        updateTrainingFollowup(id, { assignedInstructor: instructorDisplay })
+      )
+    );
+    toast({
+      title: "Instructor assigned",
+      description: `Assigned ${selectedTrainingFollowupIds.length} training(s) to ${instructorDisplay}.`,
+      status: "success",
+      duration: 4000,
+      isClosable: true,
+    });
+    await loadTrainingFollowups();
+    resetTrainingSelection();
+    setSelectedInstructorForAssignment("");
+  } catch (err) {
+    console.error("Failed to assign instructor to trainings", err);
+    toast({
+      title: "Failed to assign instructor",
+      description: err.response?.data?.message || err.message,
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  } finally {
+    setIsAssigningInstructor(false);
+  }
+};
+
 const loadEnsraFollowups = async () => {
   try {
     const result = await fetchEnsraFollowups();
@@ -1024,6 +1090,34 @@ const loadEnsraFollowups = async () => {
   }, [isCustomerSuccessManager]);
 
   useEffect(() => {
+    if (!isCustomerSuccessManager) {
+      setAssignableInstructors([]);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchAssignableInstructors = async () => {
+      try {
+        const users = await fetchUsers();
+        const list = Array.isArray(users) ? users : [];
+        const filtered = list.filter(
+          (user) => normalizeRoleValue(user.role) === "instructor"
+        );
+        if (isMounted) {
+          setAssignableInstructors(filtered);
+        }
+      } catch (err) {
+        console.error("Failed to load instructors", err);
+      }
+    };
+
+    fetchAssignableInstructors();
+    return () => {
+      isMounted = false;
+    };
+  }, [isCustomerSuccessManager]);
+
+  useEffect(() => {
     const primaryOptions = assignableAgents.map((agent) => {
       const label =
         agent.fullName?.trim() ||
@@ -1047,6 +1141,31 @@ const loadEnsraFollowups = async () => {
 
     setTrainingAgentOptions([...primaryOptions, ...fallbackNames]);
   }, [assignableAgents, trainingFollowups]);
+
+  useEffect(() => {
+    const primaryOptions = assignableInstructors.map((instructor) => {
+      const label =
+        instructor.fullName?.trim() ||
+        instructor.username?.trim() ||
+        instructor.email?.trim() ||
+        `Instructor ${instructor._id}`;
+      return {
+        value: instructor._id,
+        label,
+      };
+    });
+
+    const existingLabels = new Set(primaryOptions.map((opt) => opt.label));
+    const fallbackNames = Array.from(
+      new Set(
+        trainingFollowups
+          .map((item) => item.assignedInstructor)
+          .filter((name) => name && !existingLabels.has(name))
+      )
+    ).map((name) => ({ value: name, label: name }));
+
+    setTrainingInstructorOptions([...primaryOptions, ...fallbackNames]);
+  }, [assignableInstructors, trainingFollowups]);
 
 const handleDeleteTrainingFollowup = async (id) => {
   if (!window.confirm("Delete this training follow-up?")) return;
@@ -1534,6 +1653,8 @@ useEffect(() => {
       setTrainingBulkStartDate("");
       setTrainingBulkEndDate("");
       setSelectedAgentForAssignment("");
+      setSelectedInstructorForAssignment("");
+      setIsAssigningInstructor(false);
     }
   }, [isCustomerSuccessManager]);
 
@@ -1842,6 +1963,8 @@ useEffect(() => {
     { key: "startDate", label: "Training Start Date" },
     { key: "endDate", label: "Training End Date" },
     { key: "agentName", label: "Agent Name" },
+    { key: "salesAgent", label: "Sales Agent" },
+    { key: "assignedInstructor", label: "Assigned Instructor" },
     { key: "customerName", label: "Customer Name" },
     { key: "email", label: "Email" },
     { key: "phone", label: "Phone Number" },
@@ -2186,6 +2309,7 @@ useEffect(() => {
         progress: 'Not Started',
         materialStatus: 'Not Delivered',
         agentName: sale.agentName,
+        salesAgent: sale._raw?.agentName || sale.agentName || sale._raw?.agentId,
         // Add any other default values as needed
       };
 
@@ -2334,6 +2458,22 @@ useEffect(() => {
       visible: visibleColumns.trainingFollowup.agentName,
       header: "Agent Name",
       render: (item) => <CompactCell>{item.agentName}</CompactCell>,
+    },
+    {
+      key: "salesAgent",
+      visible: visibleColumns.trainingFollowup.salesAgent,
+      header: "Sales Agent",
+      render: (item) => (
+        <CompactCell>
+          {item.salesAgent || item.salesAgentName || "-"}
+        </CompactCell>
+      ),
+    },
+    {
+      key: "assignedInstructor",
+      visible: visibleColumns.trainingFollowup.assignedInstructor,
+      header: "Assigned Instructor",
+      render: (item) => <CompactCell>{item.assignedInstructor || "-"}</CompactCell>,
     },
     {
       key: "customerName",
@@ -2770,6 +2910,11 @@ useEffect(() => {
                 setSelectedAgentForAssignment={setSelectedAgentForAssignment}
                 handleAssignAgent={handleAssignAgentToSelected}
                 isAssigningAgent={isAssigningAgent}
+                trainingInstructorOptions={trainingInstructorOptions}
+                selectedInstructorForAssignment={selectedInstructorForAssignment}
+                setSelectedInstructorForAssignment={setSelectedInstructorForAssignment}
+                handleAssignInstructor={handleAssignInstructorToSelected}
+                isAssigningInstructor={isAssigningInstructor}
                 isCustomerSuccessManager={isCustomerSuccessManager}
                 isMobile={isMobile}
                 tableMinWidth="900px"

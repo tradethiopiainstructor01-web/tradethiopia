@@ -78,6 +78,11 @@ const TrainingFollowupTabPage = ({
   setSelectedAgentForAssignment,
   handleAssignAgent,
   isAssigningAgent,
+  trainingInstructorOptions,
+  selectedInstructorForAssignment,
+  setSelectedInstructorForAssignment,
+  handleAssignInstructor,
+  isAssigningInstructor,
   isCustomerSuccessManager,
   isMobile,
   tableMinWidth = "900px",
@@ -238,13 +243,13 @@ const TrainingFollowupTabPage = ({
                   Apply Dates
                 </Button>
                 <HStack spacing={2} flexWrap="wrap" align="center">
-                <Select
-                  size="sm"
-                  value={selectedAgentForAssignment}
-                  onChange={(e) => setSelectedAgentForAssignment(e.target.value)}
-                  placeholder="Assign agent"
-                  minW="180px"
-                >
+                  <Select
+                    size="sm"
+                    value={selectedAgentForAssignment}
+                    onChange={(e) => setSelectedAgentForAssignment(e.target.value)}
+                    placeholder="Assign agent"
+                    minW="180px"
+                  >
                   {trainingAgentOptions.map((agent) => (
                     <option key={agent.value} value={agent.value}>
                       {agent.label}
@@ -259,6 +264,30 @@ const TrainingFollowupTabPage = ({
                     isDisabled={!selectedTrainingFollowupCount || !selectedAgentForAssignment}
                   >
                     Assign Agent
+                  </Button>
+                </HStack>
+                <HStack spacing={2} flexWrap="wrap" align="center">
+                  <Select
+                    size="sm"
+                    value={selectedInstructorForAssignment}
+                    onChange={(e) => setSelectedInstructorForAssignment(e.target.value)}
+                    placeholder="Assign instructor"
+                    minW="180px"
+                  >
+                    {trainingInstructorOptions.map((instructor) => (
+                      <option key={instructor.value} value={instructor.value}>
+                        {instructor.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    size="sm"
+                    colorScheme="orange"
+                    onClick={handleAssignInstructor}
+                    isLoading={isAssigningInstructor}
+                    isDisabled={!selectedTrainingFollowupCount || !selectedInstructorForAssignment}
+                  >
+                    Assign Instructor
                   </Button>
                 </HStack>
               </Flex>

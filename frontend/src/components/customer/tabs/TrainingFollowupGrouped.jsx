@@ -5,6 +5,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Flex,
   Heading,
   SimpleGrid,
   Stack,
@@ -96,12 +97,46 @@ const TrainingFollowupGrouped = ({ groupedTrainingFollowups, cardBg, borderColor
                               : "End N/A"}
                           </Badge>
                         </WrapItem>
-                      </Wrap>
-                    </Box>
-                  ))}
+                    </Wrap>
+                  </Box>
+                ))}
+              </Stack>
+              <Flex justify="flex-end" mt={3} pt={2} borderTop="1px solid" borderColor={borderColor}>
+                <Stack direction="row" spacing={4} align="center">
+                  {(() => {
+                    const agentNames = Array.from(
+                      new Set(
+                        group.items
+                          .map((item) => item.salesAgent || item.agentName)
+                          .filter(Boolean)
+                      )
+                    );
+                    if (!agentNames.length) return null;
+                    return (
+                      <Text fontSize="xs" color="gray.500">
+                        Agent: {agentNames.join(", ")}
+                      </Text>
+                    );
+                  })()}
+                  {(() => {
+                    const instructorNames = Array.from(
+                      new Set(
+                        group.items
+                          .map((item) => item.assignedInstructor)
+                          .filter(Boolean)
+                      )
+                    );
+                    if (!instructorNames.length) return null;
+                    return (
+                      <Text fontSize="xs" color="gray.500">
+                        Instructor: {instructorNames.join(", ")}
+                      </Text>
+                    );
+                  })()}
                 </Stack>
-              </CardBody>
-            </Card>
+              </Flex>
+            </CardBody>
+          </Card>
           ))}
         </SimpleGrid>
       </Stack>
