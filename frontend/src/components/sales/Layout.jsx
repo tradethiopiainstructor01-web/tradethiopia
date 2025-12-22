@@ -3,6 +3,7 @@ import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure, Text } from "
 import SSidebar from "./Ssidebar";
 import SNavbar from "./Snavbar";
 import FollowupPage from "./FollowupPage";
+import PackageSalesPage from "./PackageSalesPage";
 import Training from "./Training.jsx";
 import PDFList from '../PDFList';
 import Dashboard from './SalesDashboard.jsx';
@@ -49,6 +50,8 @@ const Layout = ({ children, initialActiveItem }) => {
         return <Dashboard />;
       case 'Followup':
         return <FollowupPage />;
+      case 'Package Sales':
+        return <PackageSalesPage />;
       case 'Resources':
         return <PDFList />;
       case 'Finance':
