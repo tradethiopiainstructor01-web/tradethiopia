@@ -67,6 +67,7 @@ const handleLogin = async () => {
                     case 'it':
                         navigate('/it');
                         break;
+                    case 'it':
                     case 'IT':
                         navigate('/it'); // Add IT role navigation
                         break;
@@ -75,6 +76,12 @@ const handleLogin = async () => {
                         break;
                     case 'supervisor':
                         navigate('/supervisor');
+                        break;
+                    case 'enisra':
+                        navigate('/enisra/dashboard');
+                        break;
+                    case 'instructor':
+                        navigate('/instructor');
                         break;
                     default:
                         navigate('/ComingSoonPage'); // Optional: handle unknown roles
@@ -185,6 +192,8 @@ const handleLogin = async () => {
                 >
                     Login
                 </Button>
+
+
             </Box>
         </Box>
     );
