@@ -48,7 +48,7 @@ import {
 import { AddIcon, DownloadIcon, ViewIcon, LockIcon, CheckIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../Layout';
-import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll, fetchCommissionData, submitCommission, fetchSalesDataForCommission, finalizePayroll, fetchPayrollHistory } from '../../services/payrollService';
+import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll, fetchCommissionData, submitCommission, deleteCommission, fetchSalesDataForCommission, finalizePayroll, fetchPayrollHistory } from '../../services/payrollService';
 
 const PayrollPage = ({ wrapLayout = true }) => {
   const [payrollData, setPayrollData] = useState([]);
@@ -94,6 +94,8 @@ const PayrollPage = ({ wrapLayout = true }) => {
     endDate: ''
   });
   const [useDateRange, setUseDateRange] = useState(false);
+  const [hasStoredCommission, setHasStoredCommission] = useState(false);
+  const [clearingCommission, setClearingCommission] = useState(false);
   const [payrollHistory, setPayrollHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
@@ -101,6 +103,15 @@ const PayrollPage = ({ wrapLayout = true }) => {
     username: '',
     month: '',
     department: ''
+  });
+
+  const createEmptyCommissionForm = (userId = '') => ({
+    userId,
+    numberOfSales: 0,
+    grossCommission: 0,
+    commissionTax: 0,
+    totalCommission: 0,
+    commissionDetails: []
   });
   
   const toast = useToast();
@@ -593,6 +604,8 @@ const fetchPayrollDataHandler = async () => {
     console.log('Current filters:', { selectedMonth, selectedYear });
     
     setSelectedEmployee(employee);
+    setHasStoredCommission(false);
+    setClearingCommission(false);
     setIsCommissionModalOpen(true);
     
     // Reset date range options
@@ -613,6 +626,7 @@ const fetchPayrollDataHandler = async () => {
       console.log('Existing commission data:', commissionData);
       
       if (commissionData) {
+        setHasStoredCommission(true);
         setCommissionFormData({
           userId: employee.userId._id || employee.userId,
           numberOfSales: commissionData.numberOfSales || 0,
@@ -622,15 +636,8 @@ const fetchPayrollDataHandler = async () => {
           commissionDetails: commissionData.commissionDetails || []
         });
       } else {
-        // Initialize with default values
-        setCommissionFormData({
-          userId: employee.userId._id || employee.userId,
-          numberOfSales: 0,
-          grossCommission: 0,
-          commissionTax: 0,
-          totalCommission: 0,
-          commissionDetails: []
-        });
+        setHasStoredCommission(false);
+        setCommissionFormData(createEmptyCommissionForm(employee.userId._id || employee.userId));
       }
       
       // Fetch sales data for this employee (initially using month/year)
@@ -783,6 +790,7 @@ const fetchPayrollDataHandler = async () => {
         duration: 3000,
         isClosable: true,
       });
+      setHasStoredCommission(true);
       setIsCommissionModalOpen(false);
       fetchPayrollDataHandler();
     } catch (err) {
@@ -898,6 +906,41 @@ const fetchPayrollDataHandler = async () => {
         isClosable: true,
       });
       setLoadingSales(false);
+    }
+  };
+
+  const clearCommissionHandler = async () => {
+    if (!selectedEmployee) return;
+    try {
+      setClearingCommission(true);
+      await deleteCommission({
+        userId: selectedEmployee.userId._id || selectedEmployee.userId,
+        month: selectedMonth,
+        year: selectedYear
+      });
+      toast({
+        title: 'Success',
+        description: 'Commission record cleared for this period',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      setHasStoredCommission(false);
+      setCommissionFormData(createEmptyCommissionForm(selectedEmployee.userId._id || selectedEmployee.userId));
+      setSalesData([]);
+      await fetchSalesDataWithDateRange();
+      fetchPayrollDataHandler();
+    } catch (err) {
+      console.error('Error clearing commission:', err);
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || err.message || 'Failed to clear saved commission',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setClearingCommission(false);
     }
   };
 
@@ -2162,6 +2205,18 @@ const fetchPayrollDataHandler = async () => {
             </ModalBody>
             
             <ModalFooter bg={cardBg} borderBottomRadius="lg">
+              {hasStoredCommission && (
+                <Button
+                  variant="outline"
+                  colorScheme="red"
+                  size="sm"
+                  mr="auto"
+                  onClick={clearCommissionHandler}
+                  isLoading={clearingCommission}
+                >
+                  Clear Saved Commission
+                </Button>
+              )}
               <Button 
                 colorScheme="blue" 
                 mr={3} 

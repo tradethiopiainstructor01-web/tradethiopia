@@ -121,6 +121,33 @@ const buildCommissionSnapshot = (sales = []) => {
   };
 };
 
+const resolveCommissionForPeriod = async (
+  userId,
+  month,
+  year,
+) => {
+  const commissionRecord = await Commission.findOne({ userId, month, year });
+  return commissionRecord || null;
+};
+
+// Apply stored finance adjustments back onto a new HR net
+const reapplyFinanceAdjustments = (baseNet, payrollRecord = {}) => {
+  const financeAllowances = payrollRecord.financeAllowances || 0;
+  const financeDeductions = payrollRecord.financeDeductions || 0;
+  return {
+    financeAllowances,
+    financeDeductions,
+    netSalary: baseNet + financeAllowances - financeDeductions
+  };
+};
+
+const deriveHrNetFromRecord = (payrollRecord, fallbackBaseNet = 0) => {
+  const recordedNet = payrollRecord?.netSalary ?? fallbackBaseNet;
+  const financeAllowances = payrollRecord?.financeAllowances || 0;
+  const financeDeductions = payrollRecord?.financeDeductions || 0;
+  return recordedNet - financeAllowances + financeDeductions;
+};
+
 // Enhanced payroll calculation function
 const calculatePayrollForEmployee = async (userData, attendanceData, commissionData) => {
   try {
@@ -329,7 +356,9 @@ const getPayrollList = async (req, res) => {
 // POST /payroll/calculate → run payroll engine
 const calculatePayrollForAll = async (req, res) => {
   try {
-    const { month, year } = req.body;
+    const { month: requestedMonth, year: requestedYear } = req.body;
+    const month = requestedMonth || new Date().toISOString().slice(0, 7);
+    const year = parseInt(requestedYear, 10) || new Date().getFullYear();
     
     // Get all active users
     const users = await User.find({ status: 'active' });
@@ -348,11 +377,7 @@ const calculatePayrollForAll = async (req, res) => {
         });
         
         // Get commission data for the user
-        const commissionData = await Commission.findOne({
-          userId: user._id,
-          month,
-          year
-        });
+        const commissionData = await resolveCommissionForPeriod(user._id, month, year);
         
         // Calculate payroll for the employee
         const payrollData = await calculatePayrollForEmployee(user, attendanceData, commissionData);
@@ -452,12 +477,17 @@ const submitHRAdjustment = async (req, res) => {
     // Recalculate payroll for this user
     const commissionData = await Commission.findOne({ userId, month, year });
     const payrollData = await calculatePayrollForEmployee(user, attendanceRecord, commissionData);
-    
+    const existingPayroll = await Payroll.findOne({ userId, month, year });
+    const financeAdjustmentSnapshot = reapplyFinanceAdjustments(payrollData.netSalary, existingPayroll);
+
     // Update or create payroll record
     const payrollRecord = await Payroll.findOneAndUpdate(
       { userId, month, year },
       {
         ...payrollData,
+        financeAllowances: financeAdjustmentSnapshot.financeAllowances,
+        financeDeductions: financeAdjustmentSnapshot.financeDeductions,
+        netSalary: financeAdjustmentSnapshot.netSalary,
         hrSubmittedBy: req.user._id,
         hrSubmittedAt: new Date(),
         status: 'hr_submitted',
@@ -514,16 +544,29 @@ const submitFinanceAdjustment = async (req, res) => {
     // Get existing commission data
     const commissionData = await Commission.findOne({ userId, month, year });
     
-    // Recalculate payroll with new finance adjustments
-    const payrollData = await calculatePayrollForEmployee(user, attendanceRecord, commissionData);
+    const existingPayroll = await Payroll.findOne({ userId, month, year });
     
+    // Recalculate payroll with data that reflects HR adjustments only
+    const payrollData = await calculatePayrollForEmployee(user, attendanceRecord, commissionData);
+
+    const fallbackFinanceAllowances = existingPayroll?.financeAllowances ?? payrollData.financeAllowances ?? 0;
+    const fallbackFinanceDeductions = existingPayroll?.financeDeductions ?? payrollData.financeDeductions ?? 0;
+    const financeAllowancesValue =
+      financeAllowances !== undefined ? (Number(financeAllowances) || 0) : fallbackFinanceAllowances;
+    const financeDeductionsValue =
+      financeDeductions !== undefined ? (Number(financeDeductions) || 0) : fallbackFinanceDeductions;
+
+    const hrNet = deriveHrNetFromRecord(existingPayroll, payrollData.netSalary);
+    const netSalary = hrNet + financeAllowancesValue - financeDeductionsValue;
+
     // Update payroll record with finance adjustments
     const payrollRecord = await Payroll.findOneAndUpdate(
       { userId, month, year },
       {
         ...payrollData,
-        financeAllowances: financeAllowances || payrollData.financeAllowances,
-        financeDeductions: financeDeductions || payrollData.financeDeductions,
+        financeAllowances: financeAllowancesValue,
+        financeDeductions: financeDeductionsValue,
+        netSalary,
         financeReviewedBy: req.user._id,
         financeReviewedAt: new Date(),
         status: 'finance_reviewed',
@@ -883,6 +926,30 @@ const submitCommission = async (req, res) => {
   }
 };
 
+// DELETE /payroll/commission → clear commission data for user period
+const clearCommissionRecord = async (req, res) => {
+  try {
+    const { userId, month, year } = req.body;
+    if (!userId || !month || !year) {
+      return res.status(400).json({ message: 'User ID, month, and year are required' });
+    }
+
+    const commissionRecord = await Commission.findOneAndDelete({ userId, month, year });
+
+    if (!commissionRecord) {
+      return res.status(404).json({ message: 'Commission record not found for the specified period' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Commission data cleared for the selected period',
+      data: commissionRecord
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // GET /payroll/sales-data/:agentId → Get sales data for commission calculation
 const getSalesDataForCommission = async (req, res) => {
   try {
@@ -1023,6 +1090,7 @@ module.exports = {
   lockPayroll,
   getCommissionByUser,
   submitCommission,
+  clearCommissionRecord,
   getSalesDataForCommission,
   deletePayrollRecord
 };
