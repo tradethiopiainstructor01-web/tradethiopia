@@ -93,6 +93,11 @@ export const submitCommission = async (data) => {
   return response.data;
 };
 
+export const deleteCommission = async (data) => {
+  const response = await axiosInstance.delete('/payroll/commission', { data });
+  return response.data;
+};
+
 // Delete a payroll record
 export const deletePayrollRecord = async (payrollId) => {
   const response = await axiosInstance.delete(`/payroll/${payrollId}`);

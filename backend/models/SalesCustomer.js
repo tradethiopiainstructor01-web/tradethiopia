@@ -6,11 +6,42 @@ const commissionSchema = new mongoose.Schema({
   netCommission: { type: Number, default: 0 }
 }, { _id: false });
 
+const WORKFLOW_STATUSES = ['New', 'Pending Assignment', 'Assigned', 'In Progress', 'Closed'];
+
 const salesCustomerSchema = new mongoose.Schema({
   agentId: {
     type: String,
+    default: null,
+    index: true
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: true,
     index: true
+  },
+  source: {
+    type: String,
+    enum: ['Reception', 'Sales', 'Followup', 'Other'],
+    default: 'Sales',
+    index: true
+  },
+  productInterest: {
+    type: String,
+    default: ''
+  },
+  pipelineStatus: {
+    type: String,
+    enum: WORKFLOW_STATUSES,
+    default: 'New',
+    index: true
+  },
+  assignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  assignedAt: {
+    type: Date
   },
   customerName: {
     type: String,

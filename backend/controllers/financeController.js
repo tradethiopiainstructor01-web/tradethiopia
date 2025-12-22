@@ -299,11 +299,11 @@ exports.getPurchaseSummary = async (req, res) => {
       {
         $group: {
           _id: null,
-          totalDeclarationValue: { $sum: '$totalDeclarationValue' },
-          totalOtherCost: { $sum: '$totalOtherCost' },
-          totalProfitMargin: { $sum: '$totalProfitMargin' },
-          totalSellingPrice: { $sum: '$totalSellingPrice' },
-          avgItemsPerPurchase: { $avg: '$totalItems' }
+          totalDeclarationValue: { $sum: '$totals.totalDeclarationValue' },
+          totalOtherCost: { $sum: '$totals.totalOtherCost' },
+          totalProfitMargin: { $sum: '$totals.totalProfitMargin' },
+          totalSellingPrice: { $sum: '$totals.totalSellingPrice' },
+          avgItemsPerPurchase: { $avg: '$totals.totalItems' }
         }
       }
     ]);
@@ -332,7 +332,7 @@ exports.getRecentPurchases = async (req, res) => {
     const recentPurchases = await Purchase.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .select('referenceNumber supplier totalDeclarationValue totalOtherCost totalSellingPrice createdAt');
+      .select('referenceNumber supplier totals createdAt');
 
     res.json(recentPurchases);
   } catch (err) {

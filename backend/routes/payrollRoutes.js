@@ -12,6 +12,7 @@ const {
   lockPayroll,
   submitCommission,
   getCommissionByUser,
+  clearCommissionRecord,
   getSalesDataForCommission,
   deletePayrollRecord
 } = require('../controllers/payrollController');
@@ -35,13 +36,12 @@ router.get('/sales-data/:agentId', authorize('admin', 'finance', 'Finance', 'hr'
 // Access: HR, Finance, Admin, Employee (own data only)
 router.get('/:userId/details', getPayrollDetails);
 
+// GET /payroll/history ƒ+' List payroll history
+router.get('/history', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getPayrollHistory);
+
 // GET /payroll/:month → full payroll list
 // Access: HR, Finance, Admin
 router.get('/:month', getPayrollList);
-
-// GET /payroll/history ƒ+' List payroll history
-// Moved to the end to avoid conflicts with generic routes
-router.get('/history', authorize('admin', 'finance', 'Finance', 'hr', 'HR'), getPayrollHistory);
 
 // POST /payroll/calculate → run payroll engine
 // Access: Admin, HR
@@ -59,8 +59,12 @@ router.post('/finance-adjust', authorize('finance', 'Finance'), submitFinanceAdj
 // Access: Admin, Finance
 router.post('/commission', authorize('admin', 'finance', 'Finance'), submitCommission);
 
+// DELETE /payroll/commission ƒ+' Clear saved commission data
+// Access: Admin, Finance
+router.delete('/commission', authorize('admin', 'finance', 'Finance'), clearCommissionRecord);
+
 // POST /payroll/:id/finalize ƒ+' Finance finalization
-router.post('/:id/finalize', authorize('finance', 'Finance'), finalizePayrollForFinance);
+router.post('/:id/finalize', authorize('finance', 'Finance', 'admin', 'Admin'), finalizePayrollForFinance);
 
 // PUT /payroll/:id/approve → Approve payroll
 // Access: Admin, Finance

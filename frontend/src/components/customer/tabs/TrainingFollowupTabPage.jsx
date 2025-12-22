@@ -69,15 +69,20 @@ const TrainingFollowupTabPage = ({
   selectedTrainingFollowupCount,
   trainingBulkStartDate,
   trainingBulkEndDate,
+  trainingBulkStartTime,
+  trainingBulkEndTime,
   setTrainingBulkStartDate,
   setTrainingBulkEndDate,
-  applyTrainingDates,
+  setTrainingBulkStartTime,
+  setTrainingBulkEndTime,
+  handleBulkUpdate,
   isApplyingTrainingDates,
   trainingAgentOptions,
   selectedAgentForAssignment,
   setSelectedAgentForAssignment,
-  handleAssignAgent,
-  isAssigningAgent,
+  trainingInstructorOptions,
+  selectedInstructorForAssignment,
+  setSelectedInstructorForAssignment,
   isCustomerSuccessManager,
   isMobile,
   tableMinWidth = "900px",
@@ -225,42 +230,71 @@ const TrainingFollowupTabPage = ({
                     maxW="180px"
                   />
                 </HStack>
+                <HStack spacing={2} flexWrap="wrap" align="center">
+                  <Text fontSize="xs">Start Time</Text>
+                  <Input
+                    size="sm"
+                    type="time"
+                    value={trainingBulkStartTime}
+                    onChange={(e) => setTrainingBulkStartTime(e.target.value)}
+                    maxW="140px"
+                  />
+                  <Text fontSize="xs">End Time</Text>
+                  <Input
+                    size="sm"
+                    type="time"
+                    value={trainingBulkEndTime}
+                    onChange={(e) => setTrainingBulkEndTime(e.target.value)}
+                    maxW="140px"
+                  />
+                </HStack>
+                <HStack spacing={2} flexWrap="wrap" align="center">
+                  <Select
+                    size="sm"
+                    value={selectedAgentForAssignment}
+                    onChange={(e) => setSelectedAgentForAssignment(e.target.value)}
+                    placeholder="Assign agent"
+                    minW="180px"
+                  >
+                    {trainingAgentOptions.map((agent) => (
+                      <option key={agent.value} value={agent.value}>
+                        {agent.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    size="sm"
+                    value={selectedInstructorForAssignment}
+                    onChange={(e) => setSelectedInstructorForAssignment(e.target.value)}
+                    placeholder="Assign instructor"
+                    minW="180px"
+                  >
+                    {trainingInstructorOptions.map((instructor) => (
+                      <option key={instructor.value} value={instructor.value}>
+                        {instructor.label}
+                      </option>
+                    ))}
+                  </Select>
+                </HStack>
                 <Button
                   size="sm"
                   colorScheme="teal"
-                  onClick={applyTrainingDates}
+                  onClick={handleBulkUpdate}
                   isLoading={isApplyingTrainingDates}
                   isDisabled={
                     !selectedTrainingFollowupCount ||
-                    (!trainingBulkStartDate && !trainingBulkEndDate)
+                    !(
+                      trainingBulkStartDate ||
+                      trainingBulkEndDate ||
+                      trainingBulkStartTime ||
+                      trainingBulkEndTime ||
+                      selectedAgentForAssignment ||
+                      selectedInstructorForAssignment
+                    )
                   }
                 >
-                  Apply Dates
+                  Apply Changes
                 </Button>
-                <HStack spacing={2} flexWrap="wrap" align="center">
-                <Select
-                  size="sm"
-                  value={selectedAgentForAssignment}
-                  onChange={(e) => setSelectedAgentForAssignment(e.target.value)}
-                  placeholder="Assign agent"
-                  minW="180px"
-                >
-                  {trainingAgentOptions.map((agent) => (
-                    <option key={agent.value} value={agent.value}>
-                      {agent.label}
-                    </option>
-                  ))}
-                </Select>
-                  <Button
-                    size="sm"
-                    colorScheme="purple"
-                    onClick={handleAssignAgent}
-                    isLoading={isAssigningAgent}
-                    isDisabled={!selectedTrainingFollowupCount || !selectedAgentForAssignment}
-                  >
-                    Assign Agent
-                  </Button>
-                </HStack>
               </Flex>
             </Box>
           )}

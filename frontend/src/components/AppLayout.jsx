@@ -10,9 +10,12 @@ const AppLayout = ({ children }) => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
 
+  const sidebarWidth = isSidebarCollapsed ? "50px" : "200px";
+  const contentWidth = `calc(100% - ${sidebarWidth})`;
+
   return (
-    <Flex direction="column" minHeight="100vh">
-      <NavbarPage />
+      <Flex direction="column" minHeight="100vh">
+      <NavbarPage sidebarWidth={sidebarWidth} />
       
       <Flex flex="1" mt="52px">
         <Sidebar 
@@ -23,7 +26,9 @@ const AppLayout = ({ children }) => {
         
         <Box 
           flex="1" 
-          ml={isSidebarCollapsed ? "50px" : "200px"}
+          ml={sidebarWidth}
+          width={contentWidth}
+          minWidth={0}
           transition="margin-left 0.3s"
           p={4}
         >

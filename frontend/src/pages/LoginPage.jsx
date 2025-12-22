@@ -60,6 +60,9 @@ const handleLogin = async () => {
                     case 'coo':
                         navigate('/coo-dashboard');
                         break;
+                    case 'reception':
+                        navigate('/reception-dashboard');
+                        break;
                     case 'tradextv':
                     case 'tetv':
                         navigate('/tradextv-dashboard');
