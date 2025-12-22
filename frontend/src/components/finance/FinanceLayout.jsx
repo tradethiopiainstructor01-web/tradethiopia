@@ -27,7 +27,6 @@ import {
   FiShield,
   FiFileInvoice,
   FiShoppingCart,
-  FiSettings,
 } from 'react-icons/fi';
 import { RxHamburgerMenu } from 'react-icons/rx';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
@@ -123,6 +122,7 @@ const Sidebar = ({ onClose, mobile = false, unreadCount = 0, showNoticeBoard = t
         <SidebarItem icon={FiShield} label={collapsed && !mobile ? '' : 'Costs'} to="/finance-dashboard/costs" />
         <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Payroll'} to="/finance-dashboard/payroll" />
         <SidebarItem icon={FiFileInvoice} label={collapsed && !mobile ? '' : 'Invoices'} to="/finance-dashboard/invoices" />
+        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Commission Approval'} to="/finance-dashboard/commission-approval" />
         {showNoticeBoard && (
           <SidebarItem 
             icon={FiMessageSquare} 
@@ -131,7 +131,7 @@ const Sidebar = ({ onClose, mobile = false, unreadCount = 0, showNoticeBoard = t
             unreadCount={unreadCount} 
           />
         )}
-        <SidebarItem icon={FiSettings} label={collapsed && !mobile ? '' : 'Settings'} to="/finance-dashboard/settings" />
+        <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Commission Approved'} to="/finance-dashboard/commission-approval" />
         {(!collapsed || mobile) && <>
           <Divider borderColor={accent} my={2} />
           <Text fontSize="xs" color={accent} whiteSpace="normal">Manage finance-related features</Text>

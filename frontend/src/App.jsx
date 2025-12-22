@@ -22,6 +22,7 @@ import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
 import InventoryPage from "./pages/sales/InventoryPage.jsx";
 import OrdersPage from "./pages/sales/OrdersPage.jsx";
 import FinancePayrollPage from "./pages/sales/FinancePayrollPage.jsx";
+import CommissionApprovalPage from "./pages/sales/CommissionApprovalPage.jsx";
 import PDFList from './components/PDFList';
 import InfoForm from './pages/InfoForm';
 import EmployeeInfoPage from './pages/EmployeeInfoPage';
@@ -93,7 +94,7 @@ function App() {
     "/finance/messages", "/finance/team-requests",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
     "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/finance-dashboard/commission-approval", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard"
   ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
@@ -137,6 +138,7 @@ return (
       <Route path="/finance-dashboard/purchase" element={<FinanceLayout><PurchasePage /></FinanceLayout>} />
       <Route path="/finance-dashboard/costs" element={<FinanceLayout><CostManagementPage /></FinanceLayout>} />
       <Route path="/finance-dashboard/payroll" element={<FinanceLayout><FinancePayrollPage /></FinanceLayout>} />
+      <Route path="/finance-dashboard/commission-approval" element={<FinanceLayout><CommissionApprovalPage /></FinanceLayout>} />
       <Route path="/finance/team-requests" element={<FinanceLayout><TeamRequestsPage /></FinanceLayout>} />
       <Route
         path="/finance/messages"

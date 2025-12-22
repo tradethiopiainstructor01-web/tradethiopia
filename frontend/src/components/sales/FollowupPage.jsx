@@ -44,11 +44,11 @@ import {
   FiDownload
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
+import PackageSalesTable from './PackageSalesTable';
+import PackageSalesTab from './PackageSalesTab';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
 import { fetchCourses as fetchCoursesApi } from '../../services/api';
-import axios from 'axios';
-
-const defaultCourses = [
+import axios from 'axios';const defaultCourses = [
   { _id: 'international-trade-import-export', name: 'International Trade Import Export', price: 6917 },
   { _id: 'stock-market-trading', name: 'Stock Market Trading', price: 5500 },
   { _id: 'data-science', name: 'Data Science', price: 2000 },
@@ -875,9 +875,10 @@ const FollowupPage = () => {
       </Box>
 
       <Box bg="white" p={0} borderRadius="lg" boxShadow="md" w="100%" maxW="100%">
-        <Tabs index={0} isFitted variant="enclosed">
+        <Tabs isFitted variant="enclosed">
           <TabList mb="1em">
             <Tab>Customer Followups</Tab>
+            <Tab>Package Sales</Tab>
           </TabList>
           <TabPanels>
             <TabPanel p={0}>
@@ -899,8 +900,10 @@ const FollowupPage = () => {
                 />
               )}
             </TabPanel>
-          </TabPanels>
-        </Tabs>
+            <TabPanel p={4}>
+              <PackageSalesTab />
+            </TabPanel>
+          </TabPanels>        </Tabs>
       </Box>
     </Box>
   );
