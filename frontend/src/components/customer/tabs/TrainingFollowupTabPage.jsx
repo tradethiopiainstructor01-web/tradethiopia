@@ -69,20 +69,20 @@ const TrainingFollowupTabPage = ({
   selectedTrainingFollowupCount,
   trainingBulkStartDate,
   trainingBulkEndDate,
+  trainingBulkStartTime,
+  trainingBulkEndTime,
   setTrainingBulkStartDate,
   setTrainingBulkEndDate,
-  applyTrainingDates,
+  setTrainingBulkStartTime,
+  setTrainingBulkEndTime,
+  handleBulkUpdate,
   isApplyingTrainingDates,
   trainingAgentOptions,
   selectedAgentForAssignment,
   setSelectedAgentForAssignment,
-  handleAssignAgent,
-  isAssigningAgent,
   trainingInstructorOptions,
   selectedInstructorForAssignment,
   setSelectedInstructorForAssignment,
-  handleAssignInstructor,
-  isAssigningInstructor,
   isCustomerSuccessManager,
   isMobile,
   tableMinWidth = "900px",
@@ -230,18 +230,24 @@ const TrainingFollowupTabPage = ({
                     maxW="180px"
                   />
                 </HStack>
-                <Button
-                  size="sm"
-                  colorScheme="teal"
-                  onClick={applyTrainingDates}
-                  isLoading={isApplyingTrainingDates}
-                  isDisabled={
-                    !selectedTrainingFollowupCount ||
-                    (!trainingBulkStartDate && !trainingBulkEndDate)
-                  }
-                >
-                  Apply Dates
-                </Button>
+                <HStack spacing={2} flexWrap="wrap" align="center">
+                  <Text fontSize="xs">Start Time</Text>
+                  <Input
+                    size="sm"
+                    type="time"
+                    value={trainingBulkStartTime}
+                    onChange={(e) => setTrainingBulkStartTime(e.target.value)}
+                    maxW="140px"
+                  />
+                  <Text fontSize="xs">End Time</Text>
+                  <Input
+                    size="sm"
+                    type="time"
+                    value={trainingBulkEndTime}
+                    onChange={(e) => setTrainingBulkEndTime(e.target.value)}
+                    maxW="140px"
+                  />
+                </HStack>
                 <HStack spacing={2} flexWrap="wrap" align="center">
                   <Select
                     size="sm"
@@ -250,23 +256,12 @@ const TrainingFollowupTabPage = ({
                     placeholder="Assign agent"
                     minW="180px"
                   >
-                  {trainingAgentOptions.map((agent) => (
-                    <option key={agent.value} value={agent.value}>
-                      {agent.label}
-                    </option>
-                  ))}
-                </Select>
-                  <Button
-                    size="sm"
-                    colorScheme="purple"
-                    onClick={handleAssignAgent}
-                    isLoading={isAssigningAgent}
-                    isDisabled={!selectedTrainingFollowupCount || !selectedAgentForAssignment}
-                  >
-                    Assign Agent
-                  </Button>
-                </HStack>
-                <HStack spacing={2} flexWrap="wrap" align="center">
+                    {trainingAgentOptions.map((agent) => (
+                      <option key={agent.value} value={agent.value}>
+                        {agent.label}
+                      </option>
+                    ))}
+                  </Select>
                   <Select
                     size="sm"
                     value={selectedInstructorForAssignment}
@@ -280,16 +275,26 @@ const TrainingFollowupTabPage = ({
                       </option>
                     ))}
                   </Select>
-                  <Button
-                    size="sm"
-                    colorScheme="orange"
-                    onClick={handleAssignInstructor}
-                    isLoading={isAssigningInstructor}
-                    isDisabled={!selectedTrainingFollowupCount || !selectedInstructorForAssignment}
-                  >
-                    Assign Instructor
-                  </Button>
                 </HStack>
+                <Button
+                  size="sm"
+                  colorScheme="teal"
+                  onClick={handleBulkUpdate}
+                  isLoading={isApplyingTrainingDates}
+                  isDisabled={
+                    !selectedTrainingFollowupCount ||
+                    !(
+                      trainingBulkStartDate ||
+                      trainingBulkEndDate ||
+                      trainingBulkStartTime ||
+                      trainingBulkEndTime ||
+                      selectedAgentForAssignment ||
+                      selectedInstructorForAssignment
+                    )
+                  }
+                >
+                  Apply Changes
+                </Button>
               </Flex>
             </Box>
           )}

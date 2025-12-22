@@ -280,6 +280,33 @@ const TrainingTabPage = ({
               <Stack direction={isMobile ? "column" : "row"} spacing={4}>
                 <Box flex={1}>
                   <Text mb={1} fontWeight="medium">
+                    Start Time
+                  </Text>
+                  <Input
+                    type="time"
+                    value={trainingForm.startTime}
+                    onChange={(e) =>
+                      setTrainingForm((prev) => ({ ...prev, startTime: e.target.value }))
+                    }
+                  />
+                </Box>
+                <Box flex={1}>
+                  <Text mb={1} fontWeight="medium">
+                    End Time
+                  </Text>
+                  <Input
+                    type="time"
+                    value={trainingForm.endTime}
+                    onChange={(e) =>
+                      setTrainingForm((prev) => ({ ...prev, endTime: e.target.value }))
+                    }
+                  />
+                </Box>
+              </Stack>
+
+              <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                <Box flex={1}>
+                  <Text mb={1} fontWeight="medium">
                     Field the Customer is Working In
                   </Text>
                   <Input

@@ -36,9 +36,16 @@ const TrainingFollowupGrouped = ({ groupedTrainingFollowups, cardBg, borderColor
             >
               <CardHeader py={2} px={0}>
                 <Stack direction="row" justify="space-between" align="center">
-                  <Heading size="sm" noOfLines={1}>
-                    {group.courseKey}
-                  </Heading>
+                  <Stack spacing={1} flex={1} minW={0}>
+                    <Heading size="sm" noOfLines={1}>
+                      {group.courseKey}
+                    </Heading>
+                    {group.timeRangeDisplay && (
+                      <Text fontSize="xs" color="gray.400" noOfLines={1}>
+                        Time: {group.timeRangeDisplay}
+                      </Text>
+                    )}
+                  </Stack>
                   <Wrap spacing={2} align="center">
                     <WrapItem>
                       <Badge colorScheme="purple" maxW="130px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">

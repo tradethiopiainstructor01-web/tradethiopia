@@ -65,7 +65,7 @@ import {
   TableContainer,
   SimpleGrid,
   Checkbox,
-} from "@chakra-ui/react";
+  } from "@chakra-ui/react";
 import { 
   ArrowBackIcon, 
   EditIcon, 
@@ -125,15 +125,17 @@ const CustomerFollowup = () => {
   const [selectedTrainingFollowupIds, setSelectedTrainingFollowupIds] = useState([]);
   const [trainingBulkStartDate, setTrainingBulkStartDate] = useState("");
   const [trainingBulkEndDate, setTrainingBulkEndDate] = useState("");
+  const [trainingBulkStartTime, setTrainingBulkStartTime] = useState("");
+  const [trainingBulkEndTime, setTrainingBulkEndTime] = useState("");
   const [isApplyingTrainingDates, setIsApplyingTrainingDates] = useState(false);
+  const [isTesbinnBulkModalOpen, setIsTesbinnBulkModalOpen] = useState(false);
+  const [isCsvImportingTesbinn, setIsCsvImportingTesbinn] = useState(false);
   const [assignableAgents, setAssignableAgents] = useState([]);
   const [trainingAgentOptions, setTrainingAgentOptions] = useState([]);
   const [selectedAgentForAssignment, setSelectedAgentForAssignment] = useState("");
-  const [isAssigningAgent, setIsAssigningAgent] = useState(false);
   const [assignableInstructors, setAssignableInstructors] = useState([]);
   const [trainingInstructorOptions, setTrainingInstructorOptions] = useState([]);
   const [selectedInstructorForAssignment, setSelectedInstructorForAssignment] = useState("");
-  const [isAssigningInstructor, setIsAssigningInstructor] = useState(false);
   const [ensraSearch, setEnsraSearch] = useState("");
   const [ensraTypeFilter, setEnsraTypeFilter] = useState("all");
   const [ensraSortAsc, setEnsraSortAsc] = useState(true);
@@ -658,6 +660,7 @@ const CustomerFollowup = () => {
     trainingType: "",
     batch: "",
     startDate: "",
+    startTime: "",
     duration: "",
     paymentOption: "full",
     paymentAmount: 0,
@@ -671,6 +674,7 @@ const CustomerFollowup = () => {
     fieldOfWork: "",
     scheduleShift: "",
     endDate: "",
+    endTime: "",
     materialStatus: "",
     progress: "",
     idInfo: "",
@@ -767,6 +771,14 @@ const CustomerFollowup = () => {
   }
 };
 
+const mergeDateTimeToIso = (dateValue, timeValue) => {
+  if (!dateValue) return null;
+  const timePart = timeValue || "00:00";
+  const combined = `${dateValue}T${timePart}`;
+  const parsed = Date.parse(combined);
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+};
+
 const handleTrainingSubmit = async (e) => {
   e.preventDefault();
   try {
@@ -786,7 +798,9 @@ const handleTrainingSubmit = async (e) => {
       trainingType: "",
       batch: "",
       startDate: "",
+      startTime: "",
       endDate: "",
+      endTime: "",
       duration: "",
       paymentOption: "full",
       paymentAmount: 0,
@@ -862,7 +876,7 @@ const handleApplyTrainingDates = async () => {
       duration: 3000,
       isClosable: true,
     });
-    return;
+    return false;
   }
   if (!trainingBulkStartDate && !trainingBulkEndDate) {
     toast({
@@ -872,15 +886,23 @@ const handleApplyTrainingDates = async () => {
       duration: 3000,
       isClosable: true,
     });
-    return;
+    return false;
   }
 
   const payload = {};
   if (trainingBulkStartDate) {
-    payload.startDate = new Date(trainingBulkStartDate).toISOString();
+    const startIso = mergeDateTimeToIso(trainingBulkStartDate, trainingBulkStartTime);
+    if (startIso) payload.startDate = startIso;
   }
   if (trainingBulkEndDate) {
-    payload.endDate = new Date(trainingBulkEndDate).toISOString();
+    const endIso = mergeDateTimeToIso(trainingBulkEndDate, trainingBulkEndTime);
+    if (endIso) payload.endDate = endIso;
+  }
+  if (trainingBulkStartTime) {
+    payload.startTime = trainingBulkStartTime;
+  }
+  if (trainingBulkEndTime) {
+    payload.endTime = trainingBulkEndTime;
   }
 
   setIsApplyingTrainingDates(true);
@@ -899,6 +921,9 @@ const handleApplyTrainingDates = async () => {
     resetTrainingSelection();
     setTrainingBulkStartDate("");
     setTrainingBulkEndDate("");
+    setTrainingBulkStartTime("");
+    setTrainingBulkEndTime("");
+    return true;
   } catch (err) {
     console.error("Failed to apply training dates", err);
     toast({
@@ -908,128 +933,99 @@ const handleApplyTrainingDates = async () => {
       duration: 4000,
       isClosable: true,
     });
+    return false;
   } finally {
     setIsApplyingTrainingDates(false);
   }
 };
 
-const handleAssignAgentToSelected = async () => {
+const handleBulkUpdate = async () => {
   if (selectedTrainingFollowupIds.length === 0) {
     toast({
       title: "No trainings selected",
-      description: "Select at least one training to assign.",
+      description: "Select at least one training to update.",
       status: "warning",
       duration: 3000,
       isClosable: true,
     });
-    return;
+    return false;
   }
 
-  if (!selectedAgentForAssignment) {
+  const payload = {};
+  if (trainingBulkStartDate) {
+    const startIso = mergeDateTimeToIso(trainingBulkStartDate, trainingBulkStartTime);
+    if (startIso) payload.startDate = startIso;
+  }
+  if (trainingBulkEndDate) {
+    const endIso = mergeDateTimeToIso(trainingBulkEndDate, trainingBulkEndTime);
+    if (endIso) payload.endDate = endIso;
+  }
+  if (trainingBulkStartTime) {
+    payload.startTime = trainingBulkStartTime;
+  }
+  if (trainingBulkEndTime) {
+    payload.endTime = trainingBulkEndTime;
+  }
+
+  if (selectedAgentForAssignment) {
+    const matchedAgent = trainingAgentOptions.find(
+      (option) => option.value === selectedAgentForAssignment
+    );
+    payload.agentName =
+      matchedAgent?.label || selectedAgentForAssignment || "Customer Success Agent";
+  }
+  if (selectedInstructorForAssignment) {
+    const matchedInstructor = trainingInstructorOptions.find(
+      (option) => option.value === selectedInstructorForAssignment
+    );
+    payload.assignedInstructor =
+      matchedInstructor?.label || selectedInstructorForAssignment || "Instructor";
+  }
+
+  if (Object.keys(payload).length === 0) {
     toast({
-      title: "Select an agent",
-      description: "Choose a Customer Success agent to assign to the selected trainings.",
-      status: "warning",
+      title: "No updates specified",
+      description: "Provide dates, times, or assignments before saving.",
+      status: "info",
       duration: 3000,
       isClosable: true,
     });
-    return;
+    return false;
   }
 
-  const matchedOption = trainingAgentOptions.find(
-    (option) => option.value === selectedAgentForAssignment
-  );
-  const agentDisplay =
-    matchedOption?.label || selectedAgentForAssignment || "Customer Success Agent";
-
-  setIsAssigningAgent(true);
+  setIsApplyingTrainingDates(true);
   try {
     await Promise.all(
-      selectedTrainingFollowupIds.map((id) =>
-        updateTrainingFollowup(id, { agentName: agentDisplay })
-      )
+      selectedTrainingFollowupIds.map((id) => updateTrainingFollowup(id, payload))
     );
     toast({
-      title: "Agent assigned",
-      description: `Assigned ${selectedTrainingFollowupIds.length} training(s) to ${agentDisplay}.`,
+      title: "Bulk update applied",
+      description: `Updated ${selectedTrainingFollowupIds.length} training(s).`,
       status: "success",
       duration: 4000,
       isClosable: true,
     });
     await loadTrainingFollowups();
     resetTrainingSelection();
+    setTrainingBulkStartDate("");
+    setTrainingBulkEndDate("");
+    setTrainingBulkStartTime("");
+    setTrainingBulkEndTime("");
     setSelectedAgentForAssignment("");
-  } catch (err) {
-    console.error("Failed to assign agent to trainings", err);
-    toast({
-      title: "Failed to assign agent",
-      description: err.response?.data?.message || err.message,
-      status: "error",
-      duration: 4000,
-      isClosable: true,
-    });
-  } finally {
-    setIsAssigningAgent(false);
-  }
-};
-
-const handleAssignInstructorToSelected = async () => {
-  if (selectedTrainingFollowupIds.length === 0) {
-    toast({
-      title: "No trainings selected",
-      description: "Select at least one training to assign.",
-      status: "warning",
-      duration: 3000,
-      isClosable: true,
-    });
-    return;
-  }
-
-  if (!selectedInstructorForAssignment) {
-    toast({
-      title: "Select an instructor",
-      description: "Choose an instructor to assign to the selected trainings.",
-      status: "warning",
-      duration: 3000,
-      isClosable: true,
-    });
-    return;
-  }
-
-  const matchedOption = trainingInstructorOptions.find(
-    (option) => option.value === selectedInstructorForAssignment
-  );
-  const instructorDisplay =
-    matchedOption?.label || selectedInstructorForAssignment || "Instructor";
-
-  setIsAssigningInstructor(true);
-  try {
-    await Promise.all(
-      selectedTrainingFollowupIds.map((id) =>
-        updateTrainingFollowup(id, { assignedInstructor: instructorDisplay })
-      )
-    );
-    toast({
-      title: "Instructor assigned",
-      description: `Assigned ${selectedTrainingFollowupIds.length} training(s) to ${instructorDisplay}.`,
-      status: "success",
-      duration: 4000,
-      isClosable: true,
-    });
-    await loadTrainingFollowups();
-    resetTrainingSelection();
     setSelectedInstructorForAssignment("");
+    return true;
   } catch (err) {
-    console.error("Failed to assign instructor to trainings", err);
+    console.error("Failed to apply bulk updates", err);
     toast({
-      title: "Failed to assign instructor",
+      title: "Failed to apply updates",
       description: err.response?.data?.message || err.message,
       status: "error",
       duration: 4000,
       isClosable: true,
     });
+    return false;
   } finally {
-    setIsAssigningInstructor(false);
+    setIsApplyingTrainingDates(false);
   }
 };
 
@@ -1375,11 +1371,28 @@ const saveEnsraEdit = async () => {
           courseKey,
           scheduleKey,
           items: [],
+          timeRanges: new Set(),
         });
       }
-      groups.get(groupKey).items.push(item);
+      const group = groups.get(groupKey);
+      group.items.push(item);
+      const rangeParts = [];
+      if (item.startTime) rangeParts.push(item.startTime);
+      if (item.endTime) rangeParts.push(item.endTime);
+      if (rangeParts.length) {
+        group.timeRanges.add(rangeParts.join(" - "));
+      }
     });
-    return Array.from(groups.values()).filter((g) => g.items.length > 0);
+    return Array.from(groups.values())
+      .filter((g) => g.items.length > 0)
+      .map(({ dateKey, courseKey, scheduleKey, items, timeRanges }) => ({
+        dateKey,
+        courseKey,
+        scheduleKey,
+        items,
+        timeRangeDisplay:
+          timeRanges && timeRanges.size > 0 ? Array.from(timeRanges).join(", ") : null,
+      }));
   }, [filteredTrainingFollowups]);
 
   const tesbinnFollowups = useMemo(() => {
@@ -1388,6 +1401,283 @@ const saveEnsraEdit = async () => {
       (item) => (item.progress || "").toLowerCase() === "completed"
     );
   }, [baseFilteredTrainingFollowups]);
+
+  const downloadCsv = (content, filename) => {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportTesbinn = () => {
+    if (!Array.isArray(tesbinnFollowups) || tesbinnFollowups.length === 0) {
+      toast({
+        title: "No TESBINN data",
+        description: "There are no completed TESBINN records to export.",
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    const headers = [
+      "Customer Name",
+      "Email",
+      "Phone Number",
+      "Course",
+      "Schedule",
+      "Start Date",
+      "End Date",
+      "Agent",
+      "Instructor",
+      "Progress",
+    ];
+    const escapeCsvValue = (value) =>
+      `"${String(value || "").replace(/"/g, '""')}"`;
+    const rows = tesbinnFollowups.map((item) =>
+      [
+        item.customerName,
+        item.email,
+        item.phoneNumber,
+        item.trainingType,
+        item.scheduleShift,
+        item.startDate ? new Date(item.startDate).toLocaleDateString() : "",
+        item.endDate ? new Date(item.endDate).toLocaleDateString() : "",
+        item.agentName,
+        item.assignedInstructor,
+        item.progress,
+      ]
+        .map(escapeCsvValue)
+        .join(",")
+    );
+    const csvContent = [headers.map(escapeCsvValue).join(","), ...rows].join("\n");
+    downloadCsv(csvContent, "tesbinn-completed.csv");
+  };
+
+  const prepareTesbinnBulkSelection = (ids, toastMessage) => {
+    if (!ids.length) return false;
+    setSelectedTrainingFollowupIds(ids);
+    const defaultDate = new Date().toISOString().split("T")[0];
+    setTrainingBulkStartDate(defaultDate);
+    setTrainingBulkEndDate(defaultDate);
+    setTrainingBulkStartTime("09:00");
+    setTrainingBulkEndTime("17:00");
+    setIsTesbinnBulkModalOpen(true);
+    if (toastMessage) {
+      toast({
+        title: toastMessage,
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+    return true;
+  };
+
+  const parseCsvRows = (text) => {
+    const rows = [];
+    let current = "";
+    let inQuotes = false;
+    let row = [];
+
+    const pushCell = () => {
+      row.push(current);
+      current = "";
+    };
+
+    const pushRow = () => {
+      if (row.length) {
+        rows.push(row);
+        row = [];
+      }
+    };
+
+    for (let i = 0; i < text.length; i += 1) {
+      const char = text[i];
+
+      if (char === '"') {
+        if (inQuotes && text[i + 1] === '"') {
+          current += '"';
+          i += 1;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        continue;
+      }
+
+      if (char === "," && !inQuotes) {
+        pushCell();
+        continue;
+      }
+
+      if ((char === "\n" || char === "\r") && !inQuotes) {
+        pushCell();
+        if (char === "\r" && text[i + 1] === "\n") {
+          i += 1;
+        }
+        pushRow();
+        continue;
+      }
+
+      current += char;
+    }
+
+    if (current || row.length) {
+      pushCell();
+      pushRow();
+    }
+
+    return rows.filter((r) => r.length > 1 || (r.length === 1 && r[0].trim() !== ""));
+  };
+
+  const normalizeCsvHeader = (value) =>
+    value?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "") || "";
+
+  const getCsvRecordValue = (record, keys = []) => {
+    for (const key of keys) {
+      if (record[key]) {
+        const trimmed = record[key].trim();
+        if (trimmed) return trimmed;
+      }
+    }
+    return "";
+  };
+
+  const parseCsvDate = (value) => {
+    if (!value) return "";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+  };
+
+  const buildTrainingFollowupPayloadFromCsvRecord = (record) => {
+    const payload = {
+      customerName: getCsvRecordValue(record, ["customername", "customer"]),
+      email: getCsvRecordValue(record, ["email"]),
+      phoneNumber: getCsvRecordValue(record, ["phonenumber", "phone"]),
+      trainingType: getCsvRecordValue(record, ["course"]),
+      scheduleShift: getCsvRecordValue(record, ["schedule"]),
+      agentName: getCsvRecordValue(record, ["agent"]),
+      salesAgent: getCsvRecordValue(record, ["agent"]),
+      assignedInstructor: getCsvRecordValue(record, ["instructor"]),
+      progress: getCsvRecordValue(record, ["progress"]) || "Not Started",
+      materialStatus: "Not Delivered",
+    };
+
+    const startDate = getCsvRecordValue(record, ["startdate"]);
+    const endDate = getCsvRecordValue(record, ["enddate"]);
+    const parsedStart = parseCsvDate(startDate);
+    const parsedEnd = parseCsvDate(endDate);
+    if (parsedStart) payload.startDate = parsedStart;
+    if (parsedEnd) payload.endDate = parsedEnd;
+
+    return payload;
+  };
+
+  const handleTesbinnCsvImport = async (event) => {
+    const file = event.target?.files?.[0];
+    if (!file) {
+      return;
+    }
+    event.target.value = "";
+
+    setIsCsvImportingTesbinn(true);
+    try {
+      const text = await file.text();
+      const rows = parseCsvRows(text);
+      if (!rows.length) {
+        toast({
+          title: "Empty file",
+          description: "The selected CSV file contains no data.",
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const headers = rows[0].map(normalizeCsvHeader);
+      const records = rows.slice(1).map((line) => {
+        const record = {};
+        line.forEach((value, idx) => {
+          record[headers[idx] || `column${idx}`] = value || "";
+        });
+        return record;
+      }).filter((record) => Object.values(record).some((value) => value && value.trim()));
+
+      if (!records.length) {
+        toast({
+          title: "No valid rows",
+          description: "The CSV file does not contain recognizable TESBINN data.",
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const settled = await Promise.allSettled(
+        records.map((record) =>
+          createTrainingFollowup(buildTrainingFollowupPayloadFromCsvRecord(record))
+        )
+      );
+
+      const successful = settled
+        .map((result) => (result.status === "fulfilled" ? getTrainingFollowupId(result.value) : null))
+        .filter(Boolean);
+
+      const failedCount = settled.filter((result) => result.status === "rejected").length;
+
+      await loadTrainingFollowups();
+
+      if (!successful.length) {
+        toast({
+          title: "Import failed",
+          description: "Unable to create training follow-ups from the provided file.",
+          status: "error",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      prepareTesbinnBulkSelection(successful, `Imported ${successful.length} TESBINN record(s) from CSV.`);
+      if (failedCount > 0) {
+        toast({
+          title: "Partial import",
+          description: `${failedCount} row(s) failed to import.`,
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+      }
+    } catch (err) {
+      console.error("CSV import failed", err);
+      toast({
+        title: "CSV import failed",
+        description: err.message || "Unable to process the selected file.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setIsCsvImportingTesbinn(false);
+    }
+  };
+
+  const closeTesbinnBulkModal = () => setIsTesbinnBulkModalOpen(false);
+
+  const applyTrainingDatesAndClose = async () => {
+    const success = await handleApplyTrainingDates();
+    if (success) {
+      closeTesbinnBulkModal();
+    }
+  };
 
   // Derived, filtered, and sorted arrays for ENSRA Follow-Up
   const filteredEnsraFollowups = [...ensraFollowups]
@@ -1654,7 +1944,8 @@ useEffect(() => {
       setTrainingBulkEndDate("");
       setSelectedAgentForAssignment("");
       setSelectedInstructorForAssignment("");
-      setIsAssigningInstructor(false);
+      setTrainingBulkStartTime("");
+      setTrainingBulkEndTime("");
     }
   }, [isCustomerSuccessManager]);
 
@@ -2295,23 +2586,36 @@ useEffect(() => {
     },
   ].filter((col) => col.visible);
 
+  const buildTrainingFollowupPayloadFromSale = (sale, overrides = {}) => {
+    const raw = sale._raw || {};
+    const agentName = sale.agentName || raw.agentName || raw.agentUsername || "";
+    const customerName =
+      sale.customerName ||
+      raw.customerName ||
+      raw.clientName ||
+      raw.companyName ||
+      "Customer";
+
+    return {
+      customerName,
+      email: sale.email || raw.email || "",
+      phoneNumber: sale.phone || raw.phoneNumber || "",
+      trainingType: sale.trainingProgram || raw.trainingProgram || raw.serviceProvided || "",
+      scheduleShift: sale.schedulePreference || raw.schedulePreference || raw.scheduleShift || "",
+      startDate: new Date().toISOString().split("T")[0],
+      progress: "Not Started",
+      materialStatus: "Not Delivered",
+      agentName,
+      salesAgent: raw.agentName || agentName || raw.agentId || "",
+      ...overrides,
+    };
+  };
+
   // Function to import a completed sale to training follow-ups
   const importToTraining = async (sale) => {
     try {
       // Map the sale data to training follow-up format
-      const trainingData = {
-        customerName: sale.customerName,
-        email: sale.email,
-        phoneNumber: sale.phone,
-        trainingType: sale.trainingProgram,
-        scheduleShift: sale.schedulePreference,
-        startDate: new Date().toISOString().split('T')[0], // Default to today
-        progress: 'Not Started',
-        materialStatus: 'Not Delivered',
-        agentName: sale.agentName,
-        salesAgent: sale._raw?.agentName || sale.agentName || sale._raw?.agentId,
-        // Add any other default values as needed
-      };
+      const trainingData = buildTrainingFollowupPayloadFromSale(sale);
 
       // Call the API to create a new training follow-up
       await createTrainingFollowup(trainingData);
@@ -2900,24 +3204,25 @@ useEffect(() => {
                 selectedTrainingFollowupCount={selectedTrainingFollowupIds.length}
                 trainingBulkStartDate={trainingBulkStartDate}
                 trainingBulkEndDate={trainingBulkEndDate}
+                trainingBulkStartTime={trainingBulkStartTime}
+                trainingBulkEndTime={trainingBulkEndTime}
                 setTrainingBulkStartDate={setTrainingBulkStartDate}
                 setTrainingBulkEndDate={setTrainingBulkEndDate}
+                setTrainingBulkStartTime={setTrainingBulkStartTime}
+                setTrainingBulkEndTime={setTrainingBulkEndTime}
                 applyTrainingDates={handleApplyTrainingDates}
                 isApplyingTrainingDates={isApplyingTrainingDates}
                 assignableAgents={assignableAgents}
                 trainingAgentOptions={trainingAgentOptions}
                 selectedAgentForAssignment={selectedAgentForAssignment}
                 setSelectedAgentForAssignment={setSelectedAgentForAssignment}
-                handleAssignAgent={handleAssignAgentToSelected}
-                isAssigningAgent={isAssigningAgent}
                 trainingInstructorOptions={trainingInstructorOptions}
                 selectedInstructorForAssignment={selectedInstructorForAssignment}
                 setSelectedInstructorForAssignment={setSelectedInstructorForAssignment}
-                handleAssignInstructor={handleAssignInstructorToSelected}
-                isAssigningInstructor={isAssigningInstructor}
                 isCustomerSuccessManager={isCustomerSuccessManager}
                 isMobile={isMobile}
                 tableMinWidth="900px"
+                handleBulkUpdate={handleBulkUpdate}
               >
                 <TrainingFollowupGrouped
                   groupedTrainingFollowups={groupedTrainingFollowups}
@@ -2954,6 +3259,10 @@ useEffect(() => {
                 trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
                 tesbinnFollowups={tesbinnFollowups}
                 isMobile={isMobile}
+                isCustomerSuccessManager={isCustomerSuccessManager}
+                handleExportTesbinn={handleExportTesbinn}
+                handleCsvImport={handleTesbinnCsvImport}
+                isCsvImportingTesbinn={isCsvImportingTesbinn}
               />
             </TabPanel>
             <TabPanel px={0}>
@@ -3489,6 +3798,18 @@ useEffect(() => {
                   onChange={(e) => handleTrainingEditChange("endDate", e.target.value)}
                 />
                 <Input
+                  type="time"
+                  placeholder="Start Time"
+                  value={trainingEditData.startTime || ""}
+                  onChange={(e) => handleTrainingEditChange("startTime", e.target.value)}
+                />
+                <Input
+                  type="time"
+                  placeholder="End Time"
+                  value={trainingEditData.endTime || ""}
+                  onChange={(e) => handleTrainingEditChange("endTime", e.target.value)}
+                />
+                <Input
                   as="select"
                   value={trainingEditData.scheduleShift || ""}
                   onChange={(e) => handleTrainingEditChange("scheduleShift", e.target.value)}
@@ -3998,6 +4319,80 @@ useEffect(() => {
           </Card>
         </>
       )}
+      <Modal isOpen={isTesbinnBulkModalOpen} onClose={closeTesbinnBulkModal} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Set date & time for TESBINN users</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Stack spacing={4}>
+              <Text fontSize="sm" color="gray.500">
+                Apply a default range before assigning agents or instructors.
+              </Text>
+              <Flex gap={3} flexWrap="wrap">
+                <Box flex={1} minW="180px">
+                  <Text mb={1} fontSize="xs" fontWeight="semibold">
+                    Start Date
+                  </Text>
+                  <Input
+                    size="sm"
+                    type="date"
+                    value={trainingBulkStartDate}
+                    onChange={(e) => setTrainingBulkStartDate(e.target.value)}
+                  />
+                </Box>
+                <Box flex={1} minW="160px">
+                  <Text mb={1} fontSize="xs" fontWeight="semibold">
+                    Start Time
+                  </Text>
+                  <Input
+                    size="sm"
+                    type="time"
+                    value={trainingBulkStartTime}
+                    onChange={(e) => setTrainingBulkStartTime(e.target.value)}
+                  />
+                </Box>
+              </Flex>
+              <Flex gap={3} flexWrap="wrap">
+                <Box flex={1} minW="180px">
+                  <Text mb={1} fontSize="xs" fontWeight="semibold">
+                    End Date
+                  </Text>
+                  <Input
+                    size="sm"
+                    type="date"
+                    value={trainingBulkEndDate}
+                    onChange={(e) => setTrainingBulkEndDate(e.target.value)}
+                  />
+                </Box>
+                <Box flex={1} minW="160px">
+                  <Text mb={1} fontSize="xs" fontWeight="semibold">
+                    End Time
+                  </Text>
+                  <Input
+                    size="sm"
+                    type="time"
+                    value={trainingBulkEndTime}
+                    onChange={(e) => setTrainingBulkEndTime(e.target.value)}
+                  />
+                </Box>
+              </Flex>
+            </Stack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={closeTesbinnBulkModal}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="teal"
+              onClick={applyTrainingDatesAndClose}
+              isLoading={isApplyingTrainingDates}
+            >
+              Apply to selected
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Layout>
   );
 };
