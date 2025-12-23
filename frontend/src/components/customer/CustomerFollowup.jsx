@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import Layout from "./Layout";
 import FollowupTabPage from "./tabs/FollowupTabPage";
-import PendingB2BTabPage from "./tabs/PendingB2BTabPage";
 import TrainingTabPage from "./tabs/TrainingTabPage";
 import TrainingFollowupTabPage from "./tabs/TrainingFollowupTabPage";
 import TrainingFollowupGrouped from "./tabs/TrainingFollowupGrouped";
@@ -94,14 +93,12 @@ import {
 
 const CustomerFollowup = () => {
   const [data, setData] = useState([]);
-  const [pendingB2BCustomers, setPendingB2BCustomers] = useState([]);
   const [completedSales, setCompletedSales] = useState([]);
   const [loadingTraining, setLoadingTraining] = useState(false);
   const [trainingError, setTrainingError] = useState("");
   const [trainingFollowups, setTrainingFollowups] = useState([]);
   const [ensraFollowups, setEnsraFollowups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [loadingB2B, setLoadingB2B] = useState(false);
   const [error, setError] = useState("");
   const [selectedClient, setSelectedClient] = useState(null);
   const [note, setNote] = useState("");
@@ -171,10 +168,26 @@ const CustomerFollowup = () => {
     phoneNumber: "",
     country: "",
     industry: "",
+    packageScope: "Local",
     packageType: "",
     products: "",
     notes: "",
   });
+
+  const LOCAL_COUNTRY = "ethiopia";
+  const isLocalCustomer = (customer = {}) =>
+    (customer.country || "").toString().trim().toLowerCase() === LOCAL_COUNTRY;
+  const resolvePackageScope = (customer = {}) =>
+    customer.packageScope || (isLocalCustomer(customer) ? "Local" : "International");
+
+  const updateFollowupPackageScope = (id, scope) => {
+    setData((prev) =>
+      prev.map((item) => (item._id === id ? { ...item, packageScope: scope } : item))
+    );
+    setFilteredData((prev) =>
+      prev.map((item) => (item._id === id ? { ...item, packageScope: scope } : item))
+    );
+  };
 
   const getColumnPreferenceKey = () => {
     const token = localStorage.getItem("userToken");
@@ -239,23 +252,13 @@ const CustomerFollowup = () => {
       phone: true,
       email: true,
       package: true,
+      packageScope: true,
       service: true,
       priority: true,
       calls: true,
       messages: true,
       emails: true,
       deadline: true,
-      actions: true,
-    },
-    pendingB2B: {
-      client: true,
-      company: true,
-      email: true,
-      phone: true,
-      type: true,
-      industry: true,
-      country: true,
-      package: true,
       actions: true,
     },
     completedSales: {
@@ -278,6 +281,7 @@ const CustomerFollowup = () => {
       phone: true,
       fieldOfWork: true,
       course: true,
+      batchGroup: true,
       schedule: true,
       materialStatus: true,
       progress: true,
@@ -378,6 +382,14 @@ const CustomerFollowup = () => {
   const isCustomerSuccessAgent =
     CUSTOMER_SUCCESS_ROLES.has(currentUserRole) &&
     currentUserRole !== "customersuccessmanager";
+  const localFollowups = useMemo(
+    () => filteredData.filter(isLocalCustomer),
+    [filteredData]
+  );
+  const internationalFollowups = useMemo(
+    () => filteredData.filter((item) => !isLocalCustomer(item)),
+    [filteredData]
+  );
  const toast = useToast();
   
   // Responsive breakpoints
@@ -517,67 +529,6 @@ const CustomerFollowup = () => {
     }
   };
 
-  const fetchPendingB2BCustomers = async () => {
-    setLoadingB2B(true);
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/followups/b2b-pending`);
-      if (Array.isArray(response.data)) {
-        setPendingB2BCustomers(response.data);
-      } else {
-        setPendingB2BCustomers([]);
-        toast({
-          title: "Error fetching B2B customers",
-          description: "Invalid data format received from server",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-      setLoadingB2B(false);
-    } catch (err) {
-      console.error("API Error:", err);
-      setPendingB2BCustomers([]);
-      toast({
-        title: "Error fetching B2B customers",
-        description: err.response?.data?.message || err.message,
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-      setLoadingB2B(false);
-    }
-  };
-
-  const handleImportB2BCustomer = async (customer) => {
-    try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/followups/import-b2b`, {
-        customerType: customer.type,
-        customerId: customer._id,
-        agentId: currentUserId,
-      });
-      
-      toast({
-        title: "Customer imported successfully",
-        description: response.data.message,
-        status: "success",
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      // Refresh both lists
-      fetchData();
-      fetchPendingB2BCustomers();
-    } catch (err) {
-      toast({
-        title: "Error importing customer",
-        description: err.response?.data?.message || err.message,
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-
   const resetPendingForm = () => {
     setPendingForm({
       type: "buyer",
@@ -587,6 +538,7 @@ const CustomerFollowup = () => {
       phoneNumber: "",
       country: "",
       industry: "",
+      packageScope: "Local",
       packageType: "",
       products: "",
       notes: "",
@@ -611,6 +563,7 @@ const CustomerFollowup = () => {
       country: pendingForm.country,
       industry: pendingForm.industry,
       products: pendingForm.products,
+      packageScope: pendingForm.packageScope,
       packageType: pendingForm.packageType,
       ...(isBuyer ? { requirements: pendingForm.notes } : { certifications: pendingForm.notes }),
       agentId: currentUserId,
@@ -627,7 +580,7 @@ const CustomerFollowup = () => {
       });
       resetPendingForm();
       setIsAddPendingOpen(false);
-      await fetchPendingB2BCustomers();
+      await fetchData();
     } catch (err) {
       console.error("Failed to add pending B2B customer", err);
       toast({
@@ -1432,6 +1385,7 @@ const saveEnsraEdit = async () => {
       "Phone Number",
       "Course",
       "Schedule",
+      "Batch/Group",
       "Start Date",
       "End Date",
       "Agent",
@@ -1447,6 +1401,7 @@ const saveEnsraEdit = async () => {
         item.phoneNumber,
         item.trainingType,
         item.scheduleShift,
+        item.batch || item.group || item.batchGroup,
         item.startDate ? new Date(item.startDate).toLocaleDateString() : "",
         item.endDate ? new Date(item.endDate).toLocaleDateString() : "",
         item.agentName,
@@ -1556,6 +1511,7 @@ const saveEnsraEdit = async () => {
   };
 
   const buildTrainingFollowupPayloadFromCsvRecord = (record) => {
+    const batchValue = getCsvRecordValue(record, ["batch", "group", "batchgroup"]);
     const payload = {
       customerName: getCsvRecordValue(record, ["customername", "customer"]),
       email: getCsvRecordValue(record, ["email"]),
@@ -1568,6 +1524,9 @@ const saveEnsraEdit = async () => {
       progress: getCsvRecordValue(record, ["progress"]) || "Not Started",
       materialStatus: "Not Delivered",
     };
+    if (batchValue) {
+      payload.batch = batchValue;
+    }
 
     const startDate = getCsvRecordValue(record, ["startdate"]);
     const endDate = getCsvRecordValue(record, ["enddate"]);
@@ -1715,7 +1674,6 @@ const saveEnsraEdit = async () => {
 
 useEffect(() => {
   fetchData();
-  fetchPendingB2BCustomers();
   fetchCompletedSales();
   loadTrainingFollowups();
   loadEnsraFollowups();
@@ -1897,10 +1855,10 @@ useEffect(() => {
     );
   };
 
-  const selectAllFiltered = (checked) => {
-    if (!Array.isArray(filteredData)) return;
+  const selectAllFiltered = (list, checked) => {
+    if (!Array.isArray(list)) return;
     if (checked) {
-      const ids = filteredData.map((item) => item._id);
+      const ids = list.map((item) => item._id);
       setSelectedFollowupIds(ids);
     } else {
       setSelectedFollowupIds([]);
@@ -2228,18 +2186,6 @@ useEffect(() => {
     { key: "actions", label: "Actions" },
   ];
 
-  const pendingB2BColumnOptions = [
-    { key: "client", label: "Client" },
-    { key: "company", label: "Company" },
-    { key: "email", label: "Email" },
-    { key: "phone", label: "Phone" },
-    { key: "type", label: "Type" },
-    { key: "industry", label: "Industry" },
-    { key: "country", label: "Country" },
-    { key: "package", label: "Package" },
-    { key: "actions", label: "Actions" },
-  ];
-
   const completedSalesColumnOptions = [
     { key: "agentName", label: "Agent Name" },
     { key: "customerName", label: "Customer" },
@@ -2261,6 +2207,7 @@ useEffect(() => {
     { key: "phone", label: "Phone Number" },
     { key: "fieldOfWork", label: "Field of Work" },
     { key: "course", label: "Course" },
+    { key: "batchGroup", label: "Batch/Group" },
     { key: "schedule", label: "Schedule & Shift" },
     { key: "materialStatus", label: "Material Delivery Status" },
     { key: "progress", label: "Progress" },
@@ -2284,23 +2231,23 @@ useEffect(() => {
     { key: "actions", label: "Actions" },
   ];
 
-  const followupColumnsToRender = [
+  const buildFollowupColumnsToRender = (currentList = []) => [
     {
       key: "select",
       visible: visibleColumns.followup.select !== false,
       header: (
         <Checkbox
           aria-label="Select all"
-          onChange={(e) => selectAllFiltered(e.target.checked)}
+          onChange={(e) => selectAllFiltered(currentList, e.target.checked)}
           isChecked={
-            Array.isArray(filteredData) &&
-            filteredData.length > 0 &&
-            filteredData.every((it) => selectedFollowupIds.includes(it._id))
+            Array.isArray(currentList) &&
+            currentList.length > 0 &&
+            currentList.every((it) => selectedFollowupIds.includes(it._id))
           }
           isIndeterminate={
             selectedFollowupIds.length > 0 &&
-            Array.isArray(filteredData) &&
-            !filteredData.every((it) => selectedFollowupIds.includes(it._id))
+            Array.isArray(currentList) &&
+            !currentList.every((it) => selectedFollowupIds.includes(it._id))
           }
         />
       ),
@@ -2402,6 +2349,24 @@ useEffect(() => {
       ),
     },
     {
+      key: "packageScope",
+      visible: visibleColumns.followup.packageScope,
+      header: "Package Scope",
+      render: (item) => (
+        <CompactCell>
+          <Input
+            as="select"
+            size="sm"
+            value={resolvePackageScope(item)}
+            onChange={(e) => updateFollowupPackageScope(item._id, e.target.value)}
+          >
+            <option value="Local">Local</option>
+            <option value="International">International</option>
+          </Input>
+        </CompactCell>
+      ),
+    },
+    {
       key: "priority",
       visible: visibleColumns.followup.priority,
       header: "Priority",
@@ -2496,91 +2461,6 @@ useEffect(() => {
               />
             </Tooltip>
           </HStack>
-        </CompactCell>
-      ),
-    },
-  ].filter((col) => col.visible);
-
-  const pendingB2BColumnsToRender = [
-    {
-      key: "client",
-      visible: visibleColumns.pendingB2B.client,
-      header: "Client",
-      render: (customer) => <CompactCell>{customer.clientName}</CompactCell>,
-    },
-    {
-      key: "company",
-      visible: visibleColumns.pendingB2B.company,
-      header: "Company",
-      render: (customer) => <CompactCell>{customer.companyName}</CompactCell>,
-    },
-    {
-      key: "email",
-      visible: visibleColumns.pendingB2B.email && !isMobile,
-      header: "Email",
-      render: (customer) => <CompactCell>{customer.email}</CompactCell>,
-    },
-    {
-      key: "phone",
-      visible: visibleColumns.pendingB2B.phone && !isMobile,
-      header: "Phone",
-      render: (customer) => <CompactCell>{customer.phoneNumber}</CompactCell>,
-    },
-    {
-      key: "type",
-      visible: visibleColumns.pendingB2B.type,
-      header: "Type",
-      render: (customer) => (
-        <CompactCell>
-          <Badge
-            colorScheme={customer.type === "buyer" ? "green" : "purple"}
-            fontSize="xs"
-          >
-            {customer.type}
-          </Badge>
-        </CompactCell>
-      ),
-    },
-    {
-      key: "industry",
-      visible: visibleColumns.pendingB2B.industry && !isLargerThan768,
-      header: "Industry",
-      render: (customer) => <CompactCell>{customer.industry}</CompactCell>,
-    },
-    {
-      key: "country",
-      visible: visibleColumns.pendingB2B.country,
-      header: "Country",
-      render: (customer) => <CompactCell>{customer.country}</CompactCell>,
-    },
-    {
-      key: "package",
-      visible: visibleColumns.pendingB2B.package,
-      header: "Package",
-      render: (customer) => (
-        <CompactCell>
-          <Badge colorScheme="blue" fontSize="xs">
-            {customer.packageType || "Not specified"}
-          </Badge>
-        </CompactCell>
-      ),
-    },
-    {
-      key: "actions",
-      visible: visibleColumns.pendingB2B.actions,
-      header: "Actions",
-      render: (customer) => (
-        <CompactCell>
-          <Tooltip label="Import this customer to follow-up system">
-            <Button
-              size="xs"
-              colorScheme="teal"
-              leftIcon={<DownloadIcon />}
-              onClick={() => handleImportB2BCustomer(customer)}
-            >
-              Import
-            </Button>
-          </Tooltip>
         </CompactCell>
       ),
     },
@@ -2808,6 +2688,16 @@ useEffect(() => {
       visible: visibleColumns.trainingFollowup.course,
       header: "Course",
       render: (item) => <CompactCell>{item.trainingType}</CompactCell>,
+    },
+    {
+      key: "batchGroup",
+      visible: visibleColumns.trainingFollowup.batchGroup,
+      header: "Batch/Group",
+      render: (item) => (
+        <CompactCell>
+          {item.batch || item.group || item.batchGroup || "-"}
+        </CompactCell>
+      ),
     },
     {
       key: "schedule",
@@ -3045,6 +2935,390 @@ useEffect(() => {
     },
   ].filter((col) => col.visible);
 
+  const ensraModule = (
+    <Card bg={cardBg} boxShadow="md" borderRadius="lg">
+      <CardBody>
+        <VStack spacing={4} align="stretch">
+          <Flex justify="space-between" align="center">
+            <Heading size="md" color={headerBg}>
+              ENSRA Follow-Up
+            </Heading>
+            <HStack spacing={2}>
+              {renderColumnMenu("ensra", ensraColumnOptions)}
+              <Tooltip label="Add ENSRA customer">
+                <IconButton
+                  aria-label="Add ENSRA customer"
+                  icon={<AddIcon />}
+                  colorScheme="teal"
+                  size="sm"
+                  onClick={() => setShowEnsraFormCard(true)}
+                />
+              </Tooltip>
+            </HStack>
+          </Flex>
+
+          <Flex
+            direction={isMobile ? "column" : "row"}
+            gap={3}
+            align="center"
+          >
+            <Box flex={1} width="100%">
+              <Input
+                placeholder="Search by company or job seeker name..."
+                value={ensraSearch}
+                onChange={(e) => setEnsraSearch(e.target.value)}
+                size="sm"
+                borderRadius="md"
+                borderColor={borderColor}
+              />
+            </Box>
+            <HStack
+              spacing={3}
+              width={isMobile ? "100%" : "auto"}
+              justify={isMobile ? "space-between" : "flex-end"}
+            >
+              <Box minW="160px">
+                <Input
+                  as="select"
+                  size="sm"
+                  value={ensraTypeFilter}
+                  onChange={(e) => setEnsraTypeFilter(e.target.value)}
+                >
+                  <option value="all">All Types</option>
+                  <option value="company">Company</option>
+                  <option value="jobSeeker">Job Seeker</option>
+                </Input>
+              </Box>
+              <Button
+                size="sm"
+                colorScheme="blue"
+                variant="outline"
+                onClick={() => setEnsraSortAsc((prev) => !prev)}
+              >
+                Sort {ensraSortAsc ? "A-Z" : "Z-A"}
+              </Button>
+            </HStack>
+          </Flex>
+
+          <TableContainer
+            overflowX="auto"
+            border="1px solid"
+            borderColor={tableBorderColor}
+            borderRadius="lg"
+            bg={tableBg}
+            boxShadow="sm"
+          >
+            <Table
+              variant="striped"
+              colorScheme="gray"
+              size="sm"
+              minWidth={isMobile ? "900px" : "auto"}
+            >
+              <Thead bg={headerBg}>
+                <Tr>
+                  {ensraColumnsToRender.map((col) => (
+                    <CompactHeaderCell key={col.key}>
+                      {col.header}
+                    </CompactHeaderCell>
+                  ))}
+                </Tr>
+              </Thead>
+              <Tbody>
+                {filteredEnsraFollowups.length > 0 ? (
+                  filteredEnsraFollowups.map((item) => (
+                    <Tr key={item._id || item.id} _hover={{ bg: rowHoverBg }}>
+                      {ensraColumnsToRender.map((col) => (
+                        <React.Fragment key={col.key}>
+                          {col.render(item)}
+                        </React.Fragment>
+                      ))}
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td
+                      colSpan={ensraColumnsToRender.length || 1}
+                      textAlign="center"
+                      py={10}
+                    >
+                      <Text color="gray.500">
+                        No ENSRA follow-up records found.
+                      </Text>
+                    </Td>
+                  </Tr>
+                )}
+              </Tbody>
+            </Table>
+          </TableContainer>
+
+          {showEnsraFormCard && (
+            <>
+              <Box
+                position="fixed"
+                top={0}
+                left={0}
+                right={0}
+                bottom={0}
+                bg="rgba(0,0,0,0.5)"
+                zIndex={1000}
+                onClick={() => setShowEnsraFormCard(false)}
+              />
+              <Card
+                position="fixed"
+                top="50%"
+                left="50%"
+                transform="translate(-50%, -50%)"
+                zIndex={1001}
+                width={isMobile ? "95%" : "600px"}
+                bg={cardBg}
+                boxShadow="xl"
+              >
+                <CardHeader pb={2}>
+                  <Flex justify="space-between" align="center">
+                    <Heading size="md">Add ENSRA Customer</Heading>
+                    <IconButton
+                      aria-label="Close"
+                      icon={<SmallCloseIcon />}
+                      size="sm"
+                      onClick={() => setShowEnsraFormCard(false)}
+                    />
+                  </Flex>
+                </CardHeader>
+                <CardBody>
+                  <Box as="form" onSubmit={handleEnsraSubmit}>
+                    <VStack spacing={4} align="stretch">
+                      <Box>
+                        <Text mb={1} fontWeight="medium">
+                          Registration Type
+                        </Text>
+                        <RadioGroup
+                          value={ensraForm.type}
+                          onChange={(value) =>
+                            setEnsraForm((prev) => ({
+                              ...prev,
+                              type: value,
+                            }))
+                          }
+                        >
+                          <HStack spacing={4}>
+                            <Radio value="company">
+                              Company - Looking to hire
+                            </Radio>
+                            <Radio value="jobSeeker">
+                              Job Seeker - Managing opportunities
+                            </Radio>
+                          </HStack>
+                        </RadioGroup>
+                      </Box>
+
+                      {ensraForm.type === "company" && (
+                        <>
+                          <Stack
+                            direction={isMobile ? "column" : "row"}
+                            spacing={4}
+                          >
+                            <Box flex={1}>
+                              <Text mb={1} fontWeight="medium">
+                                Package Type
+                              </Text>
+                              <Input
+                                value={ensraForm.packageType}
+                                onChange={(e) =>
+                                  setEnsraForm((prev) => ({
+                                    ...prev,
+                                    packageType: e.target.value,
+                                  }))
+                                }
+                                placeholder="e.g., 1, 2, 3"
+                              />
+                            </Box>
+                            <Box flex={1}>
+                              <Text mb={1} fontWeight="medium">
+                                Company Name
+                              </Text>
+                              <Input
+                                value={ensraForm.companyName}
+                                onChange={(e) =>
+                                  setEnsraForm((prev) => ({
+                                    ...prev,
+                                    companyName: e.target.value,
+                                  }))
+                                }
+                                placeholder="Enter company name"
+                              />
+                            </Box>
+                          </Stack>
+
+                          <Stack
+                            direction={isMobile ? "column" : "row"}
+                            spacing={4}
+                          >
+                            <Box flex={1}>
+                              <Text mb={1} fontWeight="medium">
+                                Positions Offered
+                              </Text>
+                              <Input
+                                value={ensraForm.positionsOffered}
+                                onChange={(e) =>
+                                  setEnsraForm((prev) => ({
+                                    ...prev,
+                                    positionsOffered: e.target.value,
+                                  }))
+                                }
+                                placeholder="Comma-separated positions"
+                              />
+                            </Box>
+                            <Box flex={1}>
+                              <Text mb={1} fontWeight="medium">
+                                Salary Range
+                              </Text>
+                              <Input
+                                value={ensraForm.salaryRange}
+                                onChange={(e) =>
+                                  setEnsraForm((prev) => ({
+                                    ...prev,
+                                    salaryRange: e.target.value,
+                                  }))
+                                }
+                                placeholder="e.g., $50,000 - $80,000"
+                              />
+                            </Box>
+                          </Stack>
+
+                          <Box>
+                            <Text mb={1} fontWeight="medium">
+                              Job Requirements
+                            </Text>
+                            <Textarea
+                              value={ensraForm.jobRequirements}
+                              onChange={(e) =>
+                                setEnsraForm((prev) => ({
+                                  ...prev,
+                                  jobRequirements: e.target.value,
+                                }))
+                              }
+                              placeholder="Describe job requirements, qualifications, etc."
+                              rows={4}
+                            />
+                          </Box>
+                        </>
+                      )}
+
+                      {ensraForm.type === "jobSeeker" && (
+                        <>
+                          <Stack
+                            direction={isMobile ? "column" : "row"}
+                            spacing={4}
+                          >
+                            <Box flex={1}>
+                              <Text mb={1} fontWeight="medium">
+                                Job Seeker Name
+                              </Text>
+                              <Input
+                                value={ensraForm.jobSeekerName}
+                                onChange={(e) =>
+                                  setEnsraForm((prev) => ({
+                                    ...prev,
+                                    jobSeekerName: e.target.value,
+                                  }))
+                                }
+                                placeholder="Enter job seeker name"
+                              />
+                            </Box>
+                            <Box flex={1}>
+                              <Text mb={1} fontWeight="medium">
+                                Skills
+                              </Text>
+                              <Input
+                                value={ensraForm.jobSeekerSkills}
+                                onChange={(e) =>
+                                  setEnsraForm((prev) => ({
+                                    ...prev,
+                                    jobSeekerSkills: e.target.value,
+                                  }))
+                                }
+                                placeholder="Comma-separated skills"
+                              />
+                            </Box>
+                          </Stack>
+
+                          <Stack
+                            direction={isMobile ? "column" : "row"}
+                            spacing={4}
+                          >
+                            <Box flex={1}>
+                              <Text mb={1} fontWeight="medium">
+                                Experience
+                              </Text>
+                              <Input
+                                value={ensraForm.jobSeekerExperience}
+                                onChange={(e) =>
+                                  setEnsraForm((prev) => ({
+                                    ...prev,
+                                    jobSeekerExperience: e.target.value,
+                                  }))
+                                }
+                                placeholder="e.g., 2 years"
+                              />
+                            </Box>
+                            <Box flex={1}>
+                              <Text mb={1} fontWeight="medium">
+                                Education
+                              </Text>
+                              <Input
+                                value={ensraForm.jobSeekerEducation}
+                                onChange={(e) =>
+                                  setEnsraForm((prev) => ({
+                                    ...prev,
+                                    jobSeekerEducation: e.target.value,
+                                  }))
+                                }
+                                placeholder="e.g., Bachelor's Degree"
+                              />
+                            </Box>
+                          </Stack>
+
+                          <Box>
+                            <Text mb={1} fontWeight="medium">
+                              Expected Salary
+                            </Text>
+                            <Input
+                              value={ensraForm.jobSeekerExpectedSalary}
+                              onChange={(e) =>
+                                setEnsraForm((prev) => ({
+                                  ...prev,
+                                  jobSeekerExpectedSalary: e.target.value,
+                                }))
+                              }
+                              placeholder="e.g., $60,000"
+                            />
+                          </Box>
+                        </>
+                      )}
+
+                      <Button
+                        type="submit"
+                        colorScheme="teal"
+                        width="full"
+                        isDisabled={
+                          (ensraForm.type === "company" && !ensraForm.companyName) ||
+                          (ensraForm.type === "jobSeeker" &&
+                            !ensraForm.jobSeekerName)
+                        }
+                      >
+                        Register for ENSRA
+                      </Button>
+                    </VStack>
+                  </Box>
+                </CardBody>
+              </Card>
+            </>
+          )}
+        </VStack>
+      </CardBody>
+    </Card>
+  );
+
   return (
     <Layout overflowX="auto" maxW="1200px" mx="auto" py={4} px={2}>
       <VStack spacing={6} align="stretch">
@@ -3061,562 +3335,225 @@ useEffect(() => {
         <Box overflowX="auto" maxW="100%">
           <Tabs variant="enclosed" colorScheme="blue" isFitted={!isMobile}>
             <TabList mb={2} flexWrap={isMobile ? "wrap" : "nowrap"} gap={isMobile ? 1 : 2}>
-            <Tab>
-              <HStack spacing={2}>
-                <CheckIcon />
-                <Text>B2B Customers</Text>
-              </HStack>
-            </Tab>
-            <Tab>
-              <HStack spacing={2}>
-                <DownloadIcon />
-                <Text>Pending B2B Customers</Text>
-              </HStack>
-            </Tab>
-            <Tab>
-              <HStack spacing={2}>
-                <DownloadIcon />
-                <Text>Pending Training</Text>
-              </HStack>
-            </Tab>
-            <Tab>
-              <HStack spacing={2}>
-                <CheckIcon />
-                <Text>Training</Text>
-              </HStack>
-            </Tab>
+              <Tab>
+                <HStack spacing={2}>
+                  <CheckIcon />
+                  <Text>Local B2B</Text>
+                </HStack>
+              </Tab>
+              <Tab>
+                <HStack spacing={2}>
+                  <CheckIcon />
+                  <Text>International B2B</Text>
+                </HStack>
+              </Tab>
+              <Tab>
+                <HStack spacing={2}>
+                  <DownloadIcon />
+                  <Text>Pending Training</Text>
+                </HStack>
+              </Tab>
+              <Tab>
+                <HStack spacing={2}>
+                  <CheckIcon />
+                  <Text>Training</Text>
+                </HStack>
+              </Tab>
 
-             <Tab>
-              <HStack spacing={2}>
-                <CheckIcon />
-                <Text>All TESBINN Users</Text>
-              </HStack>
-            </Tab>
+              <Tab>
+                <HStack spacing={2}>
+                  <CheckIcon />
+                  <Text>All TESBINN Users</Text>
+                </HStack>
+              </Tab>
 
-             <Tab>
-              <HStack spacing={2}>
-                <DownloadIcon /><CheckIcon />
-                <Text>ENSRA</Text>
-              </HStack>
-            </Tab>
+              <Tab>
+                <HStack spacing={2}>
+                  <DownloadIcon /><CheckIcon />
+                  <Text>ENSRA</Text>
+                </HStack>
+              </Tab>
             </TabList>
             
             <TabPanels>
-            {/* Existing Follow-up Customers Tab */}
-            <TabPanel px={0}>
-              <FollowupTabPage
-                cardBg={cardBg}
-                headerBg={headerBg}
-                borderColor={borderColor}
-                tableBorderColor={tableBorderColor}
-                tableBg={tableBg}
-                rowHoverBg={rowHoverBg}
-                renderColumnMenu={renderColumnMenu}
-                followupColumnOptions={followupColumnOptions}
-                loading={loading}
-                error={error}
-                searchQuery={searchQuery}
-                handleSearch={handleSearch}
-                isMobile={isMobile}
-                isMobileView={isMobileView}
-                handleBackToCompanyList={handleBackToCompanyList}
-                handleRowClick={handleRowClick}
-                selectedRow={selectedRow}
-                filteredData={filteredData}
-                followupColumnsToRender={followupColumnsToRender}
-                onRefresh={fetchData}
-                onSelectRow={toggleSelectFollowup}
-                onSelectAll={selectAllFiltered}
-                selectedIds={selectedFollowupIds}
-                onBulkEmail={openBulkEmail}
-                onOpenConversation={openConversation}
-              />
-            </TabPanel>
-            
-            {/* Pending B2B Customers Tab */}
-            <TabPanel px={0}>
-              <PendingB2BTabPage
-                cardBg={cardBg}
-                headerBg={headerBg}
-                borderColor={borderColor}
-                tableBorderColor={tableBorderColor}
-                tableBg={tableBg}
-                rowHoverBg={rowHoverBg}
-                renderColumnMenu={renderColumnMenu}
-                pendingB2BColumnOptions={pendingB2BColumnOptions}
-                pendingB2BColumnsToRender={pendingB2BColumnsToRender}
-                pendingB2BCustomers={pendingB2BCustomers}
-                loadingB2B={loadingB2B}
-                fetchPendingB2BCustomers={fetchPendingB2BCustomers}
-              />
-            </TabPanel>
-            <TabPanel px={0}>
-              <TrainingTabPage
-                cardBg={cardBg}
-                headerBg={headerBg}
-                borderColor={borderColor}
-                tableBorderColor={tableBorderColor}
-                tableBg={tableBg}
-                rowHoverBg={rowHoverBg}
-                renderColumnMenu={renderColumnMenu}
-                completedSalesColumnOptions={completedSalesColumnOptions}
-                completedSalesColumnsToRender={completedSalesColumnsToRender}
-                completedSales={completedSales}
-                loadingTraining={loadingTraining}
-                trainingError={trainingError}
-                fetchCompletedSales={fetchCompletedSales}
-                trainingPrograms={trainingPrograms}
-                trainingForm={trainingForm}
-                setTrainingForm={setTrainingForm}
-                handleTrainingTypeChange={handleTrainingTypeChange}
-                handlePaymentOptionChange={handlePaymentOptionChange}
-                handleTrainingSubmit={handleTrainingSubmit}
-                isMobile={isMobile}
-              />
-            </TabPanel>
-            <TabPanel px={0}>
-              <TrainingFollowupTabPage
-                cardBg={cardBg}
-                headerBg={headerBg}
-                borderColor={borderColor}
-                tableBorderColor={tableBorderColor}
-                tableBg={tableBg}
-                rowHoverBg={rowHoverBg}
-                trainingSearch={trainingSearch}
-                setTrainingSearch={setTrainingSearch}
-                trainingProgressFilter={trainingProgressFilter}
-                setTrainingProgressFilter={setTrainingProgressFilter}
-                trainingScheduleFilter={trainingScheduleFilter}
-                setTrainingScheduleFilter={setTrainingScheduleFilter}
-                trainingMaterialFilter={trainingMaterialFilter}
-                setTrainingMaterialFilter={setTrainingMaterialFilter}
-                trainingCourseFilter={trainingCourseFilter}
-                setTrainingCourseFilter={setTrainingCourseFilter}
-                trainingStartDateFilter={trainingStartDateFilter}
-                setTrainingStartDateFilter={setTrainingStartDateFilter}
-                trainingCourseOptions={trainingCourseOptions}
-                renderColumnMenu={renderColumnMenu}
-                trainingFollowupColumnOptions={trainingFollowupColumnOptions}
-                trainingSortAsc={trainingSortAsc}
-                setTrainingSortAsc={setTrainingSortAsc}
-                trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
-                filteredTrainingFollowups={filteredTrainingFollowups}
-                selectedTrainingFollowupCount={selectedTrainingFollowupIds.length}
-                trainingBulkStartDate={trainingBulkStartDate}
-                trainingBulkEndDate={trainingBulkEndDate}
-                trainingBulkStartTime={trainingBulkStartTime}
-                trainingBulkEndTime={trainingBulkEndTime}
-                setTrainingBulkStartDate={setTrainingBulkStartDate}
-                setTrainingBulkEndDate={setTrainingBulkEndDate}
-                setTrainingBulkStartTime={setTrainingBulkStartTime}
-                setTrainingBulkEndTime={setTrainingBulkEndTime}
-                applyTrainingDates={handleApplyTrainingDates}
-                isApplyingTrainingDates={isApplyingTrainingDates}
-                assignableAgents={assignableAgents}
-                trainingAgentOptions={trainingAgentOptions}
-                selectedAgentForAssignment={selectedAgentForAssignment}
-                setSelectedAgentForAssignment={setSelectedAgentForAssignment}
-                trainingInstructorOptions={trainingInstructorOptions}
-                selectedInstructorForAssignment={selectedInstructorForAssignment}
-                setSelectedInstructorForAssignment={setSelectedInstructorForAssignment}
-                isCustomerSuccessManager={isCustomerSuccessManager}
-                isMobile={isMobile}
-                tableMinWidth="900px"
-                handleBulkUpdate={handleBulkUpdate}
-              >
-                <TrainingFollowupGrouped
-                  groupedTrainingFollowups={groupedTrainingFollowups}
+              <TabPanel px={0}>
+                <FollowupTabPage
                   cardBg={cardBg}
-                  borderColor={borderColor}
                   headerBg={headerBg}
-                  isLargerThan1024={isLargerThan1024}
+                  borderColor={borderColor}
+                  tableBorderColor={tableBorderColor}
+                  tableBg={tableBg}
+                  rowHoverBg={rowHoverBg}
+                  renderColumnMenu={renderColumnMenu}
+                  followupColumnOptions={followupColumnOptions}
+                  loading={loading}
+                  error={error}
+                  searchQuery={searchQuery}
+                  handleSearch={handleSearch}
+                  isMobile={isMobile}
+                  isMobileView={isMobileView}
+                  handleBackToCompanyList={handleBackToCompanyList}
+                  handleRowClick={handleRowClick}
+                  selectedRow={selectedRow}
+                  filteredData={localFollowups}
+                  followupColumnsToRender={buildFollowupColumnsToRender(localFollowups)}
+                  onRefresh={fetchData}
+                  onSelectRow={toggleSelectFollowup}
+                  onSelectAll={(checked) => selectAllFiltered(localFollowups, checked)}
+                  selectedIds={selectedFollowupIds}
+                  onBulkEmail={openBulkEmail}
+                  onOpenConversation={openConversation}
                 />
-              </TrainingFollowupTabPage>
-            </TabPanel>
-            <TabPanel px={0}>
-              <TesbinnTabPage
-                cardBg={cardBg}
-                headerBg={headerBg}
-                borderColor={borderColor}
-                tableBorderColor={tableBorderColor}
-                tableBg={tableBg}
-                rowHoverBg={rowHoverBg}
-                trainingSearch={trainingSearch}
-                setTrainingSearch={setTrainingSearch}
-                trainingScheduleFilter={trainingScheduleFilter}
-                setTrainingScheduleFilter={setTrainingScheduleFilter}
-                trainingMaterialFilter={trainingMaterialFilter}
-                setTrainingMaterialFilter={setTrainingMaterialFilter}
-                trainingCourseFilter={trainingCourseFilter}
-                setTrainingCourseFilter={setTrainingCourseFilter}
-                trainingStartDateFilter={trainingStartDateFilter}
-                setTrainingStartDateFilter={setTrainingStartDateFilter}
-                trainingCourseOptions={trainingCourseOptions}
-                renderColumnMenu={renderColumnMenu}
-                trainingFollowupColumnOptions={trainingFollowupColumnOptions}
-                trainingSortAsc={trainingSortAsc}
-                setTrainingSortAsc={setTrainingSortAsc}
-                trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
-                tesbinnFollowups={tesbinnFollowups}
-                isMobile={isMobile}
-                isCustomerSuccessManager={isCustomerSuccessManager}
-                handleExportTesbinn={handleExportTesbinn}
-                handleCsvImport={handleTesbinnCsvImport}
-                isCsvImportingTesbinn={isCsvImportingTesbinn}
-              />
-            </TabPanel>
-            <TabPanel px={0}>
-              <Card bg={cardBg} boxShadow="md" borderRadius="lg">
-                <CardBody>
-                  <VStack spacing={4} align="stretch">
-                    <Flex justify="space-between" align="center">
-                      <Heading size="md" color={headerBg}>
-                        ENSRA Follow-Up
-                      </Heading>
-                      <HStack spacing={2}>
-                        {renderColumnMenu("ensra", ensraColumnOptions)}
-                        <Tooltip label="Add ENSRA customer">
-                          <IconButton
-                            aria-label="Add ENSRA customer"
-                            icon={<AddIcon />}
-                            colorScheme="teal"
-                            size="sm"
-                            onClick={() => setShowEnsraFormCard(true)}
-                          />
-                        </Tooltip>
-                      </HStack>
-                    </Flex>
-
-                    {/* ENSRA search / filter / sort controls */}
-                    <Flex direction={isMobile ? "column" : "row"} gap={3} align="center">
-                      <Box flex={1} width="100%">
-                        <Input
-                          placeholder="Search by company or job seeker name..."
-                          value={ensraSearch}
-                          onChange={(e) => setEnsraSearch(e.target.value)}
-                          size="sm"
-                          borderRadius="md"
-                          borderColor={borderColor}
-                        />
-                      </Box>
-                      <HStack spacing={3} width={isMobile ? "100%" : "auto"} justify={isMobile ? "space-between" : "flex-end"}>
-                        <Box minW="160px">
-                          <Input
-                            as="select"
-                            size="sm"
-                            value={ensraTypeFilter}
-                            onChange={(e) => setEnsraTypeFilter(e.target.value)}
-                          >
-                            <option value="all">All Types</option>
-                            <option value="company">Company</option>
-                            <option value="jobSeeker">Job Seeker</option>
-                          </Input>
-                        </Box>
-                        <Button
-                          size="sm"
-                          colorScheme="blue"
-                          variant="outline"
-                          onClick={() => setEnsraSortAsc((prev) => !prev)}
-                        >
-                          Sort {ensraSortAsc ? "A-Z" : "Z-A"}
-                        </Button>
-                      </HStack>
-                    </Flex>
-
-                    <TableContainer
-                      overflowX="auto"
-                      border="1px solid"
-                      borderColor={tableBorderColor}
-                      borderRadius="lg"
-                      bg={tableBg}
-                      boxShadow="sm"
-                    >
-                      <Table
-                        variant="striped"
-                        colorScheme="gray"
-                        size="sm"
-                        minWidth={isMobile ? "900px" : "auto"}
-                      >
-                        <Thead bg={headerBg}>
-                          <Tr>
-                            {ensraColumnsToRender.map((col) => (
-                              <CompactHeaderCell key={col.key}>{col.header}</CompactHeaderCell>
-                            ))}
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {filteredEnsraFollowups.length > 0 ? (
-                            filteredEnsraFollowups.map((item) => (
-                                <Tr key={item._id || item.id} _hover={{ bg: rowHoverBg }}>
-                                  {ensraColumnsToRender.map((col) => (
-                                    <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
-                                  ))}
-                                </Tr>
-                              ))
-                            ) : (
-                              <Tr>
-                                <Td colSpan={ensraColumnsToRender.length || 1} textAlign="center" py={10}>
-                                  <Text color="gray.500">
-                                    No ENSRA follow-up records found.
-                                  </Text>
-                                </Td>
-                              </Tr>
-                            )}
-                        </Tbody>
-                      </Table>
-                    </TableContainer>
-                    
-
-                    {showEnsraFormCard && (
-                      <>
-                        <Box
-                          position="fixed"
-                          top={0}
-                          left={0}
-                          right={0}
-                          bottom={0}
-                          bg="rgba(0,0,0,0.5)"
-                          zIndex={1000}
-                          onClick={() => setShowEnsraFormCard(false)}
-                        />
-                        <Card
-                          position="fixed"
-                          top="50%"
-                          left="50%"
-                          transform="translate(-50%, -50%)"
-                          zIndex={1001}
-                          width={isMobile ? "95%" : "600px"}
-                          bg={cardBg}
-                          boxShadow="xl"
-                        >
-                          <CardHeader pb={2}>
-                            <Flex justify="space-between" align="center">
-                              <Heading size="md">Add ENSRA Customer</Heading>
-                              <IconButton
-                                aria-label="Close"
-                                icon={<SmallCloseIcon />}
-                                size="sm"
-                                onClick={() => setShowEnsraFormCard(false)}
-                              />
-                            </Flex>
-                          </CardHeader>
-                          <CardBody>
-                            <Box as="form" onSubmit={handleEnsraSubmit}>
-                              <VStack spacing={4} align="stretch">
-                                <Box>
-                                  <Text mb={1} fontWeight="medium">
-                                    Registration Type
-                                  </Text>
-                                  <RadioGroup
-                                    value={ensraForm.type}
-                                    onChange={(value) =>
-                                      setEnsraForm((prev) => ({
-                                        ...prev,
-                                        type: value,
-                                      }))
-                                    }
-                                  >
-                                    <HStack spacing={4}>
-                                      <Radio value="company">Company - Looking to hire</Radio>
-                                      <Radio value="jobSeeker">Job Seeker - Managing opportunities</Radio>
-                                    </HStack>
-                                  </RadioGroup>
-                                </Box>
-
-                                {ensraForm.type === "company" && (
-                                  <>
-                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                      <Box flex={1}>
-                                        <Text mb={1} fontWeight="medium">
-                                          Package Type
-                                        </Text>
-                                        <Input
-                                          value={ensraForm.packageType}
-                                          onChange={(e) =>
-                                            setEnsraForm((prev) => ({
-                                              ...prev,
-                                              packageType: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="e.g., 1, 2, 3"
-                                        />
-                                      </Box>
-                                      <Box flex={1}>
-                                        <Text mb={1} fontWeight="medium">
-                                          Company Name
-                                        </Text>
-                                        <Input
-                                          value={ensraForm.companyName}
-                                          onChange={(e) =>
-                                            setEnsraForm((prev) => ({
-                                              ...prev,
-                                              companyName: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="Enter company name"
-                                        />
-                                      </Box>
-                                    </Stack>
-
-                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                      <Box flex={1}>
-                                        <Text mb={1} fontWeight="medium">
-                                          Positions Offered
-                                        </Text>
-                                        <Input
-                                          value={ensraForm.positionsOffered}
-                                          onChange={(e) =>
-                                            setEnsraForm((prev) => ({
-                                              ...prev,
-                                              positionsOffered: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="Comma-separated positions"
-                                        />
-                                      </Box>
-                                      <Box flex={1}>
-                                        <Text mb={1} fontWeight="medium">
-                                          Salary Range
-                                        </Text>
-                                        <Input
-                                          value={ensraForm.salaryRange}
-                                          onChange={(e) =>
-                                            setEnsraForm((prev) => ({
-                                              ...prev,
-                                              salaryRange: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="e.g., $50,000 - $80,000"
-                                        />
-                                      </Box>
-                                    </Stack>
-
-                                    <Box>
-                                      <Text mb={1} fontWeight="medium">
-                                        Job Requirements
-                                      </Text>
-                                      <Textarea
-                                        value={ensraForm.jobRequirements}
-                                        onChange={(e) =>
-                                          setEnsraForm((prev) => ({
-                                            ...prev,
-                                            jobRequirements: e.target.value,
-                                          }))
-                                        }
-                                        placeholder="Describe job requirements, qualifications, etc."
-                                        rows={4}
-                                      />
-                                    </Box>
-                                  </>
-                                )}
-
-                                {ensraForm.type === "jobSeeker" && (
-                                  <>
-                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                      <Box flex={1}>
-                                        <Text mb={1} fontWeight="medium">
-                                          Job Seeker Name
-                                        </Text>
-                                        <Input
-                                          value={ensraForm.jobSeekerName}
-                                          onChange={(e) =>
-                                            setEnsraForm((prev) => ({
-                                              ...prev,
-                                              jobSeekerName: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="Enter job seeker name"
-                                        />
-                                      </Box>
-                                      <Box flex={1}>
-                                        <Text mb={1} fontWeight="medium">
-                                          Skills
-                                        </Text>
-                                        <Input
-                                          value={ensraForm.jobSeekerSkills}
-                                          onChange={(e) =>
-                                            setEnsraForm((prev) => ({
-                                              ...prev,
-                                              jobSeekerSkills: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="Comma-separated skills"
-                                        />
-                                      </Box>
-                                    </Stack>
-
-                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                                      <Box flex={1}>
-                                        <Text mb={1} fontWeight="medium">
-                                          Experience
-                                        </Text>
-                                        <Input
-                                          value={ensraForm.jobSeekerExperience}
-                                          onChange={(e) =>
-                                            setEnsraForm((prev) => ({
-                                              ...prev,
-                                              jobSeekerExperience: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="e.g., 2 years"
-                                        />
-                                      </Box>
-                                      <Box flex={1}>
-                                        <Text mb={1} fontWeight="medium">
-                                          Education
-                                        </Text>
-                                        <Input
-                                          value={ensraForm.jobSeekerEducation}
-                                          onChange={(e) =>
-                                            setEnsraForm((prev) => ({
-                                              ...prev,
-                                              jobSeekerEducation: e.target.value,
-                                            }))
-                                          }
-                                          placeholder="e.g., Bachelor's Degree"
-                                        />
-                                      </Box>
-                                    </Stack>
-
-                                    <Box>
-                                      <Text mb={1} fontWeight="medium">
-                                        Expected Salary
-                                      </Text>
-                                      <Input
-                                        value={ensraForm.jobSeekerExpectedSalary}
-                                        onChange={(e) =>
-                                          setEnsraForm((prev) => ({
-                                            ...prev,
-                                            jobSeekerExpectedSalary: e.target.value,
-                                          }))
-                                        }
-                                        placeholder="e.g., $60,000"
-                                      />
-                                    </Box>
-                                  </>
-                                )}
-
-                                <Button
-                                  type="submit"
-                                  colorScheme="teal"
-                                  width="full"
-                                  isDisabled={
-                                    (ensraForm.type === "company" && !ensraForm.companyName) ||
-                                    (ensraForm.type === "jobSeeker" && !ensraForm.jobSeekerName)
-                                  }
-                                >
-                                  Register for ENSRA
-                                </Button>
-                              </VStack>
-                            </Box>
-                          </CardBody>
-                        </Card>
-                      </>
-                    )}
-                  </VStack>
-                </CardBody>
-              </Card>
-            </TabPanel>
+              </TabPanel>
+              <TabPanel px={0}>
+                <FollowupTabPage
+                  cardBg={cardBg}
+                  headerBg={headerBg}
+                  borderColor={borderColor}
+                  tableBorderColor={tableBorderColor}
+                  tableBg={tableBg}
+                  rowHoverBg={rowHoverBg}
+                  renderColumnMenu={renderColumnMenu}
+                  followupColumnOptions={followupColumnOptions}
+                  loading={loading}
+                  error={error}
+                  searchQuery={searchQuery}
+                  handleSearch={handleSearch}
+                  isMobile={isMobile}
+                  isMobileView={isMobileView}
+                  handleBackToCompanyList={handleBackToCompanyList}
+                  handleRowClick={handleRowClick}
+                  selectedRow={selectedRow}
+                  filteredData={internationalFollowups}
+                  followupColumnsToRender={buildFollowupColumnsToRender(internationalFollowups)}
+                  onRefresh={fetchData}
+                  onSelectRow={toggleSelectFollowup}
+                  onSelectAll={(checked) =>
+                    selectAllFiltered(internationalFollowups, checked)
+                  }
+                  selectedIds={selectedFollowupIds}
+                  onBulkEmail={openBulkEmail}
+                  onOpenConversation={openConversation}
+                />
+              </TabPanel>
+              <TabPanel px={0}>
+                <TrainingTabPage
+                  cardBg={cardBg}
+                  headerBg={headerBg}
+                  borderColor={borderColor}
+                  tableBorderColor={tableBorderColor}
+                  tableBg={tableBg}
+                  rowHoverBg={rowHoverBg}
+                  renderColumnMenu={renderColumnMenu}
+                  completedSalesColumnOptions={completedSalesColumnOptions}
+                  completedSalesColumnsToRender={completedSalesColumnsToRender}
+                  completedSales={completedSales}
+                  loadingTraining={loadingTraining}
+                  trainingError={trainingError}
+                  fetchCompletedSales={fetchCompletedSales}
+                  trainingPrograms={trainingPrograms}
+                  trainingForm={trainingForm}
+                  setTrainingForm={setTrainingForm}
+                  handleTrainingTypeChange={handleTrainingTypeChange}
+                  handlePaymentOptionChange={handlePaymentOptionChange}
+                  handleTrainingSubmit={handleTrainingSubmit}
+                  isMobile={isMobile}
+                />
+              </TabPanel>
+              <TabPanel px={0}>
+                <TrainingFollowupTabPage
+                  cardBg={cardBg}
+                  headerBg={headerBg}
+                  borderColor={borderColor}
+                  tableBorderColor={tableBorderColor}
+                  tableBg={tableBg}
+                  rowHoverBg={rowHoverBg}
+                  trainingSearch={trainingSearch}
+                  setTrainingSearch={setTrainingSearch}
+                  trainingProgressFilter={trainingProgressFilter}
+                  setTrainingProgressFilter={setTrainingProgressFilter}
+                  trainingScheduleFilter={trainingScheduleFilter}
+                  setTrainingScheduleFilter={setTrainingScheduleFilter}
+                  trainingMaterialFilter={trainingMaterialFilter}
+                  setTrainingMaterialFilter={setTrainingMaterialFilter}
+                  trainingCourseFilter={trainingCourseFilter}
+                  setTrainingCourseFilter={setTrainingCourseFilter}
+                  trainingStartDateFilter={trainingStartDateFilter}
+                  setTrainingStartDateFilter={setTrainingStartDateFilter}
+                  trainingCourseOptions={trainingCourseOptions}
+                  renderColumnMenu={renderColumnMenu}
+                  trainingFollowupColumnOptions={trainingFollowupColumnOptions}
+                  trainingSortAsc={trainingSortAsc}
+                  setTrainingSortAsc={setTrainingSortAsc}
+                  trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
+                  filteredTrainingFollowups={filteredTrainingFollowups}
+                  selectedTrainingFollowupCount={selectedTrainingFollowupIds.length}
+                  trainingBulkStartDate={trainingBulkStartDate}
+                  trainingBulkEndDate={trainingBulkEndDate}
+                  trainingBulkStartTime={trainingBulkStartTime}
+                  trainingBulkEndTime={trainingBulkEndTime}
+                  setTrainingBulkStartDate={setTrainingBulkStartDate}
+                  setTrainingBulkEndDate={setTrainingBulkEndDate}
+                  setTrainingBulkStartTime={setTrainingBulkStartTime}
+                  setTrainingBulkEndTime={setTrainingBulkEndTime}
+                  applyTrainingDates={handleApplyTrainingDates}
+                  isApplyingTrainingDates={isApplyingTrainingDates}
+                  assignableAgents={assignableAgents}
+                  trainingAgentOptions={trainingAgentOptions}
+                  selectedAgentForAssignment={selectedAgentForAssignment}
+                  setSelectedAgentForAssignment={setSelectedAgentForAssignment}
+                  trainingInstructorOptions={trainingInstructorOptions}
+                  selectedInstructorForAssignment={selectedInstructorForAssignment}
+                  setSelectedInstructorForAssignment={setSelectedInstructorForAssignment}
+                  isCustomerSuccessManager={isCustomerSuccessManager}
+                  isMobile={isMobile}
+                  tableMinWidth="900px"
+                  handleBulkUpdate={handleBulkUpdate}
+                >
+                  <TrainingFollowupGrouped
+                    groupedTrainingFollowups={groupedTrainingFollowups}
+                    cardBg={cardBg}
+                    borderColor={borderColor}
+                    headerBg={headerBg}
+                    isLargerThan1024={isLargerThan1024}
+                  />
+                </TrainingFollowupTabPage>
+              </TabPanel>
+              <TabPanel px={0}>
+                <TesbinnTabPage
+                  cardBg={cardBg}
+                  headerBg={headerBg}
+                  borderColor={borderColor}
+                  tableBorderColor={tableBorderColor}
+                  tableBg={tableBg}
+                  rowHoverBg={rowHoverBg}
+                  trainingSearch={trainingSearch}
+                  setTrainingSearch={setTrainingSearch}
+                  trainingScheduleFilter={trainingScheduleFilter}
+                  setTrainingScheduleFilter={setTrainingScheduleFilter}
+                  trainingMaterialFilter={trainingMaterialFilter}
+                  setTrainingMaterialFilter={setTrainingMaterialFilter}
+                  trainingCourseFilter={trainingCourseFilter}
+                  setTrainingCourseFilter={setTrainingCourseFilter}
+                  trainingStartDateFilter={trainingStartDateFilter}
+                  setTrainingStartDateFilter={setTrainingStartDateFilter}
+                  trainingCourseOptions={trainingCourseOptions}
+                  renderColumnMenu={renderColumnMenu}
+                  trainingFollowupColumnOptions={trainingFollowupColumnOptions}
+                  trainingSortAsc={trainingSortAsc}
+                  setTrainingSortAsc={setTrainingSortAsc}
+                  trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
+                  tesbinnFollowups={tesbinnFollowups}
+                  isMobile={isMobile}
+                  isCustomerSuccessManager={isCustomerSuccessManager}
+                  handleExportTesbinn={handleExportTesbinn}
+                  handleCsvImport={handleTesbinnCsvImport}
+                  isCsvImportingTesbinn={isCsvImportingTesbinn}
+                />
+              </TabPanel>
+              <TabPanel px={0}>
+                {ensraModule}
+              </TabPanel>
             </TabPanels>
           </Tabs>
         </Box>
@@ -3694,6 +3631,16 @@ useEffect(() => {
                   setPendingForm((prev) => ({ ...prev, packageType: e.target.value }))
                 }
               />
+              <Input
+                as="select"
+                value={pendingForm.packageScope}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, packageScope: e.target.value }))
+                }
+              >
+                <option value="Local">Local Package</option>
+                <option value="International">International Package</option>
+              </Input>
               <Textarea
                 placeholder="Products / Items of interest"
                 value={pendingForm.products}
