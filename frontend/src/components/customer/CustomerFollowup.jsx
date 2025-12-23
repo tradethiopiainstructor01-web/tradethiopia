@@ -92,7 +92,7 @@ import {
   fetchUsers,
 } from "../../services/api";
 
-const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }{ embedLayout = false, ensraOnly = false }) => {
+const CustomerFollowup = () => {
   const [data, setData] = useState([]);
   const [pendingB2BCustomers, setPendingB2BCustomers] = useState([]);
   const [completedSales, setCompletedSales] = useState([]);
@@ -697,10 +697,13 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }{ embedLayou
 
   const trainingPrograms = [
     { id: "International Trade Import Export", name: "International Trade Import Export", duration: "1 weeks", price: 6917 },
-    { id: "Stock marketing", name: "Stock marketing", duration: "16 weeks", price: 6917 },
+    { id: "Data Science", name: "Data Science", duration: "16 weeks", price: 2000 },
     { id: "Coffee Cupping", name: "Coffee Cupping", duration: "8 weeks", price: 29000 },
-    { id: "Barista", name: "Barista", duration: "8 weeks", price: 19900 },
-    { id: "Digital Marketing", name: "Digital Marketing", duration: "1 weeks", price: 6917 },
+    { id: "UI/UX Design", name: "UI/UX Design", duration: "8 weeks", price: 1000 },
+    { id: "Digital Marketing", name: "Digital Marketing", duration: "6 weeks", price: 800 },
+    { id: "Cybersecurity", name: "Cybersecurity", duration: "14 weeks", price: 1800 },
+    { id: "DevOps Engineering", name: "DevOps Engineering", duration: "18 weeks", price: 2200 },
+    { id: "Cloud Computing", name: "Cloud Computing", duration: "16 weeks", price: 2100 },
   ];
 
   const handleTrainingTypeChange = (value) => {
@@ -3284,570 +3287,1115 @@ useEffect(() => {
                       </HStack>
                     </Flex>
 
-          <Flex direction={isMobile ? "column" : "row"} gap={3} align="center">
-            <Box flex={1} width="100%">
+                    {/* ENSRA search / filter / sort controls */}
+                    <Flex direction={isMobile ? "column" : "row"} gap={3} align="center">
+                      <Box flex={1} width="100%">
+                        <Input
+                          placeholder="Search by company or job seeker name..."
+                          value={ensraSearch}
+                          onChange={(e) => setEnsraSearch(e.target.value)}
+                          size="sm"
+                          borderRadius="md"
+                          borderColor={borderColor}
+                        />
+                      </Box>
+                      <HStack spacing={3} width={isMobile ? "100%" : "auto"} justify={isMobile ? "space-between" : "flex-end"}>
+                        <Box minW="160px">
+                          <Input
+                            as="select"
+                            size="sm"
+                            value={ensraTypeFilter}
+                            onChange={(e) => setEnsraTypeFilter(e.target.value)}
+                          >
+                            <option value="all">All Types</option>
+                            <option value="company">Company</option>
+                            <option value="jobSeeker">Job Seeker</option>
+                          </Input>
+                        </Box>
+                        <Button
+                          size="sm"
+                          colorScheme="blue"
+                          variant="outline"
+                          onClick={() => setEnsraSortAsc((prev) => !prev)}
+                        >
+                          Sort {ensraSortAsc ? "A-Z" : "Z-A"}
+                        </Button>
+                      </HStack>
+                    </Flex>
+
+                    <TableContainer
+                      overflowX="auto"
+                      border="1px solid"
+                      borderColor={tableBorderColor}
+                      borderRadius="lg"
+                      bg={tableBg}
+                      boxShadow="sm"
+                    >
+                      <Table
+                        variant="striped"
+                        colorScheme="gray"
+                        size="sm"
+                        minWidth={isMobile ? "900px" : "auto"}
+                      >
+                        <Thead bg={headerBg}>
+                          <Tr>
+                            {ensraColumnsToRender.map((col) => (
+                              <CompactHeaderCell key={col.key}>{col.header}</CompactHeaderCell>
+                            ))}
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {filteredEnsraFollowups.length > 0 ? (
+                            filteredEnsraFollowups.map((item) => (
+                                <Tr key={item._id || item.id} _hover={{ bg: rowHoverBg }}>
+                                  {ensraColumnsToRender.map((col) => (
+                                    <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
+                                  ))}
+                                </Tr>
+                              ))
+                            ) : (
+                              <Tr>
+                                <Td colSpan={ensraColumnsToRender.length || 1} textAlign="center" py={10}>
+                                  <Text color="gray.500">
+                                    No ENSRA follow-up records found.
+                                  </Text>
+                                </Td>
+                              </Tr>
+                            )}
+                        </Tbody>
+                      </Table>
+                    </TableContainer>
+                    
+
+                    {showEnsraFormCard && (
+                      <>
+                        <Box
+                          position="fixed"
+                          top={0}
+                          left={0}
+                          right={0}
+                          bottom={0}
+                          bg="rgba(0,0,0,0.5)"
+                          zIndex={1000}
+                          onClick={() => setShowEnsraFormCard(false)}
+                        />
+                        <Card
+                          position="fixed"
+                          top="50%"
+                          left="50%"
+                          transform="translate(-50%, -50%)"
+                          zIndex={1001}
+                          width={isMobile ? "95%" : "600px"}
+                          bg={cardBg}
+                          boxShadow="xl"
+                        >
+                          <CardHeader pb={2}>
+                            <Flex justify="space-between" align="center">
+                              <Heading size="md">Add ENSRA Customer</Heading>
+                              <IconButton
+                                aria-label="Close"
+                                icon={<SmallCloseIcon />}
+                                size="sm"
+                                onClick={() => setShowEnsraFormCard(false)}
+                              />
+                            </Flex>
+                          </CardHeader>
+                          <CardBody>
+                            <Box as="form" onSubmit={handleEnsraSubmit}>
+                              <VStack spacing={4} align="stretch">
+                                <Box>
+                                  <Text mb={1} fontWeight="medium">
+                                    Registration Type
+                                  </Text>
+                                  <RadioGroup
+                                    value={ensraForm.type}
+                                    onChange={(value) =>
+                                      setEnsraForm((prev) => ({
+                                        ...prev,
+                                        type: value,
+                                      }))
+                                    }
+                                  >
+                                    <HStack spacing={4}>
+                                      <Radio value="company">Company - Looking to hire</Radio>
+                                      <Radio value="jobSeeker">Job Seeker - Managing opportunities</Radio>
+                                    </HStack>
+                                  </RadioGroup>
+                                </Box>
+
+                                {ensraForm.type === "company" && (
+                                  <>
+                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Package Type
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.packageType}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              packageType: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="e.g., 1, 2, 3"
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Company Name
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.companyName}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              companyName: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="Enter company name"
+                                        />
+                                      </Box>
+                                    </Stack>
+
+                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Positions Offered
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.positionsOffered}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              positionsOffered: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="Comma-separated positions"
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Salary Range
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.salaryRange}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              salaryRange: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="e.g., $50,000 - $80,000"
+                                        />
+                                      </Box>
+                                    </Stack>
+
+                                    <Box>
+                                      <Text mb={1} fontWeight="medium">
+                                        Job Requirements
+                                      </Text>
+                                      <Textarea
+                                        value={ensraForm.jobRequirements}
+                                        onChange={(e) =>
+                                          setEnsraForm((prev) => ({
+                                            ...prev,
+                                            jobRequirements: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="Describe job requirements, qualifications, etc."
+                                        rows={4}
+                                      />
+                                    </Box>
+                                  </>
+                                )}
+
+                                {ensraForm.type === "jobSeeker" && (
+                                  <>
+                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Job Seeker Name
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.jobSeekerName}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              jobSeekerName: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="Enter job seeker name"
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Skills
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.jobSeekerSkills}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              jobSeekerSkills: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="Comma-separated skills"
+                                        />
+                                      </Box>
+                                    </Stack>
+
+                                    <Stack direction={isMobile ? "column" : "row"} spacing={4}>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Experience
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.jobSeekerExperience}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              jobSeekerExperience: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="e.g., 2 years"
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text mb={1} fontWeight="medium">
+                                          Education
+                                        </Text>
+                                        <Input
+                                          value={ensraForm.jobSeekerEducation}
+                                          onChange={(e) =>
+                                            setEnsraForm((prev) => ({
+                                              ...prev,
+                                              jobSeekerEducation: e.target.value,
+                                            }))
+                                          }
+                                          placeholder="e.g., Bachelor's Degree"
+                                        />
+                                      </Box>
+                                    </Stack>
+
+                                    <Box>
+                                      <Text mb={1} fontWeight="medium">
+                                        Expected Salary
+                                      </Text>
+                                      <Input
+                                        value={ensraForm.jobSeekerExpectedSalary}
+                                        onChange={(e) =>
+                                          setEnsraForm((prev) => ({
+                                            ...prev,
+                                            jobSeekerExpectedSalary: e.target.value,
+                                          }))
+                                        }
+                                        placeholder="e.g., $60,000"
+                                      />
+                                    </Box>
+                                  </>
+                                )}
+
+                                <Button
+                                  type="submit"
+                                  colorScheme="teal"
+                                  width="full"
+                                  isDisabled={
+                                    (ensraForm.type === "company" && !ensraForm.companyName) ||
+                                    (ensraForm.type === "jobSeeker" && !ensraForm.jobSeekerName)
+                                  }
+                                >
+                                  Register for ENSRA
+                                </Button>
+                              </VStack>
+                            </Box>
+                          </CardBody>
+                        </Card>
+                      </>
+                    )}
+                  </VStack>
+                </CardBody>
+              </Card>
+            </TabPanel>
+            </TabPanels>
+          </Tabs>
+        </Box>
+      </VStack>
+
+      {/* Add Pending B2B Modal */}
+      <Modal isOpen={isAddPendingOpen} onClose={closeAddPendingModal} size="lg">
+        <ModalOverlay />
+        <ModalContent as="form" onSubmit={handleAddPendingSubmit}>
+          <ModalHeader>Add Pending B2B Customer</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={3} align="stretch">
               <Input
-                placeholder="Search by company or job seeker name..."
-                value={ensraSearch}
-                onChange={(e) => setEnsraSearch(e.target.value)}
-                size="sm"
-                borderRadius="md"
-                borderColor={borderColor}
+                as="select"
+                value={pendingForm.type}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, type: e.target.value }))
+                }
+              >
+                <option value="buyer">Buyer</option>
+                <option value="seller">Seller</option>
+              </Input>
+              <Input
+                placeholder="Company Name"
+                value={pendingForm.companyName}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, companyName: e.target.value }))
+                }
+                isRequired
               />
-            </Box>
-            <HStack spacing={3} width={isMobile ? "100%" : "auto"} justify={isMobile ? "space-between" : "flex-end"}>
-              <Box minW="160px">
+              <Input
+                placeholder="Contact Person"
+                value={pendingForm.contactPerson}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, contactPerson: e.target.value }))
+                }
+                isRequired
+              />
+              <Input
+                type="email"
+                placeholder="Email"
+                value={pendingForm.email}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, email: e.target.value }))
+                }
+                isRequired
+              />
+              <Input
+                placeholder="Phone Number"
+                value={pendingForm.phoneNumber}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, phoneNumber: e.target.value }))
+                }
+                isRequired
+              />
+              <Input
+                placeholder="Country"
+                value={pendingForm.country}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, country: e.target.value }))
+                }
+              />
+              <Input
+                placeholder="Industry"
+                value={pendingForm.industry}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, industry: e.target.value }))
+                }
+              />
+              <Input
+                placeholder="Package Type"
+                value={pendingForm.packageType}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, packageType: e.target.value }))
+                }
+              />
+              <Textarea
+                placeholder="Products / Items of interest"
+                value={pendingForm.products}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, products: e.target.value }))
+                }
+              />
+              <Textarea
+                placeholder={pendingForm.type === "buyer" ? "Requirements" : "Certifications"}
+                value={pendingForm.notes}
+                onChange={(e) =>
+                  setPendingForm((prev) => ({ ...prev, notes: e.target.value }))
+                }
+              />
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button mr={3} onClick={closeAddPendingModal}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              colorScheme="teal"
+              isLoading={isSavingPending}
+              isDisabled={
+                !pendingForm.companyName ||
+                !pendingForm.contactPerson ||
+                !pendingForm.email ||
+                !pendingForm.phoneNumber
+              }
+            >
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Drawer for EditCustomerInfo */}
+      <Drawer isOpen={isEditOpen} placement="right" onClose={onEditClose} size="md">
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <DrawerHeader>Edit Customer</DrawerHeader>
+          <DrawerBody>
+            {selectedClient && (
+              <EditCustomerInfo 
+                customer={selectedClient} 
+                onSuccess={() => { 
+                  fetchData(); 
+                  onEditClose(); 
+                }} 
+              />
+            )}
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Training Edit Modal */}
+      <Modal isOpen={isTrainingEditOpen} onClose={() => setIsTrainingEditOpen(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit Training Follow-Up</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {trainingEditData && (
+              <VStack spacing={3} align="stretch">
+                <Input
+                  placeholder="Agent Name"
+                  value={trainingEditData.agentName || ""}
+                  onChange={(e) => handleTrainingEditChange("agentName", e.target.value)}
+                />
+                <Input
+                  placeholder="Customer Name"
+                  value={trainingEditData.customerName || ""}
+                  onChange={(e) => handleTrainingEditChange("customerName", e.target.value)}
+                />
+                <Input
+                  placeholder="Email"
+                  value={trainingEditData.email || ""}
+                  onChange={(e) => handleTrainingEditChange("email", e.target.value)}
+                />
+                <Input
+                  placeholder="Phone Number"
+                  value={trainingEditData.phoneNumber || ""}
+                  onChange={(e) => handleTrainingEditChange("phoneNumber", e.target.value)}
+                />
+                <Input
+                  placeholder="Course"
+                  value={trainingEditData.trainingType || ""}
+                  onChange={(e) => handleTrainingEditChange("trainingType", e.target.value)}
+                />
+                <Input
+                  type="date"
+                  placeholder="Start Date"
+                  value={trainingEditData.startDate ? trainingEditData.startDate.slice(0, 10) : ""}
+                  onChange={(e) => handleTrainingEditChange("startDate", e.target.value)}
+                />
+                <Input
+                  type="date"
+                  placeholder="End Date"
+                  value={trainingEditData.endDate ? trainingEditData.endDate.slice(0, 10) : ""}
+                  onChange={(e) => handleTrainingEditChange("endDate", e.target.value)}
+                />
+                <Input
+                  type="time"
+                  placeholder="Start Time"
+                  value={trainingEditData.startTime || ""}
+                  onChange={(e) => handleTrainingEditChange("startTime", e.target.value)}
+                />
+                <Input
+                  type="time"
+                  placeholder="End Time"
+                  value={trainingEditData.endTime || ""}
+                  onChange={(e) => handleTrainingEditChange("endTime", e.target.value)}
+                />
                 <Input
                   as="select"
-                  size="sm"
-                  value={ensraTypeFilter}
-                  onChange={(e) => setEnsraTypeFilter(e.target.value)}
+                  value={trainingEditData.scheduleShift || ""}
+                  onChange={(e) => handleTrainingEditChange("scheduleShift", e.target.value)}
                 >
-                  <option value="all">All Types</option>
+                  <option value="">Select schedule</option>
+                  <option value="Regular">Regular</option>
+                  <option value="Night">Night</option>
+                  <option value="Weekend">Weekend</option>
+                  <option value="Night/Weekend">Night/Weekend</option>
+                </Input>
+                <Input
+                  as="select"
+                  value={trainingEditData.materialStatus || ""}
+                  onChange={(e) => handleTrainingEditChange("materialStatus", e.target.value)}
+                >
+                  <option value="">Select material status</option>
+                  <option value="Not Delivered">Not Delivered</option>
+                  <option value="Delivered">Delivered</option>
+                </Input>
+                <Input
+                  as="select"
+                  value={trainingEditData.progress || ""}
+                  onChange={(e) => handleTrainingEditChange("progress", e.target.value)}
+                >
+                  <option value="">Select progress</option>
+                  <option value="Not Started">Not Started</option>
+                  <option value="Started">Started</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Dropped">Dropped</option>
+                </Input>
+                <Input
+                  placeholder="ID Info"
+                  value={trainingEditData.idInfo || ""}
+                  onChange={(e) => handleTrainingEditChange("idInfo", e.target.value)}
+                />
+                <Input
+                  as="select"
+                  value={trainingEditData.packageStatus || ""}
+                  onChange={(e) => handleTrainingEditChange("packageStatus", e.target.value)}
+                >
+                  <option value="">Select package status</option>
+                  <option value="Interested">Interested</option>
+                  <option value="Not Interested">Not Interested</option>
+                  <option value="Not Sure">Not Sure</option>
+                </Input>
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button mr={3} onClick={() => setIsTrainingEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button colorScheme="teal" onClick={saveTrainingEdit}>
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* ENSRA Edit Modal */}
+      <Modal isOpen={isEnsraEditOpen} onClose={() => setIsEnsraEditOpen(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit ENSRA Follow-Up</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {ensraEditData && (
+              <VStack spacing={3} align="stretch">
+                <Input
+                  as="select"
+                  value={ensraEditData.type || ""}
+                  onChange={(e) => handleEnsraEditChange("type", e.target.value)}
+                >
                   <option value="company">Company</option>
                   <option value="jobSeeker">Job Seeker</option>
                 </Input>
-              </Box>
-              <Button
-                size="sm"
-                colorScheme="blue"
-                variant="outline"
-                onClick={() => setEnsraSortAsc((prev) => !prev)}
-              >
-                Sort {ensraSortAsc ? "A-Z" : "Z-A"}
-              </Button>
-            </HStack>
-          </Flex>
+                <Input
+                  placeholder="Package Type"
+                  value={ensraEditData.packageType || ""}
+                  onChange={(e) => handleEnsraEditChange("packageType", e.target.value)}
+                />
+                <Input
+                  placeholder="Company Name"
+                  value={ensraEditData.companyName || ""}
+                  onChange={(e) => handleEnsraEditChange("companyName", e.target.value)}
+                />
+                <Input
+                  placeholder="Positions Offered (comma separated)"
+                  value={
+                    Array.isArray(ensraEditData.positionsOffered)
+                      ? ensraEditData.positionsOffered.join(", ")
+                      : ensraEditData.positionsOffered || ""
+                  }
+                  onChange={(e) => handleEnsraEditChange("positionsOffered", e.target.value)}
+                />
+                <Input
+                  placeholder="Salary Range"
+                  value={ensraEditData.salaryRange || ""}
+                  onChange={(e) => handleEnsraEditChange("salaryRange", e.target.value)}
+                />
+                <Textarea
+                  placeholder="Job Requirements"
+                  value={ensraEditData.jobRequirements || ""}
+                  onChange={(e) => handleEnsraEditChange("jobRequirements", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Name"
+                  value={ensraEditData.jobSeekerName || ""}
+                  onChange={(e) => handleEnsraEditChange("jobSeekerName", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Skills (comma separated)"
+                  value={
+                    Array.isArray(ensraEditData.jobSeekerSkills)
+                      ? ensraEditData.jobSeekerSkills.join(", ")
+                      : ensraEditData.jobSeekerSkills || ""
+                  }
+                  onChange={(e) => handleEnsraEditChange("jobSeekerSkills", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Experience"
+                  value={ensraEditData.jobSeekerExperience || ""}
+                  onChange={(e) => handleEnsraEditChange("jobSeekerExperience", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Education"
+                  value={ensraEditData.jobSeekerEducation || ""}
+                  onChange={(e) => handleEnsraEditChange("jobSeekerEducation", e.target.value)}
+                />
+                <Input
+                  placeholder="Job Seeker Expected Salary"
+                  value={ensraEditData.jobSeekerExpectedSalary || ""}
+                  onChange={(e) => handleEnsraEditChange("jobSeekerExpectedSalary", e.target.value)}
+                />
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button mr={3} onClick={() => setIsEnsraEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button colorScheme="teal" onClick={saveEnsraEdit}>
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
-          <TableContainer
-            overflowX="auto"
-            border="1px solid"
-            borderColor={tableBorderColor}
-            borderRadius="lg"
-            bg={tableBg}
-            boxShadow="sm"
-          >
-            <Table
-              variant="striped"
-              colorScheme="gray"
-              size="sm"
-              minWidth={isMobile ? "900px" : "auto"}
-            >
-              <Thead bg={headerBg}>
-                <Tr>
-                  {ensraColumnsToRender.map((col) => (
-                    <CompactHeaderCell key={col.key}>{col.header}</CompactHeaderCell>
-                  ))}
-                </Tr>
-              </Thead>
-              <Tbody>
-                {filteredEnsraFollowups.length > 0 ? (
-                  filteredEnsraFollowups.map((item) => (
-                    <Tr key={item._id || item.id} _hover={{ bg: rowHoverBg }}>
-                      {ensraColumnsToRender.map((col) => (
-                        <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
-                      ))}
-                    </Tr>
-                  ))
-                ) : (
-                  <Tr>
-                    <Td colSpan={ensraColumnsToRender.length || 1} textAlign="center" py={10}>
-                      <Text color="gray.500">
-                        No ENSRA follow-up records found.
-                      </Text>
-                    </Td>
-                  </Tr>
-                )}
-              </Tbody>
-            </Table>
-          </TableContainer>
-
-          {showEnsraFormCard && (
-            <>
-              <Box
-                position="fixed"
-                top={0}
-                left={0}
-                right={0}
-                bottom={0}
-                bg="rgba(0,0,0,0.5)"
-                zIndex={1000}
-                onClick={() => setShowEnsraFormCard(false)}
-              />
-              <Card
-                position="fixed"
-                top="50%"
-                left="50%"
-                transform="translate(-50%, -50%)"
-                zIndex={1001}
-                width={isMobile ? "95%" : "600px"}
-                bg={cardBg}
-                boxShadow="xl"
-              >
-                <CardHeader pb={2}>
-                  <Flex justify="space-between" align="center">
-                    <Heading size="md">Add ENSRA Customer</Heading>
-                    <IconButton
-                      aria-label="Close"
-                      icon={<SmallCloseIcon />}
+      {/* Activity & Notes Modal */}
+      <Modal isOpen={isActivityModalOpen} onClose={() => setIsActivityModalOpen(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            {activityTarget ? `Activity for ${activityTarget.clientName}` : "Activity"}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {activityTarget && (
+              <VStack spacing={4} align="stretch">
+                <HStack justify="space-between">
+                  <Text fontWeight="bold">Priority</Text>
+                  <HStack>
+                    <Input
+                      as="select"
                       size="sm"
-                      onClick={() => setShowEnsraFormCard(false)}
-                    />
-                  </Flex>
-                </CardHeader>
-                <CardBody>
-                  <Box as="form" onSubmit={handleEnsraSubmit}>
-                    <VStack spacing={4} align="stretch">
-                      <Box>
-                        <Text mb={1} fontWeight="medium">
-                          Registration Type
+                      value={activityPriority}
+                      onChange={(e) => setActivityPriority(e.target.value)}
+                    >
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </Input>
+                    <Button size="sm" colorScheme="teal" onClick={handleSavePriority}>
+                      Save
+                    </Button>
+                  </HStack>
+                </HStack>
+
+                <HStack spacing={3} justify="space-between" align="center">
+                  <Text fontWeight="bold">Contact Attempts</Text>
+                  <HStack spacing={2}>
+                    <Button size="xs" onClick={() => handleIncrementAttempt("call")}>Call Attempt</Button>
+                    <Button size="xs" onClick={() => handleIncrementAttempt("message")}>Message Attempt</Button>
+                    <Button size="xs" onClick={() => handleIncrementAttempt("email")}>Email Attempt</Button>
+                  </HStack>
+                </HStack>
+                <HStack spacing={4}>
+                  <Badge colorScheme="blue">Calls: {activityTarget.call_count || 0}</Badge>
+                  <Badge colorScheme="purple">Messages: {activityTarget.message_count || 0}</Badge>
+                  <Badge colorScheme="green">Emails: {activityTarget.email_count || 0}</Badge>
+                </HStack>
+
+                <VStack align="stretch" spacing={2}>
+                  <Text fontWeight="bold">Communication Channel</Text>
+                  <HStack>
+                    <Input
+                      as="select"
+                      value={activityChannel}
+                      onChange={(e) => setActivityChannel(e.target.value)}
+                    >
+                      <option value="">Select channel</option>
+                      <option value="Phone call">Phone call</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Telegram">Telegram</option>
+                      <option value="Email">Email</option>
+                      <option value="In-person visit">In-person visit</option>
+                    </Input>
+                    <Button size="sm" colorScheme="teal" onClick={handleAddCommunication} isDisabled={!activityChannel}>
+                      Log Channel
+                    </Button>
+                  </HStack>
+                </VStack>
+
+                <VStack align="stretch" spacing={2}>
+                  <Text fontWeight="bold">Private Note</Text>
+                  <Textarea
+                    placeholder="Add a private note"
+                    value={activityNote}
+                    onChange={(e) => setActivityNote(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    colorScheme="blue"
+                    onClick={() => {
+                      setNote(activityNote);
+                      setSelectedClient(activityTarget);
+                      handleAddNote();
+                      setActivityNote("");
+                    }}
+                    isDisabled={!activityNote.trim()}
+                  >
+                    Save Note
+                  </Button>
+                </VStack>
+
+                <VStack align="stretch" spacing={2}>
+                  <Text fontWeight="bold">Notes</Text>
+                  <VStack align="stretch" spacing={1} maxH="200px" overflowY="auto" border="1px solid" borderColor={borderColor} p={2} borderRadius="md">
+                    {(activityTarget.notes || []).length === 0 && (
+                      <Text color="gray.500">No notes yet.</Text>
+                    )}
+                    {(activityTarget.notes || []).map((n, idx) => (
+                      <Box key={idx} p={2} bg={useColorModeValue("gray.50", "gray.700")} borderRadius="sm">
+                        <Text fontSize="sm">{n.text}</Text>
+                        <Text fontSize="xs" color="gray.500">
+                          {n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}
                         </Text>
-                        <RadioGroup
-                          value={ensraForm.type}
-                          onChange={(value) =>
-                            setEnsraForm((prev) => ({
-                              ...prev,
-                              type: value,
-                            }))
-                          }
-                        >
-                          <HStack spacing={4}>
-                            <Radio value="company">Company - Looking to hire</Radio>
-                            <Radio value="jobSeeker">Job Seeker - Managing opportunities</Radio>
-                          </HStack>
-                        </RadioGroup>
                       </Box>
+                    ))}
+                  </VStack>
+                </VStack>
 
-                      {ensraForm.type === "company" && (
-                        <>
-                          <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                            <Box flex={1}>
-                              <Text mb={1} fontWeight="medium">
-                                Package Type
-                              </Text>
-                              <Input
-                                value={ensraForm.packageType}
-                                onChange={(e) =>
-                                  setEnsraForm((prev) => ({
-                                    ...prev,
-                                    packageType: e.target.value,
-                                  }))
-                                }
-                                placeholder="e.g., 1, 2, 3"
-                              />
-                            </Box>
-                            <Box flex={1}>
-                              <Text mb={1} fontWeight="medium">
-                                Company Name
-                              </Text>
-                              <Input
-                                value={ensraForm.companyName}
-                                onChange={(e) =>
-                                  setEnsraForm((prev) => ({
-                                    ...prev,
-                                    companyName: e.target.value,
-                                  }))
-                                }
-                                placeholder="Enter company name"
-                              />
-                            </Box>
-                          </Stack>
+                <VStack align="stretch" spacing={2}>
+                  <Text fontWeight="bold">Communication Logs</Text>
+                  <VStack align="stretch" spacing={1} maxH="200px" overflowY="auto" border="1px solid" borderColor={borderColor} p={2} borderRadius="md">
+                    {((activityTarget.communicationLogs || activityTarget.communications || []).length === 0) && (
+                      <Text color="gray.500">No communications logged.</Text>
+                    )}
+                    {(activityTarget.communicationLogs || activityTarget.communications || []).map((c, idx) => (
+                      <Box key={idx} p={2} bg={useColorModeValue("gray.50", "gray.700")} borderRadius="sm">
+                        <Text fontWeight="semibold" fontSize="sm">{c.channel}</Text>
+                        {c.note && <Text fontSize="sm">{c.note}</Text>}
+                        <Text fontSize="xs" color="gray.500">
+                          {c.createdAt ? new Date(c.createdAt).toLocaleString() : ""}
+                        </Text>
+                      </Box>
+                    ))}
+                  </VStack>
+                </VStack>
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={() => setIsActivityModalOpen(false)}>Close</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
-                          <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                            <Box flex={1}>
-                              <Text mb={1} fontWeight="medium">
-                                Positions Offered
-                              </Text>
-                              <Input
-                                value={ensraForm.positionsOffered}
-                                onChange={(e) =>
-                                  setEnsraForm((prev) => ({
-                                    ...prev,
-                                    positionsOffered: e.target.value,
-                                  }))
-                                }
-                                placeholder="Comma-separated positions"
-                              />
-                            </Box>
-                            <Box flex={1}>
-                              <Text mb={1} fontWeight="medium">
-                                Salary Range
-                              </Text>
-                              <Input
-                                value={ensraForm.salaryRange}
-                                onChange={(e) =>
-                                  setEnsraForm((prev) => ({
-                                    ...prev,
-                                    salaryRange: e.target.value,
-                                  }))
-                                }
-                                placeholder="e.g., $50,000 - $80,000"
-                              />
-                            </Box>
-                          </Stack>
+      {/* Bulk Email Modal */}
+      <Modal isOpen={isBulkEmailOpen} onClose={() => setIsBulkEmailOpen(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Send Bulk Email</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={3} align="stretch">
+              <Text fontWeight="medium">From: {currentUserEmail || "Configured SMTP user"} | To: {selectedFollowupIds.length} selected customers</Text>
+              <Input
+                placeholder="Subject"
+                value={bulkSubject}
+                onChange={(e) => setBulkSubject(e.target.value)}
+              />
+              <Textarea
+                placeholder="Body (use {{clientName}} placeholder)"
+                rows={6}
+                value={bulkBody}
+                onChange={(e) => setBulkBody(e.target.value)}
+              />
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button mr={3} onClick={() => setIsBulkEmailOpen(false)}>
+              Cancel
+            </Button>
+            <Button colorScheme="teal" onClick={handleBulkEmailSend} isLoading={isBulkSending}>
+              Send
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
-                          <Box>
-                            <Text mb={1} fontWeight="medium">
-                              Job Requirements
-                            </Text>
-                            <Textarea
-                              value={ensraForm.jobRequirements}
-                              onChange={(e) =>
-                                setEnsraForm((prev) => ({
-                                  ...prev,
-                                  jobRequirements: e.target.value,
-                                }))
-                              }
-                              placeholder="Describe job requirements, qualifications, etc."
-                              rows={4}
-                            />
-                          </Box>
-                        </>
+      {/* Conversation Modal */}
+      <Modal isOpen={conversationOpen} onClose={() => setConversationOpen(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            Conversation {conversationTarget ? `with ${conversationTarget.clientName}` : ""}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {conversationLoading ? (
+              <Flex justify="center" py={4}>
+                <Spinner />
+              </Flex>
+            ) : (
+              <VStack align="stretch" spacing={2} maxH="400px" overflowY="auto">
+                {conversationMessages.length === 0 && (
+                  <Text color="gray.500">No messages yet.</Text>
+                )}
+                {conversationMessages.map((m, idx) => (
+                  <Box key={idx} p={2} borderWidth="1px" borderRadius="md">
+                    <HStack justify="space-between">
+                      <Text fontWeight="bold" fontSize="sm">{m.sender || "Agent"}</Text>
+                      <Text fontSize="xs" color="gray.500">
+                        {m.createdAt ? new Date(m.createdAt).toLocaleString() : ""}
+                      </Text>
+                    </HStack>
+                    <Text fontSize="sm" whiteSpace="pre-wrap">{m.body}</Text>
+                  </Box>
+                ))}
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <VStack align="stretch" spacing={2} width="100%">
+              <Textarea
+                placeholder="Type a message"
+                value={conversationText}
+                onChange={(e) => setConversationText(e.target.value)}
+                rows={3}
+              />
+              <Button colorScheme="teal" onClick={sendConversationMessage} isDisabled={!conversationText.trim()}>
+                Send
+              </Button>
+            </VStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Notes Modal */}
+      <Modal isOpen={isNotesModalOpen} onClose={closeNotesModal}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Add Note</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Textarea
+              placeholder="Enter your note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={4}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="teal" onClick={handleAddNote}>
+              Add Note
+            </Button>
+            <Button colorScheme="red" onClick={closeNotesModal} ml={3}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+    
+
+      {/* Update card for services */}
+      {showUpdateCard && (
+        <>
+          <Box 
+            position="fixed" 
+            top={0} 
+            left={0} 
+            right={0} 
+            bottom={0} 
+            bg="rgba(0,0,0,0.5)" 
+            zIndex={1000}
+            onClick={() => setShowUpdateCard(false)}
+          />
+          <Card 
+            position="fixed" 
+            top="50%" 
+            left="50%" 
+            transform="translate(-50%, -50%)" 
+            zIndex={1001}
+            width={isMobile ? "95%" : "520px"}
+            bg={cardBg}
+            boxShadow="2xl"
+            border="1px solid"
+            borderColor={borderColor}
+            borderRadius="lg"
+          >
+            <CardHeader pb={2}>
+              <Flex justify="space-between" align="center">
+                <Heading size="md">Update Services</Heading>
+                <IconButton
+                  aria-label="Close"
+                  icon={<SmallCloseIcon />}
+                  size="sm"
+                  onClick={() => {
+                    setShowUpdateCard(false);
+                    setSelectedClient(null);
+                  }}
+                />
+              </Flex>
+            </CardHeader>
+            <CardBody>
+              <VStack spacing={4} align="stretch">
+                <Box>
+                  <Text fontWeight="bold" fontSize="lg">
+                    {selectedClient.clientName}
+                  </Text>
+                  <Text fontSize="sm" color="gray.500">
+                    Package #: {selectedClient.packageNumber || selectedClient.packageType || "N/A"}
+                  </Text>
+                  <Text fontSize="xs" color="gray.400" mt={1}>
+                    Toggle services to move them between Provided and Not Provided.
+                  </Text>
+                </Box>
+
+                <Flex gap={4} direction={isMobile ? "column" : "row"}>
+                  <Box flex={1} border="1px solid" borderColor={borderColor} borderRadius="md" p={3} bg={useColorModeValue("green.50", "green.900")} >
+                    <Text fontWeight="semibold" mb={2} color={useColorModeValue("green.700", "green.200")}>
+                      Provided
+                    </Text>
+                    <VStack align="stretch" spacing={2}>
+                      {providedServices.length === 0 && (
+                        <Text fontSize="sm" color="gray.500">No services provided yet.</Text>
                       )}
-
-                      {ensraForm.type === "jobSeeker" && (
-                        <>
-                          <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                            <Box flex={1}>
-                              <Text mb={1} fontWeight="medium">
-                                Job Seeker Name
-                              </Text>
-                              <Input
-                                value={ensraForm.jobSeekerName}
-                                onChange={(e) =>
-                                  setEnsraForm((prev) => ({
-                                    ...prev,
-                                    jobSeekerName: e.target.value,
-                                  }))
-                                }
-                                placeholder="Enter job seeker name"
-                              />
-                            </Box>
-                            <Box flex={1}>
-                              <Text mb={1} fontWeight="medium">
-                                Skills
-                              </Text>
-                              <Input
-                                value={ensraForm.jobSeekerSkills}
-                                onChange={(e) =>
-                                  setEnsraForm((prev) => ({
-                                    ...prev,
-                                    jobSeekerSkills: e.target.value,
-                                  }))
-                                }
-                                placeholder="Comma-separated skills"
-                              />
-                            </Box>
-                          </Stack>
-
-                          <Stack direction={isMobile ? "column" : "row"} spacing={4}>
-                            <Box flex={1}>
-                              <Text mb={1} fontWeight="medium">
-                                Experience
-                              </Text>
-                              <Input
-                                value={ensraForm.jobSeekerExperience}
-                                onChange={(e) =>
-                                  setEnsraForm((prev) => ({
-                                    ...prev,
-                                    jobSeekerExperience: e.target.value,
-                                  }))
-                                }
-                                placeholder="e.g., 2 years"
-                              />
-                            </Box>
-                            <Box flex={1}>
-                              <Text mb={1} fontWeight="medium">
-                                Education
-                              </Text>
-                              <Input
-                                value={ensraForm.jobSeekerEducation}
-                                onChange={(e) =>
-                                  setEnsraForm((prev) => ({
-                                    ...prev,
-                                    jobSeekerEducation: e.target.value,
-                                  }))
-                                }
-                                placeholder="e.g., Bachelor's Degree"
-                              />
-                            </Box>
-                          </Stack>
-
-                          <Box>
-                            <Text mb={1} fontWeight="medium">
-                              Expected Salary
-                            </Text>
-                            <Input
-                              value={ensraForm.jobSeekerExpectedSalary}
-                              onChange={(e) =>
-                                setEnsraForm((prev) => ({
-                                  ...prev,
-                                  jobSeekerExpectedSalary: e.target.value,
-                                }))
-                              }
-                              placeholder="e.g., $60,000"
-                            />
-                          </Box>
-                        </>
-                      )}
-
-                      <Button
-                        type="submit"
-                        colorScheme="teal"
-                        width="full"
-                        isDisabled={
-                          (ensraForm.type === "company" && !ensraForm.companyName) ||
-                          (ensraForm.type === "jobSeeker" && !ensraForm.jobSeekerName)
-                        }
-                      >
-                        Register for ENSRA
-                      </Button>
+                      {providedServices.map((svc) => (
+                        <Checkbox
+                          key={svc}
+                          isChecked
+                          colorScheme="green"
+                          onChange={() => moveToNotProvided(svc)}
+                        >
+                          {svc}
+                        </Checkbox>
+                      ))}
                     </VStack>
                   </Box>
-                </CardBody>
-              </Card>
-            </>
-          )}
-        </VStack>
-      </CardBody>
-    </Card>
-  );
 
-  const followupContent = (
-    <VStack spacing={6} align="stretch">
-      <Heading
-        as="h1"
-        size={isMobile ? "lg" : "xl"}
-        textAlign="center"
-        color={headerBg}
-        fontWeight="bold"
-      >
-        {ensraOnly ? "ENSRA Follow-Up" : "Customer Success Follow-up"}
-      </Heading>
+                  <Box flex={1} border="1px solid" borderColor={borderColor} borderRadius="md" p={3} bg={useColorModeValue("yellow.50", "orange.900")} >
+                    <Text fontWeight="semibold" mb={2} color={useColorModeValue("orange.700", "orange.200")}>
+                      Not Provided
+                    </Text>
+                    <VStack align="stretch" spacing={2}>
+                      {notProvidedServices.length === 0 && (
+                        <Text fontSize="sm" color="gray.500">All services provided.</Text>
+                      )}
+                      {notProvidedServices.map((svc) => (
+                        <Checkbox
+                          key={svc}
+                          colorScheme="orange"
+                          onChange={() => moveToProvided(svc)}
+                        >
+                          {svc}
+                        </Checkbox>
+                      ))}
+                    </VStack>
+                  </Box>
+                </Flex>
 
-      <Box overflowX="auto" maxW="100%">
-        {ensraOnly ? (
-          ensraModule
-        ) : (
-          <Tabs variant="enclosed" colorScheme="blue" isFitted={!isMobile}>
-            <TabList mb={2} flexWrap={isMobile ? "wrap" : "nowrap"} gap={isMobile ? 1 : 2}>
-              <Tab>
                 <HStack spacing={2}>
-                  <CheckIcon />
-                  <Text>B2B Customers</Text>
+                  <Button
+                    colorScheme="teal"
+                    size="sm"
+                    onClick={() => handleUpdateServices(selectedClient._id)}
+                    flex={1}
+                  >
+                    Update
+                  </Button>
+                  <Button
+                    colorScheme="red"
+                    size="sm"
+                    onClick={() => {
+                      setShowUpdateCard(false);
+                      setSelectedClient(null);
+                    }}
+                    flex={1}
+                  >
+                    Close
+                  </Button>
                 </HStack>
-              </Tab>
-              <Tab>
-                <HStack spacing={2}>
-                  <DownloadIcon />
-                  <Text>Pending B2B Customers</Text>
-                </HStack>
-              </Tab>
-              <Tab>
-                <HStack spacing={2}>
-                  <DownloadIcon />
-                  <Text>Pending Training</Text>
-                </HStack>
-              </Tab>
-              <Tab>
-                <HStack spacing={2}>
-                  <CheckIcon />
-                  <Text>Training</Text>
-                </HStack>
-              </Tab>
-
-              <Tab>
-                <HStack spacing={2}>
-                  <CheckIcon />
-                  <Text>All TESBINN Users</Text>
-                </HStack>
-              </Tab>
-
-              <Tab>
-                <HStack spacing={2}>
-                  <DownloadIcon /><CheckIcon />
-                  <Text>ENSRA</Text>
-                </HStack>
-              </Tab>
-            </TabList>
-
-            <TabPanels>
-              <TabPanel px={0}>
-                <FollowupTabPage
-                  cardBg={cardBg}
-                  headerBg={headerBg}
-                  borderColor={borderColor}
-                  tableBorderColor={tableBorderColor}
-                  tableBg={tableBg}
-                  rowHoverBg={rowHoverBg}
-                  renderColumnMenu={renderColumnMenu}
-                  followupColumnOptions={followupColumnOptions}
-                  loading={loading}
-                  error={error}
-                  searchQuery={searchQuery}
-                  handleSearch={handleSearch}
-                  isMobile={isMobile}
-                  isMobileView={isMobileView}
-                  handleBackToCompanyList={handleBackToCompanyList}
-                  handleRowClick={handleRowClick}
-                  selectedRow={selectedRow}
-                  filteredData={filteredData}
-                  followupColumnsToRender={followupColumnsToRender}
-                  onRefresh={fetchData}
-                  onSelectRow={toggleSelectFollowup}
-                  onSelectAll={selectAllFiltered}
-                  selectedIds={selectedFollowupIds}
-                  onBulkEmail={openBulkEmail}
-                  onOpenConversation={openConversation}
-                />
-              </TabPanel>
-
-              <TabPanel px={0}>
-                <PendingB2BTabPage
-                  cardBg={cardBg}
-                  headerBg={headerBg}
-                  borderColor={borderColor}
-                  tableBorderColor={tableBorderColor}
-                  tableBg={tableBg}
-                  rowHoverBg={rowHoverBg}
-                  renderColumnMenu={renderColumnMenu}
-                  pendingB2BColumnOptions={pendingB2BColumnOptions}
-                  pendingB2BColumnsToRender={pendingB2BColumnsToRender}
-                  pendingB2BCustomers={pendingB2BCustomers}
-                  loadingB2B={loadingB2B}
-                  fetchPendingB2BCustomers={fetchPendingB2BCustomers}
-                />
-              </TabPanel>
-              <TabPanel px={0}>
-                <TrainingTabPage
-                  cardBg={cardBg}
-                  headerBg={headerBg}
-                  borderColor={borderColor}
-                  tableBorderColor={tableBorderColor}
-                  tableBg={tableBg}
-                  rowHoverBg={rowHoverBg}
-                  renderColumnMenu={renderColumnMenu}
-                  completedSalesColumnOptions={completedSalesColumnOptions}
-                  completedSalesColumnsToRender={completedSalesColumnsToRender}
-                  completedSales={completedSales}
-                  loadingTraining={loadingTraining}
-                  trainingError={trainingError}
-                  fetchCompletedSales={fetchCompletedSales}
-                  trainingPrograms={trainingPrograms}
-                  trainingForm={trainingForm}
-                  setTrainingForm={setTrainingForm}
-                  handleTrainingTypeChange={handleTrainingTypeChange}
-                  handlePaymentOptionChange={handlePaymentOptionChange}
-                  handleTrainingSubmit={handleTrainingSubmit}
-                  isMobile={isMobile}
-                />
-              </TabPanel>
-              <TabPanel px={0}>
-                <TrainingFollowupTabPage
-                  cardBg={cardBg}
-                  headerBg={headerBg}
-                  borderColor={borderColor}
-                  tableBorderColor={tableBorderColor}
-                  tableBg={tableBg}
-                  rowHoverBg={rowHoverBg}
-                  trainingSearch={trainingSearch}
-                  setTrainingSearch={setTrainingSearch}
-                  trainingProgressFilter={trainingProgressFilter}
-                  setTrainingProgressFilter={setTrainingProgressFilter}
-                  trainingScheduleFilter={trainingScheduleFilter}
-                  setTrainingScheduleFilter={setTrainingScheduleFilter}
-                  trainingMaterialFilter={trainingMaterialFilter}
-                  setTrainingMaterialFilter={setTrainingMaterialFilter}
-                  trainingCourseFilter={trainingCourseFilter}
-                  setTrainingCourseFilter={setTrainingCourseFilter}
-                  trainingStartDateFilter={trainingStartDateFilter}
-                  setTrainingStartDateFilter={setTrainingStartDateFilter}
-                  trainingCourseOptions={trainingCourseOptions}
-                  renderColumnMenu={renderColumnMenu}
-                  trainingFollowupColumnOptions={trainingFollowupColumnOptions}
-                  trainingSortAsc={trainingSortAsc}
-                  setTrainingSortAsc={setTrainingSortAsc}
-                  trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
-                  filteredTrainingFollowups={filteredTrainingFollowups}
-                  selectedTrainingFollowupCount={selectedTrainingFollowupIds.length}
-                  trainingBulkStartDate={trainingBulkStartDate}
-                  trainingBulkEndDate={trainingBulkEndDate}
-                  setTrainingBulkStartDate={setTrainingBulkStartDate}
-                  setTrainingBulkEndDate={setTrainingBulkEndDate}
-                  applyTrainingDates={handleApplyTrainingDates}
-                  isApplyingTrainingDates={isApplyingTrainingDates}
-                  assignableAgents={assignableAgents}
-                  trainingAgentOptions={trainingAgentOptions}
-                  selectedAgentForAssignment={selectedAgentForAssignment}
-                  setSelectedAgentForAssignment={setSelectedAgentForAssignment}
-                  handleAssignAgent={handleAssignAgentToSelected}
-                  isAssigningAgent={isAssigningAgent}
-                  isCustomerSuccessManager={isCustomerSuccessManager}
-                  isMobile={isMobile}
-                  tableMinWidth="900px"
-                >
-                  <TrainingFollowupGrouped
-                    groupedTrainingFollowups={groupedTrainingFollowups}
-                    cardBg={cardBg}
-                    borderColor={borderColor}
-                    headerBg={headerBg}
-                    isLargerThan1024={isLargerThan1024}
+              </VStack>
+            </CardBody>
+          </Card>
+        </>
+      )}
+      <Modal isOpen={isTesbinnBulkModalOpen} onClose={closeTesbinnBulkModal} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Set date & time for TESBINN users</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Stack spacing={4}>
+              <Text fontSize="sm" color="gray.500">
+                Apply a default range before assigning agents or instructors.
+              </Text>
+              <Flex gap={3} flexWrap="wrap">
+                <Box flex={1} minW="180px">
+                  <Text mb={1} fontSize="xs" fontWeight="semibold">
+                    Start Date
+                  </Text>
+                  <Input
+                    size="sm"
+                    type="date"
+                    value={trainingBulkStartDate}
+                    onChange={(e) => setTrainingBulkStartDate(e.target.value)}
                   />
-                </TrainingFollowupTabPage>
-              </TabPanel>
-              <TabPanel px={0}>
-                <TesbinnTabPage
-                  cardBg={cardBg}
-                  headerBg={headerBg}
-                  borderColor={borderColor}
-                  tableBorderColor={tableBorderColor}
-                  tableBg={tableBg}
-                  rowHoverBg={rowHoverBg}
-                  trainingSearch={trainingSearch}
-                  setTrainingSearch={setTrainingSearch}
-                  trainingScheduleFilter={trainingScheduleFilter}
-                  setTrainingScheduleFilter={setTrainingScheduleFilter}
-                  trainingMaterialFilter={trainingMaterialFilter}
-                  setTrainingMaterialFilter={setTrainingMaterialFilter}
-                  trainingCourseFilter={trainingCourseFilter}
-                  setTrainingCourseFilter={setTrainingCourseFilter}
-                  trainingStartDateFilter={trainingStartDateFilter}
-                  setTrainingStartDateFilter={setTrainingStartDateFilter}
-                  trainingCourseOptions={trainingCourseOptions}
-                  renderColumnMenu={renderColumnMenu}
-                  trainingFollowupColumnOptions={trainingFollowupColumnOptions}
-                  trainingSortAsc={trainingSortAsc}
-                  setTrainingSortAsc={setTrainingSortAsc}
-                  trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
-                  tesbinnFollowups={tesbinnFollowups}
-                  isMobile={isMobile}
-                />
-              </TabPanel>
-              <TabPanel px={0}>
-                {ensraModule}
-              </TabPanel>
-            </TabPanels>
-          </Tabs>
-        )}
-      </Box>
-    </VStack>
-  );
-
-  if (embedLayout) {
-    return (
-      <Box w="100%" px={{ base: 4, md: 10, lg: 12 }} py={{ base: 6, md: 12 }}>
-        <Box maxW="1080px" mx="auto">
-          {followupContent}
-        </Box>
-      </Box>
-    );
-  }
-
-  return (
-    <Layout overflowX="auto" maxW="1200px" mx="auto" py={4} px={2}>
-      {followupContent}
+                </Box>
+                <Box flex={1} minW="160px">
+                  <Text mb={1} fontSize="xs" fontWeight="semibold">
+                    Start Time
+                  </Text>
+                  <Input
+                    size="sm"
+                    type="time"
+                    value={trainingBulkStartTime}
+                    onChange={(e) => setTrainingBulkStartTime(e.target.value)}
+                  />
+                </Box>
+              </Flex>
+              <Flex gap={3} flexWrap="wrap">
+                <Box flex={1} minW="180px">
+                  <Text mb={1} fontSize="xs" fontWeight="semibold">
+                    End Date
+                  </Text>
+                  <Input
+                    size="sm"
+                    type="date"
+                    value={trainingBulkEndDate}
+                    onChange={(e) => setTrainingBulkEndDate(e.target.value)}
+                  />
+                </Box>
+                <Box flex={1} minW="160px">
+                  <Text mb={1} fontSize="xs" fontWeight="semibold">
+                    End Time
+                  </Text>
+                  <Input
+                    size="sm"
+                    type="time"
+                    value={trainingBulkEndTime}
+                    onChange={(e) => setTrainingBulkEndTime(e.target.value)}
+                  />
+                </Box>
+              </Flex>
+            </Stack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={closeTesbinnBulkModal}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="teal"
+              onClick={applyTrainingDatesAndClose}
+              isLoading={isApplyingTrainingDates}
+            >
+              Apply to selected
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Layout>
   );
 };
+
 
 export default CustomerFollowup;
