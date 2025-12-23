@@ -11,6 +11,7 @@ import {
   VStack,
   useColorModeValue,
 } from "@chakra-ui/react";
+import InstructorTrainingFollowups from "../../components/instructor/InstructorTrainingFollowups";
 
 const metricCards = [
   { label: "Active Students", value: "128", help: "+5 this week" },
@@ -52,6 +53,7 @@ const InstructorDashboard = () => {
           </Box>
         ))}
       </SimpleGrid>
+      <InstructorTrainingFollowups />
     </VStack>
   );
 };
