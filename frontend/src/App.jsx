@@ -22,6 +22,7 @@ import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
 import InventoryPage from "./pages/sales/InventoryPage.jsx";
 import OrdersPage from "./pages/sales/OrdersPage.jsx";
 import FinancePayrollPage from "./pages/sales/FinancePayrollPage.jsx";
+import CommissionApprovalPage from "./pages/sales/CommissionApprovalPage.jsx";
 import PDFList from './components/PDFList';
 import InfoForm from './pages/InfoForm';
 import EmployeeInfoPage from './pages/EmployeeInfoPage';
@@ -55,6 +56,18 @@ import RevenuePage from './pages/sales/RevenuePage.jsx';
 import PurchasePage from './pages/sales/PurchasePage.jsx';
 import CostManagementPage from './pages/sales/CostManagementPage.jsx';
 import ITDashboard from "./pages/ITDashboard";
+import ENISRALayout from "./components/ENSRA/ENSRALayout";
+import ENISRADashboard from "./components/ENSRA/ENSRADashboard";
+import ENISRAEnhancedDashboard from "./components/ENSRA/ENISRAEnhancedDashboard";
+import ENISRANoticeBoard from "./components/ENSRA/ENSRANoticeBoard";
+import ENISRARequest from "./components/ENSRA/ENSRARequest";
+import ENISRARequestEmbedded from "./components/ENSRA/ENISRARequestEmbedded";
+import ENISRAFollowUp from "./components/ENSRA/ENISRAFollowUp";
+import RoleProtectedRoute from "./components/RoleProtectedRoute";
+import InstructorLayout from "./components/instructor/InstructorLayout";
+import InstructorDashboard from "./pages/instructor/Dashboard";
+import InstructorRequest from "./pages/instructor/Request";
+import InstructorNoticeBoard from "./pages/instructor/NoticeBoard";
 import SalesManagerLayout from "./components/salesmanager/Layout";
 import SalesManagerDashboard from "./components/salesmanager/SalesManagerDashboard";
 import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerProtectedRoute";
@@ -93,7 +106,7 @@ function App() {
     "/finance/messages", "/finance/team-requests",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
     "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/finance-dashboard/commission-approval", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard"
   ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
@@ -137,6 +150,7 @@ return (
       <Route path="/finance-dashboard/purchase" element={<FinanceLayout><PurchasePage /></FinanceLayout>} />
       <Route path="/finance-dashboard/costs" element={<FinanceLayout><CostManagementPage /></FinanceLayout>} />
       <Route path="/finance-dashboard/payroll" element={<FinanceLayout><FinancePayrollPage /></FinanceLayout>} />
+      <Route path="/finance-dashboard/commission-approval" element={<FinanceLayout><CommissionApprovalPage /></FinanceLayout>} />
       <Route path="/finance/team-requests" element={<FinanceLayout><TeamRequestsPage /></FinanceLayout>} />
       <Route
         path="/finance/messages"
@@ -187,6 +201,28 @@ return (
       <Route path="/requests" element={<LayoutWrapper><RequestPage /></LayoutWrapper>} />
       <Route path="/finance/requests" element={<LayoutWrapper><RequestPage /></LayoutWrapper>} />
       <Route path="/it" element={<ITDashboard />} />
+      <Route
+        path="/instructor"
+        element={
+          <RoleProtectedRoute allowedRoles={["instructor"]}>
+            <InstructorLayout />
+          </RoleProtectedRoute>
+        }
+      >
+        <Route index element={<InstructorDashboard />} />
+        <Route path="dashboard" element={<InstructorDashboard />} />
+        <Route path="request" element={<InstructorRequest />} />
+        <Route path="notice-board" element={<InstructorNoticeBoard />} />
+      </Route>
+
+      {/* ENISRA section */}
+      <Route path="/enisra" element={<ENISRALayout />}>
+        <Route index element={<ENISRAEnhancedDashboard />} />
+        <Route path="dashboard" element={<ENISRAEnhancedDashboard />} />
+        <Route path="follow-up" element={<ENISRAFollowUp />} />
+        <Route path="notice-board" element={<ENISRANoticeBoard />} />
+        <Route path="request" element={<ENISRARequestEmbedded />} />
+      </Route>
       <Route path="/payroll" element={<LayoutWrapper><PayrollPage /></LayoutWrapper>} />
       <Route path="/my-payroll" element={<EmployeePayrollView />} />
       <Route path="/messages" element={<RedirectMessagesPage />} />
