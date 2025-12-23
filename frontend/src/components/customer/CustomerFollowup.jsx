@@ -697,13 +697,10 @@ const CustomerFollowup = () => {
 
   const trainingPrograms = [
     { id: "International Trade Import Export", name: "International Trade Import Export", duration: "1 weeks", price: 6917 },
-    { id: "Data Science", name: "Data Science", duration: "16 weeks", price: 2000 },
+    { id: "Stock marketing", name: "Stock marketing", duration: "16 weeks", price: 6917 },
     { id: "Coffee Cupping", name: "Coffee Cupping", duration: "8 weeks", price: 29000 },
-    { id: "UI/UX Design", name: "UI/UX Design", duration: "8 weeks", price: 1000 },
-    { id: "Digital Marketing", name: "Digital Marketing", duration: "6 weeks", price: 800 },
-    { id: "Cybersecurity", name: "Cybersecurity", duration: "14 weeks", price: 1800 },
-    { id: "DevOps Engineering", name: "DevOps Engineering", duration: "18 weeks", price: 2200 },
-    { id: "Cloud Computing", name: "Cloud Computing", duration: "16 weeks", price: 2100 },
+    { id: "Barista", name: "Barista", duration: "8 weeks", price: 19900 },
+    { id: "Digital Marketing", name: "Digital Marketing", duration: "1 weeks", price: 6917 },
   ];
 
   const handleTrainingTypeChange = (value) => {
