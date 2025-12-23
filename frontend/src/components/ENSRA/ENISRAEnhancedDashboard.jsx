@@ -4,16 +4,12 @@ import {
   Container,
   Flex,
   Grid,
-  GridItem,
   Heading,
   Text,
   Button,
   Card,
   CardBody,
   CardHeader,
-  CircularProgress,
-  CircularProgressLabel,
-  Progress,
   Table,
   Thead,
   Tbody,
@@ -28,19 +24,13 @@ import {
   HStack,
   SimpleGrid,
   Divider,
-  Tooltip,
-  Select,
-  FormControl,
-  FormLabel
+  Stack,
+  Wrap,
 } from '@chakra-ui/react';
 import { 
   FiUsers, 
-  FiBriefcase, 
-  FiDollarSign, 
   FiBarChart2, 
   FiTrendingUp, 
-  FiClock, 
-  FiCheckCircle,
   FiAlertCircle,
   FiPieChart,
   FiActivity
@@ -62,14 +52,26 @@ import {
 } from 'recharts';
 
 // Mock data for demonstration
-const mockMetrics = {
-  totalRegistrations: 5420,
-  activeJobs: 128,
-  placementsThisMonth: 42,
-  revenue: 125000,
-  satisfactionRate: 94,
-  responseTime: 2.4
-};
+const mockMetrics = [
+  { title: 'Total Registrations', value: '5,420', change: '+12%', color: 'purple' },
+  { title: 'Active Jobs', value: '128', change: '+5%', color: 'blue' },
+  { title: 'Placements (MTD)', value: '42', change: '+18%', color: 'green' },
+  { title: 'Revenue', value: '₦125K', change: '+8%', color: 'yellow' },
+  { title: 'Satisfaction', value: '94%', change: '+2%', color: 'teal' },
+  { title: 'Avg Response', value: '2.4 hrs', change: '-0.3 hrs', color: 'orange' }
+];
+
+const heroHighlights = [
+  { label: 'ENSRA Wins', value: '68', detail: 'New hires secured this quarter', color: 'purple.500' },
+  { label: 'In Progress', value: '14', detail: 'Customers in active pipeline', color: 'teal.400' },
+  { label: 'Follow-Up Priority', value: '6', detail: 'Need attention this week', color: 'orange.400' },
+];
+
+const quickActions = [
+  { label: 'Add ENSRA Follow-Up', icon: FiUsers },
+  { label: 'Review Notice Board', icon: FiAlertCircle },
+  { label: 'Launch Activity Report', icon: FiTrendingUp },
+];
 
 const mockChartData = {
   monthlyRegistrations: [
@@ -106,7 +108,6 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 const ENISRAEnhancedDashboard = () => {
   const [timeRange, setTimeRange] = useState('monthly');
-  const [metrics, setMetrics] = useState(mockMetrics);
   const [chartData, setChartData] = useState(mockChartData);
   
   // Background and text colors based on color mode
@@ -134,62 +135,85 @@ const ENISRAEnhancedDashboard = () => {
   };
 
   return (
-    <Box bg={bgColor} minH="100vh" py={{ base: 10, md: 14 }} px={{ base: 6, md: 10 }}>
-      <Container maxW="container.xl" py={{ base: 4, md: 8, lg: 10 }}>
-        <VStack spacing={{ base: 12, md: 16 }} align="stretch">
+    <Box bgGradient={`linear(to-br, ${bgColor}, ${useColorModeValue('gray.100', 'gray.900')})`} minH="100vh" py={{ base: 10, md: 16 }} px={{ base: 6, lg: 16 }}>
+      <Container maxW="8xl" py={{ base: 4, md: 8, lg: 12 }}>
+        <VStack spacing={{ base: 10, md: 14 }} align="stretch">
           {/* Key Metrics */}
-          <SimpleGrid
-            columns={{ base: 1, sm: 2, md: 3, lg: 6 }}
-            spacing={{ base: 8, md: 10 }}
-            rowGap={{ base: 6, md: 8 }}
-            mt={2}
-          >
-            <StatCard 
-              title="Total Registrations" 
-              value={metrics.totalRegistrations.toLocaleString()} 
-              change="+12%" 
-              icon={<Icon as={FiUsers} boxSize={6} />}
-              color="purple"
-            />
-            <StatCard 
-              title="Active Jobs" 
-              value={metrics.activeJobs} 
-              change="+5%" 
-              icon={<Icon as={FiBriefcase} boxSize={6} />}
-              color="blue"
-            />
-            <StatCard 
-              title="Placements (MTD)" 
-              value={metrics.placementsThisMonth} 
-              change="+18%" 
-              icon={<Icon as={FiCheckCircle} boxSize={6} />}
-              color="green"
-            />
-            <StatCard 
-              title="Revenue (ETB)" 
-              value={metrics.revenue.toLocaleString()} 
-              change="+8%" 
-              icon={<Icon as={FiDollarSign} boxSize={6} />}
-              color="yellow"
-            />
-            <StatCard 
-              title="Satisfaction Rate" 
-              value={`${metrics.satisfactionRate}%`} 
-              change="+2%" 
-              icon={<Icon as={FiBarChart2} boxSize={6} />}
-              color="teal"
-            />
-            <StatCard 
-              title="Avg. Response Time" 
-              value={`${metrics.responseTime} hrs`} 
-              change="-0.3 hrs" 
-              icon={<Icon as={FiClock} boxSize={6} />}
-              color="orange"
-            />
-          </SimpleGrid>
+          <Stack spacing={6}>
+            <Box
+              bg={cardBg}
+              borderRadius="3xl"
+              p={{ base: 6, md: 8 }}
+              boxShadow="2xl"
+              borderWidth="1px"
+              borderColor={borderColor}
+            >
+              <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={{ base: 6, md: 10 }}>
+                <VStack align="flex-start" spacing={2}>
+                  <Heading size="lg" color={headingColor}>
+                    ENSIRA Command Center
+                  </Heading>
+                  <Text fontSize="md" color={textColor}>
+                    Monitor key metrics, activities, and winners across the ENSIRA workspace. Everything you need is on
+                    this canvas.
+                  </Text>
+                  <HStack spacing={3} flexWrap="wrap">
+                    {quickActions.map((action) => (
+                      <Button
+                        key={action.label}
+                        leftIcon={<Icon as={action.icon} />}
+                        size="sm"
+                        colorScheme="purple"
+                        variant="solid"
+                      >
+                        {action.label}
+                      </Button>
+                    ))}
+                  </HStack>
+                </VStack>
+                <Wrap spacing={4} justify={{ base: 'flex-start', lg: 'flex-end' }}>
+                  {heroHighlights.map((highlight) => (
+                    <Card
+                      key={highlight.label}
+                      bgGradient={`linear(to-br, ${highlight.color || 'purple.400'}, purple.600)`}
+                      color="white"
+                      borderRadius="2xl"
+                      p={4}
+                      minW="180px"
+                      boxShadow="xl"
+                    >
+                      <VStack align="flex-start" spacing={1}>
+                        <Text fontSize="sm" fontWeight="medium" opacity={0.8}>
+                          {highlight.label}
+                        </Text>
+                        <Heading size="lg">{highlight.value}</Heading>
+                        <Text fontSize="xs">{highlight.detail}</Text>
+                      </VStack>
+                    </Card>
+                  ))}
+                </Wrap>
+              </Grid>
+            </Box>
+            <SimpleGrid
+              columns={{ base: 1, sm: 2, md: 3, lg: 6 }}
+              spacing={{ base: 10, md: 12, lg: 14 }}
+              rowGap={{ base: 8, md: 10 }}
+            >
+              {mockMetrics.map((metric) => (
+                <StatCard
+                  key={metric.title}
+                  title={metric.title}
+                  value={metric.value}
+                  change={metric.change}
+                  icon={<Icon as={FiTrendingUp} boxSize={5} />}
+                  color={metric.color}
+                />
+              ))}
+            </SimpleGrid>
+          </Stack>
 
           {/* Charts Section */}
-          <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={{ base: 10, md: 12 }} mt={6}>
+          <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={{ base: 12, md: 14, lg: 16 }} mt={6}>
             {/* Registrations Over Time */}
             <Card bg={cardBg} boxShadow="lg" borderRadius="xl" p={{ base: 6, md: 8 }} transition="all 0.3s ease" _hover={{ boxShadow: 'xl' }}>
               <CardHeader pb={6}>
@@ -281,7 +305,7 @@ const ENISRAEnhancedDashboard = () => {
           </Grid>
 
           {/* Recent Activities and Top Companies */}
-          <Grid templateColumns={{ base: '1fr', lg: '1fr 1fr' }} gap={{ base: 10, md: 12 }} mt={6}>
+          <Grid templateColumns={{ base: '1fr', lg: '1fr 1fr' }} gap={{ base: 12, md: 14, lg: 16 }} mt={6}>
             {/* Recent Activities */}
             <Card bg={cardBg} boxShadow="lg" borderRadius="xl" p={{ base: 6, md: 8 }} transition="all 0.3s ease" _hover={{ boxShadow: 'xl' }}>
               <CardHeader pb={6}>
