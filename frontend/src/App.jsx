@@ -54,6 +54,18 @@ import RevenuePage from './pages/sales/RevenuePage.jsx';
 import PurchasePage from './pages/sales/PurchasePage.jsx';
 import CostManagementPage from './pages/sales/CostManagementPage.jsx';
 import ITDashboard from "./pages/ITDashboard";
+import ENISRALayout from "./components/ENSRA/ENSRALayout";
+import ENISRADashboard from "./components/ENSRA/ENSRADashboard";
+import ENISRAEnhancedDashboard from "./components/ENSRA/ENISRAEnhancedDashboard";
+import ENISRANoticeBoard from "./components/ENSRA/ENSRANoticeBoard";
+import ENISRARequest from "./components/ENSRA/ENSRARequest";
+import ENISRARequestEmbedded from "./components/ENSRA/ENISRARequestEmbedded";
+import ENISRAFollowUp from "./components/ENSRA/ENISRAFollowUp";
+import RoleProtectedRoute from "./components/RoleProtectedRoute";
+import InstructorLayout from "./components/instructor/InstructorLayout";
+import InstructorDashboard from "./pages/instructor/Dashboard";
+import InstructorRequest from "./pages/instructor/Request";
+import InstructorNoticeBoard from "./pages/instructor/NoticeBoard";
 import SalesManagerLayout from "./components/salesmanager/Layout";
 import SalesManagerDashboard from "./components/salesmanager/SalesManagerDashboard";
 import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerProtectedRoute";
@@ -185,6 +197,28 @@ return (
       <Route path="/requests" element={<LayoutWrapper><RequestPage /></LayoutWrapper>} />
       <Route path="/finance/requests" element={<LayoutWrapper><RequestPage /></LayoutWrapper>} />
       <Route path="/it" element={<ITDashboard />} />
+      <Route
+        path="/instructor"
+        element={
+          <RoleProtectedRoute allowedRoles={["instructor"]}>
+            <InstructorLayout />
+          </RoleProtectedRoute>
+        }
+      >
+        <Route index element={<InstructorDashboard />} />
+        <Route path="dashboard" element={<InstructorDashboard />} />
+        <Route path="request" element={<InstructorRequest />} />
+        <Route path="notice-board" element={<InstructorNoticeBoard />} />
+      </Route>
+
+      {/* ENISRA section */}
+      <Route path="/enisra" element={<ENISRALayout />}>
+        <Route index element={<ENISRAEnhancedDashboard />} />
+        <Route path="dashboard" element={<ENISRAEnhancedDashboard />} />
+        <Route path="follow-up" element={<ENISRAFollowUp />} />
+        <Route path="notice-board" element={<ENISRANoticeBoard />} />
+        <Route path="request" element={<ENISRARequestEmbedded />} />
+      </Route>
       <Route path="/payroll" element={<LayoutWrapper><PayrollPage /></LayoutWrapper>} />
       <Route path="/my-payroll" element={<EmployeePayrollView />} />
       <Route path="/messages" element={<RedirectMessagesPage />} />
