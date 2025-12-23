@@ -113,7 +113,7 @@ const FinanceLayout = ({ children }) => {
     { label: 'Orders', icon: FaShoppingCart, path: '/finance-dashboard/orders' },
     { label: 'Pricing', icon: FaDollarSign, path: '/finance-dashboard/pricing' },
     { label: 'Revenue', icon: FaDollarSign, path: '/finance-dashboard/revenue' },
-    { label: 'Purchase', icon: FaUsers, path: '/finance-dashboard/purchase' },
+    { label: 'Imported Items', icon: FaUsers, path: '/finance-dashboard/purchase' },
     { label: 'Costs', icon: FaMoneyBillWave, path: '/finance-dashboard/costs' },
     { label: 'Payroll', icon: FaDollarSign, path: '/finance-dashboard/payroll' },
     { label: 'Requests', icon: FaStickyNote, path: '/finance/requests' },

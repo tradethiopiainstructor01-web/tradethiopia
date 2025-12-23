@@ -65,7 +65,7 @@ import {
   TableContainer,
   SimpleGrid,
   Checkbox,
-} from "@chakra-ui/react";
+  } from "@chakra-ui/react";
 import { 
   ArrowBackIcon, 
   EditIcon, 
@@ -92,7 +92,7 @@ import {
   fetchUsers,
 } from "../../services/api";
 
-const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
+const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }{ embedLayout = false, ensraOnly = false }) => {
   const [data, setData] = useState([]);
   const [pendingB2BCustomers, setPendingB2BCustomers] = useState([]);
   const [completedSales, setCompletedSales] = useState([]);
@@ -125,11 +125,17 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const [selectedTrainingFollowupIds, setSelectedTrainingFollowupIds] = useState([]);
   const [trainingBulkStartDate, setTrainingBulkStartDate] = useState("");
   const [trainingBulkEndDate, setTrainingBulkEndDate] = useState("");
+  const [trainingBulkStartTime, setTrainingBulkStartTime] = useState("");
+  const [trainingBulkEndTime, setTrainingBulkEndTime] = useState("");
   const [isApplyingTrainingDates, setIsApplyingTrainingDates] = useState(false);
+  const [isTesbinnBulkModalOpen, setIsTesbinnBulkModalOpen] = useState(false);
+  const [isCsvImportingTesbinn, setIsCsvImportingTesbinn] = useState(false);
   const [assignableAgents, setAssignableAgents] = useState([]);
   const [trainingAgentOptions, setTrainingAgentOptions] = useState([]);
   const [selectedAgentForAssignment, setSelectedAgentForAssignment] = useState("");
-  const [isAssigningAgent, setIsAssigningAgent] = useState(false);
+  const [assignableInstructors, setAssignableInstructors] = useState([]);
+  const [trainingInstructorOptions, setTrainingInstructorOptions] = useState([]);
+  const [selectedInstructorForAssignment, setSelectedInstructorForAssignment] = useState("");
   const [ensraSearch, setEnsraSearch] = useState("");
   const [ensraTypeFilter, setEnsraTypeFilter] = useState("all");
   const [ensraSortAsc, setEnsraSortAsc] = useState(true);
@@ -265,6 +271,8 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       startDate: true,
       endDate: true,
       agentName: true,
+      salesAgent: true,
+      assignedInstructor: true,
       customerName: true,
       email: true,
       phone: true,
@@ -652,6 +660,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     trainingType: "",
     batch: "",
     startDate: "",
+    startTime: "",
     duration: "",
     paymentOption: "full",
     paymentAmount: 0,
@@ -665,6 +674,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     fieldOfWork: "",
     scheduleShift: "",
     endDate: "",
+    endTime: "",
     materialStatus: "",
     progress: "",
     idInfo: "",
@@ -761,6 +771,14 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   }
 };
 
+const mergeDateTimeToIso = (dateValue, timeValue) => {
+  if (!dateValue) return null;
+  const timePart = timeValue || "00:00";
+  const combined = `${dateValue}T${timePart}`;
+  const parsed = Date.parse(combined);
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+};
+
 const handleTrainingSubmit = async (e) => {
   e.preventDefault();
   try {
@@ -780,7 +798,9 @@ const handleTrainingSubmit = async (e) => {
       trainingType: "",
       batch: "",
       startDate: "",
+      startTime: "",
       endDate: "",
+      endTime: "",
       duration: "",
       paymentOption: "full",
       paymentAmount: 0,
@@ -856,7 +876,7 @@ const handleApplyTrainingDates = async () => {
       duration: 3000,
       isClosable: true,
     });
-    return;
+    return false;
   }
   if (!trainingBulkStartDate && !trainingBulkEndDate) {
     toast({
@@ -866,15 +886,23 @@ const handleApplyTrainingDates = async () => {
       duration: 3000,
       isClosable: true,
     });
-    return;
+    return false;
   }
 
   const payload = {};
   if (trainingBulkStartDate) {
-    payload.startDate = new Date(trainingBulkStartDate).toISOString();
+    const startIso = mergeDateTimeToIso(trainingBulkStartDate, trainingBulkStartTime);
+    if (startIso) payload.startDate = startIso;
   }
   if (trainingBulkEndDate) {
-    payload.endDate = new Date(trainingBulkEndDate).toISOString();
+    const endIso = mergeDateTimeToIso(trainingBulkEndDate, trainingBulkEndTime);
+    if (endIso) payload.endDate = endIso;
+  }
+  if (trainingBulkStartTime) {
+    payload.startTime = trainingBulkStartTime;
+  }
+  if (trainingBulkEndTime) {
+    payload.endTime = trainingBulkEndTime;
   }
 
   setIsApplyingTrainingDates(true);
@@ -893,6 +921,9 @@ const handleApplyTrainingDates = async () => {
     resetTrainingSelection();
     setTrainingBulkStartDate("");
     setTrainingBulkEndDate("");
+    setTrainingBulkStartTime("");
+    setTrainingBulkEndTime("");
+    return true;
   } catch (err) {
     console.error("Failed to apply training dates", err);
     toast({
@@ -902,68 +933,99 @@ const handleApplyTrainingDates = async () => {
       duration: 4000,
       isClosable: true,
     });
+    return false;
   } finally {
     setIsApplyingTrainingDates(false);
   }
 };
 
-const handleAssignAgentToSelected = async () => {
+const handleBulkUpdate = async () => {
   if (selectedTrainingFollowupIds.length === 0) {
     toast({
       title: "No trainings selected",
-      description: "Select at least one training to assign.",
+      description: "Select at least one training to update.",
       status: "warning",
       duration: 3000,
       isClosable: true,
     });
-    return;
+    return false;
   }
 
-  if (!selectedAgentForAssignment) {
+  const payload = {};
+  if (trainingBulkStartDate) {
+    const startIso = mergeDateTimeToIso(trainingBulkStartDate, trainingBulkStartTime);
+    if (startIso) payload.startDate = startIso;
+  }
+  if (trainingBulkEndDate) {
+    const endIso = mergeDateTimeToIso(trainingBulkEndDate, trainingBulkEndTime);
+    if (endIso) payload.endDate = endIso;
+  }
+  if (trainingBulkStartTime) {
+    payload.startTime = trainingBulkStartTime;
+  }
+  if (trainingBulkEndTime) {
+    payload.endTime = trainingBulkEndTime;
+  }
+
+  if (selectedAgentForAssignment) {
+    const matchedAgent = trainingAgentOptions.find(
+      (option) => option.value === selectedAgentForAssignment
+    );
+    payload.agentName =
+      matchedAgent?.label || selectedAgentForAssignment || "Customer Success Agent";
+  }
+  if (selectedInstructorForAssignment) {
+    const matchedInstructor = trainingInstructorOptions.find(
+      (option) => option.value === selectedInstructorForAssignment
+    );
+    payload.assignedInstructor =
+      matchedInstructor?.label || selectedInstructorForAssignment || "Instructor";
+  }
+
+  if (Object.keys(payload).length === 0) {
     toast({
-      title: "Select an agent",
-      description: "Choose a Customer Success agent to assign to the selected trainings.",
-      status: "warning",
+      title: "No updates specified",
+      description: "Provide dates, times, or assignments before saving.",
+      status: "info",
       duration: 3000,
       isClosable: true,
     });
-    return;
+    return false;
   }
 
-  const matchedOption = trainingAgentOptions.find(
-    (option) => option.value === selectedAgentForAssignment
-  );
-  const agentDisplay =
-    matchedOption?.label || selectedAgentForAssignment || "Customer Success Agent";
-
-  setIsAssigningAgent(true);
+  setIsApplyingTrainingDates(true);
   try {
     await Promise.all(
-      selectedTrainingFollowupIds.map((id) =>
-        updateTrainingFollowup(id, { agentName: agentDisplay })
-      )
+      selectedTrainingFollowupIds.map((id) => updateTrainingFollowup(id, payload))
     );
     toast({
-      title: "Agent assigned",
-      description: `Assigned ${selectedTrainingFollowupIds.length} training(s) to ${agentDisplay}.`,
+      title: "Bulk update applied",
+      description: `Updated ${selectedTrainingFollowupIds.length} training(s).`,
       status: "success",
       duration: 4000,
       isClosable: true,
     });
     await loadTrainingFollowups();
     resetTrainingSelection();
+    setTrainingBulkStartDate("");
+    setTrainingBulkEndDate("");
+    setTrainingBulkStartTime("");
+    setTrainingBulkEndTime("");
     setSelectedAgentForAssignment("");
+    setSelectedInstructorForAssignment("");
+    return true;
   } catch (err) {
-    console.error("Failed to assign agent to trainings", err);
+    console.error("Failed to apply bulk updates", err);
     toast({
-      title: "Failed to assign agent",
+      title: "Failed to apply updates",
       description: err.response?.data?.message || err.message,
       status: "error",
       duration: 4000,
       isClosable: true,
     });
+    return false;
   } finally {
-    setIsAssigningAgent(false);
+    setIsApplyingTrainingDates(false);
   }
 };
 
@@ -1024,6 +1086,34 @@ const loadEnsraFollowups = async () => {
   }, [isCustomerSuccessManager]);
 
   useEffect(() => {
+    if (!isCustomerSuccessManager) {
+      setAssignableInstructors([]);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchAssignableInstructors = async () => {
+      try {
+        const users = await fetchUsers();
+        const list = Array.isArray(users) ? users : [];
+        const filtered = list.filter(
+          (user) => normalizeRoleValue(user.role) === "instructor"
+        );
+        if (isMounted) {
+          setAssignableInstructors(filtered);
+        }
+      } catch (err) {
+        console.error("Failed to load instructors", err);
+      }
+    };
+
+    fetchAssignableInstructors();
+    return () => {
+      isMounted = false;
+    };
+  }, [isCustomerSuccessManager]);
+
+  useEffect(() => {
     const primaryOptions = assignableAgents.map((agent) => {
       const label =
         agent.fullName?.trim() ||
@@ -1047,6 +1137,31 @@ const loadEnsraFollowups = async () => {
 
     setTrainingAgentOptions([...primaryOptions, ...fallbackNames]);
   }, [assignableAgents, trainingFollowups]);
+
+  useEffect(() => {
+    const primaryOptions = assignableInstructors.map((instructor) => {
+      const label =
+        instructor.fullName?.trim() ||
+        instructor.username?.trim() ||
+        instructor.email?.trim() ||
+        `Instructor ${instructor._id}`;
+      return {
+        value: instructor._id,
+        label,
+      };
+    });
+
+    const existingLabels = new Set(primaryOptions.map((opt) => opt.label));
+    const fallbackNames = Array.from(
+      new Set(
+        trainingFollowups
+          .map((item) => item.assignedInstructor)
+          .filter((name) => name && !existingLabels.has(name))
+      )
+    ).map((name) => ({ value: name, label: name }));
+
+    setTrainingInstructorOptions([...primaryOptions, ...fallbackNames]);
+  }, [assignableInstructors, trainingFollowups]);
 
 const handleDeleteTrainingFollowup = async (id) => {
   if (!window.confirm("Delete this training follow-up?")) return;
@@ -1256,11 +1371,28 @@ const saveEnsraEdit = async () => {
           courseKey,
           scheduleKey,
           items: [],
+          timeRanges: new Set(),
         });
       }
-      groups.get(groupKey).items.push(item);
+      const group = groups.get(groupKey);
+      group.items.push(item);
+      const rangeParts = [];
+      if (item.startTime) rangeParts.push(item.startTime);
+      if (item.endTime) rangeParts.push(item.endTime);
+      if (rangeParts.length) {
+        group.timeRanges.add(rangeParts.join(" - "));
+      }
     });
-    return Array.from(groups.values()).filter((g) => g.items.length > 0);
+    return Array.from(groups.values())
+      .filter((g) => g.items.length > 0)
+      .map(({ dateKey, courseKey, scheduleKey, items, timeRanges }) => ({
+        dateKey,
+        courseKey,
+        scheduleKey,
+        items,
+        timeRangeDisplay:
+          timeRanges && timeRanges.size > 0 ? Array.from(timeRanges).join(", ") : null,
+      }));
   }, [filteredTrainingFollowups]);
 
   const tesbinnFollowups = useMemo(() => {
@@ -1269,6 +1401,283 @@ const saveEnsraEdit = async () => {
       (item) => (item.progress || "").toLowerCase() === "completed"
     );
   }, [baseFilteredTrainingFollowups]);
+
+  const downloadCsv = (content, filename) => {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportTesbinn = () => {
+    if (!Array.isArray(tesbinnFollowups) || tesbinnFollowups.length === 0) {
+      toast({
+        title: "No TESBINN data",
+        description: "There are no completed TESBINN records to export.",
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    const headers = [
+      "Customer Name",
+      "Email",
+      "Phone Number",
+      "Course",
+      "Schedule",
+      "Start Date",
+      "End Date",
+      "Agent",
+      "Instructor",
+      "Progress",
+    ];
+    const escapeCsvValue = (value) =>
+      `"${String(value || "").replace(/"/g, '""')}"`;
+    const rows = tesbinnFollowups.map((item) =>
+      [
+        item.customerName,
+        item.email,
+        item.phoneNumber,
+        item.trainingType,
+        item.scheduleShift,
+        item.startDate ? new Date(item.startDate).toLocaleDateString() : "",
+        item.endDate ? new Date(item.endDate).toLocaleDateString() : "",
+        item.agentName,
+        item.assignedInstructor,
+        item.progress,
+      ]
+        .map(escapeCsvValue)
+        .join(",")
+    );
+    const csvContent = [headers.map(escapeCsvValue).join(","), ...rows].join("\n");
+    downloadCsv(csvContent, "tesbinn-completed.csv");
+  };
+
+  const prepareTesbinnBulkSelection = (ids, toastMessage) => {
+    if (!ids.length) return false;
+    setSelectedTrainingFollowupIds(ids);
+    const defaultDate = new Date().toISOString().split("T")[0];
+    setTrainingBulkStartDate(defaultDate);
+    setTrainingBulkEndDate(defaultDate);
+    setTrainingBulkStartTime("09:00");
+    setTrainingBulkEndTime("17:00");
+    setIsTesbinnBulkModalOpen(true);
+    if (toastMessage) {
+      toast({
+        title: toastMessage,
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+    return true;
+  };
+
+  const parseCsvRows = (text) => {
+    const rows = [];
+    let current = "";
+    let inQuotes = false;
+    let row = [];
+
+    const pushCell = () => {
+      row.push(current);
+      current = "";
+    };
+
+    const pushRow = () => {
+      if (row.length) {
+        rows.push(row);
+        row = [];
+      }
+    };
+
+    for (let i = 0; i < text.length; i += 1) {
+      const char = text[i];
+
+      if (char === '"') {
+        if (inQuotes && text[i + 1] === '"') {
+          current += '"';
+          i += 1;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        continue;
+      }
+
+      if (char === "," && !inQuotes) {
+        pushCell();
+        continue;
+      }
+
+      if ((char === "\n" || char === "\r") && !inQuotes) {
+        pushCell();
+        if (char === "\r" && text[i + 1] === "\n") {
+          i += 1;
+        }
+        pushRow();
+        continue;
+      }
+
+      current += char;
+    }
+
+    if (current || row.length) {
+      pushCell();
+      pushRow();
+    }
+
+    return rows.filter((r) => r.length > 1 || (r.length === 1 && r[0].trim() !== ""));
+  };
+
+  const normalizeCsvHeader = (value) =>
+    value?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "") || "";
+
+  const getCsvRecordValue = (record, keys = []) => {
+    for (const key of keys) {
+      if (record[key]) {
+        const trimmed = record[key].trim();
+        if (trimmed) return trimmed;
+      }
+    }
+    return "";
+  };
+
+  const parseCsvDate = (value) => {
+    if (!value) return "";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+  };
+
+  const buildTrainingFollowupPayloadFromCsvRecord = (record) => {
+    const payload = {
+      customerName: getCsvRecordValue(record, ["customername", "customer"]),
+      email: getCsvRecordValue(record, ["email"]),
+      phoneNumber: getCsvRecordValue(record, ["phonenumber", "phone"]),
+      trainingType: getCsvRecordValue(record, ["course"]),
+      scheduleShift: getCsvRecordValue(record, ["schedule"]),
+      agentName: getCsvRecordValue(record, ["agent"]),
+      salesAgent: getCsvRecordValue(record, ["agent"]),
+      assignedInstructor: getCsvRecordValue(record, ["instructor"]),
+      progress: getCsvRecordValue(record, ["progress"]) || "Not Started",
+      materialStatus: "Not Delivered",
+    };
+
+    const startDate = getCsvRecordValue(record, ["startdate"]);
+    const endDate = getCsvRecordValue(record, ["enddate"]);
+    const parsedStart = parseCsvDate(startDate);
+    const parsedEnd = parseCsvDate(endDate);
+    if (parsedStart) payload.startDate = parsedStart;
+    if (parsedEnd) payload.endDate = parsedEnd;
+
+    return payload;
+  };
+
+  const handleTesbinnCsvImport = async (event) => {
+    const file = event.target?.files?.[0];
+    if (!file) {
+      return;
+    }
+    event.target.value = "";
+
+    setIsCsvImportingTesbinn(true);
+    try {
+      const text = await file.text();
+      const rows = parseCsvRows(text);
+      if (!rows.length) {
+        toast({
+          title: "Empty file",
+          description: "The selected CSV file contains no data.",
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const headers = rows[0].map(normalizeCsvHeader);
+      const records = rows.slice(1).map((line) => {
+        const record = {};
+        line.forEach((value, idx) => {
+          record[headers[idx] || `column${idx}`] = value || "";
+        });
+        return record;
+      }).filter((record) => Object.values(record).some((value) => value && value.trim()));
+
+      if (!records.length) {
+        toast({
+          title: "No valid rows",
+          description: "The CSV file does not contain recognizable TESBINN data.",
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const settled = await Promise.allSettled(
+        records.map((record) =>
+          createTrainingFollowup(buildTrainingFollowupPayloadFromCsvRecord(record))
+        )
+      );
+
+      const successful = settled
+        .map((result) => (result.status === "fulfilled" ? getTrainingFollowupId(result.value) : null))
+        .filter(Boolean);
+
+      const failedCount = settled.filter((result) => result.status === "rejected").length;
+
+      await loadTrainingFollowups();
+
+      if (!successful.length) {
+        toast({
+          title: "Import failed",
+          description: "Unable to create training follow-ups from the provided file.",
+          status: "error",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      prepareTesbinnBulkSelection(successful, `Imported ${successful.length} TESBINN record(s) from CSV.`);
+      if (failedCount > 0) {
+        toast({
+          title: "Partial import",
+          description: `${failedCount} row(s) failed to import.`,
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+      }
+    } catch (err) {
+      console.error("CSV import failed", err);
+      toast({
+        title: "CSV import failed",
+        description: err.message || "Unable to process the selected file.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setIsCsvImportingTesbinn(false);
+    }
+  };
+
+  const closeTesbinnBulkModal = () => setIsTesbinnBulkModalOpen(false);
+
+  const applyTrainingDatesAndClose = async () => {
+    const success = await handleApplyTrainingDates();
+    if (success) {
+      closeTesbinnBulkModal();
+    }
+  };
 
   // Derived, filtered, and sorted arrays for ENSRA Follow-Up
   const filteredEnsraFollowups = [...ensraFollowups]
@@ -1534,6 +1943,9 @@ useEffect(() => {
       setTrainingBulkStartDate("");
       setTrainingBulkEndDate("");
       setSelectedAgentForAssignment("");
+      setSelectedInstructorForAssignment("");
+      setTrainingBulkStartTime("");
+      setTrainingBulkEndTime("");
     }
   }, [isCustomerSuccessManager]);
 
@@ -1842,6 +2254,8 @@ useEffect(() => {
     { key: "startDate", label: "Training Start Date" },
     { key: "endDate", label: "Training End Date" },
     { key: "agentName", label: "Agent Name" },
+    { key: "salesAgent", label: "Sales Agent" },
+    { key: "assignedInstructor", label: "Assigned Instructor" },
     { key: "customerName", label: "Customer Name" },
     { key: "email", label: "Email" },
     { key: "phone", label: "Phone Number" },
@@ -2172,22 +2586,36 @@ useEffect(() => {
     },
   ].filter((col) => col.visible);
 
+  const buildTrainingFollowupPayloadFromSale = (sale, overrides = {}) => {
+    const raw = sale._raw || {};
+    const agentName = sale.agentName || raw.agentName || raw.agentUsername || "";
+    const customerName =
+      sale.customerName ||
+      raw.customerName ||
+      raw.clientName ||
+      raw.companyName ||
+      "Customer";
+
+    return {
+      customerName,
+      email: sale.email || raw.email || "",
+      phoneNumber: sale.phone || raw.phoneNumber || "",
+      trainingType: sale.trainingProgram || raw.trainingProgram || raw.serviceProvided || "",
+      scheduleShift: sale.schedulePreference || raw.schedulePreference || raw.scheduleShift || "",
+      startDate: new Date().toISOString().split("T")[0],
+      progress: "Not Started",
+      materialStatus: "Not Delivered",
+      agentName,
+      salesAgent: raw.agentName || agentName || raw.agentId || "",
+      ...overrides,
+    };
+  };
+
   // Function to import a completed sale to training follow-ups
   const importToTraining = async (sale) => {
     try {
       // Map the sale data to training follow-up format
-      const trainingData = {
-        customerName: sale.customerName,
-        email: sale.email,
-        phoneNumber: sale.phone,
-        trainingType: sale.trainingProgram,
-        scheduleShift: sale.schedulePreference,
-        startDate: new Date().toISOString().split('T')[0], // Default to today
-        progress: 'Not Started',
-        materialStatus: 'Not Delivered',
-        agentName: sale.agentName,
-        // Add any other default values as needed
-      };
+      const trainingData = buildTrainingFollowupPayloadFromSale(sale);
 
       // Call the API to create a new training follow-up
       await createTrainingFollowup(trainingData);
@@ -2334,6 +2762,22 @@ useEffect(() => {
       visible: visibleColumns.trainingFollowup.agentName,
       header: "Agent Name",
       render: (item) => <CompactCell>{item.agentName}</CompactCell>,
+    },
+    {
+      key: "salesAgent",
+      visible: visibleColumns.trainingFollowup.salesAgent,
+      header: "Sales Agent",
+      render: (item) => (
+        <CompactCell>
+          {item.salesAgent || item.salesAgentName || "-"}
+        </CompactCell>
+      ),
+    },
+    {
+      key: "assignedInstructor",
+      visible: visibleColumns.trainingFollowup.assignedInstructor,
+      header: "Assigned Instructor",
+      render: (item) => <CompactCell>{item.assignedInstructor || "-"}</CompactCell>,
     },
     {
       key: "customerName",
@@ -2601,27 +3045,247 @@ useEffect(() => {
     },
   ].filter((col) => col.visible);
 
-  const ensraModule = (
-    <Card bg={cardBg} boxShadow="md" borderRadius="lg">
-      <CardBody>
-        <VStack spacing={4} align="stretch">
-          <Flex justify="space-between" align="center">
-            <Heading size="md" color={headerBg}>
-              ENSRA Follow-Up
-            </Heading>
-            <HStack spacing={2}>
-              {renderColumnMenu("ensra", ensraColumnOptions)}
-              <Tooltip label="Add ENSRA customer">
-                <IconButton
-                  aria-label="Add ENSRA customer"
-                  icon={<AddIcon />}
-                  colorScheme="teal"
-                  size="sm"
-                  onClick={() => setShowEnsraFormCard(true)}
+  return (
+    <Layout overflowX="auto" maxW="1200px" mx="auto" py={4} px={2}>
+      <VStack spacing={6} align="stretch">
+        <Heading 
+          as="h1" 
+          size={isMobile ? "lg" : "xl"} 
+          textAlign="center" 
+          color={headerBg}
+          fontWeight="bold"
+        >
+          Customer Success Follow-up
+        </Heading>
+        
+        <Box overflowX="auto" maxW="100%">
+          <Tabs variant="enclosed" colorScheme="blue" isFitted={!isMobile}>
+            <TabList mb={2} flexWrap={isMobile ? "wrap" : "nowrap"} gap={isMobile ? 1 : 2}>
+            <Tab>
+              <HStack spacing={2}>
+                <CheckIcon />
+                <Text>B2B Customers</Text>
+              </HStack>
+            </Tab>
+            <Tab>
+              <HStack spacing={2}>
+                <DownloadIcon />
+                <Text>Pending B2B Customers</Text>
+              </HStack>
+            </Tab>
+            <Tab>
+              <HStack spacing={2}>
+                <DownloadIcon />
+                <Text>Pending Training</Text>
+              </HStack>
+            </Tab>
+            <Tab>
+              <HStack spacing={2}>
+                <CheckIcon />
+                <Text>Training</Text>
+              </HStack>
+            </Tab>
+
+             <Tab>
+              <HStack spacing={2}>
+                <CheckIcon />
+                <Text>All TESBINN Users</Text>
+              </HStack>
+            </Tab>
+
+             <Tab>
+              <HStack spacing={2}>
+                <DownloadIcon /><CheckIcon />
+                <Text>ENSRA</Text>
+              </HStack>
+            </Tab>
+            </TabList>
+            
+            <TabPanels>
+            {/* Existing Follow-up Customers Tab */}
+            <TabPanel px={0}>
+              <FollowupTabPage
+                cardBg={cardBg}
+                headerBg={headerBg}
+                borderColor={borderColor}
+                tableBorderColor={tableBorderColor}
+                tableBg={tableBg}
+                rowHoverBg={rowHoverBg}
+                renderColumnMenu={renderColumnMenu}
+                followupColumnOptions={followupColumnOptions}
+                loading={loading}
+                error={error}
+                searchQuery={searchQuery}
+                handleSearch={handleSearch}
+                isMobile={isMobile}
+                isMobileView={isMobileView}
+                handleBackToCompanyList={handleBackToCompanyList}
+                handleRowClick={handleRowClick}
+                selectedRow={selectedRow}
+                filteredData={filteredData}
+                followupColumnsToRender={followupColumnsToRender}
+                onRefresh={fetchData}
+                onSelectRow={toggleSelectFollowup}
+                onSelectAll={selectAllFiltered}
+                selectedIds={selectedFollowupIds}
+                onBulkEmail={openBulkEmail}
+                onOpenConversation={openConversation}
+              />
+            </TabPanel>
+            
+            {/* Pending B2B Customers Tab */}
+            <TabPanel px={0}>
+              <PendingB2BTabPage
+                cardBg={cardBg}
+                headerBg={headerBg}
+                borderColor={borderColor}
+                tableBorderColor={tableBorderColor}
+                tableBg={tableBg}
+                rowHoverBg={rowHoverBg}
+                renderColumnMenu={renderColumnMenu}
+                pendingB2BColumnOptions={pendingB2BColumnOptions}
+                pendingB2BColumnsToRender={pendingB2BColumnsToRender}
+                pendingB2BCustomers={pendingB2BCustomers}
+                loadingB2B={loadingB2B}
+                fetchPendingB2BCustomers={fetchPendingB2BCustomers}
+              />
+            </TabPanel>
+            <TabPanel px={0}>
+              <TrainingTabPage
+                cardBg={cardBg}
+                headerBg={headerBg}
+                borderColor={borderColor}
+                tableBorderColor={tableBorderColor}
+                tableBg={tableBg}
+                rowHoverBg={rowHoverBg}
+                renderColumnMenu={renderColumnMenu}
+                completedSalesColumnOptions={completedSalesColumnOptions}
+                completedSalesColumnsToRender={completedSalesColumnsToRender}
+                completedSales={completedSales}
+                loadingTraining={loadingTraining}
+                trainingError={trainingError}
+                fetchCompletedSales={fetchCompletedSales}
+                trainingPrograms={trainingPrograms}
+                trainingForm={trainingForm}
+                setTrainingForm={setTrainingForm}
+                handleTrainingTypeChange={handleTrainingTypeChange}
+                handlePaymentOptionChange={handlePaymentOptionChange}
+                handleTrainingSubmit={handleTrainingSubmit}
+                isMobile={isMobile}
+              />
+            </TabPanel>
+            <TabPanel px={0}>
+              <TrainingFollowupTabPage
+                cardBg={cardBg}
+                headerBg={headerBg}
+                borderColor={borderColor}
+                tableBorderColor={tableBorderColor}
+                tableBg={tableBg}
+                rowHoverBg={rowHoverBg}
+                trainingSearch={trainingSearch}
+                setTrainingSearch={setTrainingSearch}
+                trainingProgressFilter={trainingProgressFilter}
+                setTrainingProgressFilter={setTrainingProgressFilter}
+                trainingScheduleFilter={trainingScheduleFilter}
+                setTrainingScheduleFilter={setTrainingScheduleFilter}
+                trainingMaterialFilter={trainingMaterialFilter}
+                setTrainingMaterialFilter={setTrainingMaterialFilter}
+                trainingCourseFilter={trainingCourseFilter}
+                setTrainingCourseFilter={setTrainingCourseFilter}
+                trainingStartDateFilter={trainingStartDateFilter}
+                setTrainingStartDateFilter={setTrainingStartDateFilter}
+                trainingCourseOptions={trainingCourseOptions}
+                renderColumnMenu={renderColumnMenu}
+                trainingFollowupColumnOptions={trainingFollowupColumnOptions}
+                trainingSortAsc={trainingSortAsc}
+                setTrainingSortAsc={setTrainingSortAsc}
+                trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
+                filteredTrainingFollowups={filteredTrainingFollowups}
+                selectedTrainingFollowupCount={selectedTrainingFollowupIds.length}
+                trainingBulkStartDate={trainingBulkStartDate}
+                trainingBulkEndDate={trainingBulkEndDate}
+                trainingBulkStartTime={trainingBulkStartTime}
+                trainingBulkEndTime={trainingBulkEndTime}
+                setTrainingBulkStartDate={setTrainingBulkStartDate}
+                setTrainingBulkEndDate={setTrainingBulkEndDate}
+                setTrainingBulkStartTime={setTrainingBulkStartTime}
+                setTrainingBulkEndTime={setTrainingBulkEndTime}
+                applyTrainingDates={handleApplyTrainingDates}
+                isApplyingTrainingDates={isApplyingTrainingDates}
+                assignableAgents={assignableAgents}
+                trainingAgentOptions={trainingAgentOptions}
+                selectedAgentForAssignment={selectedAgentForAssignment}
+                setSelectedAgentForAssignment={setSelectedAgentForAssignment}
+                trainingInstructorOptions={trainingInstructorOptions}
+                selectedInstructorForAssignment={selectedInstructorForAssignment}
+                setSelectedInstructorForAssignment={setSelectedInstructorForAssignment}
+                isCustomerSuccessManager={isCustomerSuccessManager}
+                isMobile={isMobile}
+                tableMinWidth="900px"
+                handleBulkUpdate={handleBulkUpdate}
+              >
+                <TrainingFollowupGrouped
+                  groupedTrainingFollowups={groupedTrainingFollowups}
+                  cardBg={cardBg}
+                  borderColor={borderColor}
+                  headerBg={headerBg}
+                  isLargerThan1024={isLargerThan1024}
                 />
-              </Tooltip>
-            </HStack>
-          </Flex>
+              </TrainingFollowupTabPage>
+            </TabPanel>
+            <TabPanel px={0}>
+              <TesbinnTabPage
+                cardBg={cardBg}
+                headerBg={headerBg}
+                borderColor={borderColor}
+                tableBorderColor={tableBorderColor}
+                tableBg={tableBg}
+                rowHoverBg={rowHoverBg}
+                trainingSearch={trainingSearch}
+                setTrainingSearch={setTrainingSearch}
+                trainingScheduleFilter={trainingScheduleFilter}
+                setTrainingScheduleFilter={setTrainingScheduleFilter}
+                trainingMaterialFilter={trainingMaterialFilter}
+                setTrainingMaterialFilter={setTrainingMaterialFilter}
+                trainingCourseFilter={trainingCourseFilter}
+                setTrainingCourseFilter={setTrainingCourseFilter}
+                trainingStartDateFilter={trainingStartDateFilter}
+                setTrainingStartDateFilter={setTrainingStartDateFilter}
+                trainingCourseOptions={trainingCourseOptions}
+                renderColumnMenu={renderColumnMenu}
+                trainingFollowupColumnOptions={trainingFollowupColumnOptions}
+                trainingSortAsc={trainingSortAsc}
+                setTrainingSortAsc={setTrainingSortAsc}
+                trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
+                tesbinnFollowups={tesbinnFollowups}
+                isMobile={isMobile}
+                isCustomerSuccessManager={isCustomerSuccessManager}
+                handleExportTesbinn={handleExportTesbinn}
+                handleCsvImport={handleTesbinnCsvImport}
+                isCsvImportingTesbinn={isCsvImportingTesbinn}
+              />
+            </TabPanel>
+            <TabPanel px={0}>
+              <Card bg={cardBg} boxShadow="md" borderRadius="lg">
+                <CardBody>
+                  <VStack spacing={4} align="stretch">
+                    <Flex justify="space-between" align="center">
+                      <Heading size="md" color={headerBg}>
+                        ENSRA Follow-Up
+                      </Heading>
+                      <HStack spacing={2}>
+                        {renderColumnMenu("ensra", ensraColumnOptions)}
+                        <Tooltip label="Add ENSRA customer">
+                          <IconButton
+                            aria-label="Add ENSRA customer"
+                            icon={<AddIcon />}
+                            colorScheme="teal"
+                            size="sm"
+                            onClick={() => setShowEnsraFormCard(true)}
+                          />
+                        </Tooltip>
+                      </HStack>
+                    </Flex>
 
           <Flex direction={isMobile ? "column" : "row"} gap={3} align="center">
             <Box flex={1} width="100%">

@@ -15,9 +15,11 @@ import {
   TableContainer,
   Text,
   Thead,
+  Tooltip,
   Tr,
   VStack,
 } from "@chakra-ui/react";
+import { DownloadIcon, ArrowUpIcon } from "@chakra-ui/icons";
 
 const CompactHeaderCell = ({ children, borderColor }) => (
   <Td
@@ -64,14 +66,55 @@ const TesbinnTabPage = ({
   tesbinnFollowups,
   isMobile,
   tableMinWidth = "900px",
+  isCustomerSuccessManager,
+  handleExportTesbinn,
+  handleCsvImport,
+  isCsvImportingTesbinn,
 }) => {
   return (
     <Card bg={cardBg} boxShadow="md" borderRadius="lg">
       <CardBody>
         <VStack spacing={4} align="stretch">
-          <Heading size="md" color={headerBg}>
-            All TESBINN Users (Progress: Completed)
-          </Heading>
+          <Flex justify="space-between" align="center">
+            <Heading size="md" color={headerBg}>
+              All TESBINN Users (Progress: Completed)
+            </Heading>
+            {isCustomerSuccessManager && (
+              <HStack spacing={2}>
+                <Tooltip label="Import TESBINN CSV from local file">
+                  <Button
+                    as="label"
+                    htmlFor="tesbinn-csv-input"
+                    size="sm"
+                    colorScheme="purple"
+                    variant="outline"
+                    leftIcon={<ArrowUpIcon />}
+                    isLoading={isCsvImportingTesbinn}
+                  >
+                    Import CSV
+                  </Button>
+                </Tooltip>
+                <input
+                  id="tesbinn-csv-input"
+                  type="file"
+                  accept=".csv"
+                  style={{ display: "none" }}
+                  onChange={handleCsvImport}
+                />
+                <Tooltip label="Export TESBINN list to Excel">
+                  <Button
+                    size="sm"
+                    colorScheme="blue"
+                    variant="outline"
+                    leftIcon={<DownloadIcon />}
+                    onClick={handleExportTesbinn}
+                  >
+                    Export
+                  </Button>
+                </Tooltip>
+              </HStack>
+            )}
+          </Flex>
 
           <Flex
             direction={isMobile ? "column" : "row"}

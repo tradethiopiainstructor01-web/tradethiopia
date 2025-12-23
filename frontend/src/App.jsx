@@ -22,6 +22,7 @@ import FinanceReportsPage from "./pages/sales/FinanceReportsPage.jsx";
 import InventoryPage from "./pages/sales/InventoryPage.jsx";
 import OrdersPage from "./pages/sales/OrdersPage.jsx";
 import FinancePayrollPage from "./pages/sales/FinancePayrollPage.jsx";
+import CommissionApprovalPage from "./pages/sales/CommissionApprovalPage.jsx";
 import PDFList from './components/PDFList';
 import InfoForm from './pages/InfoForm';
 import EmployeeInfoPage from './pages/EmployeeInfoPage';
@@ -48,6 +49,7 @@ import AdminCustomerReport from './components/AdminCSReport.jsx';
 import B2BDashboard from './pages/B2BDashboard';
 import CustomerSettings from "./components/customer/CustomerSettings";
 import COODashboard from './pages/COODashboard';
+import ReceptionDashboard from './pages/ReceptionDashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
 import PricingPage from './pages/sales/PricingPage.jsx';
 import RevenuePage from './pages/sales/RevenuePage.jsx';
@@ -104,7 +106,7 @@ function App() {
     "/finance/messages", "/finance/team-requests",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
     "/cdashboard", "/waitingforapproval", "/training","/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/supervisor", "/supervisor/account", "/finance/requests"
+    "/coo-dashboard", "/tradextv-dashboard", "/customer-settings", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/finance-dashboard/commission-approval", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard"
   ].map((path) => path.toLowerCase());
 
   // Hide the navbar and sidebar for legacy/fullscreen pages; root should only match exactly
@@ -148,6 +150,7 @@ return (
       <Route path="/finance-dashboard/purchase" element={<FinanceLayout><PurchasePage /></FinanceLayout>} />
       <Route path="/finance-dashboard/costs" element={<FinanceLayout><CostManagementPage /></FinanceLayout>} />
       <Route path="/finance-dashboard/payroll" element={<FinanceLayout><FinancePayrollPage /></FinanceLayout>} />
+      <Route path="/finance-dashboard/commission-approval" element={<FinanceLayout><CommissionApprovalPage /></FinanceLayout>} />
       <Route path="/finance/team-requests" element={<FinanceLayout><TeamRequestsPage /></FinanceLayout>} />
       <Route
         path="/finance/messages"
@@ -192,6 +195,7 @@ return (
       <Route path="/b2b-dashboard" element={<B2BDashboard />} />
       <Route path="/coo-dashboard" element={<COODashboard />} />
       <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
+      <Route path="/reception-dashboard" element={<LayoutWrapper><ReceptionDashboard /></LayoutWrapper>} />
       <Route path="/customer-settings" element={<LayoutWrapper><CustomerSettings /></LayoutWrapper>} />
       <Route path="/social-media" element={<LayoutWrapper><SocialMediaDashboardPage /></LayoutWrapper>} />
       <Route path="/requests" element={<LayoutWrapper><RequestPage /></LayoutWrapper>} />
@@ -249,7 +253,7 @@ return (
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="messages" element={<MessagesPage />} />
-        <Route path="messages" element={<MessagesPage />} />
+        <Route path="trainings" element={<TrainingPage />} />
         
       </Route>
     </Routes>

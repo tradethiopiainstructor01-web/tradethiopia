@@ -31,6 +31,7 @@ const trainingFollowupRoutes = require('./routes/trainingFollowupRoutes.js');
 const ensraFollowupRoutes = require('./routes/ensraFollowupRoutes.js');
 const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
 const packageRoutes = require('./routes/packageRoutes.js');
+const packageSalesRoutes = require('./routes/packageSalesRoutes.js');
 const serviceTypeRoutes = require('./routes/serviceTypeRoutes.js');
 const metricRoutes = require('./routes/metricRoutes.js');
 const tradexFollowupRoutes = require('./routes/tradexFollowupRoutes.js');
@@ -126,7 +127,7 @@ const corsOptions = {
     console.warn('CORS blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
@@ -261,9 +262,10 @@ app.use('/api/b2b', b2bMatchingRoutes);
 app.use('/api/saved-matches', savedMatchRoutes);
 app.use('/api/training-followups', trainingFollowupRoutes);
 app.use('/api/ensra-followups', ensraFollowupRoutes);
-// Support both kebab and non-kebab paths for sales customers
 app.use('/api/salescustomers', salesCustomerRoutes);
 app.use('/api/sales-customers', salesCustomerRoutes);
+app.use('/api/packages/sales', packageSalesRoutes);
+app.use('/api/package-sales', packageSalesRoutes);
 app.use('/api/packages', packageRoutes);
 app.use('/api/service-types', serviceTypeRoutes);
 app.use('/api', metricRoutes);
@@ -291,9 +293,10 @@ app.use('/api/awards', awardRoutes);
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ 
-    success: false, 
-    message: 'Internal server error',
+  const statusCode = res.statusCode >= 400 ? res.statusCode : 500;
+  res.status(statusCode).json({
+    success: false,
+    message: err.message || 'Internal server error',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined,
     vercel: !!process.env.VERCEL
   });
@@ -319,7 +322,7 @@ if (require.main === module) {
         io.attach(server, {
           cors: {
             origin: '*',
-            methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PATCH'],
             credentials: true
           }
         });

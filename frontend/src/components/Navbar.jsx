@@ -25,7 +25,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useUserStore } from "../store/user";
 import { useEffect, useState } from "react";
 
-const NavbarPage = () => {
+const NavbarPage = ({ sidebarWidth = "0px" }) => {
     const { colorMode, toggleColorMode } = useColorMode();
     const gradient = useColorModeValue(
         "linear(to-r,rgb(11, 11, 25),rgb(47, 24, 174))",
@@ -67,6 +67,8 @@ const NavbarPage = () => {
             zIndex="20"
             position="fixed"
             top="0"
+            left={sidebarWidth}
+            width={`calc(100% - ${sidebarWidth})`}
             boxShadow="lg"
             transition="background 0.3s ease"
             borderBottomWidth="1px"
