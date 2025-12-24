@@ -93,6 +93,14 @@ const payrollSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  firstCommissionTotal: {
+    type: Number,
+    default: 0
+  },
+  secondCommissionTotal: {
+    type: Number,
+    default: 0
+  },
   // Deductions
   financeDeductions: {
     type: Number,

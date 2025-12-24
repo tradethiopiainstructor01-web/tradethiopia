@@ -104,6 +104,12 @@ export const deletePayrollRecord = async (payrollId) => {
   return response.data;
 };
 
+// Fetch aggregate first/second commission totals for payroll
+export const fetchCommissionTotals = async (params) => {
+  const response = await axiosInstance.get('/commissions/totals', { params });
+  return response.data;
+};
+
 // Calculate commission using the exact same formula as the backend
 const calculateCommission = (salesValue = 0) => {
   const commissionRate = 0.075;
