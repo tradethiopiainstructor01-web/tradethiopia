@@ -125,6 +125,7 @@ const HomePage = () => {
                             <option value="tradextv">tradextv</option>
                             <option value="IT">IT</option>
                             <option value="HR">HR</option>
+                            <option value="Enisra">Enisra</option>
                             <option value="Instructor">Instructor</option>
                             <option value="EventManager">EventManager</option>          
                                           </Select>

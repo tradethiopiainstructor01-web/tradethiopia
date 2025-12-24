@@ -17,13 +17,14 @@ import {
   Heading,
   Text,
   VStack,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import axios from 'axios';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import NotesContainer from './NotesContainer';
 
-const NotesDrawer = ({ isOpen, onClose }) => {
+const NotesDrawer = ({ isOpen, onClose, onNotesUpdate }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [notes, setNotes] = useState([]);
@@ -35,12 +36,13 @@ const NotesDrawer = ({ isOpen, onClose }) => {
       axios.get(`${import.meta.env.VITE_API_URL}/api/notes`)
         .then((response) => {
           setNotes(response.data);
+          onNotesUpdate?.(response.data);
         })
         .catch((error) => {
           console.error('Error fetching notes:', error);
         });
     }
-  }, [isOpen]);
+  }, [isOpen, onNotesUpdate]);
 
   const handleSave = () => {
     const noteData = { title, content };
@@ -52,6 +54,7 @@ const NotesDrawer = ({ isOpen, onClose }) => {
             note._id === selectedNoteId ? response.data : note
           );
           setNotes(updatedNotes);
+          onNotesUpdate?.(updatedNotes);
           toast({
             title: 'Note updated.',
             description: 'Your note was updated successfully.',
@@ -66,7 +69,9 @@ const NotesDrawer = ({ isOpen, onClose }) => {
     } else {
       axios.post(`${import.meta.env.VITE_API_URL}/api/notes`, noteData)
         .then((response) => {
-          setNotes([...notes, response.data]);
+          const nextNotes = [...notes, response.data];
+          setNotes(nextNotes);
+          onNotesUpdate?.(nextNotes);
           toast({
             title: 'Note saved.',
             description: 'Your note was saved successfully.',
@@ -95,12 +100,20 @@ const NotesDrawer = ({ isOpen, onClose }) => {
   const handleDelete = (noteId) => {
     axios.delete(`${import.meta.env.VITE_API_URL}/api/notes/${noteId}`)
       .then(() => {
-        setNotes((prevNotes) => prevNotes.filter((note) => note._id !== noteId));
+        setNotes((prevNotes) => {
+          const updatedNotes = prevNotes.filter((note) => note._id !== noteId);
+          onNotesUpdate?.(updatedNotes);
+          return updatedNotes;
+        });
       })
       .catch((error) => {
         console.error('Error deleting note:', error);
       });
   };
+
+  const bodyBg = useColorModeValue('white', 'gray.800');
+  const inputBg = useColorModeValue('white', 'gray.700');
+  const textColor = useColorModeValue('gray.700', 'gray.100');
 
   return (
     <Drawer isOpen={isOpen} onClose={onClose} size="lg">
@@ -113,7 +126,7 @@ const NotesDrawer = ({ isOpen, onClose }) => {
 
         <Divider />
 
-        <DrawerBody>
+        <DrawerBody bg={bodyBg} color={textColor}>
           <VStack spacing={4} align="stretch">
             <FormControl id="title" isRequired>
               <FormLabel>Title</FormLabel>
@@ -124,11 +137,12 @@ const NotesDrawer = ({ isOpen, onClose }) => {
                 placeholder="Enter note title"
                 size="lg"
                 borderColor="gray.300"
+                bg={inputBg}
               />
             </FormControl>
 
-            <FormControl id="content" isRequired>
-              <FormLabel>Content</FormLabel>
+              <FormControl id="content" isRequired>
+                <FormLabel>Content</FormLabel>
               <ReactQuill
                 value={content}
                 onChange={setContent}

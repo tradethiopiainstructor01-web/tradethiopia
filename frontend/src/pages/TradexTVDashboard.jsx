@@ -45,8 +45,6 @@ import {
   MenuList,
   MenuItem,
   MenuDivider,
-  MenuOptionGroup,
-  MenuItemOption,
   useDisclosure,
   useToast,
   Modal,
@@ -134,13 +132,6 @@ const stats = [
   { id: 4, label: 'Satisfaction', value: '94%', change: 1.2, isUp: true, icon: FiUsers },
 ];
 
-const recentTickets = [
-  { id: 1, customer: 'John Doe', subject: 'Login issues', status: 'Open', priority: 'High', date: '2025-11-27' },
-  { id: 2, customer: 'Jane Smith', subject: 'Billing question', status: 'In Progress', priority: 'Medium', date: '2025-11-27' },
-  { id: 3, customer: 'Acme Corp', subject: 'API Integration', status: 'Pending', priority: 'High', date: '2025-11-26' },
-  { id: 4, customer: 'Bob Johnson', subject: 'Feature request', status: 'Resolved', priority: 'Low', date: '2025-11-26' },
-];
-
 const getPriorityColor = (priority) => {
   switch (priority.toLowerCase()) {
     case 'high': return 'red';
@@ -164,7 +155,7 @@ const TradexTVDashboard = () => {
   // Tab state
   const [tabIndex, setTabIndex] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
-  const tabKeys = ['overview', 'projects', 'tickets', 'team', 'analytics', 'revenue', 'report', 'notice-board', 'settings'];
+  const tabKeys = ['overview', 'projects', 'team', 'analytics', 'revenue', 'report', 'notice-board', 'settings'];
   const handleTabsChange = (index) => {
     setTabIndex(index);
     const params = new URLSearchParams(location.search);
@@ -195,12 +186,6 @@ const TradexTVDashboard = () => {
   ]);
   const [serviceOptions, setServiceOptions] = useState(defaultServiceOptions);
   
-  const [recentTickets, setRecentTickets] = useState([
-    { id: 1, customer: 'John Doe', subject: 'Video Edit Request', services: ['Promotional video'], status: 'In Progress', priority: 'High', date: '2025-11-27' },
-    { id: 2, customer: 'Jane Smith', subject: 'Motion Graphics', services: ['Motion graphics'], status: 'Pending', priority: 'Medium', date: '2025-11-27' },
-    { id: 3, customer: 'Acme Corp', subject: 'Brand Video', services: ['Brand promo video'], status: 'Review', priority: 'High', date: '2025-11-26' },
-    { id: 4, customer: 'Bob Johnson', subject: 'Social Media Content', services: ['Graphics design'], status: 'Completed', priority: 'Low', date: '2025-11-26' },
-  ]);
   const { isOpen: isProjectModalOpen, onOpen: onOpenProjectModal, onClose: onCloseProjectModal } = useDisclosure();
   const { isOpen: isNewCustomerOpen, onOpen: onOpenNewCustomer, onClose: onCloseNewCustomer } = useDisclosure();
   const { isOpen: isBroadcastOpen, onOpen: onOpenBroadcast, onClose: onCloseBroadcast } = useDisclosure();
@@ -216,7 +201,6 @@ const TradexTVDashboard = () => {
   const [newServiceName, setNewServiceName] = useState('');
   const [isLoadingServices, setIsLoadingServices] = useState(false);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
-  const [isLoadingFollowups, setIsLoadingFollowups] = useState(false);
   const [isSavingFollowup, setIsSavingFollowup] = useState(false);
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
@@ -301,40 +285,6 @@ const TradexTVDashboard = () => {
       console.error('Failed to load service types', err);
     } finally {
       setIsLoadingServices(false);
-    }
-  }, []);
-
-  const fetchFollowups = useCallback(async () => {
-    try {
-      setIsLoadingFollowups(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tradex-followups`);
-      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
-      const mapped = list.map((fu, idx) => {
-        const servicesArr = fu.services
-          ? fu.services.filter(Boolean)
-          : fu.serviceProvided
-          ? fu.serviceProvided.split(',').map((s) => s.trim()).filter(Boolean)
-          : [];
-        return {
-          id: fu._id || idx + 1,
-          _id: fu._id,
-          customer: fu.clientName || fu.companyName || 'Customer',
-          services: servicesArr,
-          subject: fu.packageType || fu.service || fu.serviceProvided || fu.notes || 'Follow-up',
-          status: fu.status || 'In Progress',
-          priority: fu.priority || 'High',
-          date: fu.deadline
-            ? new Date(fu.deadline).toISOString().split('T')[0]
-            : fu.createdAt
-            ? new Date(fu.createdAt).toISOString().split('T')[0]
-            : '',
-        };
-      });
-      setRecentTickets(mapped);
-    } catch (err) {
-      console.error('Failed to load follow-ups', err);
-    } finally {
-      setIsLoadingFollowups(false);
     }
   }, []);
 
@@ -492,8 +442,7 @@ const TradexTVDashboard = () => {
   useEffect(() => {
     fetchServiceTypes();
     fetchRevenueAndSocial();
-    fetchFollowups();
-  }, [fetchServiceTypes, fetchRevenueAndSocial, fetchFollowups]);
+  }, [fetchServiceTypes, fetchRevenueAndSocial]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -607,39 +556,11 @@ const TradexTVDashboard = () => {
         ...p,
         services: (p.services || []).filter((s) => s !== name)
       }));
-      setRecentTickets((prev) =>
-        prev.map((t) => ({
-          ...t,
-          services: (t.services || []).filter((s) => s !== name)
-        }))
-      );
     } catch (err) {
       console.error('Failed to remove service', err);
     } finally {
       setIsLoadingServices(false);
     }
-  };
-
-  const persistServicesUpdate = async (followupId, services) => {
-    try {
-      await axios.patch(`${import.meta.env.VITE_API_URL}/api/tradex-followups/${followupId}/services`, {
-        services: Array.isArray(services) ? services : [],
-      });
-    } catch (err) {
-      console.error('Failed to persist services for follow-up', err);
-    }
-  };
-
-  const handleServiceUpdate = (ticketId, services) => {
-    const normalizedServices = Array.isArray(services) ? services : [];
-    setRecentTickets((prev) => {
-      const updated = prev.map((t) => (t.id === ticketId ? { ...t, services: normalizedServices } : t));
-      const followup = updated.find((t) => t.id === ticketId);
-      if (followup?._id) {
-        persistServicesUpdate(followup._id, normalizedServices);
-      }
-      return updated;
-    });
   };
 
   const handleNewCustomerSubmit = () => {
@@ -667,37 +588,11 @@ const TradexTVDashboard = () => {
       createdBy: currentUser?._id || currentUser?.username || currentUser?.name || 'tradextv',
     };
 
-    const localTicket = {
-      id: Date.now(),
-      customer: trimmedName,
-      subject: payload.packageType,
-      services: selectedServices,
-      status: newCustomerForm.status,
-      priority: newCustomerForm.priority,
-      date: dateValue,
-      notes: newCustomerForm.notes || '',
-    };
-
     setIsSavingFollowup(true);
     axios
       .post(`${import.meta.env.VITE_API_URL}/api/tradex-followups`, payload)
-      .then((res) => {
-        const data = res.data || {};
-        const mapped = {
-          id: data._id || localTicket.id,
-          _id: data._id,
-          customer: data.clientName || localTicket.customer,
-          subject: data.packageType || localTicket.subject,
-          services: payload.serviceProvided ? payload.serviceProvided.split(',').map((s) => s.trim()) : localTicket.services,
-          status: newCustomerForm.status,
-          priority: newCustomerForm.priority,
-          date: data.deadline ? new Date(data.deadline).toISOString().split('T')[0] : localTicket.date,
-        };
-        setRecentTickets((prev) => [...prev, mapped]);
-      })
       .catch((err) => {
         console.error('Failed to create follow-up', err);
-        setRecentTickets((prev) => [...prev, localTicket]);
       })
       .finally(() => {
         setIsSavingFollowup(false);
@@ -784,21 +679,20 @@ const TradexTVDashboard = () => {
 
   // Use routes that actually exist in the router (base is /tradextv-dashboard)
   const menuItems = [
-    { 
-      section: 'Main',
-      items: [
-        { icon: FiHome, label: 'Overview', path: '/tradextv-dashboard' },
-        { icon: FiMessageSquare, label: 'Projects', path: '/tradextv-dashboard?tab=projects' },
-        { icon: FiMessageSquare, label: 'Customers', path: '/tradextv-dashboard?tab=tickets' },
-        { icon: FiUsers, label: 'Team', path: '/tradextv-dashboard?tab=team' },
-        { icon: FiPieChart, label: 'Analytics', path: '/tradextv-dashboard?tab=analytics' },
-        { icon: FiBarChart2, label: 'Revenue', path: '/tradextv-dashboard?tab=revenue' },
-        { icon: FiFileText, label: 'Report', path: '/tradextv-dashboard?tab=report' },
-        { icon: FiClipboard, label: 'Requests', path: '/requests' },
-        { icon: FiMessageSquare, label: 'Notice Board', path: '/tradextv-dashboard?tab=notice-board', unreadCount: unreadCount },
-        { icon: FiSettings, label: 'Settings', path: '/tradextv-dashboard?tab=settings' },
-      ]
-    },
+      { 
+        section: 'Main',
+        items: [
+          { icon: FiHome, label: 'Overview', path: '/tradextv-dashboard' },
+          { icon: FiMessageSquare, label: 'Projects', path: '/tradextv-dashboard?tab=projects' },
+          { icon: FiUsers, label: 'Team', path: '/tradextv-dashboard?tab=team' },
+          { icon: FiPieChart, label: 'Analytics', path: '/tradextv-dashboard?tab=analytics' },
+          { icon: FiBarChart2, label: 'Revenue', path: '/tradextv-dashboard?tab=revenue' },
+          { icon: FiFileText, label: 'Report', path: '/tradextv-dashboard?tab=report' },
+          { icon: FiClipboard, label: 'Requests', path: '/requests' },
+          { icon: FiMessageSquare, label: 'Notice Board', path: '/tradextv-dashboard?tab=notice-board', unreadCount: unreadCount },
+          { icon: FiSettings, label: 'Settings', path: '/tradextv-dashboard?tab=settings' },
+        ]
+      },
   ];
   return (
     <Box minH="100vh" bg={pageBg} color={bodyTextColor}>
@@ -987,7 +881,6 @@ const TradexTVDashboard = () => {
             <TabList>
               <Tab>Overview</Tab>
               <Tab>Projects</Tab>
-              <Tab>Customers</Tab>
               <Tab>Team</Tab>
               <Tab>Analytics</Tab>
               <Tab>Revenue</Tab>
@@ -1189,116 +1082,6 @@ const TradexTVDashboard = () => {
                           </Select>
                         </Td>
                         <Td>{proj.dueDate}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </Box>
-            </Box>
-          </TabPanel>
-
-          <TabPanel p={0}>
-            <Flex justify="space-between" align="center" mb={8}>
-              <Box>
-                <Heading size="lg" mb={1}>Customer follow-up</Heading>
-                <Text color={mutedTextColor}>Work in-flight follow-ups and assign service deliverables (promo video, graphics, etc.).</Text>
-              </Box>
-              <Button colorScheme="purple" onClick={onOpenNewCustomer}>
-                New customer
-              </Button>
-            </Flex>
-            <Box 
-              bg={cardBg}
-              p={6}
-              borderRadius="lg"
-              boxShadow="sm"
-              borderWidth="1px"
-              borderColor={borderColor}
-              mb={8}
-            >
-              <Box overflowX="auto">
-                <Table variant="simple">
-                  <Thead>
-                    <Tr>
-                      <Th>Customer ID</Th>
-                      <Th>Customer</Th>
-                      <Th>Services</Th>
-                      <Th>Status</Th>
-                      <Th>Priority</Th>
-                      <Th>Date</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {recentTickets.map((ticket) => (
-                      <Tr key={ticket.id}>
-                        <Td>#{ticket.id}</Td>
-                        <Td fontWeight="medium">{ticket.customer}</Td>
-                        <Td>
-                          <Flex gap={2} flexWrap="wrap" mb={2}>
-                            {ticket.services && ticket.services.length ? (
-                              ticket.services.map((service) => (
-                                <Tag key={`${ticket.id}-${service}`} size="sm" colorScheme="purple" variant="subtle">
-                                  {service}
-                                </Tag>
-                              ))
-                            ) : (
-                              <Text color={mutedTextColor}>Select services</Text>
-                            )}
-                          </Flex>
-                          <Menu closeOnSelect={false}>
-                            <MenuButton
-                              as={Button}
-                              size="xs"
-                              variant="outline"
-                              rightIcon={<FiChevronDown />}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Edit services
-                            </MenuButton>
-                            <MenuList onClick={(e) => e.stopPropagation()}>
-                              <MenuOptionGroup
-                                value={ticket.services || []}
-                                type="checkbox"
-                                onChange={(value) =>
-                                  handleServiceUpdate(ticket.id, Array.isArray(value) ? value : [value])
-                                }
-                              >
-                                {serviceOptions.map((option) => (
-                                  <MenuItemOption key={`${ticket.id}-${option}`} value={option}>
-                                    {option}
-                                  </MenuItemOption>
-                                ))}
-                              </MenuOptionGroup>
-                            </MenuList>
-                          </Menu>
-                        </Td>
-                        <Td>
-                          <Select
-                            size="sm"
-                            value={ticket.status}
-                            onClick={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setRecentTickets((prev) =>
-                                prev.map((t) =>
-                                  t.id === ticket.id ? { ...t, status: value } : t
-                                )
-                              );
-                            }}
-                          >
-                            <option value="In Progress">In Progress</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Review">Review</option>
-                            <option value="Completed">Completed</option>
-                          </Select>
-                        </Td>
-                        <Td>
-                          <Badge colorScheme={getPriorityColor(ticket.priority)} variant="outline">
-                            {ticket.priority}
-                          </Badge>
-                        </Td>
-                        <Td>{ticket.date}</Td>
                       </Tr>
                     ))}
                   </Tbody>

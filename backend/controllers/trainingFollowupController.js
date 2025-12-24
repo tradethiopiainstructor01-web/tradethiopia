@@ -33,7 +33,7 @@ const createTrainingFollowup = async (req, res) => {
 // Get Training follow-ups with basic filtering/sorting
 const getTrainingFollowups = async (req, res) => {
   try {
-    const { q, progress, sort = "asc" } = req.query;
+    const { q, progress, sort = "asc", batch } = req.query;
     const filter = {};
 
     if (q) {
@@ -42,11 +42,16 @@ const getTrainingFollowups = async (req, res) => {
         { customerName: regex },
         { agentName: regex },
         { email: regex },
+        { batch: regex },
       ];
     }
 
     if (progress && progress !== "all") {
       filter.progress = progress;
+    }
+
+    if (batch) {
+      filter.batch = new RegExp(batch, "i");
     }
 
     const sortDir = sort === "desc" ? -1 : 1;

@@ -132,6 +132,7 @@ return (
                             <option value="admin">Admin</option>
                             <option value="HR">HR</option>
                             <option value="sales">Sales</option>
+                            <option value="Enisra">Enisra</option>
                             <option value="customerservice">Customer Service</option>
                             <option value="CustomerSuccessManager">Customer Success Manager</option>
                             <option value="SocialmediaManager">Socialmedia Manager</option>

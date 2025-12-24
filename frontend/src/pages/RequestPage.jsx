@@ -71,10 +71,15 @@ const getRequestStatusColor = (status) => {
   return "orange";
 };
 
-export default function RequestPage() {
+export default function RequestPage({
+  maxWidth,
+  departmentOverride,
+  backRouteOverride,
+  backLabelOverride,
+}) {
   const toast = useToast();
   const navigateUser = useUserStore((state) => state.currentUser);
-  const initialDepartment = getUserDepartment(navigateUser);
+  const initialDepartment = departmentOverride || getUserDepartment(navigateUser);
   const normalizedRoleKey = normalizeDepartmentKey(navigateUser?.role);
   const normalizedDepartmentKey = normalizeDepartmentKey(initialDepartment);
   const departmentRoute =
@@ -84,6 +89,8 @@ export default function RequestPage() {
   const departmentLabel = initialDepartment || navigateUser?.role || "Dashboard";
   const navigate = useNavigate();
   const { colorMode, toggleColorMode } = useColorMode();
+  const resolvedBackRoute = backRouteOverride || departmentRoute;
+  const resolvedBackLabel = backLabelOverride || departmentLabel;
   const fileInputRef = useRef(null);
   const todayString = new Date().toISOString().split("T")[0];
   const cardBg = useColorModeValue("white", "gray.700");
@@ -95,6 +102,7 @@ export default function RequestPage() {
 
   const [form, setForm] = useState(() => ({
     department: initialDepartment || "",
+    title: "",
     details: "",
     priority: "Medium",
     date: todayString,
@@ -118,12 +126,13 @@ export default function RequestPage() {
   const departmentDisplayLabel = form.department || "your department";
 
   useEffect(() => {
+    if (departmentOverride) return;
     const dept = getUserDepartment(navigateUser);
     setForm((prev) => ({
       ...prev,
       department: dept || prev.department,
     }));
-  }, [navigateUser]);
+  }, [navigateUser, departmentOverride]);
 
   const fetchRecentRequests = useCallback(async () => {
     if (!form.department) {
@@ -167,10 +176,16 @@ export default function RequestPage() {
       });
       return;
     }
-    if (!form.department || !form.details.trim() || !form.date || !form.priority) {
+    if (
+      !form.department ||
+      !form.title.trim() ||
+      !form.details.trim() ||
+      !form.date ||
+      !form.priority
+    ) {
       toast({
         title: "Missing required fields",
-        description: "Department, details, date, and priority are required.",
+      description: "Department, title, details, date, and priority are required.",
         status: "warning",
       });
       return;
@@ -180,6 +195,7 @@ export default function RequestPage() {
     try {
       const payload = new FormData();
       payload.append("department", form.department);
+      payload.append("title", form.title.trim());
       payload.append("details", form.details.trim());
       payload.append("priority", form.priority);
       payload.append("date", form.date);
@@ -199,6 +215,7 @@ export default function RequestPage() {
       toast({ title: "Request submitted", status: "success" });
       setForm((prev) => ({
         ...prev,
+        title: "",
         details: "",
         priority: "Medium",
         date: new Date().toISOString().split("T")[0],
@@ -238,6 +255,9 @@ export default function RequestPage() {
   return (
     <Box
       minH="100vh"
+      w="100%"
+      maxW={maxWidth || "100%"}
+      mx={maxWidth ? "auto" : undefined}
       bg={useColorModeValue("gray.100", "gray.900")}
       px={{ base: 4, md: 6 }}
       py={{ base: 6, md: 10 }}
@@ -249,10 +269,10 @@ export default function RequestPage() {
             colorScheme="teal"
             leftIcon={<ArrowLeftIcon />}
             borderRadius="2xl"
-            onClick={() => navigate(departmentRoute)}
+            onClick={() => navigate(resolvedBackRoute)}
             aria-label="Back to Department"
           >
-            Back to {departmentLabel}
+            Back to {resolvedBackLabel}
           </Button>
           <Box maxW={{ base: "100%", md: "70%" }}>
             <Heading size="2xl">Request Center</Heading>
@@ -292,6 +312,14 @@ export default function RequestPage() {
                 isReadOnly
               />
               <FormHelperText>Assigned automatically from your profile.</FormHelperText>
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Title</FormLabel>
+              <Input
+                value={form.title}
+                onChange={(event) => normalizeForm("title", event.target.value)}
+                placeholder="Brief summary of your request"
+              />
             </FormControl>
             <FormControl isRequired>
               <FormLabel>Details</FormLabel>

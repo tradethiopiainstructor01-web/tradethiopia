@@ -56,6 +56,19 @@ import RevenuePage from './pages/sales/RevenuePage.jsx';
 import PurchasePage from './pages/sales/PurchasePage.jsx';
 import CostManagementPage from './pages/sales/CostManagementPage.jsx';
 import ITDashboard from "./pages/ITDashboard";
+import ENISRALayout from "./components/ENSRA/ENSRALayout";
+import ENISRADashboard from "./components/ENSRA/ENSRADashboard";
+import ENISRAEnhancedDashboard from "./components/ENSRA/ENISRAEnhancedDashboard";
+import ENISRANoticeBoard from "./components/ENSRA/ENSRANoticeBoard";
+import ENISRARequest from "./components/ENSRA/ENSRARequest";
+import ENISRARequestEmbedded from "./components/ENSRA/ENISRARequestEmbedded";
+import ENISRAFollowUp from "./components/ENSRA/ENISRAFollowUp";
+import ProtectedRoute from "./routes/ProtectedRoute";
+import RoleProtectedRoute from "./components/RoleProtectedRoute";
+import InstructorLayout from "./components/instructor/InstructorLayout";
+import InstructorDashboard from "./pages/instructor/Dashboard";
+import InstructorRequest from "./pages/instructor/Request";
+import InstructorNoticeBoard from "./pages/instructor/NoticeBoard";
 import SalesManagerLayout from "./components/salesmanager/Layout";
 import SalesManagerDashboard from "./components/salesmanager/SalesManagerDashboard";
 import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerProtectedRoute";
@@ -162,33 +175,170 @@ return (
       <Route path="/quiz" element={<LayoutWrapper><CreateQuiz /></LayoutWrapper>} />
       <Route path="/resources" element={<LayoutWrapper><PDFList /></LayoutWrapper>} />
       <Route path="/Addresource" element={<LayoutWrapper><Addresource /></LayoutWrapper>} />
-      <Route path="/FollowUpList" element={<LayoutWrapper><FollowUpList /></LayoutWrapper>} />
-      <Route path="/CustomerFollowUpForm" element={<LayoutWrapper><CustomerFollowUpForm /></LayoutWrapper>} />
+      <Route
+        path="/FollowUpList"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <FollowUpList />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/CustomerFollowUpForm"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <CustomerFollowUpForm />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/assetcategory" element={<LayoutWrapper><AssetCategoryPage /></LayoutWrapper>} />
       <Route path="/assets" element={<LayoutWrapper><AssetManagementPage /></LayoutWrapper>} />
       <Route path="/ttv" element={<TTV />} />
       <Route path="/PDF" element={<LayoutWrapper><PDFList /></LayoutWrapper>} />
-      <Route path="/CustomerFollowup" element={<LayoutWrapper><CustomerFollowup /></LayoutWrapper>} />
-      <Route path="/AddCustomer" element={<LayoutWrapper><AddCustomer /></LayoutWrapper>} />
-      <Route path="/VideoList" element={<LayoutWrapper><VideoList /></LayoutWrapper>} />
+      <Route
+        path="/CustomerFollowup"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <CustomerFollowup />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/AddCustomer"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <AddCustomer />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/VideoList"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <VideoList />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
 
-<Route path="/UploadPage" element={<LayoutWrapper><UploadResource /></LayoutWrapper>} />
-      <Route path="/Cdashboard" element={<CDashboard />} />
-      <Route path="/CustomerReport" element={<LayoutWrapper><CustomerReport /></LayoutWrapper>} />
-      <Route path="/followup-report" element={<LayoutWrapper><CustomerFollowupReport /></LayoutWrapper>} />
-      <Route path="/training" element={<LayoutWrapper><TrainingPage /></LayoutWrapper>} />
+      <Route
+        path="/UploadPage"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <UploadResource />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/Cdashboard"
+        element={
+          <ProtectedRoute>
+            <CDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/CustomerReport"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <CustomerReport />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/followup-report"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <CustomerFollowupReport />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/training"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <TrainingPage />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/ComingSoonPage" element={<ComingSoonPage />} />
-      <Route path="/admin-training-upload" element={<LayoutWrapper><AdminTrainingUpload /></LayoutWrapper>} />
-      <Route path="/adminCustomerReport" element={<LayoutWrapper><AdminCustomerReport /></LayoutWrapper>} />
+      <Route
+        path="/admin-training-upload"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <AdminTrainingUpload />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/adminCustomerReport"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <AdminCustomerReport />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/b2b-dashboard" element={<B2BDashboard />} />
       <Route path="/coo-dashboard" element={<COODashboard />} />
       <Route path="/tradextv-dashboard" element={<TradexTVDashboard />} />
       <Route path="/reception-dashboard" element={<LayoutWrapper><ReceptionDashboard /></LayoutWrapper>} />
-      <Route path="/customer-settings" element={<LayoutWrapper><CustomerSettings /></LayoutWrapper>} />
+      <Route
+        path="/customer-settings"
+        element={
+          <ProtectedRoute>
+            <LayoutWrapper>
+              <CustomerSettings />
+            </LayoutWrapper>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/social-media" element={<LayoutWrapper><SocialMediaDashboardPage /></LayoutWrapper>} />
       <Route path="/requests" element={<LayoutWrapper><RequestPage /></LayoutWrapper>} />
       <Route path="/finance/requests" element={<LayoutWrapper><RequestPage /></LayoutWrapper>} />
       <Route path="/it" element={<ITDashboard />} />
+      <Route
+        path="/instructor"
+        element={
+          <RoleProtectedRoute allowedRoles={["instructor"]}>
+            <InstructorLayout />
+          </RoleProtectedRoute>
+        }
+      >
+        <Route index element={<InstructorDashboard />} />
+        <Route path="dashboard" element={<InstructorDashboard />} />
+        <Route path="request" element={<InstructorRequest />} />
+        <Route path="notice-board" element={<InstructorNoticeBoard />} />
+      </Route>
+
+      {/* ENISRA section */}
+      <Route path="/enisra" element={<ENISRALayout />}>
+        <Route index element={<ENISRAEnhancedDashboard />} />
+        <Route path="dashboard" element={<ENISRAEnhancedDashboard />} />
+        <Route path="follow-up" element={<ENISRAFollowUp />} />
+        <Route path="notice-board" element={<ENISRANoticeBoard />} />
+        <Route path="request" element={<ENISRARequestEmbedded />} />
+      </Route>
       <Route path="/payroll" element={<LayoutWrapper><PayrollPage /></LayoutWrapper>} />
       <Route path="/my-payroll" element={<EmployeePayrollView />} />
       <Route path="/messages" element={<RedirectMessagesPage />} />
