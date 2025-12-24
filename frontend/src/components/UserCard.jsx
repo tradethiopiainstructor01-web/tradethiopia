@@ -7,6 +7,7 @@ import UserDetailDrawer from './UserDetailDrawer'; // Import the new drawer comp
 const UserCard = ({ user }) => {
     const [updatedUser, setUpdatedUser] = useState(user);
     const [showPassword, setShowPassword] = useState(false);
+    const [passwordDraft, setPasswordDraft] = useState("");
     const [isDrawerOpen, setDrawerOpen] = useState(false); // State for the drawer
     const [hireDate, setHireDate] = useState(user.hireDate ? new Date(user.hireDate).toISOString().split("T")[0] : "");
     const textColor = useColorModeValue("gray.600", "gray.200");
@@ -33,6 +34,7 @@ const UserCard = ({ user }) => {
     useEffect(() => {
         if (isEditOpen) {
             setUpdatedUser(user);
+            setPasswordDraft("");
             setHireDate(user.hireDate ? new Date(user.hireDate).toISOString().split("T")[0] : "");
         }
     }, [isEditOpen, user]);
@@ -51,7 +53,13 @@ const UserCard = ({ user }) => {
     };
 
     const handleUpdateUser = async () => {
-        const { success } = await updateUser(user._id, { ...updatedUser, hireDate });
+        const payload = { ...updatedUser, hireDate };
+        if (passwordDraft) {
+            payload.password = passwordDraft;
+        } else {
+            delete payload.password;
+        }
+        const { success } = await updateUser(user._id, payload);
         toast({
             title: success ? 'Success' : 'Error',
             description: success ? "User updated successfully" : "Failed to update user",
@@ -220,8 +228,8 @@ const UserCard = ({ user }) => {
                                     placeholder="User Password"
                                     name="password"
                                     type={showPassword ? "text" : "password"}
-                                    value={updatedUser.password || ''}
-                                    onChange={(e) => setUpdatedUser({ ...updatedUser, password: e.target.value })}
+                                    value={passwordDraft}
+                                    onChange={(e) => setPasswordDraft(e.target.value)}
                                 />
                                 <IconButton
                                     aria-label="Toggle password visibility"
