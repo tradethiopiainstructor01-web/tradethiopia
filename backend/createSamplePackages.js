@@ -22,25 +22,28 @@ db.once('open', async function() {
         packageNumber: 1,
         services: ['Consulting', 'Training'],
         price: 5000,
-        description: 'Basic business package'
+        description: 'Basic business package',
+        market: 'Local',
       },
       {
         packageNumber: 2,
         services: ['Consulting', 'Training', 'Support'],
         price: 10000,
-        description: 'Premium business package'
+        description: 'Premium business package',
+        market: 'Local',
       },
       {
         packageNumber: 3,
         services: ['Market Analysis', 'Business Planning'],
         price: 7500,
-        description: 'Startup package'
+        description: 'Startup package',
+        market: 'Local',
       }
     ];
 
     // Insert packages
     for (const pkg of samplePackages) {
-      const existing = await Package.findOne({ packageNumber: pkg.packageNumber });
+      const existing = await Package.findOne({ packageNumber: pkg.packageNumber, market: pkg.market || 'Local' });
       if (!existing) {
         const newPackage = new Package(pkg);
         await newPackage.save();

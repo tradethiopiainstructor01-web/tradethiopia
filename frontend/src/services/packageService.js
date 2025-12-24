@@ -4,8 +4,8 @@ import axiosInstance from './axiosInstance';
 export const fetchPackages = () => axiosInstance.get('/packages').then(response => response.data);
 
 // Fetch package by number
-export const fetchPackageByNumber = (packageNumber) => 
-  axiosInstance.get(`/packages/${packageNumber}`).then(response => response.data);
+export const fetchPackageByNumber = (packageNumber, market = "Local") =>
+  axiosInstance.get(`/packages/${packageNumber}?market=${market}`).then(response => response.data);
 
 // Create a new package
 export const createPackage = (pkg) => axiosInstance.post('/packages', pkg).then(response => response.data);

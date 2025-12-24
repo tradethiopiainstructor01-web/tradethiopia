@@ -5,11 +5,12 @@ const Seller = require("../models/Seller");
 // Create
 const createPackage = async (req, res) => {
   try {
-    const { packageNumber, services, price, description } = req.body;
+    const { packageNumber, services, price, description, market } = req.body;
     if (!packageNumber || !Array.isArray(services) || services.length === 0) {
       return res.status(400).json({ message: "Package number and at least one service are required." });
     }
-    const pkg = new Package({ packageNumber, services, price, description });
+    const marketValue = (market || "Local").toString().toLowerCase() === "international" ? "International" : "Local";
+    const pkg = new Package({ packageNumber, services, price, description, market: marketValue });
     const saved = await pkg.save();
     res.status(201).json(saved);
   } catch (err) {
@@ -20,7 +21,7 @@ const createPackage = async (req, res) => {
 // List
 const listPackages = async (_req, res) => {
   try {
-    const pkgs = await Package.find().sort({ packageNumber: 1 });
+    const pkgs = await Package.find().sort({ market: 1, packageNumber: 1 });
     res.json(pkgs);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -31,7 +32,12 @@ const listPackages = async (_req, res) => {
 const getPackageByNumber = async (req, res) => {
   try {
     const { packageNumber } = req.params;
-    const pkg = await Package.findOne({ packageNumber: parseInt(packageNumber) });
+    const marketValue = (req.query.market || "Local").toString().toLowerCase() === "international" ? "International" : "Local";
+    const parsedNumber = parseInt(packageNumber, 10);
+    if (Number.isNaN(parsedNumber)) {
+      return res.status(400).json({ message: "Invalid package number" });
+    }
+    const pkg = await Package.findOne({ packageNumber: parsedNumber, market: marketValue });
     if (!pkg) {
       return res.status(404).json({ message: "Package not found" });
     }
@@ -94,13 +100,19 @@ const getPackageAnalytics = async (_req, res) => {
 const updatePackage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { packageNumber, services, price, description } = req.body;
+    const { packageNumber, services, price, description, market } = req.body;
     if (!packageNumber || !Array.isArray(services) || services.length === 0) {
       return res.status(400).json({ message: "Package number and at least one service are required." });
     }
     const updated = await Package.findByIdAndUpdate(
       id,
-      { packageNumber, services, price, description },
+      {
+        packageNumber,
+        services,
+        price,
+        description,
+        market: (market || "Local").toString().toLowerCase() === "international" ? "International" : "Local",
+      },
       { new: true, runValidators: true }
     );
     if (!updated) return res.status(404).json({ message: "Package not found" });

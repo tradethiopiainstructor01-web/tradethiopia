@@ -1,6 +1,32 @@
 const mongoose = require('mongoose');
+const Package = require('../models/Package');
 
 let isConnected = false; // Track connection status
+
+const dropLegacyPackageIndex = async () => {
+  if (!mongoose.connection.readyState) return;
+  try {
+    const collection = mongoose.connection.collection('packages');
+    const exists = await collection.indexExists('packageNumber_1');
+    if (exists) {
+      await collection.dropIndex('packageNumber_1');
+      console.log('Dropped legacy packages packageNumber_1 index');
+    }
+  } catch (error) {
+    if (error.codeName && error.codeName !== 'IndexNotFound') {
+      console.error('Failed to drop legacy package index:', error);
+    }
+  }
+};
+
+const ensurePackageIndexSetup = async () => {
+  try {
+    await dropLegacyPackageIndex();
+    await Package.init(); // ensure mongoose has created declared indexes
+  } catch (error) {
+    console.error('Package index setup error:', error);
+  }
+};
 
 const connectDB = async () => {
     console.log('Attempting to connect to database...');
@@ -42,6 +68,7 @@ const connectDB = async () => {
             maxPoolSize: 10 // Maintain up to 10 socket connections
         });
         isConnected = true;
+        await ensurePackageIndexSetup();
         console.log(`MongoDB connected: ${conn.connection.host}`);
         return conn;
     }

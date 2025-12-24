@@ -48,6 +48,7 @@ const CustomerSettings = () => {
     serviceInput: "",
     price: "",
     description: "",
+    market: "Local",
   });
   const [editingId, setEditingId] = useState(null);
   const servicePalette = ["blue", "green", "purple", "orange", "teal", "pink", "cyan", "red", "yellow"];
@@ -141,12 +142,20 @@ const CustomerSettings = () => {
   };
 
   const resetForm = () => {
-    setForm({ packageNumber: "", services: [], serviceInput: "", price: "", description: "" });
+    setForm({
+      packageNumber: "",
+      services: [],
+      serviceInput: "",
+      price: "",
+      description: "",
+      market: "Local",
+    });
     setEditingId(null);
   };
 
   const handleAdd = () => {
     const services = form.services || [];
+    const market = form.market || "Local";
     if (!form.packageNumber || services.length === 0 || !form.price) {
       toast({
         title: "Missing fields",
@@ -155,7 +164,11 @@ const CustomerSettings = () => {
       });
       return;
     }
-    const exists = packages.some((p) => String(p.packageNumber) === String(form.packageNumber));
+    const exists = packages.some(
+      (p) =>
+        String(p.packageNumber) === String(form.packageNumber) &&
+        (p.market || "Local") === market
+    );
     if (exists) {
       toast({
         title: "Duplicate package number",
@@ -170,6 +183,7 @@ const CustomerSettings = () => {
         services,
         price: parseFloat(form.price) || 0,
         description: form.description,
+        market,
       })
       .then((res) => {
         setPackages((prev) => [...prev, res.data]);
@@ -193,6 +207,7 @@ const CustomerSettings = () => {
       serviceInput: "",
       price: pkg.price,
       description: pkg.description || "",
+      market: pkg.market || "Local",
     });
   };
 
@@ -208,6 +223,7 @@ const CustomerSettings = () => {
         services,
         price: parseFloat(form.price) || 0,
         description: form.description,
+        market: form.market || "Local",
       })
       .then((res) => {
         setPackages((prev) => prev.map((p) => (p._id === editingId ? res.data : p)));
@@ -468,6 +484,15 @@ const CustomerSettings = () => {
                 >
                   <NumberInputField placeholder="Price" />
                 </NumberInput>
+                <Select
+                  value={form.market}
+                  onChange={(e) => handleChange("market", e.target.value)}
+                  flex={1}
+                  placeholder="Select market"
+                >
+                  <option value="Local">Local</option>
+                  <option value="International">International</option>
+                </Select>
                 <Input
                   placeholder="Description (optional)"
                   value={form.description}
@@ -513,6 +538,9 @@ const CustomerSettings = () => {
                       Price
                     </Th>
                     <Th fontSize="xs" textTransform="uppercase" letterSpacing="0.08em">
+                      Market
+                    </Th>
+                    <Th fontSize="xs" textTransform="uppercase" letterSpacing="0.08em">
                       Description
                     </Th>
                     <Th textAlign="right" fontSize="xs" textTransform="uppercase" letterSpacing="0.08em">
@@ -523,7 +551,7 @@ const CustomerSettings = () => {
                 <Tbody>
                   {packages.length === 0 ? (
                     <Tr>
-                      <Td colSpan={5} textAlign="center" py={6}>
+                    <Td colSpan={6} textAlign="center" py={6}>
                         <Text color="gray.500">No packages added yet.</Text>
                       </Td>
                     </Tr>
@@ -553,6 +581,14 @@ const CustomerSettings = () => {
                           </VStack>
                         </Td>
                         <Td fontWeight="semibold">${Number(pkg.price || 0).toFixed(2)}</Td>
+                        <Td>
+                          <Badge
+                            colorScheme={(pkg.market || "Local") === "Local" ? "green" : "purple"}
+                            variant="subtle"
+                          >
+                            {(pkg.market || "Local") === "International" ? "International" : "Local"}
+                          </Badge>
+                        </Td>
                         <Td maxW="300px">
                           <chakra.span noOfLines={2}>
                             {pkg.description || "-"}
