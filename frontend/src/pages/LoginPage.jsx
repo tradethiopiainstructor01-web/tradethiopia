@@ -70,10 +70,6 @@ const handleLogin = async () => {
                     case 'it':
                         navigate('/it');
                         break;
-                    case 'it':
-                    case 'IT':
-                        navigate('/it'); // Add IT role navigation
-                        break;
                     case 'socialmediamanager':
                         navigate('/social-media'); // Add social media role navigation
                         break;
