@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -15,7 +15,8 @@ import {
   InputRightElement,
   IconButton,
   Flex,
-  Select
+  Select,
+  Text,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import axios from 'axios';
@@ -30,11 +31,13 @@ const BuyerForm = ({ onSuccess, initialData }) => {
     industry: initialData?.industry || '',
     products: initialData?.products && Array.isArray(initialData.products) ? initialData.products : [],
     requirements: initialData?.requirements || '',
-    packageType: initialData?.packageType || ''
+    packageType: initialData?.packageType || '',
+    packageScope: initialData?.packageScope || 'Local'
   });
   
   const [productInput, setProductInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [packages, setPackages] = useState([]);
   const toast = useToast();
 
   // Update form data when initialData changes
@@ -49,18 +52,65 @@ const BuyerForm = ({ onSuccess, initialData }) => {
         industry: initialData.industry || '',
         products: initialData.products && Array.isArray(initialData.products) ? initialData.products : [],
         requirements: initialData.requirements || '',
-        packageType: initialData.packageType || ''
+        packageType: initialData.packageType || '',
+        packageScope: initialData.packageScope || 'Local'
       });
     }
   }, [initialData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
+      ...(name === 'packageScope' ? { packageType: '' } : {}),
     }));
   };
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPackages = async () => {
+      try {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/packages`);
+        if (isMounted) {
+          setPackages(Array.isArray(response.data) ? response.data : []);
+        }
+      } catch (error) {
+        console.error("Failed to load packages", error);
+        if (isMounted) {
+          toast({
+            title: "Could not load packages",
+            description: "Unable to fetch package options. Try refreshing the page.",
+            status: "warning",
+            duration: 4000,
+            isClosable: true,
+          });
+          setPackages([]);
+        }
+      }
+    };
+
+    fetchPackages();
+    return () => {
+      isMounted = false;
+    };
+  }, [toast]);
+
+  const normalizedScope = formData.packageScope || 'Local';
+  const filteredPackages = useMemo(
+    () =>
+      packages.filter(
+        (pkg) => (pkg.market || 'Local') === normalizedScope
+      ),
+    [packages, normalizedScope]
+  );
+  const selectedPackage = useMemo(
+    () =>
+      filteredPackages.find(
+        (pkg) => String(pkg.packageNumber) === String(formData.packageType)
+      ),
+    [filteredPackages, formData.packageType]
+  );
 
   const handleAddProduct = () => {
     if (productInput.trim() && !formData.products.includes(productInput.trim())) {
@@ -87,7 +137,8 @@ const BuyerForm = ({ onSuccess, initialData }) => {
       // Ensure products is always an array
       const dataToSubmit = {
         ...formData,
-        products: Array.isArray(formData.products) ? formData.products : []
+        products: Array.isArray(formData.products) ? formData.products : [],
+        packageScope: formData.packageScope || 'Local'
       };
       
       if (initialData) {
@@ -191,22 +242,55 @@ const BuyerForm = ({ onSuccess, initialData }) => {
         </FormControl>
 
         <FormControl>
+          <FormLabel>Package Scope</FormLabel>
+          <Select
+            name="packageScope"
+            value={formData.packageScope}
+            onChange={handleChange}
+            placeholder="Select package scope"
+          >
+            <option value="Local">Local</option>
+            <option value="International">International</option>
+          </Select>
+        </FormControl>
+
+        <FormControl>
           <FormLabel>Package Type</FormLabel>
           <Select
             name="packageType"
             value={formData.packageType}
             onChange={handleChange}
-            placeholder="Select package type"
+            placeholder={`Select ${normalizedScope} package`}
           >
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
+            {filteredPackages.length === 0 ? (
+              <option value="" disabled>
+                No {normalizedScope} packages available
+              </option>
+            ) : (
+              filteredPackages.map((pkg) => (
+                <option
+                  key={pkg._id || pkg.packageNumber}
+                  value={pkg.packageNumber}
+                >
+                  Package {pkg.packageNumber} - ${pkg.price}
+                </option>
+              ))
+            )}
           </Select>
+          {selectedPackage?.services?.length > 0 && (
+            <Box mt={2} p={3} border="1px solid" borderColor="gray.200" borderRadius="md">
+              <Text fontSize="sm" fontWeight="semibold" mb={1}>
+                Services included
+              </Text>
+              <Flex flexWrap="wrap" gap={2}>
+                {selectedPackage.services.map((service) => (
+                  <Tag key={service} size="sm" colorScheme="teal">
+                    <TagLabel>{service}</TagLabel>
+                  </Tag>
+                ))}
+              </Flex>
+            </Box>
+          )}
         </FormControl>
 
         <FormControl>
@@ -258,5 +342,4 @@ const BuyerForm = ({ onSuccess, initialData }) => {
     </Box>
   );
 };
-
 export default BuyerForm;

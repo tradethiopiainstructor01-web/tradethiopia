@@ -213,7 +213,8 @@ const createCustomer = asyncHandler(async (req, res) => {
     coursePrice,
     productInterest,
     source,
-    pipelineStatus
+    pipelineStatus,
+    packageScope
   } = req.body;
   const resolvedCallStatus = callStatus || 'Not Called';
   const resolvedFollowupStatus = followupStatus || 'Pending';
@@ -240,6 +241,7 @@ const createCustomer = asyncHandler(async (req, res) => {
     phone,
     callStatus: resolvedCallStatus,
     followupStatus: resolvedFollowupStatus,
+    packageScope: packageScope || '',
     schedulePreference,
     email,
     note,
@@ -279,7 +281,8 @@ const updateCustomer = asyncHandler(async (req, res) => {
     supervisorComment,
     courseName,
     courseId,
-    coursePrice
+    coursePrice,
+    packageScope
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -310,6 +313,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
       : customer.coursePrice;
     customer.coursePrice = finalCoursePrice || 0;
     customer.commission = calculateCommission(customer.coursePrice);
+    customer.packageScope = packageScope || customer.packageScope || '';
 
     const updatedCustomer = await customer.save();
     res.json(updatedCustomer);

@@ -175,10 +175,26 @@ const CustomerFollowup = () => {
   });
 
   const LOCAL_COUNTRY = "ethiopia";
+  const normalizeScopeValue = (value = "") => {
+    const cleaned = (value || "").toString().trim().toLowerCase();
+    if (!cleaned) return "";
+    if (cleaned.includes("local")) return "Local";
+    if (cleaned.includes("international") || cleaned.includes("intl")) return "International";
+    return "";
+  };
+  const isCountryLocal = (customer = {}) => {
+    const countryValue = (customer.country || "").toString().trim().toLowerCase();
+    return countryValue === LOCAL_COUNTRY || countryValue.includes("ethiopia");
+  };
+  const resolvePackageScope = (customer = {}) => {
+    const scope = normalizeScopeValue(customer.packageScope);
+    if (scope) {
+      return scope;
+    }
+    return isCountryLocal(customer) ? "Local" : "International";
+  };
   const isLocalCustomer = (customer = {}) =>
-    (customer.country || "").toString().trim().toLowerCase() === LOCAL_COUNTRY;
-  const resolvePackageScope = (customer = {}) =>
-    customer.packageScope || (isLocalCustomer(customer) ? "Local" : "International");
+    resolvePackageScope(customer) === "Local";
 
   const updateFollowupPackageScope = (id, scope) => {
     setData((prev) =>
@@ -383,11 +399,11 @@ const CustomerFollowup = () => {
     CUSTOMER_SUCCESS_ROLES.has(currentUserRole) &&
     currentUserRole !== "customersuccessmanager";
   const localFollowups = useMemo(
-    () => filteredData.filter(isLocalCustomer),
+    () => filteredData.filter((item) => resolvePackageScope(item) === "Local"),
     [filteredData]
   );
   const internationalFollowups = useMemo(
-    () => filteredData.filter((item) => !isLocalCustomer(item)),
+    () => filteredData.filter((item) => resolvePackageScope(item) === "International"),
     [filteredData]
   );
  const toast = useToast();
@@ -416,8 +432,12 @@ const CustomerFollowup = () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/followups`);
       if (Array.isArray(response.data)) {
-        setData(response.data);
-        setFilteredData(response.data);
+        const normalized = response.data.map((item) => ({
+          ...item,
+          packageScope: resolvePackageScope(item),
+        }));
+        setData(normalized);
+        setFilteredData(normalized);
       } else {
         setData([]);
         setFilteredData([]);
@@ -1728,12 +1748,16 @@ useEffect(() => {
   const initializeServiceLists = (client) => {
     if (!client) return;
     const pkgNumber = client.packageNumber || client.packageType || client.package;
-    const pkg = packagesList.find(
-      (p) =>
-        String(p.packageNumber) === String(pkgNumber) ||
-        String(p.packageNumber) === String(client.packageType) ||
-        String(p.packageNumber) === String(client.package)
-    );
+    const marketScope = resolvePackageScope(client) || "Local";
+    const pkg =
+      packagesList.find(
+        (p) =>
+          String(p.packageNumber) === String(pkgNumber) &&
+          ((p.market || "Local") === marketScope)
+      ) ||
+      packagesList.find(
+        (p) => String(p.packageNumber) === String(pkgNumber)
+      );
     const packageServices = pkg?.services || [];
 
     const provided = parseServices(client.serviceProvided);

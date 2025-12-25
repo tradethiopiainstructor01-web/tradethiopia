@@ -54,7 +54,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     followupStatus: 'Pending',
     email: '',
     note: '',
-    supervisorComment: ''
+    supervisorComment: '',
+    packageScope: 'Local'
   });
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const [drawerCustomer, setDrawerCustomer] = useState(null);
@@ -228,7 +229,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         followupStatus: 'Pending',
         email: '',
         note: '',
-        supervisorComment: ''
+        supervisorComment: '',
+        packageScope: 'Local'
       });
     }
   };
@@ -259,7 +261,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       followupStatus: 'Pending',
       email: '',
       note: '',
-      supervisorComment: ''
+      supervisorComment: '',
+      packageScope: 'Local'
     });
   };
 
@@ -325,6 +328,11 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   <option value="Weekend">Weekend</option>
                   <option value="Night">Night</option>
                   <option value="Online">Online</option>
+                </>
+              ) : field === 'packageScope' ? (
+                <>
+                  <option value="Local">Local</option>
+                  <option value="International">International</option>
                 </>
               ) : (
                 <>
@@ -423,6 +431,11 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   <option value="Night">Night</option>
                   <option value="Online">Online</option>
                 </>
+              ) : field === 'packageScope' ? (
+                <>
+                  <option value="Local">Local</option>
+                  <option value="International">International</option>
+                </>
               ) : (
                 <>
                   <option value="Prospect">Prospect</option>
@@ -492,6 +505,17 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         case 'Imported': return 'cyan';
         default: return 'gray';
       }
+    }
+  };
+
+  const getScopeBadgeVariant = (scope) => {
+    switch (scope) {
+      case 'Local':
+        return 'green';
+      case 'International':
+        return 'purple';
+      default:
+        return 'gray';
     }
   };
 
@@ -609,6 +633,17 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               py={3}
               px={2}
             >
+              Package Scope
+            </Th>
+            <Th 
+              color="white" 
+              fontWeight="bold" 
+              textTransform="uppercase" 
+              fontSize="xs" 
+              letterSpacing="wider"
+              py={3}
+              px={2}
+            >
               Date
             </Th>
             <Th 
@@ -656,6 +691,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               {renderNewCustomerCell('callStatus', newCustomer.callStatus, 'select')}
               {renderNewCustomerCell('followupStatus', newCustomer.followupStatus, 'select')}
               {renderNewCustomerCell('schedulePreference', newCustomer.schedulePreference || 'Regular', 'select')}
+              {renderNewCustomerCell('packageScope', newCustomer.packageScope || 'Local', 'select')}
               <Td fontSize="xs" p={2}>{formatDate(new Date().toISOString())}</Td>
               {renderNewCustomerCell('email', newCustomer.email)}
               {renderNewCustomerCell('note', newCustomer.note, 'textarea')}
@@ -725,6 +761,15 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 : (
                   <Td onClick={() => handleCellClick(customer, 'schedulePreference')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
                     {customer.schedulePreference || 'Regular'}
+                  </Td>
+                )}
+              {editingCell && editingCell.id === customer._id && editingCell.field === 'packageScope'
+                ? renderEditableCell(customer, 'packageScope', customer.packageScope || 'Local', 'select')
+                : (
+                  <Td onClick={() => handleCellClick(customer, 'packageScope')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
+                    <Badge variant="subtle" colorScheme={getScopeBadgeVariant(customer.packageScope || 'Local')} fontSize="xs" px={2} py={1}>
+                      {customer.packageScope || 'Local'}
+                    </Badge>
                   </Td>
                 )}
               

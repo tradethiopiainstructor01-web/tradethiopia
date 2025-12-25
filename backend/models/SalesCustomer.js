@@ -63,6 +63,11 @@ const salesCustomerSchema = new mongoose.Schema({
     enum: ['Prospect', 'Pending', 'Completed', 'Scheduled', 'Cancelled', 'Imported'],
     default: 'Pending'
   },
+  packageScope: {
+    type: String,
+    enum: ['Local', 'International', ''],
+    default: ''
+  },
   date: {
     type: Date,
     default: Date.now

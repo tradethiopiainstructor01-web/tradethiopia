@@ -25,6 +25,16 @@ const followupSchema = new Schema(
       type: String,
       required: true,
     },
+    country: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    packageScope: {
+      type: String,
+      enum: ["Local", "International", ""],
+      default: "",
+    },
     serviceProvided: {
       type: String,
       required: true,
