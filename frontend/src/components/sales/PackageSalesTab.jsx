@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Badge,
   Box,
@@ -35,8 +35,7 @@ import {
   SimpleGrid
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
-import { fetchPackageSales, fetchUserProfile } from '../../services/packageService';
-import { createCustomer } from '../../services/customerService';
+import { fetchPackageSales, fetchPackageSalesFollowups, fetchUserProfile, createPackageSale } from '../../services/packageService';
 
 // Commission calculation function (same as commission.js but without social media boost)
 // Split net commission into two equal parts
@@ -87,25 +86,47 @@ const PackageSalesTab = () => {
     note: ''
   });
   const [savingCustomer, setSavingCustomer] = useState(false);
+  const [followups, setFollowups] = useState([]);
+  const [followupsLoading, setFollowupsLoading] = useState(true);
+  const [followupsError, setFollowupsError] = useState(null);
+
+  const loadSales = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await fetchPackageSales();
+      setSales(Array.isArray(data) ? data : []);
+      setError(null);
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Failed to fetch package sales';
+      setError(message);
+      console.error('Error fetching package sales:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadFollowups = useCallback(async () => {
+    try {
+      setFollowupsLoading(true);
+      const data = await fetchPackageSalesFollowups();
+      setFollowups(Array.isArray(data) ? data : []);
+      setFollowupsError(null);
+    } catch (err) {
+      const message = err.response?.data?.message || err.message || 'Failed to fetch package follow-ups';
+      setFollowupsError(message);
+      console.error('Error fetching package sales follow-ups:', err);
+    } finally {
+      setFollowupsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadSales = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchPackageSales();
-        setSales(Array.isArray(data) ? data : []);
-        setError(null);
-      } catch (err) {
-        const message = err.response?.data?.message || err.message || 'Failed to fetch package sales';
-        setError(message);
-        console.error('Error fetching package sales:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadSales();
-  }, []);
+  }, [loadSales]);
+
+  useEffect(() => {
+    loadFollowups();
+  }, [loadFollowups]);
 
   const handleNewCustomerChange = (e) => {
     const { name, value } = e.target;
@@ -120,18 +141,20 @@ const PackageSalesTab = () => {
 
     setSavingCustomer(true);
     try {
-      await createCustomer({
-        customerName: newCustomer.customerName,
-        contactTitle: newCustomer.contactTitle,
-        phone: newCustomer.phone,
-        email: newCustomer.email,
-        courseName: newCustomer.packageName,
-        note: newCustomer.note || `Package type ${newCustomer.packageType}`,
-        source: 'Package Sales',
-        callStatus: 'Not Called',
-        followupStatus: 'Prospect',
-        schedulePreference: 'Regular'
-      });
+      const salePayload = {
+        customerName: newCustomer.customerName.trim(),
+        contactPerson: newCustomer.contactTitle?.trim(),
+        phoneNumber: newCustomer.phone?.trim(),
+        email: newCustomer.email?.trim()?.toLowerCase(),
+        packageName: newCustomer.packageName?.trim(),
+        packageType: newCustomer.packageType,
+        status: 'Active',
+        purchaseDate: new Date().toISOString(),
+        notes: newCustomer.note?.trim()
+      };
+
+      await createPackageSale(salePayload);
+      await Promise.all([loadSales(), loadFollowups()]);
       toast({ title: 'Customer added', status: 'success', duration: 2500 });
       setNewCustomer({
         customerName: '',
@@ -181,6 +204,15 @@ const PackageSalesTab = () => {
     if (normalized === 'expired') return 'red';
     if (normalized === 'cancelled') return 'orange';
     if (normalized === 'pending') return 'yellow';
+    return 'gray';
+  };
+
+  const getFollowupBadgeColor = (status = '') => {
+    const normalized = status.toString().toLowerCase();
+    if (normalized === 'overdue') return 'red';
+    if (normalized === 'pending') return 'yellow';
+    if (normalized === 'cancelled') return 'orange';
+    if (normalized === 'completed') return 'green';
     return 'gray';
   };
 
@@ -531,6 +563,66 @@ const PackageSalesTab = () => {
           )}
         </Tbody>
       </Table>
+
+      <Box mt={8}>
+        <Text fontSize="lg" fontWeight="bold" mb={3}>Package Sales Follow-ups</Text>
+        {followupsLoading ? (
+          <Flex justify="center" align="center" minH="120px">
+            <Spinner size="lg" color="teal.500" />
+          </Flex>
+        ) : followupsError ? (
+          <Box bg="red.50" p={3} borderRadius="md">
+            <Text color="red.600" fontWeight="medium">{followupsError}</Text>
+          </Box>
+        ) : (
+          <Table variant="striped" size="sm">
+            <Thead>
+              <Tr bg="teal.500">
+                <Th color="white">Customer</Th>
+                <Th color="white">Package</Th>
+                <Th color="white">Follow-up Status</Th>
+                <Th color="white">Next Follow-up</Th>
+                <Th color="white">Days</Th>
+                <Th color="white">Agent</Th>
+                <Th color="white">Last Interaction</Th>
+                <Th color="white">Call Status</Th>
+                <Th color="white">Urgency</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {followups.length > 0 ? (
+                followups.map((followup) => (
+                  <Tr key={followup.id || `${followup.customerId}-${followup.packageId}`}>
+                    <Td>{followup.customerName || 'Unknown'}</Td>
+                    <Td>{followup.packageName || 'N/A'}</Td>
+                    <Td>
+                      <Badge colorScheme={getFollowupBadgeColor(followup.followUpStatus)}>
+                        {followup.followUpStatus}
+                      </Badge>
+                    </Td>
+                    <Td>{formatDate(followup.nextFollowUpDate)}</Td>
+                    <Td>{followup.daysUntilNextFollowUp ?? 'N/A'}</Td>
+                    <Td>{followup.agent || 'Unassigned'}</Td>
+                    <Td>{formatDate(followup.lastInteractionDate)}</Td>
+                    <Td>{followup.callStatus || '-'}</Td>
+                    <Td>
+                      <Badge colorScheme={followup.urgency === 'High' ? 'red' : 'green'}>
+                        {followup.urgency}
+                      </Badge>
+                    </Td>
+                  </Tr>
+                ))
+              ) : (
+                <Tr>
+                  <Td colSpan={9} textAlign="center" py={8}>
+                    <Text>No follow-up tasks created for package sales yet.</Text>
+                  </Td>
+                </Tr>
+              )}
+            </Tbody>
+          </Table>
+        )}
+      </Box>
     </Box>
   );
 };

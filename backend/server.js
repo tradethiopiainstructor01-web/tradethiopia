@@ -51,6 +51,7 @@ const awardRoutes = require('./routes/awardRoutes.js');
 
 const costRoutes = require('./routes/costRoutes.js');
 const requestRoutes = require('./routes/requestRoutes.js');
+const commissionApprovalRoutes = require('./routes/commissionApprovalRoutes.js');
 // Load environment variables
 
 // Initialize Express app
@@ -289,6 +290,9 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/social-requests', requestRoutes);
 // Awards
 app.use('/api/awards', awardRoutes);
+
+// Commission Approval
+app.use('/api/commissions', commissionApprovalRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

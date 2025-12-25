@@ -1,6 +1,7 @@
 const Buyer = require('../models/Buyer');
 const Seller = require('../models/Seller');
 const User = require('../models/user.model.js');
+const PackageSale = require('../models/PackageSale');
 
 const buildPackageRows = (customers, customerType, agentLookup = {}) => {
   const rows = [];
@@ -32,33 +33,60 @@ const buildPackageRows = (customers, customerType, agentLookup = {}) => {
     };
   };
 
-  customers.forEach((customer) => {
-    const packages = Array.isArray(customer.packages) ? customer.packages : [];
-    if (packages.length === 0) {
-      if (customer.packageType) {
-        rows.push(createRow(customer, null));
+    customers.forEach((customer) => {
+      const packages = Array.isArray(customer.packages) ? customer.packages : [];
+      if (packages.length === 0) {
+        if (customer.packageType) {
+          rows.push(createRow(customer, null));
+        }
+        return;
       }
-      return;
-    }
 
     packages.forEach((pkg) => {
       rows.push(createRow(customer, pkg));
     });
-  });
+    });
 
-  return rows;
+    return rows;
 };
 
-const getPackageSales = async (_req, res) => {
+const buildPackageSaleRows = (sales = [], agentLookup = {}) => sales.map((sale) => {
+  const resolvedAgentId = sale.agentId ? sale.agentId.toString() : null;
+  return {
+    id: `manual-${sale._id}`,
+    customerId: sale._id,
+    customerName: sale.customerName || sale.contactPerson || 'Unknown',
+    contactPerson: sale.contactPerson || '',
+    email: sale.email || '',
+    phone: sale.phoneNumber || '',
+    agent: agentLookup[resolvedAgentId] || sale.agentName || 'Unassigned',
+    agentId: resolvedAgentId,
+    customerType: sale.customerType || 'PackageSales',
+    packageId: sale._id,
+    packageName: sale.packageName || 'Not specified',
+    packageType: sale.packageType || 'Not specified',
+    country: sale.country || 'Not specified',
+    industry: sale.industry || 'Not specified',
+    purchaseDate: sale.purchaseDate || sale.createdAt,
+    expiryDate: sale.expiryDate || null,
+    status: sale.status || 'Active',
+  };
+});
+
+const loadPackageRows = async () => {
   try {
-    const buyers = await Buyer.find()
-      .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId');
-    const sellers = await Seller.find()
-      .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId');
+    const [buyers, sellers, packageSales] = await Promise.all([
+      Buyer.find()
+        .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId'),
+      Seller.find()
+        .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId'),
+      PackageSale.find()
+        .select('customerName contactPerson email phoneNumber packageName packageType purchaseDate expiryDate status agentId agentName customerType')
+    ]);
 
     const agentIds = [
       ...new Set(
-        [...buyers, ...sellers]
+        [...buyers, ...sellers, ...packageSales]
           .map(customer => customer.agentId)
           .filter(Boolean)
           .map(id => id.toString())
@@ -74,6 +102,7 @@ const getPackageSales = async (_req, res) => {
     const packageRows = [
       ...buildPackageRows(buyers, 'Buyer', agentLookup),
       ...buildPackageRows(sellers, 'Seller', agentLookup),
+      ...buildPackageSaleRows(packageSales, agentLookup)
     ];
 
     const sortedRows = packageRows.sort((a, b) => {
@@ -82,39 +111,169 @@ const getPackageSales = async (_req, res) => {
       return dateB - dateA;
     });
 
-    res.json(sortedRows);
+    return sortedRows;
   } catch (err) {
     console.error('Failed to load package sales:', err);
+    throw err;
+  }
+};
+
+const getPackageSales = async (_req, res) => {
+  try {
+    const rows = await loadPackageRows();
+    res.json(rows);
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-const approveCommission = async (req, res) => {
+const createPackageSale = async (req, res) => {
   try {
-    const { commissionId } = req.params;
-    const { agentId, firstCommission, secondCommission } = req.body;
-    
-    // In a real implementation, you would:
-    // 1. Validate the commission data
-    // 2. Update the commission status in the database
-    // 3. Add the commission amounts to the payroll system
-    
-    // For now, we'll just send a success response
-    res.json({
-      success: true,
-      message: 'Commission approved and added to payroll',
-      commissionId,
+    console.log('Creating package sale', req.body);
+    const {
+      customerName,
+      contactPerson,
+      email,
+      phoneNumber,
+      packageName,
+      packageType,
+      purchaseDate,
+      expiryDate,
+      status,
       agentId,
-      firstCommission,
-      secondCommission
+      agentName,
+      notes
+    } = req.body;
+
+    if (!customerName) {
+      return res.status(400).json({ message: 'customerName is required' });
+    }
+
+    const currentAgent = req.user || {};
+    const resolvedAgentId = agentId || currentAgent._id;
+    const resolvedAgentName = agentName || currentAgent.fullName || currentAgent.username || currentAgent.name || 'Package Sales';
+
+    const sale = new PackageSale({
+      customerName,
+      contactPerson,
+      email,
+      phoneNumber,
+      packageName,
+      packageType,
+      purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
+      expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+      status,
+      agentId: resolvedAgentId,
+      agentName: resolvedAgentName,
+      notes
     });
+
+    const savedSale = await sale.save();
+    console.log('Package sale saved', savedSale._id);
+    res.status(201).json(savedSale);
   } catch (err) {
-    console.error('Failed to approve commission:', err);
+    console.error('Error creating package sale', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const COMMISSION_RATE = 0.075;
+const toNumber = (value) => Number(value) || 0;
+
+const calculateCommissions = (packageValue) => {
+  const grossCommission = packageValue * COMMISSION_RATE;
+  const commissionTax = 0;
+  const netCommission = grossCommission - commissionTax;
+  const firstCommission = Number((netCommission / 2).toFixed(2));
+  const secondCommission = Number((netCommission / 2).toFixed(2));
+
+  return {
+    packageValue,
+    grossCommission: Number(grossCommission.toFixed(2)),
+    commissionTax,
+    netCommission: Number(netCommission.toFixed(2)),
+    firstCommission,
+    secondCommission,
+  };
+};
+
+const getPackageSalesCommissions = async (_req, res) => {
+  try {
+    const rows = await loadPackageRows();
+    const commissionEntries = rows.map((row) => {
+      const packageValue = row.packageValue ? toNumber(row.packageValue) : toNumber(row.packageType) * 1000;
+      const commission = calculateCommissions(packageValue);
+      return {
+        ...row,
+        ...commission,
+        firstStatus: row.firstStatus || 'pending',
+        secondStatus: row.secondStatus || 'pending',
+        firstApproved: false,
+        secondApproved: false,
+        approved: false,
+        status: row.status || 'pending'
+      };
+    });
+
+    res.json(commissionEntries);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const deriveFollowupStatus = (status, expiryDate, now) => {
+  const normalized = (status || '').toString().toLowerCase();
+  if (normalized === 'cancelled') return 'Cancelled';
+  if (expiryDate && now) {
+    if (expiryDate < now) return 'Overdue';
+  }
+  return 'Pending';
+};
+
+const resolveNextFollowupDate = (expiryDate, now) => {
+  if (expiryDate && expiryDate > now) {
+    return expiryDate;
+  }
+  return new Date(now.getTime() + 7 * MS_PER_DAY);
+};
+
+const getPackageSalesFollowups = async (_req, res) => {
+  try {
+    const rows = await loadPackageRows();
+    const now = new Date();
+    const followupEntries = rows.map((row) => {
+      const expiryDate = row.expiryDate ? new Date(row.expiryDate) : null;
+      const purchaseDate = row.purchaseDate ? new Date(row.purchaseDate) : null;
+      const followUpStatus = deriveFollowupStatus(row.status, expiryDate, now);
+      const nextFollowUpDate = resolveNextFollowupDate(expiryDate, now);
+      const daysUntilNextFollowUp = Math.max(
+        0,
+        Math.ceil((nextFollowUpDate - now) / MS_PER_DAY)
+      );
+
+      return {
+        ...row,
+        followUpStatus,
+        nextFollowUpDate: nextFollowUpDate.toISOString(),
+        daysUntilNextFollowUp,
+        lastInteractionDate: purchaseDate ? purchaseDate.toISOString() : null,
+        urgency: followUpStatus === 'Overdue' ? 'High' : 'Normal',
+        callStatus: followUpStatus === 'Overdue' ? 'Called' : 'Not Called',
+        followUpSource: 'Package Sales'
+      };
+    });
+
+    res.json(followupEntries);
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
 module.exports = {
   getPackageSales,
-  approveCommission
+  createPackageSale,
+  getPackageSalesCommissions,
+  getPackageSalesFollowups
 };

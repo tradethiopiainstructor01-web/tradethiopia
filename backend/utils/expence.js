@@ -24,7 +24,9 @@ const payrollFieldGroups = {
     'overtimePay',
     'salesCommission',
     'hrAllowances',
-    'financeAllowances'
+    'financeAllowances',
+    'firstCommissionTotal',
+    'secondCommissionTotal'
   ],
   deductions: [
     'incomeTax',

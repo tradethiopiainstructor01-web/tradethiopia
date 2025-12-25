@@ -13,11 +13,15 @@ import {
   HStack,
   VStack,
   Card,
-  CardBody
+  CardBody,
+  Wrap,
+  WrapItem,
+  useBreakpointValue
 } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getMetrics, getOrders, getDemands, getFinanceSummary } from '../../services/financeService';
+import { fetchCommissionTotals } from '../../services/payrollService';
 import AgentSalesReport from './AgentSalesReport';
 import FinancePayrollTable from './FinancePayrollTable';
 
@@ -27,10 +31,17 @@ const FinanceDashboard = () => {
   const [openOrders, setOpenOrders] = useState(0);
   const [openDemands, setOpenDemands] = useState(0);
   const [financeSummary, setFinanceSummary] = useState(null);
+  const [commissionTotals, setCommissionTotals] = useState(null);
+  const isCompact = useBreakpointValue({ base: true, md: false });
 
   const formatCurrency = (value) => {
     const number = Number(value) || 0;
     return `$${number.toLocaleString()}`;
+  };
+
+  const formatEtb = (value) => {
+    const number = Number(value) || 0;
+    return `ETB ${number.toLocaleString()}`;
   };
 
   useEffect(() => {
@@ -70,6 +81,18 @@ const FinanceDashboard = () => {
     };
     loadFinanceSummary();
   }, []);
+
+  useEffect(() => {
+    const loadCommissionTotals = async () => {
+      try {
+        const data = await fetchCommissionTotals();
+        setCommissionTotals(data);
+      } catch (err) {
+        console.warn('Failed to load commission totals', err);
+      }
+    };
+    loadCommissionTotals();
+  }, []);
   return (
     <>
       <Box mb={3}>
@@ -77,9 +100,9 @@ const FinanceDashboard = () => {
         <Text fontSize="xs" color="gray.600">Key finance metrics and quick actions</Text>
       </Box>
 
-      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={2} mb={3}>
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={isCompact ? 2 : 3} mb={3}>
         <Card size="sm">
-          <CardBody py={2} px={3}>
+          <CardBody py={isCompact ? 2 : 3} px={3}>
             <Stat>
               <StatLabel fontSize="xs">Total Revenue</StatLabel>
               <StatNumber fontSize="sm">
@@ -105,7 +128,7 @@ const FinanceDashboard = () => {
         </Card>
 
         <Card size="sm">
-          <CardBody py={2} px={3}>
+          <CardBody py={isCompact ? 2 : 3} px={3}>
             <Stat>
               <StatLabel fontSize="xs">Expenses (recorded)</StatLabel>
               <StatNumber fontSize="sm">
@@ -119,7 +142,7 @@ const FinanceDashboard = () => {
         </Card>
 
         <Card size="sm">
-          <CardBody py={2} px={3}>
+          <CardBody py={isCompact ? 2 : 3} px={3}>
             <Stat>
               <StatLabel fontSize="xs">Net Profit</StatLabel>
               <StatNumber fontSize="sm">
@@ -133,9 +156,9 @@ const FinanceDashboard = () => {
         </Card>
       </SimpleGrid>
 
-      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={2} mb={3}>
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={isCompact ? 2 : 3} mb={3}>
         <Card size="sm">
-          <CardBody py={2} px={3}>
+          <CardBody py={isCompact ? 2 : 3} px={3}>
             <Stat>
               <StatLabel fontSize="xs">Outstanding Invoices</StatLabel>
               <StatNumber fontSize="sm">${metrics ? (metrics.outstandingInvoices || 0).toLocaleString() : '0'}</StatNumber>
@@ -147,7 +170,7 @@ const FinanceDashboard = () => {
         </Card>
 
         <Card size="sm">
-          <CardBody py={2} px={3}>
+          <CardBody py={isCompact ? 2 : 3} px={3}>
             <Stat>
               <StatLabel fontSize="xs">Stock Value</StatLabel>
               <StatNumber fontSize="sm">${metrics ? (metrics.stockValue || 0).toLocaleString() : '0'}</StatNumber>
@@ -161,13 +184,23 @@ const FinanceDashboard = () => {
 
       <Box mb={3}>
         <Heading size="xs" mb={2}>Quick Actions</Heading>
-        <HStack spacing={1} flexWrap="wrap">
-          <Button as={Link} to="/finance/inventory" colorScheme="teal" size="xs" height="24px" minH="unset">Manage Inventory</Button>
-          <Button as={Link} to="/finance/orders" colorScheme="purple" size="xs" height="24px" minH="unset">Manage Orders {openOrders ? `(${openOrders})` : ''}</Button>
-          <Button as={Link} to="/finance/demands" colorScheme="orange" size="xs" height="24px" minH="unset">View Demands {openDemands ? `(${openDemands})` : ''}</Button>
-          <Button colorScheme="blue" size="xs" height="24px" minH="unset">Create Invoice</Button>
-          <Button colorScheme="gray" size="xs" height="24px" minH="unset">View Reports</Button>
-        </HStack>
+        <Wrap spacing={2}>
+          <WrapItem>
+            <Button as={Link} to="/finance/inventory" colorScheme="teal" size="xs" height="24px" minH="unset">Manage Inventory</Button>
+          </WrapItem>
+          <WrapItem>
+            <Button as={Link} to="/finance/orders" colorScheme="purple" size="xs" height="24px" minH="unset">Manage Orders {openOrders ? `(${openOrders})` : ''}</Button>
+          </WrapItem>
+          <WrapItem>
+            <Button as={Link} to="/finance/demands" colorScheme="orange" size="xs" height="24px" minH="unset">View Demands {openDemands ? `(${openDemands})` : ''}</Button>
+          </WrapItem>
+          <WrapItem>
+            <Button colorScheme="blue" size="xs" height="24px" minH="unset">Create Invoice</Button>
+          </WrapItem>
+          <WrapItem>
+            <Button colorScheme="gray" size="xs" height="24px" minH="unset">View Reports</Button>
+          </WrapItem>
+        </Wrap>
       </Box>
 
       {/* Agent Sales Report Section */}
@@ -177,21 +210,62 @@ const FinanceDashboard = () => {
 
       <Box mb={3}>
         <Heading size="xs" mb={2}>Activity</Heading>
-        <VStack spacing={2} align="stretch">
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={isCompact ? 2 : 3}>
           <Card size="sm">
-            <CardBody py={2} px={3}>
+            <CardBody py={isCompact ? 2 : 3} px={3}>
               <Text fontWeight="semibold" fontSize="sm">Recent stock adjustments</Text>
               <Text fontSize="xs" color="gray.500">No recent adjustments</Text>
             </CardBody>
           </Card>
 
           <Card size="sm">
-            <CardBody py={2} px={3}>
+            <CardBody py={isCompact ? 2 : 3} px={3}>
               <Text fontWeight="semibold" fontSize="sm">Payment status</Text>
               <Text fontSize="xs" color="gray.500">All payments processed</Text>
             </CardBody>
           </Card>
-        </VStack>
+
+          <Card size="sm">
+            <CardBody py={isCompact ? 2 : 3} px={3}>
+              <Text fontWeight="semibold" fontSize="sm">Commission Adjustments</Text>
+              <Text fontSize="xs" color="gray.500" mb={2}>
+                Finance allowance includes manual entries plus the approved first/second commissions
+              </Text>
+              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={isCompact ? 2 : 3} mt={2}>
+                <Card size="xs" variant="outline" borderColor="gray.200">
+                  <CardBody p={2}>
+                    <Stat>
+                      <StatLabel fontSize="xs">Allowance Total</StatLabel>
+                      <StatNumber fontSize="sm">
+                        {commissionTotals ? formatEtb((commissionTotals.financeAllowancesTotal || 0) + (commissionTotals.firstCommissionTotal || 0) + (commissionTotals.secondCommissionTotal || 0)) : 'ETB 0'}
+                      </StatNumber>
+                    </Stat>
+                  </CardBody>
+                </Card>
+                <Card size="xs" variant="outline" borderColor="gray.200">
+                  <CardBody p={2}>
+                    <Stat>
+                      <StatLabel fontSize="xs">First Commission</StatLabel>
+                      <StatNumber fontSize="sm">
+                        {commissionTotals ? formatEtb(commissionTotals.firstCommissionTotal) : 'ETB 0'}
+                      </StatNumber>
+                    </Stat>
+                  </CardBody>
+                </Card>
+                <Card size="xs" variant="outline" borderColor="gray.200">
+                  <CardBody p={2}>
+                    <Stat>
+                      <StatLabel fontSize="xs">Second Commission</StatLabel>
+                      <StatNumber fontSize="sm">
+                        {commissionTotals ? formatEtb(commissionTotals.secondCommissionTotal) : 'ETB 0'}
+                      </StatNumber>
+                    </Stat>
+                  </CardBody>
+                </Card>
+              </SimpleGrid>
+            </CardBody>
+          </Card>
+        </SimpleGrid>
       </Box>
 
       <Box mt={4}>

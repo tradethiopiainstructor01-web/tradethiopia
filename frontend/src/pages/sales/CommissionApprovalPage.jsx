@@ -25,74 +25,83 @@ import {
   useDisclosure,
   Badge,
   HStack,
+  VStack,
   Stat,
   StatLabel,
   StatNumber,
-  SimpleGrid
+  SimpleGrid,
+  FormControl,
+  FormLabel,
+  NumberInput,
+  NumberInputField,
+  Stack,
+  Select
 } from '@chakra-ui/react';
-import { fetchPackageSales, approveCommission } from '../../services/packageService';
-
-// Commission calculation function (same as in PackageSalesTab)
-const calculateCommission = (salesValue = 0) => {
-  const commissionRate = 0.075;
-  
-  const price = Number(salesValue) || 0;
-  
-  // Calculate commission without social media boost
-  const grossCommission = price * commissionRate;
-  const commissionTax = 0; // No tax for package sales
-  const netCommission = grossCommission; // Full commission since no tax
-  
-  // Split net commission into two equal parts
-  const firstCommission = netCommission / 2;
-  const secondCommission = netCommission / 2;
-  
-  return {
-    grossCommission: Number(grossCommission.toFixed(2)),
-    commissionTax: Number(commissionTax.toFixed(2)),
-    netCommission: Number(netCommission.toFixed(2)),
-    firstCommission: Number(firstCommission.toFixed(2)),
-    secondCommission: Number(secondCommission.toFixed(2))
-  };
-};
+import { fetchPendingCommissions, approveCommission } from '../../services/packageService';
+import { fetchUsers } from '../../services/api';
 
 const CommissionApprovalPage = () => {
+  const getDefaultEditValues = () => ({
+    packageValue: 0,
+    firstCommission: 0,
+    secondCommission: 0,
+    agentId: '',
+    agentName: ''
+  });
   const [commissions, setCommissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [approvingCommission, setApprovingCommission] = useState(null);
+  const [selectedPart, setSelectedPart] = useState('first');
+  const [editCommission, setEditCommission] = useState(null);
+  const [editValues, setEditValues] = useState(getDefaultEditValues());
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [agents, setAgents] = useState([]);
+  const [filterType, setFilterType] = useState('all');
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedCommission, setSelectedCommission] = useState(null);
+  const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
 
   useEffect(() => {
     const loadCommissions = async () => {
       try {
         setLoading(true);
-        const data = await fetchPackageSales();
+        const data = await fetchPendingCommissions();
         
-        // Transform package sales data into commission entries
-        const commissionEntries = data.map(sale => {
-          const packageValue = sale.packageType ? sale.packageType * 1000 : 0;
-          const commission = calculateCommission(packageValue);
-          
+        const commissionEntries = (Array.isArray(data) ? data : []).map((entry) => {
+          const firstCommission = Number(entry.firstCommission) || 0;
+          const secondCommission = Number(entry.secondCommission) || 0;
+          const netCommission = Number(entry.netCommission) || (firstCommission + secondCommission);
+          const firstApproved = Boolean(entry.firstApproved);
+          const secondApproved = Boolean(entry.secondApproved);
+          const status = entry.status || (
+            firstApproved && secondApproved ? 'approved'
+              : firstApproved || secondApproved ? 'partial'
+                : 'pending'
+          );
+
           return {
-            id: sale.id,
-            customerId: sale.customerId,
-            customerName: sale.customerName,
-            agent: sale.agent,
-            agentId: sale.agentId,
-            packageType: sale.packageType,
-            packageName: sale.packageName,
-            packageValue,
-            grossCommission: commission.grossCommission,
-            commissionTax: commission.commissionTax,
-            netCommission: commission.netCommission,
-            firstCommission: commission.firstCommission,
-            secondCommission: commission.secondCommission,
-            date: sale.purchaseDate || new Date(),
-            status: 'pending', // Default status
-            approved: false
+            id: entry.id,
+            customerId: entry.customerId,
+            customerName: entry.customerName,
+            agent: entry.agent || entry.agentName || 'Unassigned',
+            agentId: entry.agentId,
+            packageType: entry.packageType,
+            packageName: entry.packageName,
+            packageValue: Number(entry.packageValue) || 0,
+            grossCommission: Number(entry.grossCommission) || (netCommission + (Number(entry.commissionTax) || 0)),
+            commissionTax: Number(entry.commissionTax) || 0,
+            netCommission,
+            firstCommission,
+            secondCommission,
+            date: entry.date || entry.createdAt || new Date(),
+            status,
+            firstStatus: entry.firstStatus || (firstApproved ? 'approved' : 'pending'),
+            secondStatus: entry.secondStatus || (secondApproved ? 'approved' : 'pending'),
+            firstApproved,
+            secondApproved,
+            approved: Boolean(entry.approved) || (firstApproved && secondApproved)
           };
         });
         
@@ -110,28 +119,76 @@ const CommissionApprovalPage = () => {
     loadCommissions();
   }, []);
 
-  const handleApproveCommission = (commission) => {
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const users = await fetchUsers();
+        const agentRoles = ['sales', 'salesmanager', 'finance', 'admin'];
+        if (Array.isArray(users)) {
+          const filtered = users.filter(user => {
+            const role = (user.role || '').toLowerCase();
+            return agentRoles.includes(role);
+          });
+          const sorted = filtered.sort((a, b) => {
+            const nameA = (a.fullName || a.username || '').toLowerCase();
+            const nameB = (b.fullName || b.username || '').toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
+          setAgents(sorted);
+        }
+      } catch (err) {
+        console.warn('Failed to load agents for commission edits', err);
+      }
+    };
+
+    loadAgents();
+  }, []);
+
+  const handleApproveCommission = (commission, part) => {
     setSelectedCommission(commission);
+    setSelectedPart(part);
     onOpen();
   };
 
   const confirmApproveCommission = async () => {
+    if (!selectedCommission) return;
     try {
-      setApprovingCommission(selectedCommission.id);
+      const identifier = `${selectedPart}-${selectedCommission.id}`;
+      setApprovingCommission(identifier);
+      const partField = selectedPart === 'first' ? 'firstCommission' : 'secondCommission';
+      const partAmount = selectedCommission?.[partField] || 0;
       
       // Make API call to approve commission and add to payroll
       await approveCommission(selectedCommission.id, {
         agentId: selectedCommission.agentId,
         firstCommission: selectedCommission.firstCommission,
-        secondCommission: selectedCommission.secondCommission
+        secondCommission: selectedCommission.secondCommission,
+        part: selectedPart,
+        amount: partAmount
       });
       
       // Update the commission status in our local state
-      setCommissions(prev => prev.map(comm => 
-        comm.id === selectedCommission.id 
-          ? { ...comm, status: 'approved', approved: true } 
-          : comm
-      ));
+      setCommissions(prev => prev.map(comm => {
+        if (comm.id !== selectedCommission.id) return comm;
+
+        const firstApproved = selectedPart === 'first' ? true : comm.firstApproved;
+        const secondApproved = selectedPart === 'second' ? true : comm.secondApproved;
+        const status = firstApproved && secondApproved
+          ? 'approved'
+          : firstApproved || secondApproved
+            ? 'partial'
+            : 'pending';
+
+        return {
+          ...comm,
+          firstApproved,
+          secondApproved,
+          firstStatus: firstApproved ? 'approved' : comm.firstStatus,
+          secondStatus: secondApproved ? 'approved' : comm.secondStatus,
+          status,
+          approved: firstApproved && secondApproved,
+        };
+      }));
       
       toast({
         title: 'Commission approved',
@@ -155,19 +212,92 @@ const CommissionApprovalPage = () => {
     }
   };
 
+  const handleEditChange = (field, value) => {
+    setEditValues(prev => ({
+      ...prev,
+      [field]: Number(value) || 0
+    }));
+  };
+
+  const handleAgentSelection = (agentId) => {
+    const agent = agents.find(a => a._id === agentId);
+    const displayName = agent ? (agent.fullName || agent.username || 'Agent') : '';
+    setEditValues(prev => ({
+      ...prev,
+      agentId: agentId || '',
+      agentName: displayName
+    }));
+  };
+
+  const handleEditClose = () => {
+    onEditClose();
+    setEditCommission(null);
+    setEditValues(getDefaultEditValues());
+  };
+
+  const handleSaveEdit = () => {
+    if (!editCommission) return;
+    setIsSavingEdit(true);
+
+    const updatedCommissions = commissions.map((comm) => {
+      if (comm.id !== editCommission.id) return comm;
+      const updatedNet = Number(editValues.firstCommission || 0) + Number(editValues.secondCommission || 0);
+      const updatedGross = updatedNet + Number(comm.commissionTax || 0);
+      const selectedAgent = agents.find(a => a._id === editValues.agentId);
+      const agentDisplayName = editValues.agentName ||
+        selectedAgent?.fullName ||
+        selectedAgent?.username ||
+        'Unassigned';
+      const updatedAgentId = editValues.agentId || '';
+
+      return {
+        ...comm,
+        packageValue: Number(editValues.packageValue || 0),
+        firstCommission: Number(editValues.firstCommission || 0),
+        secondCommission: Number(editValues.secondCommission || 0),
+        netCommission: updatedNet,
+        grossCommission: updatedGross,
+        agentId: updatedAgentId,
+        agent: agentDisplayName
+      };
+    });
+
+    setCommissions(updatedCommissions);
+    toast({
+      title: 'Commission edited',
+      description: `Updated split for ${editCommission.customerName}.`,
+      status: 'success',
+      duration: 3000,
+      isClosable: true
+    });
+
+    setIsSavingEdit(false);
+    handleEditClose();
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'approved': return 'green';
       case 'pending': return 'yellow';
+      case 'partial': return 'purple';
       case 'rejected': return 'red';
       default: return 'gray';
     }
   };
 
   // Calculate totals for summary cards
-  const totalPending = commissions.filter(c => c.status === 'pending').reduce((sum, c) => sum + c.netCommission, 0);
+  const totalPending = commissions.filter(c => c.status !== 'approved').reduce((sum, c) => sum + c.netCommission, 0);
   const totalApproved = commissions.filter(c => c.status === 'approved').reduce((sum, c) => sum + c.netCommission, 0);
   const totalCount = commissions.length;
+  const selectedPartLabel = selectedPart === 'first' ? 'First Commission' : 'Second Commission';
+  const selectedPartAmount = selectedCommission ? selectedCommission[selectedPart === 'first' ? 'firstCommission' : 'secondCommission'] : 0;
+  const editNetCommission = Number(editValues.firstCommission || 0) + Number(editValues.secondCommission || 0);
+  const editGrossCommission = editNetCommission + Number(editCommission?.commissionTax || 0);
+  const filteredCommissions = commissions.filter((comm) => {
+    if (filterType === 'first') return !comm.firstApproved;
+    if (filterType === 'second') return !comm.secondApproved;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -227,6 +357,20 @@ const CommissionApprovalPage = () => {
 
       <Card>
         <CardBody>
+          <Flex mb={4} justify="flex-end" align="center">
+            <FormControl maxW="xs">
+              <FormLabel mb={1} fontSize="xs">Filter commissions</FormLabel>
+              <Select
+                size="sm"
+                value={filterType}
+                onChange={(event) => setFilterType(event.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="first">Needs first commission</option>
+                <option value="second">Needs second commission</option>
+              </Select>
+            </FormControl>
+          </Flex>
           <Box overflowX="auto">
             <Table variant="simple">
               <Thead>
@@ -244,8 +388,8 @@ const CommissionApprovalPage = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {commissions.length > 0 ? (
-                  commissions.map((commission) => (
+                {filteredCommissions.length > 0 ? (
+                  filteredCommissions.map((commission) => (
                     <Tr key={commission.id} _hover={{ bg: 'gray.50' }}>
                       <Td>
                         <Text fontWeight="semibold">{commission.agent}</Text>
@@ -275,17 +419,54 @@ const CommissionApprovalPage = () => {
                         </Badge>
                       </Td>
                       <Td>
-                        {!commission.approved ? (
-                          <Button
-                            size="sm"
-                            colorScheme="green"
-                            onClick={() => handleApproveCommission(commission)}
-                          >
-                            Approve
-                          </Button>
+                        <VStack align="stretch" spacing={2}>
+                          {commission.firstApproved ? (
+                            <Badge colorScheme="green" textAlign="center">
+                              First Approved
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="xs"
+                              colorScheme="green"
+                              onClick={() => handleApproveCommission(commission, 'first')}
+                              isLoading={approvingCommission === `first-${commission.id}`}
+                            >
+                              Approve First Commission
+                            </Button>
+                          )}
+                          {commission.secondApproved ? (
+                            <Badge colorScheme="green" textAlign="center">
+                              Second Approved
+                          </Badge>
                         ) : (
-                          <Badge colorScheme="green">Approved</Badge>
-                        )}
+                          <Button
+                            size="xs"
+                            colorScheme="purple"
+                            onClick={() => handleApproveCommission(commission, 'second')}
+                            isLoading={approvingCommission === `second-${commission.id}`}
+                          >
+                            Approve Second Commission
+                          </Button>
+                          )}
+                        </VStack>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          colorScheme="blue"
+                          onClick={() => {
+                            setEditCommission(commission);
+                            setEditValues({
+                              packageValue: Number(commission.packageValue) || 0,
+                              firstCommission: Number(commission.firstCommission) || 0,
+                              secondCommission: Number(commission.secondCommission) || 0,
+                              agentId: commission.agentId || '',
+                              agentName: commission.agent || ''
+                            });
+                            onEditOpen();
+                          }}
+                        >
+                          Edit
+                        </Button>
                       </Td>
                     </Tr>
                   ))
@@ -306,13 +487,13 @@ const CommissionApprovalPage = () => {
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Approve Commission</ModalHeader>
+          <ModalHeader>Approve {selectedPartLabel}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             {selectedCommission && (
               <Box>
                 <Text mb={4}>
-                  Are you sure you want to approve the commission for{' '}
+                  Approve the {selectedPartLabel.toLowerCase()} (ETB {selectedPartAmount?.toFixed(2)}) for{' '}
                   <strong>{selectedCommission.customerName}</strong>?
                 </Text>
                 
@@ -344,7 +525,7 @@ const CommissionApprovalPage = () => {
                 </Card>
                 
                 <Text>
-                  Once approved, this commission will be directly included in the payroll.
+                  Once approved, this commission split will be directly included in the payroll.
                 </Text>
               </Box>
             )}
@@ -356,9 +537,94 @@ const CommissionApprovalPage = () => {
             <Button
               colorScheme="green"
               onClick={confirmApproveCommission}
-              isLoading={approvingCommission === selectedCommission?.id}
+              isLoading={approvingCommission === `${selectedPart}-${selectedCommission?.id}`}
             >
-              Approve Commission
+              Approve {selectedPartLabel}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={isEditOpen} onClose={handleEditClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit commission split</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {editCommission && (
+              <Stack spacing={4}>
+                <FormControl>
+                  <FormLabel>Agent</FormLabel>
+                  <Select
+                    value={editValues.agentId || ''}
+                    placeholder="Select agent"
+                    onChange={(event) => handleAgentSelection(event.target.value)}
+                  >
+                    <option value="">Unassigned</option>
+                    {agents.map(agent => (
+                      <option key={agent._id} value={agent._id}>
+                        {agent.fullName || agent.username || agent.name || 'Agent'}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Package Value</FormLabel>
+                  <NumberInput
+                    min={0}
+                    value={editValues.packageValue}
+                    onChange={(value) => handleEditChange('packageValue', value)}
+                  >
+                    <NumberInputField />
+                  </NumberInput>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>First Commission</FormLabel>
+                  <NumberInput
+                    min={0}
+                    value={editValues.firstCommission}
+                    onChange={(value) => handleEditChange('firstCommission', value)}
+                  >
+                    <NumberInputField />
+                  </NumberInput>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Second Commission</FormLabel>
+                  <NumberInput
+                    min={0}
+                    value={editValues.secondCommission}
+                    onChange={(value) => handleEditChange('secondCommission', value)}
+                  >
+                    <NumberInputField />
+                  </NumberInput>
+                </FormControl>
+
+                <Box>
+                  <Text fontSize="sm" color="gray.600">
+                    Net Commission:&nbsp;
+                    <Text as="span" fontWeight="semibold">
+                      ETB {editNetCommission.toFixed(2)}
+                    </Text>
+                  </Text>
+                  <Text fontSize="sm" color="gray.600">
+                    Gross Commission estimate:&nbsp;
+                    <Text as="span" fontWeight="semibold">
+                      ETB {editGrossCommission.toFixed(2)}
+                    </Text>
+                  </Text>
+                </Box>
+              </Stack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={handleEditClose}>
+              Cancel
+            </Button>
+            <Button colorScheme="blue" onClick={handleSaveEdit} isLoading={isSavingEdit}>
+              Save changes
             </Button>
           </ModalFooter>
         </ModalContent>

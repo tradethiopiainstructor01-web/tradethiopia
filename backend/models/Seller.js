@@ -72,6 +72,27 @@ const SellerSchema = new mongoose.Schema({
     enum: ['Active', 'Inactive', 'Suspended'],
     default: 'Active',
   },
+  
+  // Commission approval tracking
+  commissionApproved: {
+    type: Boolean,
+    default: false
+  },
+  firstCommissionApproved: {
+    type: Boolean,
+    default: false
+  },
+  secondCommissionApproved: {
+    type: Boolean,
+    default: false
+  },
+  approvedAt: {
+    type: Date
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }
 }, {
   timestamps: true,
 });
