@@ -91,7 +91,7 @@ import {
   fetchUsers,
 } from "../../services/api";
 
-const CustomerFollowup = () => {
+const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const [data, setData] = useState([]);
   const [completedSales, setCompletedSales] = useState([]);
   const [loadingTraining, setLoadingTraining] = useState(false);
@@ -3319,9 +3319,9 @@ useEffect(() => {
     </Card>
   );
 
-  return (
-    <Layout overflowX="auto" maxW="1200px" mx="auto" py={4} px={2}>
-      <VStack spacing={6} align="stretch">
+  const followupPage = (
+    <Box maxW="1400px" w="100%" mx="auto" px={{ base: 3, md: 6 }}>
+      <VStack spacing={6} align="stretch" w="100%">
         <Heading 
           as="h1" 
           size={isMobile ? "lg" : "xl"} 
@@ -3329,11 +3329,16 @@ useEffect(() => {
           color={headerBg}
           fontWeight="bold"
         >
-          Customer Success Follow-up
+          {ensraOnly ? "ENSRA Follow-Up" : "Customer Success Follow-up"}
         </Heading>
         
-        <Box overflowX="auto" maxW="100%">
-          <Tabs variant="enclosed" colorScheme="blue" isFitted={!isMobile}>
+        {ensraOnly ? (
+          <Box overflowX="auto" maxW="100%">
+            {ensraModule}
+          </Box>
+        ) : (
+          <Box overflowX="auto" maxW="100%">
+            <Tabs variant="enclosed" colorScheme="blue" isFitted={!isMobile}>
             <TabList mb={2} flexWrap={isMobile ? "wrap" : "nowrap"} gap={isMobile ? 1 : 2}>
               <Tab>
                 <HStack spacing={2}>
@@ -3557,6 +3562,7 @@ useEffect(() => {
             </TabPanels>
           </Tabs>
         </Box>
+        )}
       </VStack>
 
       {/* Add Pending B2B Modal */}
@@ -4340,8 +4346,18 @@ useEffect(() => {
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Layout>
+    </Box>
   );
+
+  if (embedLayout) {
+    return (
+      <Box overflowX="auto" maxW="1100px" mx="auto" py={4} px={2}>
+        {followupPage}
+      </Box>
+    );
+  }
+
+  return <Layout>{followupPage}</Layout>;
 };
 
 
