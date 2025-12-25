@@ -37,6 +37,11 @@ const SellerSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  packageScope: {
+    type: String,
+    enum: ["Local", "International", ""],
+    default: "",
+  },
   agentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

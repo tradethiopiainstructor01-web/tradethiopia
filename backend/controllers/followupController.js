@@ -8,6 +8,22 @@ const nodemailer = require("nodemailer");
 // @desc    Get analytics data for dashboard
 // @route   GET /api/followups/analytics
 // @access  Public
+const LOCAL_COUNTRY = "ethiopia";
+const parseScopeLabel = (scope = "") => {
+  const cleanedScope = (scope || "").toString().trim().toLowerCase();
+  if (!cleanedScope) return "";
+  if (cleanedScope.includes("local")) return "Local";
+  if (cleanedScope.includes("international") || cleanedScope.includes("intl")) return "International";
+  return "";
+};
+const normalizeScope = (scope = "", country = "") => {
+  const normalizedFromScope = parseScopeLabel(scope);
+  if (normalizedFromScope) return normalizedFromScope;
+  const countryValue = (country || "").toString().trim().toLowerCase();
+  if (countryValue === LOCAL_COUNTRY || countryValue.includes("ethiopia")) return "Local";
+  return "International";
+};
+
 const getFollowupAnalytics = async (req, res) => {
   try {
     // Get package distribution data
@@ -528,6 +544,8 @@ const importB2BCustomers = async (req, res) => {
       phoneNumber: customerData.phoneNumber,
       email: customerData.email,
       packageType: customerData.packageType || "Not specified",
+      country: customerData.country || "",
+      packageScope: normalizeScope(customerData.packageScope, customerData.country),
       service: `${customerType === 'buyer' ? 'Buying' : 'Selling'} ${customerData.industry} products`,
       serviceProvided: "Initial contact made",
       serviceNotProvided: "Ongoing relationship management",
@@ -621,7 +639,8 @@ const getPendingB2BCustomers = async (req, res) => {
         type: 'buyer',
         industry: buyer.industry,
         country: buyer.country,
-        packageType: buyer.packageType || "Not specified"
+        packageType: buyer.packageType || "Not specified",
+        packageScope: normalizeScope(buyer.packageScope, buyer.country)
       })),
       ...sellers.map(seller => ({
         _id: seller._id,
@@ -632,7 +651,8 @@ const getPendingB2BCustomers = async (req, res) => {
         type: 'seller',
         industry: seller.industry,
         country: seller.country,
-        packageType: seller.packageType || "Not specified"
+        packageType: seller.packageType || "Not specified",
+        packageScope: normalizeScope(seller.packageScope, seller.country)
       }))
     ];
     

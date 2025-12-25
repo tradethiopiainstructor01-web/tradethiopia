@@ -51,6 +51,7 @@ const CustomerSettings = () => {
     market: "Local",
   });
   const [editingId, setEditingId] = useState(null);
+  const LOCAL_COUNTRY = "ethiopia";
   const servicePalette = ["blue", "green", "purple", "orange", "teal", "pink", "cyan", "red", "yellow"];
   const getServiceColor = (name = "") => {
     const key = name.toString();
@@ -59,6 +60,14 @@ const CustomerSettings = () => {
       hash = (hash + key.charCodeAt(i) * (i + 1)) % 9973;
     }
     return servicePalette[hash % servicePalette.length];
+  };
+  const normalizePackageScope = (scope = "", country = "") => {
+    const cleanedScope = (scope || "").toString().trim().toLowerCase();
+    if (cleanedScope.includes("local")) return "Local";
+    if (cleanedScope.includes("international") || cleanedScope.includes("intl")) return "International";
+    const countryValue = (country || "").toString().trim().toLowerCase();
+    if (countryValue === LOCAL_COUNTRY || countryValue.includes("ethiopia")) return "Local";
+    return "International";
   };
 
   useEffect(() => {
@@ -320,6 +329,7 @@ const CustomerSettings = () => {
                     <Th>Email</Th>
                     <Th>Phone</Th>
                     <Th>Type</Th>
+                    <Th>Package Scope</Th>
                     <Th>Assign to Agent</Th>
                     <Th></Th>
                   </Tr>
@@ -327,50 +337,59 @@ const CustomerSettings = () => {
                 <Tbody>
                   {pendingB2B.length === 0 ? (
                     <Tr>
-                      <Td colSpan={7} textAlign="center" py={6}>
+                      <Td colSpan={8} textAlign="center" py={6}>
                         <Text color="gray.500">No pending B2B customers.</Text>
                       </Td>
                     </Tr>
                   ) : (
-                    pendingB2B.map((cust) => (
-                      <Tr key={cust._id}>
-                        <Td>{cust.clientName}</Td>
-                        <Td>{cust.companyName}</Td>
-                        <Td>{cust.email}</Td>
-                        <Td>{cust.phoneNumber}</Td>
-                        <Td>
-                          <Badge colorScheme={cust.type === "buyer" ? "green" : "purple"}>
-                            {cust.type}
-                          </Badge>
-                        </Td>
-                        <Td>
-                          <Select
-                            placeholder="Select agent"
-                            size="sm"
-                            value={selectedAgent[cust._id] || ""}
-                            onChange={(e) =>
-                              setSelectedAgent((prev) => ({ ...prev, [cust._id]: e.target.value }))
-                            }
-                          >
-                            {csUsers.map((u) => (
-                              <option key={u._id} value={u._id}>
-                                {u.username || u.email || u._id}
-                              </option>
-                            ))}
-                          </Select>
-                        </Td>
-                        <Td textAlign="right">
-                          <Button
-                            size="sm"
-                            colorScheme="teal"
-                            isLoading={assigningId === cust._id}
-                            onClick={() => handleAssignB2B(cust)}
-                          >
-                            Assign
-                          </Button>
-                        </Td>
-                      </Tr>
-                    ))
+                    pendingB2B.map((cust) => {
+                      const scopeLabel = normalizePackageScope(cust.packageScope, cust.country);
+                      const scopeColor = scopeLabel === "Local" ? "green" : "purple";
+                      return (
+                        <Tr key={cust._id}>
+                          <Td>{cust.clientName}</Td>
+                          <Td>{cust.companyName}</Td>
+                          <Td>{cust.email}</Td>
+                          <Td>{cust.phoneNumber}</Td>
+                          <Td>
+                            <Badge colorScheme={cust.type === "buyer" ? "green" : "purple"}>
+                              {cust.type}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            <Badge colorScheme={scopeColor} variant="subtle">
+                              {scopeLabel}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            <Select
+                              placeholder="Select agent"
+                              size="sm"
+                              value={selectedAgent[cust._id] || ""}
+                              onChange={(e) =>
+                                setSelectedAgent((prev) => ({ ...prev, [cust._id]: e.target.value }))
+                              }
+                            >
+                              {csUsers.map((u) => (
+                                <option key={u._id} value={u._id}>
+                                  {u.username || u.email || u._id}
+                                </option>
+                              ))}
+                            </Select>
+                          </Td>
+                          <Td textAlign="right">
+                            <Button
+                              size="sm"
+                              colorScheme="teal"
+                              isLoading={assigningId === cust._id}
+                              onClick={() => handleAssignB2B(cust)}
+                            >
+                              Assign
+                            </Button>
+                          </Td>
+                        </Tr>
+                      );
+                    })
                   )}
                 </Tbody>
               </Table>
