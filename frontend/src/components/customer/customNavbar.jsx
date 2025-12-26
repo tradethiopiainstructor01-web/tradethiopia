@@ -22,12 +22,25 @@ import {
   Tooltip,
   useColorMode,
   useColorModeValue,
+  Badge,
 } from "@chakra-ui/react";
-import { FiMenu, FiHome, FiUsers, FiBookOpen, FiBell, FiUser, FiFileText } from "react-icons/fi";
+import {
+  FiMenu,
+  FiHome,
+  FiUsers,
+  FiBookOpen,
+  FiBell,
+  FiUser,
+  FiFileText,
+  FiGlobe,
+  FiMessageSquare,
+  FiClipboard,
+  FiBarChart2,
+  FiSettings,
+} from "react-icons/fi";
 import NotesLauncher from "../notes/NotesLauncher";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useUserStore } from "../../store/user";
-import { useNavigate } from "react-router-dom";
 import { MoonIcon, SunIcon } from "@chakra-ui/icons";
 
 const Cnavbar = () => {
@@ -56,6 +69,32 @@ const Cnavbar = () => {
   const clearUser = useUserStore((state) => state.clearUser);
 
   const [notifications, setNotifications] = useState([]);
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
+
+  const isCSM = (() => {
+    try {
+      const rawUser =
+        localStorage.getItem("user") ||
+        localStorage.getItem("userInfo") ||
+        localStorage.getItem("userData");
+      const roleField = rawUser
+        ? (() => {
+            const parsed = typeof rawUser === "string" ? JSON.parse(rawUser) : rawUser;
+            return (
+              parsed?.role ||
+              parsed?.user?.role ||
+              parsed?.userRole ||
+              parsed?.user?.userRole ||
+              parsed?.roleName
+            );
+          })()
+        : null;
+      const roles = Array.isArray(roleField) ? roleField : [roleField, localStorage.getItem("userRole")];
+      return roles.some((role) => (role || "").toString().trim().toLowerCase() === "customersuccessmanager");
+    } catch (err) {
+      return false;
+    }
+  })();
 
   const handleLogout = () => {
     clearUser();
@@ -203,9 +242,35 @@ const Cnavbar = () => {
           <DrawerCloseButton />
           <DrawerBody>
             <VStack align="start" spacing={4} mt={8}>
-              <NavItem to="/Cdashboard" icon={<FiHome />} label="Dashboard" onClose={onClose} />
-              <NavItem to="/CustomerFollowup" icon={<FiUsers />} label="Follow Up" onClose={onClose} />
-              <NavItem to="/training" icon={<FiBookOpen />} label="Training" onClose={onClose} />
+              {[
+                { to: "/Cdashboard", icon: <FiHome />, label: "Dashboard" },
+                { to: "/b2b-dashboard", icon: <FiGlobe />, label: "B2B Marketplace" },
+                { to: "/customerfollowup", icon: <FiUsers />, label: "Customer Followup" },
+                {
+                  to: "/customer/messages",
+                  icon: <FiMessageSquare />,
+                  label: "Notice Board",
+                  badgeCount: unreadCount,
+                },
+                { to: "/requests", icon: <FiClipboard />, label: "Requests" },
+                { to: "/training", icon: <FiBookOpen />, label: "Training" },
+                ...(isCSM
+                  ? [
+                      { to: "/customerreport", icon: <FiBarChart2 />, label: "Reports" },
+                      { to: "/followup-report", icon: <FiFileText />, label: "Follow Up Report" },
+                      { to: "/customer-settings", icon: <FiSettings />, label: "Settings" },
+                    ]
+                  : []),
+              ].map(({ to, icon, label, badgeCount }) => (
+                <NavItem
+                  key={label}
+                  to={to}
+                  icon={icon}
+                  label={label}
+                  badgeCount={badgeCount}
+                  onClose={onClose}
+                />
+              ))}
             </VStack>
           </DrawerBody>
         </DrawerContent>
@@ -215,7 +280,7 @@ const Cnavbar = () => {
 };
 
 // Individual Nav Item Component
-const NavItem = ({ to, icon, label, onClose }) => (
+const NavItem = ({ to, icon, label, onClose, badgeCount = 0 }) => (
   <Tooltip label={label} placement="right" hasArrow>
     <Link
       as={RouterLink}
@@ -224,11 +289,34 @@ const NavItem = ({ to, icon, label, onClose }) => (
       onClick={onClose}
       style={{ width: "100%" }}
     >
-      <Flex align="center" p={2} borderRadius="md" _hover={{ bg: "gray.100" }}>
+      <Flex
+        align="center"
+        p={2}
+        borderRadius="md"
+        _hover={{ bg: "gray.100" }}
+        position="relative"
+      >
         {icon}
         <Text ml={3} whiteSpace="nowrap" fontSize="16px">
           {label}
         </Text>
+        {badgeCount > 0 && (
+          <Badge
+            colorScheme="red"
+            borderRadius="full"
+            position="absolute"
+            top="6px"
+            right="8px"
+            fontSize="10px"
+            w="18px"
+            h="18px"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+          >
+            {badgeCount}
+          </Badge>
+        )}
       </Flex>
     </Link>
   </Tooltip>
