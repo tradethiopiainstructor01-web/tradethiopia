@@ -309,6 +309,13 @@ const fetchPayrollDataHandler = async () => {
   const approvePayrollHandler = async (payrollId) => {
     try {
       const data = await approvePayroll(payrollId);
+      
+      // Clear commission data when payroll is approved
+      const employee = payrollData.find(p => p._id === payrollId);
+      if (employee && employee.userId) {
+        await clearCommissionData(employee.userId._id || employee.userId);
+      }
+      
       toast({
         title: 'Success',
         description: data.message,
@@ -330,32 +337,76 @@ const fetchPayrollDataHandler = async () => {
   };
   
   const finalizePayrollHandler = async (payrollId) => {
-  try {
-    const data = await finalizePayroll(payrollId);
-    toast({
-      title: 'Payroll Finalized',
-      description: data.message,
-      status: 'success',
-      duration: 4000,
-      isClosable: true,
-    });
-    fetchPayrollDataHandler();
-    if (data?.history) {
-      setPayrollHistory((prev) => [data.history, ...prev]);
+    try {
+      const data = await finalizePayroll(payrollId);
+      
+      // Clear commission data when payroll is finalized
+      const employee = payrollData.find(p => p._id === payrollId);
+      if (employee && employee.userId) {
+        await clearCommissionData(employee.userId._id || employee.userId);
+      }
+      
+      toast({
+        title: 'Payroll Finalized',
+        description: data.message,
+        status: 'success',
+        duration: 4000,
+        isClosable: true,
+      });
+      
+      fetchPayrollDataHandler();
+      
+      if (data?.history) {
+        setPayrollHistory((prev) => [data.history, ...prev]);
+      }
+      
+      setHistoryFilters({ username: '', month: '', department: '' });
+      fetchPayrollHistoryHandler({});
+    } catch (err) {
+      console.error('Error finalizing payroll:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to finalize payroll',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
     }
-    setHistoryFilters({ username: '', month: '', department: '' });
-    fetchPayrollHistoryHandler({});
-  } catch (err) {
-    console.error('Error finalizing payroll:', err);
-    toast({
-      title: 'Error',
-      description: 'Failed to finalize payroll',
-      status: 'error',
-      duration: 3000,
-      isClosable: true,
-    });
-  }
-};
+  };
+
+  // Clear commission data for a specific user and period
+  const clearCommissionData = async (userId) => {
+    try {
+      await deleteCommission({
+        userId,
+        month: selectedMonth,
+        year: selectedYear
+      });
+      
+      // Reset commission form data
+      setCommissionFormData({
+        userId: '',
+        numberOfSales: 0,
+        grossCommission: 0,
+        commissionTax: 0,
+        totalCommission: 0,
+        commissionDetails: []
+      });
+      
+      setHasStoredCommission(false);
+      setSalesData([]);
+      
+    } catch (error) {
+      console.error('Error clearing commission data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to clear commission data',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
 
 // Lock payroll
   const lockPayrollHandler = async (payrollId) => {
