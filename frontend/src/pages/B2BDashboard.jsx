@@ -9,6 +9,7 @@ import {
   TabPanel,
   Button,
   Input,
+  Select,
   Table,
   Thead,
   Tbody,
@@ -66,6 +67,8 @@ const B2BDashboard = () => {
   const [buyers, setBuyers] = useState([]);
   const [sellers, setSellers] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [matchScope, setMatchScope] = useState("All");
+  const [lastMatchScope, setLastMatchScope] = useState("All");
   const [savedMatches, setSavedMatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,6 +78,12 @@ const B2BDashboard = () => {
   const [detailViewType, setDetailViewType] = useState('match'); // 'match', 'buyer', or 'seller'
   const [savedBy, setSavedBy] = useState('user@example.com'); // In a real app, this would come from auth context
   const toast = useToast();
+  
+  const getScopeBadgeColor = (scope = "All") => {
+    if (scope === 'International') return 'purple';
+    if (scope === 'Local') return 'green';
+    return 'blue';
+  };
   
   const { isOpen: isBuyerDrawerOpen, onOpen: onBuyerDrawerOpen, onClose: onBuyerDrawerClose } = useDisclosure();
   const { isOpen: isSellerDrawerOpen, onOpen: onSellerDrawerOpen, onClose: onSellerDrawerClose } = useDisclosure();
@@ -147,15 +156,19 @@ const B2BDashboard = () => {
   };
 
   // Run matching algorithm
-  const runMatching = async () => {
+  const runMatching = async (scopeOverride) => {
+    const scopeToUse = typeof scopeOverride === "string" ? scopeOverride : matchScope;
     setLoading(true);
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/b2b/match`);
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/b2b/match`, {
+        scope: scopeToUse,
+      });
       setMatches(res.data.matches);
+      setLastMatchScope(scopeToUse);
       setActiveTab(2); // Switch to matches tab
       toast({
         title: 'Matching completed',
-        description: `Found ${res.data.matches.length} potential matches`,
+        description: `Found ${res.data.matches.length} ${scopeToUse !== "All" ? `${scopeToUse} ` : ""}potential matches`,
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -462,10 +475,21 @@ const B2BDashboard = () => {
         <Flex justifyContent="space-between" alignItems="center" mb={6}>
           <Heading as="h1" size="xl">B2B International Marketplace</Heading>
           <HStack spacing={3}>
+            <Select
+              size="sm"
+              value={matchScope}
+              onChange={(e) => setMatchScope(e.target.value)}
+              width="150px"
+              aria-label="Match scope"
+            >
+              <option value="All">All scopes</option>
+              <option value="Local">Local only</option>
+              <option value="International">International only</option>
+            </Select>
             <Button 
               leftIcon={<RepeatIcon />} 
               colorScheme="teal" 
-              onClick={runMatching}
+              onClick={() => runMatching()}
               isLoading={loading}
             >
               Run Matching
@@ -784,30 +808,52 @@ const B2BDashboard = () => {
                   </Flex>
                 ) : (
                   <>
-                    <Flex mb={4} justify="space-between">
-                      <Text fontWeight="bold">Showing {matches.length} potential matches</Text>
+                    <Flex
+                      mb={4}
+                      justify="space-between"
+                      flexWrap="wrap"
+                      gap={2}
+                    >
+                      <Text fontWeight="bold">
+                        Showing {matches.length} potential matches
+                        {matches.length > 0 && lastMatchScope !== "All" ? ` for ${lastMatchScope}` : ""}
+                      </Text>
+                      {matches.length > 0 && (
+                        <Badge colorScheme={getScopeBadgeColor(lastMatchScope)}>
+                          Scope: {lastMatchScope}
+                        </Badge>
+                      )}
                     </Flex>
                     <Table variant="simple" size="sm">
                       <Thead>
-                        <Tr>
-                          <Th>Buyer Company</Th>
-                          <Th>Seller Company</Th>
-                          <Th>Match Score</Th>
-                          <Th>Why Matched</Th>
-                          <Th>Matching Products</Th>
-                          <Th width="140px">Actions</Th>
-                        </Tr>
+                      <Tr>
+                        <Th>Buyer Company</Th>
+                        <Th>Seller Company</Th>
+                        <Th>Scope</Th>
+                        <Th>Match Score</Th>
+                        <Th>Why Matched</Th>
+                        <Th>Matching Products</Th>
+                        <Th width="140px">Actions</Th>
+                      </Tr>
                       </Thead>
                       <Tbody>
-                        {filteredMatches.map((match, index) => (
-                          <Tr key={index}>
-                            <Td>{match.buyerName}</Td>
-                            <Td>{match.sellerName}</Td>
-                            <Td>
-                              <Badge colorScheme={match.score > 70 ? 'green' : match.score > 40 ? 'yellow' : 'red'}>
-                                {match.score}%
-                              </Badge>
-                            </Td>
+                        {filteredMatches.map((match, index) => {
+                          const matchScopeLabel =
+                            match.scope || match.buyerScope || match.sellerScope || "All";
+                          return (
+                            <Tr key={index}>
+                              <Td>{match.buyerName}</Td>
+                              <Td>{match.sellerName}</Td>
+                              <Td>
+                                <Badge colorScheme={getScopeBadgeColor(matchScopeLabel)} fontSize="0.7rem">
+                                  {matchScopeLabel}
+                                </Badge>
+                              </Td>
+                              <Td>
+                                <Badge colorScheme={match.score > 70 ? 'green' : match.score > 40 ? 'yellow' : 'red'}>
+                                  {match.score}%
+                                </Badge>
+                              </Td>
                             <Td>
                               {match.matchReasons && match.matchReasons.length > 0 ? (
                                 <Flex direction="column" fontSize="0.8em">
@@ -843,29 +889,30 @@ const B2BDashboard = () => {
                               )}
                             </Td>
                             <Td>
-                              <VStack spacing={1} align="stretch">
-                                <Button 
-                                  size="xs" 
-                                  leftIcon={<ViewIcon />} 
-                                  onClick={() => handleViewMatch(match)}
-                                  width="100%"
-                                >
-                                  Details
-                                </Button>
-                                <Button
-                                  size="xs"
-                                  leftIcon={isMatchSaved(match) ? <StarIcon /> : null}
-                                  colorScheme={isMatchSaved(match) ? "yellow" : "gray"}
-                                  onClick={() => saveMatch(match)}
-                                  isLoading={loading}
-                                  width="100%"
-                                >
-                                  {isMatchSaved(match) ? "Saved" : "Save"}
-                                </Button>
-                              </VStack>
-                            </Td>
-                          </Tr>
-                        ))}
+                            <VStack spacing={1} align="stretch">
+                              <Button 
+                                size="xs" 
+                                leftIcon={<ViewIcon />} 
+                                onClick={() => handleViewMatch(match)}
+                                width="100%"
+                              >
+                                Details
+                              </Button>
+                              <Button
+                                size="xs"
+                                leftIcon={isMatchSaved(match) ? <StarIcon /> : null}
+                                colorScheme={isMatchSaved(match) ? "yellow" : "gray"}
+                                onClick={() => saveMatch(match)}
+                                isLoading={loading}
+                                width="100%"
+                              >
+                                {isMatchSaved(match) ? "Saved" : "Save"}
+                              </Button>
+                            </VStack>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
                       </Tbody>
                     </Table>
                   </>

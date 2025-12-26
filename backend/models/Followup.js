@@ -11,6 +11,11 @@ const followupSchema = new Schema(
       type: String,
       required: true,
     },
+    customerType: {
+      type: String,
+      enum: ["buyer", "seller", ""],
+      default: "",
+    },
     phoneNumber: {
       type: String,
       default: "none",

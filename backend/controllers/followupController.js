@@ -546,6 +546,7 @@ const importB2BCustomers = async (req, res) => {
       packageType: customerData.packageType || "Not specified",
       country: customerData.country || "",
       packageScope: normalizeScope(customerData.packageScope, customerData.country),
+      customerType: customerType === 'buyer' ? 'buyer' : 'seller',
       service: `${customerType === 'buyer' ? 'Buying' : 'Selling'} ${customerData.industry} products`,
       serviceProvided: "Initial contact made",
       serviceNotProvided: "Ongoing relationship management",

@@ -32,6 +32,13 @@ const MatchDetails = ({ match, onBack, onSaveMatch, isMatchSaved, savedBy }) => 
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState(match.notes || '');
   const toast = useToast();
+  const matchScope = match?.scope || match?.buyerScope || match?.sellerScope || 'All';
+
+  const getScopeBadgeColor = (scope = 'All') => {
+    if (scope === 'International') return 'purple';
+    if (scope === 'Local') return 'green';
+    return 'blue';
+  };
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -211,6 +218,13 @@ const MatchDetails = ({ match, onBack, onSaveMatch, isMatchSaved, savedBy }) => 
                     {match.score}%
                   </Text>
                 </Box>
+                
+                <Flex align="center" justify="space-between">
+                  <Text fontSize="sm" fontWeight="bold">Scope</Text>
+                  <Badge colorScheme={getScopeBadgeColor(matchScope)} fontSize="0.8em">
+                    {matchScope}
+                  </Badge>
+                </Flex>
                 
                 <Divider />
                 

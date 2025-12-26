@@ -17,6 +17,7 @@ import {
   Td,
   Button,
   Input,
+  Select,
   Text,
   Spinner,
   useDisclosure,
@@ -105,6 +106,7 @@ const CustomerFollowup = () => {
   const [showAllNotes, setShowAllNotes] = useState(false);
   const [filteredData, setFilteredData] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [followupTypeFilter, setFollowupTypeFilter] = useState("all");
   const [showUpdateCard, setShowUpdateCard] = useState(false);
   const [updatedServiceProvided, setUpdatedServiceProvided] = useState("");
   const [updatedServiceNotProvided, setUpdatedServiceNotProvided] = useState("");
@@ -196,6 +198,21 @@ const CustomerFollowup = () => {
   const isLocalCustomer = (customer = {}) =>
     resolvePackageScope(customer) === "Local";
 
+  const resolveFollowupType = (customer = {}) => {
+    const typeValue = (
+      (customer.type || customer.customerType || customer.customerTypeName || "").toString().trim().toLowerCase()
+    );
+    if (typeValue.includes("buyer")) return "buyer";
+    if (typeValue.includes("seller")) return "seller";
+    return "";
+  };
+
+  const displayFollowupType = (customer = {}) => {
+    const type = resolveFollowupType(customer);
+    if (!type) return "N/A";
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
   const updateFollowupPackageScope = (id, scope) => {
     setData((prev) =>
       prev.map((item) => (item._id === id ? { ...item, packageScope: scope } : item))
@@ -265,6 +282,7 @@ const CustomerFollowup = () => {
       quickActions: true,
       clientName: true,
       companyName: true,
+      type: true,
       phone: true,
       email: true,
       package: true,
@@ -398,13 +416,19 @@ const CustomerFollowup = () => {
   const isCustomerSuccessAgent =
     CUSTOMER_SUCCESS_ROLES.has(currentUserRole) &&
     currentUserRole !== "customersuccessmanager";
+  const typeFilteredData = useMemo(() => {
+    if (!Array.isArray(filteredData)) return [];
+    if (followupTypeFilter === "all") return filteredData;
+    return filteredData.filter((item) => resolveFollowupType(item) === followupTypeFilter);
+  }, [filteredData, followupTypeFilter]);
+
   const localFollowups = useMemo(
-    () => filteredData.filter((item) => resolvePackageScope(item) === "Local"),
-    [filteredData]
+    () => typeFilteredData.filter((item) => resolvePackageScope(item) === "Local"),
+    [typeFilteredData]
   );
   const internationalFollowups = useMemo(
-    () => filteredData.filter((item) => resolvePackageScope(item) === "International"),
-    [filteredData]
+    () => typeFilteredData.filter((item) => resolvePackageScope(item) === "International"),
+    [typeFilteredData]
   );
  const toast = useToast();
   
@@ -2198,6 +2222,7 @@ useEffect(() => {
     { key: "quickActions", label: "Quick Actions" },
     { key: "clientName", label: "Client Name" },
     { key: "companyName", label: "Company" },
+    { key: "type", label: "Type" },
     { key: "phone", label: "Phone" },
     { key: "email", label: "Email" },
     { key: "package", label: "Package" },
@@ -2347,6 +2372,21 @@ useEffect(() => {
       visible: visibleColumns.followup.companyName,
       header: "Company",
       render: (item) => <CompactCell>{item.companyName}</CompactCell>,
+    },
+    {
+      key: "type",
+      visible: visibleColumns.followup.type,
+      header: "Type",
+      render: (item) => {
+        const badgeVariant = resolveFollowupType(item) === "buyer" ? "green" : "purple";
+        return (
+          <CompactCell>
+            <Badge colorScheme={badgeVariant} fontSize="xs">
+              {displayFollowupType(item)}
+            </Badge>
+          </CompactCell>
+        );
+      },
     },
     {
       key: "phone",
@@ -3355,6 +3395,21 @@ useEffect(() => {
         >
           Customer Success Follow-up
         </Heading>
+        <Flex justify={isMobile ? "center" : "flex-end"} align="center" gap={3} flexWrap="wrap">
+          <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            Show
+          </Text>
+          <Select
+            size="sm"
+            value={followupTypeFilter}
+            onChange={(e) => setFollowupTypeFilter(e.target.value)}
+            w={{ base: "160px", md: "200px" }}
+          >
+            <option value="all">All types</option>
+            <option value="buyer">Buyer</option>
+            <option value="seller">Seller</option>
+          </Select>
+        </Flex>
         
         <Box overflowX="auto" maxW="100%">
           <Tabs variant="enclosed" colorScheme="blue" isFitted={!isMobile}>

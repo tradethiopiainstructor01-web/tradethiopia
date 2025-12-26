@@ -1,6 +1,35 @@
 const Buyer = require('../models/Buyer');
 const Seller = require('../models/Seller');
 
+const LOCAL_COUNTRY = "ethiopia";
+
+const normalizeScopeValue = (value = "") => {
+  const cleaned = (value || "").toString().trim().toLowerCase();
+  if (!cleaned) return "";
+  if (cleaned.includes("local")) return "Local";
+  if (cleaned.includes("international") || cleaned.includes("intl")) return "International";
+  return "";
+};
+
+const isCountryLocal = (country = "") => {
+  const normalized = (country || "").toString().trim().toLowerCase();
+  return normalized === LOCAL_COUNTRY || normalized.includes("ethiopia");
+};
+
+const resolveScope = (entity = {}) => {
+  const scopeFromField = normalizeScopeValue(entity.packageScope);
+  if (scopeFromField) return scopeFromField;
+  return isCountryLocal(entity.country) ? "Local" : "International";
+};
+
+const normalizeRequestedScope = (scope = "") => {
+  const cleaned = (scope || "").toString().trim().toLowerCase();
+  if (!cleaned || cleaned === "all") return "All";
+  if (cleaned.includes("local")) return "Local";
+  if (cleaned.includes("international") || cleaned.includes("intl")) return "International";
+  return "All";
+};
+
 // Helper function to normalize product names
 const normalizeProduct = (product) => {
   if (!product) return '';
@@ -57,6 +86,9 @@ const areProductsSimilar = (product1, product2) => {
 const matchBuyersAndSellers = async (req, res) => {
   try {
     const { buyerId, sellerId } = req.body;
+    const requestedScope = normalizeRequestedScope(
+      req.body.scope || (req.query && req.query.scope)
+    );
     
     let buyers, sellers;
     
@@ -81,7 +113,17 @@ const matchBuyersAndSellers = async (req, res) => {
     
     // Match buyers with sellers based on industry and products
     for (const buyer of buyers) {
+      const buyerScope = resolveScope(buyer);
+      if (requestedScope !== "All" && buyerScope !== requestedScope) {
+        continue;
+      }
+
       for (const seller of sellers) {
+        const sellerScope = resolveScope(seller);
+        if (!sellerScope || sellerScope !== buyerScope) {
+          continue;
+        }
+
         // Skip if buyer and seller are from the same company
         if (buyer.companyName === seller.companyName) {
           continue;
@@ -108,8 +150,11 @@ const matchBuyersAndSellers = async (req, res) => {
         
         // Product match - what buyer wants to buy vs what seller wants to sell (highest priority)
         const matchingProducts = [];
-        for (const buyerProduct of buyer.products) {
-          for (const sellerProduct of seller.products) {
+        const buyerProducts = Array.isArray(buyer.products) ? buyer.products : [];
+        const sellerProducts = Array.isArray(seller.products) ? seller.products : [];
+
+        for (const buyerProduct of buyerProducts) {
+          for (const sellerProduct of sellerProducts) {
             if (areProductsSimilar(buyerProduct, sellerProduct)) {
               // Check if this product is already added to avoid duplicates
               if (!matchingProducts.includes(buyerProduct)) {
@@ -122,7 +167,7 @@ const matchBuyersAndSellers = async (req, res) => {
         if (matchingProducts.length > 0) {
           // Only consider this a match if there are product matches
           // Score based on percentage of matching products
-          const productMatchPercentage = matchingProducts.length / Math.max(buyer.products.length, seller.products.length);
+          const productMatchPercentage = matchingProducts.length / Math.max(buyerProducts.length || 1, sellerProducts.length || 1);
           score += Math.round(70 * productMatchPercentage); // Highest weight for product matching
           matchingCriteria.push('Products');
           
@@ -151,7 +196,10 @@ const matchBuyersAndSellers = async (req, res) => {
             matchingProducts,
             matchingCriteria,
             matchReasons, // Detailed reasons for the match
-            score: Math.min(score, 100) // Cap score at 100
+            score: Math.min(score, 100), // Cap score at 100
+            buyerScope,
+            sellerScope,
+            scope: buyerScope,
           };
           
           // Create a unique key for this buyer-seller pair
@@ -188,7 +236,7 @@ const matchBuyersAndSellers = async (req, res) => {
     // Limit to top 50 matches to avoid overwhelming the user
     const limitedMatches = matchesArray.slice(0, 50);
     
-    console.log(`Generated ${limitedMatches.length} unique matches (reduced from ${matchesArray.length} total)`);
+    console.log(`Generated ${limitedMatches.length} unique matches (reduced from ${matchesArray.length} total)`);  
     
     res.status(200).json({ matches: limitedMatches });
   } catch (err) {
@@ -211,8 +259,13 @@ const getTopMatchesForBuyer = async (req, res) => {
     const allSellers = await Seller.find();
     
     const matches = [];
+    const buyerScope = resolveScope(buyer);
     
     for (const seller of allSellers) {
+      const sellerScope = resolveScope(seller);
+      if (!sellerScope || sellerScope !== buyerScope) {
+        continue;
+      }
       // Skip if buyer and seller are from the same company
       if (buyer.companyName === seller.companyName) {
         continue;
@@ -279,7 +332,10 @@ const getTopMatchesForBuyer = async (req, res) => {
           matchingProducts,
           matchingCriteria,
           matchReasons, // Detailed reasons for the match
-          score: Math.min(score, 100) // Cap score at 100
+          score: Math.min(score, 100), // Cap score at 100
+          buyerScope,
+          sellerScope,
+          scope: buyerScope,
         });
       }
     }
@@ -323,8 +379,13 @@ const getTopMatchesForSeller = async (req, res) => {
     const allBuyers = await Buyer.find();
     
     const matches = [];
+    const sellerScope = resolveScope(seller);
     
     for (const buyer of allBuyers) {
+      const buyerScope = resolveScope(buyer);
+      if (!buyerScope || buyerScope !== sellerScope) {
+        continue;
+      }
       // Skip if buyer and seller are from the same company
       if (buyer.companyName === seller.companyName) {
         continue;
@@ -391,7 +452,10 @@ const getTopMatchesForSeller = async (req, res) => {
           matchingProducts,
           matchingCriteria,
           matchReasons, // Detailed reasons for the match
-          score: Math.min(score, 100) // Cap score at 100
+          score: Math.min(score, 100), // Cap score at 100
+          buyerScope,
+          sellerScope,
+          scope: sellerScope,
         });
       }
     }

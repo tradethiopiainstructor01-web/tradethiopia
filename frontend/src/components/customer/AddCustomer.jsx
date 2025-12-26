@@ -67,6 +67,12 @@ const AddCustomer = ({ onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const toast = useToast();
   
+  const determineScopeFromCountry = (country = "") => {
+    const normalizedCountry = (country || "").toString().trim().toLowerCase();
+    if (!normalizedCountry) return "International";
+    return normalizedCountry.includes("ethiopia") ? "Local" : "International";
+  };
+  
   // Responsive breakpoints
   const [isLargerThan768] = useMediaQuery("(min-width: 768px)");
   const [isLargerThan1024] = useMediaQuery("(min-width: 1024px)");
@@ -181,6 +187,7 @@ const AddCustomer = ({ onSuccess }) => {
       const calculatedDeadline = new Date(
         new Date().setFullYear(new Date().getFullYear() + 1)
       ).toISOString().split("T")[0];
+      const followupScope = determineScopeFromCountry(formData.country);
 
       if (customerType === "buyer") {
         if (
@@ -220,18 +227,22 @@ const AddCustomer = ({ onSuccess }) => {
         );
 
         if (buyerResponse.status === 201) {
-          const followupData = {
-            clientName: formData.contactPerson,
-            companyName: formData.companyName,
-            phoneNumber: formData.phoneNumber,
-            email: formData.email,
-            packageType: formData.packageType || "Not specified",
-            service: `Buying ${formData.industry} products`,
-            serviceProvided: "Initial contact made",
-            serviceNotProvided: "Ongoing relationship management",
-            createdBy: creatorId,
-            deadline: calculatedDeadline,
-          };
+        const followupData = {
+          clientName: formData.contactPerson,
+          companyName: formData.companyName,
+          phoneNumber: formData.phoneNumber,
+          email: formData.email,
+          packageType: formData.packageType || "Not specified",
+          country: formData.country,
+          packageScope: followupScope,
+          customerType,
+          type: customerType,
+          service: `Buying ${formData.industry} products`,
+          serviceProvided: "Initial contact made",
+          serviceNotProvided: "Ongoing relationship management",
+          createdBy: creatorId,
+          deadline: calculatedDeadline,
+        };
 
           await axios.post(
             `${import.meta.env.VITE_API_URL}/api/followups`,
@@ -284,18 +295,22 @@ const AddCustomer = ({ onSuccess }) => {
         );
 
         if (sellerResponse.status === 201) {
-          const followupData = {
-            clientName: formData.contactPerson,
-            companyName: formData.companyName,
-            phoneNumber: formData.phoneNumber,
-            email: formData.email,
-            packageType: formData.packageType || "Not specified",
-            service: `Selling ${formData.industry} products`,
-            serviceProvided: "Initial contact made",
-            serviceNotProvided: "Ongoing relationship management",
-            createdBy: creatorId,
-            deadline: calculatedDeadline,
-          };
+        const followupData = {
+          clientName: formData.contactPerson,
+          companyName: formData.companyName,
+          phoneNumber: formData.phoneNumber,
+          email: formData.email,
+          packageType: formData.packageType || "Not specified",
+          country: formData.country,
+          packageScope: followupScope,
+          customerType,
+          type: customerType,
+          service: `Selling ${formData.industry} products`,
+          serviceProvided: "Initial contact made",
+          serviceNotProvided: "Ongoing relationship management",
+          createdBy: creatorId,
+          deadline: calculatedDeadline,
+        };
 
           await axios.post(
             `${import.meta.env.VITE_API_URL}/api/followups`,
