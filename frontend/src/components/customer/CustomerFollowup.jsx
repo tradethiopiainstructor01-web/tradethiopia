@@ -416,19 +416,42 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const isCustomerSuccessAgent =
     CUSTOMER_SUCCESS_ROLES.has(currentUserRole) &&
     currentUserRole !== "customersuccessmanager";
+  const extractAgentId = (customer = {}) => {
+    const agentId = customer?.agentId;
+    if (!agentId) return "";
+    if (typeof agentId === "string") return agentId;
+    if (typeof agentId === "object") {
+      return agentId._id || agentId.id || agentId.agentId || "";
+    }
+    return "";
+  };
+
   const typeFilteredData = useMemo(() => {
     if (!Array.isArray(filteredData)) return [];
     if (followupTypeFilter === "all") return filteredData;
     return filteredData.filter((item) => resolveFollowupType(item) === followupTypeFilter);
   }, [filteredData, followupTypeFilter]);
 
+  const assignmentFilteredData = useMemo(() => {
+    if (isCustomerSuccessManager) return typeFilteredData;
+    if (!currentUserId) return [];
+    const normalizedCurrentUserId = currentUserId?.toString
+      ? currentUserId.toString()
+      : currentUserId;
+    return typeFilteredData.filter((item) => {
+      const assignedAgentId = extractAgentId(item);
+      if (!assignedAgentId) return false;
+      return assignedAgentId.toString().toLowerCase() === normalizedCurrentUserId.toString().toLowerCase();
+    });
+  }, [typeFilteredData, currentUserId, isCustomerSuccessManager]);
+
   const localFollowups = useMemo(
-    () => typeFilteredData.filter((item) => resolvePackageScope(item) === "Local"),
-    [typeFilteredData]
+    () => assignmentFilteredData.filter((item) => resolvePackageScope(item) === "Local"),
+    [assignmentFilteredData]
   );
   const internationalFollowups = useMemo(
-    () => typeFilteredData.filter((item) => resolvePackageScope(item) === "International"),
-    [typeFilteredData]
+    () => assignmentFilteredData.filter((item) => resolvePackageScope(item) === "International"),
+    [assignmentFilteredData]
   );
  const toast = useToast();
   
