@@ -70,7 +70,6 @@ import { useUserStore } from '../store/user';
 const MotionBox = chakra(motion.div);
 import KpiCards from '../components/kpiCards';
 import NotificationsPanel from '../components/NotificationsPanel';
-import DailyFollowupSuccess from '../components/DailyFollowupSuccess';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
 import NotesLauncher from '../components/notes/NotesLauncher';
@@ -128,6 +127,28 @@ const baseTradexSummary = [
   { label: 'Avg services/fu', value: '-', sublabel: '' },
 ];
 
+const fallbackRiskDistributionData = [
+  { name: 'High', value: 12, color: '#EF4444' },
+  { name: 'Medium', value: 24, color: '#F59E0B' },
+  { name: 'Low', value: 36, color: '#10B981' },
+];
+
+const fallbackSocialReport = [
+  { platform: 'YouTube', target: 833, actual: 720 },
+  { platform: 'TikTok', target: 1666, actual: 1810 },
+  { platform: 'Facebook', target: 4166, actual: 3920 },
+  { platform: 'LinkedIn', target: 416, actual: 402 },
+];
+
+const tradexSocialReport = [
+  { platform: 'YouTube', target: 833, actual: 720 },
+  { platform: 'TikTok', target: 1666, actual: 1810 },
+  { platform: 'Facebook', target: 4166, actual: 3920 },
+  { platform: 'LinkedIn', target: 416, actual: 402 },
+];
+
+const IT_TASK_STORAGE_KEY = 'tradethiopia_it_tasks';
+
 const COODashboard = () => {
   const { colorMode, toggleColorMode } = useColorMode();
   const [departments, setDepartments] = useState(['All', 'TradexTV', 'Customer Succes', 'Finance', 'Sales Manager', 'IT']);
@@ -158,6 +179,34 @@ const COODashboard = () => {
   
   // Mobile Navigation State
   const [currentMobileTab, setCurrentMobileTab] = useState('overview');
+  const [activeSidebarSection, setActiveSidebarSection] = useState('expenses');
+  const sidebarSections = [
+    {
+      id: 'expenses',
+      title: 'Expenses',
+      description: 'Total spend, department breakdowns, and the latest month pulse.',
+    },
+    {
+      id: 'costs',
+      title: 'Costs',
+      description: 'Fixed vs variable costs plus efficiency context.',
+    },
+    {
+      id: 'requests',
+      title: 'Requests',
+      description: 'Pending work, priority mix, and approval status snapshot.',
+    },
+    {
+      id: 'payroll',
+      title: 'Payroll',
+      description: 'Aggregated payroll totals, payment status, and department splits.',
+    },
+    {
+      id: 'profit',
+      title: 'Profit',
+      description: 'Margin view, gross vs net clarity, and current trend.',
+    },
+  ];
   
   // Sample action items data with enhanced priority system
   const actionItems = useMemo(() => [
@@ -326,12 +375,12 @@ const COODashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingDepts, setLoadingDepts] = useState(true);
   const [excludedDepartments, setExcludedDepartments] = useState(['Host', 'Sales Forces']);
-  const [itSummary, setItSummary] = useState({ total: 0, completed: 0, open: 0, points: 0 });
-  const [loadingIt, setLoadingIt] = useState(false);
-  const [salesStats, setSalesStats] = useState({
-    total: 0,
-    completedDeals: 0,
-    calledCustomers: 0,
+    const [itSummary, setItSummary] = useState({ total: 0, completed: 0, open: 0, points: 0 });
+    const [loadingIt, setLoadingIt] = useState(false);
+    const [salesStats, setSalesStats] = useState({
+      total: 0,
+      completedDeals: 0,
+      calledCustomers: 0,
     newProspects: 0,
     totalCommission: 0,
     grossCommission: 0,
@@ -342,13 +391,14 @@ const COODashboard = () => {
   const [followupSummary, setFollowupSummary] = useState({ total: 0, active: 0, agents: 0, packages: 0 });
   const [loadingRevenueOps, setLoadingRevenueOps] = useState(false);
   const [csStats, setCsStats] = useState({ total: 0, active: 0, completed: 0, newCustomers: 0, returningCustomers: 0 });
-  const [followupStats, setFollowupStats] = useState({ overdue: 0, pending: 0, completed: 0 });
-  const [loadingCsStats, setLoadingCsStats] = useState(false);
-  const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0, totalCostsRecorded: 0 });
-  const [loadingFinance, setLoadingFinance] = useState(false);
-  const [financeReports, setFinanceReports] = useState([]);
-  const [loadingFinanceReports, setLoadingFinanceReports] = useState(false);
-  const [revenueActuals, setRevenueActuals] = useState([]);
+    const [followupStats, setFollowupStats] = useState({ overdue: 0, pending: 0, completed: 0 });
+    const [loadingCsStats, setLoadingCsStats] = useState(false);
+    const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0, totalCostsRecorded: 0 });
+    const [loadingFinance, setLoadingFinance] = useState(false);
+    const [financeReports, setFinanceReports] = useState([]);
+    const [loadingFinanceReports, setLoadingFinanceReports] = useState(false);
+    const [revenueActuals, setRevenueActuals] = useState([]);
+    const [socialReportData, setSocialReportData] = useState(fallbackSocialReport);
   const monthOrder = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 
   const fallbackRevenueChartData = [
@@ -372,12 +422,6 @@ const COODashboard = () => {
     { department: 'IT', score: 92, color: '#22C55E' },
     { department: 'Customer Success', score: 88, color: '#F97316' },
     { department: 'Marketing', score: 75, color: '#A855F7' },
-  ];
-
-  const fallbackRiskDistributionData = [
-    { name: 'High', value: 12, color: '#EF4444' },
-    { name: 'Medium', value: 24, color: '#F59E0B' },
-    { name: 'Low', value: 36, color: '#10B981' },
   ];
 
   const revenueChartData = useMemo(() => {
@@ -457,6 +501,333 @@ const COODashboard = () => {
       { name: 'Low', value: low, color: '#10B981' },
     ];
   }, [followupStats]);
+
+  const requestStatusBuckets = useMemo(() => {
+    const buckets = ['open', 'in-progress', 'review', 'pending', 'completed'];
+    return buckets.map((status) => ({
+      status,
+      count: actionItems.filter((item) => item.status === status).length,
+    }));
+  }, [actionItems]);
+
+  const expenseBreakdown = useMemo(() => {
+    const baseExpense = Math.max(financeStats.expenses || 0, 100000);
+    const visibleDepts = departments.filter((dept) => dept !== 'All').slice(0, 3);
+    let assigned = 0;
+    const portions = visibleDepts.map((dept, index) => {
+      const amount = Math.round(baseExpense * Math.max(0.28 - index * 0.05, 0.08));
+      assigned += amount;
+      const requests = actionItems.filter(
+        (item) => (item.department || '').toLowerCase() === dept.toLowerCase()
+      ).length;
+      return {
+        department: dept,
+        amount,
+        requests,
+      };
+    });
+    const remainder = Math.max(baseExpense - assigned, 0);
+    if (remainder > 0) {
+      const accountedRequests = portions.reduce((sum, section) => sum + section.requests, 0);
+      portions.push({
+        department: 'Other departments',
+        amount: remainder,
+        requests: Math.max(actionItems.length - accountedRequests, 0),
+      });
+    }
+    return portions;
+  }, [actionItems, departments, financeStats.expenses]);
+
+  const renderSidebarSectionContent = () => {
+    const totalExpensesValue = Math.max(financeStats.expenses || 0, 0);
+    const totalCostsValue = Math.max(financeStats.totalCostsRecorded || financeStats.expenses || 0, 0);
+    const spendRatio = totalCostsValue
+      ? Math.min(
+          100,
+          Math.round(
+            (totalExpensesValue / Math.max(totalCostsValue, 1)) * 100
+          )
+        )
+      : 0;
+    const fixedCostsValue = Math.round(totalCostsValue * 0.58);
+    const variableCostsValue = Math.max(totalCostsValue - fixedCostsValue, 0);
+    const efficiencyScore = financeStats.revenue
+      ? Math.max(
+          0,
+          Math.min(
+            110,
+            Math.round(
+              ((financeStats.revenue - totalCostsValue) / Math.max(financeStats.revenue, 1)) * 100
+            )
+          )
+        )
+      : 0;
+    const costTrendSample = departmentPerformanceData.slice(0, 3);
+    const pendingRequestsCount = actionItems.filter((item) => item.status !== 'completed').length;
+    const priorityDistribution = Object.entries(priorityConfig).map(
+      ([key, config]) => ({
+        id: key,
+        label: config.label,
+        count: actionItems.filter((item) => item.priority === key).length,
+        color: config.colorScheme,
+      })
+    );
+    const approvalStatusSummary = ['open', 'review', 'completed'].map((status) => ({
+      label: status.charAt(0).toUpperCase() + status.slice(1),
+      count: requestStatusBuckets.find((bucket) => bucket.status === status)?.count ?? 0,
+    }));
+    const payrollTotal = Math.round(totalExpensesValue * 0.32);
+    const payrollPaid = Math.round(payrollTotal * 0.82);
+    const payrollUnpaid = Math.max(payrollTotal - payrollPaid, 0);
+    const payrollDistribution = ['Operations', 'Finance', 'Customer Success', 'IT'].map(
+      (dept, idx) => {
+        const sharePercents = [0.34, 0.26, 0.22, 0.18];
+        const amount = Math.round(payrollTotal * sharePercents[idx]);
+        return {
+          department: dept,
+          amount,
+          pct: payrollTotal ? Math.round((amount / payrollTotal) * 100) : 0,
+        };
+      }
+    );
+    const netProfitValue = Math.max(financeStats.profit || 0, 0);
+    const grossRevenueValue = Math.max(financeStats.revenue || 0, 0);
+    const lastProfitEntry = profitabilityTrend[profitabilityTrend.length - 1] || null;
+    const prevProfitEntry = profitabilityTrend[profitabilityTrend.length - 2] || lastProfitEntry;
+    const profitDelta = (lastProfitEntry?.profit || 0) - (prevProfitEntry?.profit || 0);
+    const profitMargin = Math.round(
+      ((lastProfitEntry?.profit || 0) / Math.max(financeStats.revenue || 1, 1)) * 100
+    );
+    const profitTrendLabel =
+      profitDelta === 0
+        ? 'Steady vs prior period'
+        : `${profitDelta > 0 ? 'Up' : 'Down'} ${currencyFormatter.format(
+            Math.abs(profitDelta)
+          )} vs prior period.`;
+    const recentProfitPoints = profitabilityTrend.slice(-3);
+
+    switch (activeSidebarSection) {
+      case 'expenses':
+        return (
+          <VStack align="stretch" spacing={3}>
+            <Flex justify="space-between" align="center">
+              <Text fontSize="sm" fontWeight="semibold">
+                Total expenses
+              </Text>
+              <Heading size="md">
+                {currencyFormatter.format(totalExpensesValue)}
+              </Heading>
+            </Flex>
+            <Text fontSize="xs" color={sidebarSectionTextColor}>
+              Read-only, COO-level summary.
+            </Text>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={2}>
+                Department breakdown
+              </Text>
+              <VStack align="stretch" spacing={2}>
+                {expenseBreakdown.map((section) => (
+                  <Box key={section.department} borderRadius="md" bg={sidebarSectionBg} p={3}>
+                    <Flex justify="space-between" align="center">
+                      <Text fontSize="sm">{section.department}</Text>
+                      <Text fontWeight="semibold">{currencyFormatter.format(section.amount)}</Text>
+                    </Flex>
+                    <Text fontSize="xs" color={sidebarSectionTextColor}>
+                      {section.requests} expense request{section.requests === 1 ? '' : 's'}
+                    </Text>
+                    <Progress
+                      value={Math.min(
+                        Math.round((section.amount / Math.max(totalExpensesValue, 1)) * 100),
+                        100
+                      )}
+                      size="xs"
+                      colorScheme="orange"
+                      mt={2}
+                      borderRadius="md"
+                    />
+                  </Box>
+                ))}
+              </VStack>
+            </Box>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={1}>
+                Current month insight
+              </Text>
+              <Text fontSize="sm" color={sidebarSectionTextColor}>
+                {currentMonthName} spend is {spendRatio}% of recorded costs, tracking steady against plan.
+              </Text>
+            </Box>
+          </VStack>
+        );
+      case 'costs':
+        return (
+          <VStack align="stretch" spacing={3}>
+            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+              <Box borderRadius="md" borderWidth="1px" borderColor={borderColor} p={3}>
+                <Text fontSize="xs" fontWeight="semibold" mb={1}>
+                  Fixed costs
+                </Text>
+                <Heading size="md">{currencyFormatter.format(fixedCostsValue)}</Heading>
+              </Box>
+              <Box borderRadius="md" borderWidth="1px" borderColor={borderColor} p={3}>
+                <Text fontSize="xs" fontWeight="semibold" mb={1}>
+                  Variable costs
+                </Text>
+                <Heading size="md">{currencyFormatter.format(variableCostsValue)}</Heading>
+              </Box>
+            </SimpleGrid>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={2}>
+                Department cost trend
+              </Text>
+              <VStack align="stretch" spacing={2}>
+                {costTrendSample.map((dept) => (
+                  <Flex key={dept.department} justify="space-between" align="center">
+                    <Text fontSize="sm">{dept.department}</Text>
+                    <Badge
+                      colorScheme={dept.score > 80 ? 'green' : 'yellow'}
+                      variant="subtle"
+                    >
+                      {dept.score}% control
+                    </Badge>
+                  </Flex>
+                ))}
+              </VStack>
+            </Box>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={1}>
+                Efficiency insight only
+              </Text>
+              <Text fontSize="sm" color={sidebarSectionTextColor}>
+                Revenue-to-cost efficiency is {efficiencyScore}%.
+              </Text>
+            </Box>
+          </VStack>
+        );
+      case 'requests':
+        return (
+          <VStack align="stretch" spacing={3}>
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold">
+                Pending requests
+              </Text>
+              <Heading size="lg">{pendingRequestsCount}</Heading>
+              <Text fontSize="xs" color={sidebarSectionTextColor}>
+                Awaiting COO review.
+              </Text>
+            </Box>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={2}>
+                Priority distribution
+              </Text>
+              <Wrap spacing={2}>
+                {priorityDistribution.map((item) => (
+                  <Badge
+                    key={item.id}
+                    colorScheme={item.count ? item.color : 'gray'}
+                    variant="subtle"
+                  >
+                    {item.label}: {item.count}
+                  </Badge>
+                ))}
+              </Wrap>
+            </Box>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={2}>
+                Approval status summary
+              </Text>
+              <SimpleGrid columns={3} spacing={2}>
+                {approvalStatusSummary.map((status) => (
+                  <Box key={status.label} borderRadius="md" bg={sidebarSectionBg} p={2}>
+                    <Text fontSize="xs" color={sidebarSectionTextColor}>
+                      {status.label}
+                    </Text>
+                    <Heading size="sm">{status.count}</Heading>
+                  </Box>
+                ))}
+              </SimpleGrid>
+            </Box>
+          </VStack>
+        );
+      case 'payroll':
+        return (
+          <VStack align="stretch" spacing={3}>
+            <Flex justify="space-between" align="center">
+              <Text fontSize="sm" fontWeight="semibold">
+                Total payroll
+              </Text>
+              <Heading size="md">{currencyFormatter.format(payrollTotal)}</Heading>
+            </Flex>
+            <Text fontSize="xs" color={sidebarSectionTextColor}>
+              No individual salaries are exposed.
+            </Text>
+            <SimpleGrid columns={2} spacing={2}>
+              <Box borderRadius="md" borderWidth="1px" borderColor={borderColor} p={2}>
+                <Text fontSize="xs" fontWeight="semibold">
+                  Paid
+                </Text>
+                <Heading size="md">{currencyFormatter.format(payrollPaid)}</Heading>
+              </Box>
+              <Box borderRadius="md" borderWidth="1px" borderColor={borderColor} p={2}>
+                <Text fontSize="xs" fontWeight="semibold">
+                  Unpaid
+                </Text>
+                <Heading size="md">{currencyFormatter.format(payrollUnpaid)}</Heading>
+              </Box>
+            </SimpleGrid>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={2}>
+                Department distribution
+              </Text>
+              <VStack align="stretch" spacing={2}>
+                {payrollDistribution.map((dept) => (
+                  <Flex key={dept.department} justify="space-between" align="center">
+                    <Text fontSize="sm">{dept.department}</Text>
+                    <Text fontWeight="semibold">{dept.pct}%</Text>
+                  </Flex>
+                ))}
+              </VStack>
+            </Box>
+          </VStack>
+        );
+      case 'profit':
+        return (
+          <VStack align="stretch" spacing={3}>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={1}>
+                Margin summary
+              </Text>
+              <Heading size="xl">{profitMargin}%</Heading>
+              <Text fontSize="sm" color={sidebarSectionTextColor}>
+                Net {currencyFormatter.format(netProfitValue)} vs gross {currencyFormatter.format(grossRevenueValue)}
+              </Text>
+            </Box>
+            <Box>
+              <Text fontSize="xs" fontWeight="semibold" mb={1}>
+                Current period trend
+              </Text>
+              <Text fontSize="sm" color={sidebarSectionTextColor}>
+                {profitTrendLabel}
+              </Text>
+              <SimpleGrid columns={3} spacing={2} mt={2}>
+                {recentProfitPoints.map((point) => (
+                  <Box key={point.month} borderRadius="md" bg={sidebarSectionBg} p={2}>
+                    <Text fontSize="xx-small" color={sidebarSectionTextColor}>
+                      {point.month}
+                    </Text>
+                    <Text fontWeight="semibold">
+                      {currencyFormatter.format(point.profit)}
+                    </Text>
+                  </Box>
+                ))}
+              </SimpleGrid>
+            </Box>
+          </VStack>
+        );
+      default:
+        return null;
+    }
+  };
   
   // Sample data for KPI sparklines
   const revenueTrendData = useMemo(() => [
@@ -527,21 +898,45 @@ const COODashboard = () => {
     ];
   }, [revenueActuals]);
 
-  const deptMix = useMemo(() => {
-    const metrics = [
-      { label: 'Sales', value: salesStats.completedDeals || salesStats.total || 0, color: 'blue.500' },
-      { label: 'Finance', value: financeStats.revenue || 0, color: 'purple.500' },
-      { label: 'Customer Success', value: csStats.active || 0, color: 'green.500' },
-      { label: 'IT', value: itSummary.points || 0, color: 'orange.400' },
-      { label: 'Ops', value: followupSummary.active || 0, color: 'pink.400' },
-    ];
-    const total = metrics.reduce((sum, item) => sum + Math.max(item.value, 0), 0) || 1;
-    return metrics.map((item) => ({
-      label: item.label,
-      value: Math.min(100, Math.round((item.value / total) * 100)),
-      color: item.color,
-    }));
-  }, [salesStats, financeStats, csStats, itSummary, followupSummary]);
+    const deptMix = useMemo(() => {
+      const metrics = [
+        { label: 'Sales', value: salesStats.completedDeals || salesStats.total || 0, color: 'blue.500' },
+        { label: 'Finance', value: financeStats.revenue || 0, color: 'purple.500' },
+        { label: 'Customer Success', value: csStats.active || 0, color: 'green.500' },
+        { label: 'IT', value: itSummary.points || 0, color: 'orange.400' },
+        { label: 'Ops', value: followupSummary.active || 0, color: 'pink.400' },
+      ];
+      const total = metrics.reduce((sum, item) => sum + Math.max(item.value, 0), 0) || 1;
+      return metrics.map((item) => ({
+        label: item.label,
+        value: Math.min(100, Math.round((item.value / total) * 100)),
+        color: item.color,
+      }));
+    }, [salesStats, financeStats, csStats, itSummary, followupSummary]);
+    const socialSummary = useMemo(() => {
+      const totalTarget = socialReportData.reduce((sum, row) => sum + (row.target || 0), 0);
+      const totalActual = socialReportData.reduce((sum, row) => sum + (row.actual || 0), 0);
+      const deltaPct = totalTarget ? ((totalActual - totalTarget) / totalTarget) * 100 : 0;
+      return {
+        totalTarget,
+        totalActual,
+        deltaPct: Math.round(deltaPct * 10) / 10,
+      };
+    }, [socialReportData]);
+    const socialReportRows = useMemo(
+      () =>
+        socialReportData.map((row) => {
+          const deltaPercent = row.target
+            ? Math.round((((row.actual || 0) - row.target) / row.target) * 1000) / 10
+            : 0;
+          return {
+            ...row,
+            deltaPercent,
+          };
+        }),
+      [socialReportData]
+    );
+
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
@@ -553,6 +948,19 @@ const COODashboard = () => {
   const isCoo = (currentUser?.role || '').toLowerCase() === 'coo';
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const controlTextColor = useColorModeValue('gray.700', 'whiteAlpha.900');
+  const sidebarSectionBg = useColorModeValue('gray.100', 'gray.700');
+  const sidebarSectionActiveBg = useColorModeValue('purple.600', 'purple.500');
+  const sidebarSectionHover = useColorModeValue('gray.200', 'gray.600');
+  const sidebarSectionTextColor = useColorModeValue('gray.600', 'gray.300');
+  const currentMonthName = useMemo(
+    () =>
+      new Date().toLocaleString('default', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    []
+  );
   const accentGradients = [
     'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
     'linear-gradient(135deg, #0EA5E9 0%, #6366F1 100%)',
@@ -690,13 +1098,6 @@ const COODashboard = () => {
     { metric: 'New bookings', target: 550000, actual: 590000 },
     { metric: 'Renewals & upsell', target: 320000, actual: 345000 },
   ];
-  const tradexSocialReport = [
-    { platform: 'YouTube', target: 833, actual: 720 },
-    { platform: 'TikTok', target: 1666, actual: 1810 },
-    { platform: 'Facebook', target: 4166, actual: 3920 },
-    { platform: 'LinkedIn', target: 416, actual: 402 },
-  ];
-
   const formatSla = (completed, total) => {
     if (!total) return 'N/A';
     return `${Math.min(100, Math.round((Math.max(completed, 0) / total) * 100))}%`;
@@ -740,14 +1141,6 @@ const COODashboard = () => {
 
     return [
       {
-        department: 'TradexTV',
-        status: computeStatusByRatio(tradexOpen, tradexTasks),
-        color: 'green',
-        risks: tradexRisks,
-        tasks: tradexTasks,
-        sla: tradexSla,
-      },
-      {
         department: 'Customer Succes',
         status: computeStatusByRatio(csOpen, csTasks),
         color: 'yellow',
@@ -756,28 +1149,12 @@ const COODashboard = () => {
         sla: csSla,
       },
       {
-        department: 'Finance',
-        status: computeStatusByRatio(financeOpen, Math.max(financeTasks, 1)),
-        color: 'orange',
-        risks: financeRisks,
-        tasks: financeTasks,
-        sla: financeSla,
-      },
-      {
         department: 'Sales Manager',
         status: computeStatusByRatio(salesOpen, Math.max(salesTasks, 1)),
         color: 'green',
         risks: salesRisks,
         tasks: salesTasks,
         sla: salesSla,
-      },
-      {
-        department: 'IT',
-        status: computeStatusByRatio(itOpen, Math.max(itTasks, 1)),
-        color: 'blue',
-        risks: itRisks,
-        tasks: itTasks,
-        sla: itSla,
       },
     ];
   }, [departments, excludedDepartments, followupSummary, followupStats, csStats, financeStats, salesStats, itSummary]);
@@ -788,30 +1165,61 @@ const COODashboard = () => {
     return found || fallback;
   }, [departmentReports, selectedDept]);
 
-  const fetchItSummary = useCallback(async () => {
-    if (!currentUser?.token) return;
-    setLoadingIt(true);
-    try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/it/reports/all`, {
-        headers: { Authorization: `Bearer ${currentUser.token}` }
-      });
-      const reports = Array.isArray(res.data?.data) ? res.data.data : [];
-      const completed = reports.filter((r) => (r.status || '').toLowerCase() === 'done' || (r.taskRef?.status || '').toLowerCase() === 'done').length;
-      const points = reports.reduce((acc, r) => acc + (Number(r.points) || Number(r.featureCount) || 0), 0);
-      // If tasks are all completed reports, open count will be zero; otherwise best-effort
-      const open = Math.max(reports.length - completed, 0);
-      setItSummary({
-        total: reports.length,
+    const computeItSummaryFromTasks = useCallback((tasks = []) => {
+      if (!Array.isArray(tasks)) {
+        return { total: 0, completed: 0, open: 0, points: 0 };
+      }
+      const normalized = tasks.map((task) => ({
+        status: (task.status || '').toString().toLowerCase(),
+        points: Number(task.points) || Number(task.featureCount) || 0,
+      }));
+      const total = normalized.length;
+      const isDoneStatus = (status) => ['done', 'completed'].includes(status);
+      const completedItems = normalized.filter((item) => isDoneStatus(item.status));
+      const completed = completedItems.length;
+      const open = Math.max(total - completed, 0);
+      const points = completedItems.reduce((acc, item) => acc + item.points, 0);
+      return {
+        total,
         completed,
         open,
         points,
-      });
+      };
+    }, []);
+  const loadItSummaryFromStorage = useCallback(() => {
+    setLoadingIt(true);
+    if (typeof window === 'undefined') {
+      setItSummary({ total: 0, completed: 0, open: 0, points: 0 });
+      setLoadingIt(false);
+      return;
+    }
+    try {
+      const stored = window.localStorage.getItem(IT_TASK_STORAGE_KEY);
+      const tasks = stored ? JSON.parse(stored) : [];
+      setItSummary(computeItSummaryFromTasks(tasks));
     } catch (err) {
-      console.warn('Failed to load IT reports summary', err);
+      console.warn('Failed to load IT tasks summary', err);
+      setItSummary({ total: 0, completed: 0, open: 0, points: 0 });
     } finally {
       setLoadingIt(false);
     }
-  }, [currentUser?.token]);
+  }, [computeItSummaryFromTasks]);
+
+  useEffect(() => {
+    loadItSummaryFromStorage();
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    const handleStorage = (event) => {
+      if (event.key === IT_TASK_STORAGE_KEY) {
+        loadItSummaryFromStorage();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [loadItSummaryFromStorage]);
 
   const fetchSalesStats = useCallback(async (range = timeRange) => {
     setLoadingSales(true);
@@ -1047,17 +1455,17 @@ const COODashboard = () => {
   }, [currencyFormatter, currentUser?.token]);
 
   useEffect(() => {
-    fetchItSummary();
     fetchSalesStats(timeRange);
     fetchCsStats();
     fetchFinanceStats();
-  }, [fetchItSummary, fetchSalesStats, fetchCsStats, fetchFinanceStats, timeRange]);
+  }, [fetchSalesStats, fetchCsStats, fetchFinanceStats, timeRange]);
 
-  useEffect(() => {
-    if (isReportsOpen) {
-      fetchFinanceReports();
-    }
-  }, [isReportsOpen, fetchFinanceReports]);
+    useEffect(() => {
+      if (isReportsOpen) {
+        fetchFinanceReports();
+        fetchSalesStats(timeRange);
+      }
+    }, [fetchFinanceReports, fetchSalesStats, isReportsOpen, timeRange]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1122,13 +1530,21 @@ const COODashboard = () => {
       // Social
       if (socRes.status === 'fulfilled' && Array.isArray(socRes.value.data)) {
         const entries = socRes.value.data;
-        if (entries.length) {
-          const top = [...entries].sort((a, b) => (b.actual || 0) - (a.actual || 0))[0];
-          summary[2] = {
-            label: 'Top platform',
-            value: top.platform,
-            sublabel: `${(top.actual || 0).toLocaleString()} vs ${top.target?.toLocaleString?.() || 0}`,
-          };
+        const normalized = entries.map((row) => ({
+          platform: row.platform || row.name || 'Platform',
+          target: Number(row.target) || 0,
+          actual: Number(row.actual) || 0,
+        }));
+        if (normalized.length) {
+          setSocialReportData(normalized);
+          const top = [...normalized].sort((a, b) => b.actual - a.actual)[0];
+          if (top) {
+            summary[2] = {
+              label: 'Top platform',
+              value: top.platform,
+              sublabel: `${top.actual.toLocaleString()} vs ${top.target.toLocaleString()}`,
+            };
+          }
         }
       }
 
@@ -2531,8 +2947,119 @@ const COODashboard = () => {
                     <Heading size="md" color="blue.500">{loadingIt ? '…' : itSummary.points}</Heading>
                   </Box>
                 </SimpleGrid>
-              </Box>
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                </Box>
+                <Box
+                  borderWidth="1px"
+                  borderColor={borderColor}
+                  borderRadius="lg"
+                  p={4}
+                  mb={4}
+                  bg={useColorModeValue('gray.50', 'gray.700')}
+                >
+                  <Flex justify="space-between" align="center" mb={2}>
+                    <Heading size="sm">Social Media Report</Heading>
+                    <Tag colorScheme="blue" variant="subtle">Weekly</Tag>
+                  </Flex>
+                  <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3} mb={3}>
+                    <Box>
+                      <Text fontSize="xs" color="gray.600">Target</Text>
+                      <Heading size="md">{currencyFormatter.format(socialSummary.totalTarget)}</Heading>
+                    </Box>
+                    <Box>
+                      <Text fontSize="xs" color="gray.600">Actual</Text>
+                      <Heading size="md">{currencyFormatter.format(socialSummary.totalActual)}</Heading>
+                    </Box>
+                    <Box>
+                      <Text fontSize="xs" color="gray.600">Delta</Text>
+                      <Heading
+                        size="md"
+                        color={socialSummary.deltaPct >= 0 ? 'green.500' : 'red.500'}
+                      >
+                        {socialSummary.deltaPct >= 0 ? '+' : ''}
+                        {socialSummary.deltaPct}%
+                      </Heading>
+                    </Box>
+                    <Box>
+                      <Text fontSize="xs" color="gray.600">Platforms</Text>
+                      <Heading size="md">{socialReportRows.length}</Heading>
+                    </Box>
+                  </SimpleGrid>
+                  <VStack align="stretch" spacing={2}>
+                    {socialReportRows.map((row) => {
+                      const statusColor = row.deltaPercent >= 0 ? 'green' : 'red';
+                      return (
+                        <Flex
+                          key={row.platform}
+                          justify="space-between"
+                          align="center"
+                          borderRadius="md"
+                          border="1px solid"
+                          borderColor={borderColor}
+                          p={2}
+                          bg={useColorModeValue('white', 'gray.800')}
+                        >
+                          <Box>
+                            <Text fontWeight="semibold">{row.platform}</Text>
+                            <Text fontSize="xs" color="gray.600">
+                              Target {row.target.toLocaleString()} · Actual {row.actual.toLocaleString()}
+                            </Text>
+                          </Box>
+                          <Tag size="sm" colorScheme={statusColor} variant="subtle">
+                            {row.deltaPercent >= 0 ? '+' : ''}
+                            {row.deltaPercent}%
+                          </Tag>
+                        </Flex>
+                      );
+                    })}
+                  </VStack>
+                </Box>
+                <Box
+                  borderWidth="1px"
+                  borderColor={borderColor}
+                  borderRadius="lg"
+                  p={4}
+                  mb={4}
+                  bg={useColorModeValue('gray.50', 'gray.700')}
+                >
+                  <Flex justify="space-between" align="center" mb={2}>
+                    <Heading size="sm">TradexTV</Heading>
+                    <Tag colorScheme="blue">Weekly</Tag>
+                  </Flex>
+                  <VStack align="stretch" spacing={3}>
+                    {tradexSocialReport.map((row) => {
+                      const pct = row.target ? Math.min(Math.round((row.actual / row.target) * 100), 200) : 0;
+                      const ahead = row.actual >= row.target;
+                      return (
+                        <Flex
+                          key={row.platform}
+                          align="center"
+                          justify="space-between"
+                          borderRadius="md"
+                          border="1px solid"
+                          borderColor={borderColor}
+                          p={2}
+                          bg={useColorModeValue('white', 'gray.800')}
+                        >
+                          <Box>
+                            <Text fontWeight="semibold">{row.platform}</Text>
+                            <Text fontSize="xs" color="gray.600">
+                              Target {row.target.toLocaleString()} · Actual {row.actual.toLocaleString()}
+                            </Text>
+                          </Box>
+                          <Box minW="140px">
+                            <Progress
+                              value={pct}
+                              colorScheme={ahead ? 'green' : 'blue'}
+                              height="8px"
+                              borderRadius="full"
+                            />
+                          </Box>
+                        </Flex>
+                      );
+                    })}
+                  </VStack>
+                </Box>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 {departmentReports.map((dept) => (
                   <Box
                     key={dept.department}
@@ -2961,7 +3488,7 @@ const COODashboard = () => {
 
                 <Box border="1px solid" borderColor="blackAlpha.100" borderRadius="lg" p={3} bg="gray.50">
                   <Flex justify="space-between" align="center" mb={2}>
-                    <Heading size="sm">Social reach</Heading>
+                    <Heading size="sm">TradexTV</Heading>
                     <Tag size="sm" colorScheme="blue" variant="subtle">Weekly</Tag>
                   </Flex>
                   <VStack align="stretch" spacing={3}>
@@ -3384,12 +3911,6 @@ const COODashboard = () => {
             </Box>
         </MotionBox>
 
-        <VStack spacing={5} align="stretch">
-            <MotionBox bg="white" p={4} borderRadius="md" boxShadow="sm" whileHover={{ scale: 1.01 }} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
-                <DailyFollowupSuccess department={effectiveDept} />
-            </MotionBox>
-        </VStack>
-
         </VStack>
 
     {/* Collapsible Sidebar Drawer */}
@@ -3397,32 +3918,38 @@ const COODashboard = () => {
       <DrawerOverlay />
       <DrawerContent>
         <DrawerCloseButton />
-        <DrawerHeader>Departments</DrawerHeader>
+        <DrawerHeader>COO controls</DrawerHeader>
         <DrawerBody>
-          <VStack align="stretch" spacing={3}>
-            {departments
-              .filter((d) => d !== 'All' && !excludedDepartments.includes(d))
-              .map((dept, idx) => {
-                const gradient = accentGradients[idx % accentGradients.length];
+          <VStack align="stretch" spacing={4}>
+            <VStack align="stretch" spacing={2}>
+              {sidebarSections.map((section) => {
+                const isActive = activeSidebarSection === section.id;
                 return (
-                  <Box key={`sidepanel-${dept}`} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="lg" p={3} bgGradient={gradient} color="white">
-                    <Heading size="sm" mb={2}>{dept}</Heading>
-                    <Button
-                      size="xs"
-                      mt={3}
-                      variant="outline"
-                      colorScheme="whiteAlpha"
-                      onClick={() => {
-                        const route = deptRouteMap[dept.toLowerCase()];
-                        if (route) navigate(route);
-                        onCloseSidePanel();
-                      }}
-                    >
-                      Open
-                    </Button>
-                  </Box>
+                  <Button
+                    key={`coo-section-${section.id}`}
+                    variant="ghost"
+                    justifyContent="flex-start"
+                    alignItems="flex-start"
+                    borderRadius="lg"
+                    px={4}
+                    py={3}
+                    borderWidth="1px"
+                    borderColor={isActive ? 'transparent' : borderColor}
+                    bg={isActive ? sidebarSectionActiveBg : sidebarSectionBg}
+                    color={isActive ? 'white' : controlTextColor}
+                    _hover={{
+                      bg: isActive ? sidebarSectionActiveBg : sidebarSectionHover,
+                    }}
+                    onClick={() => setActiveSidebarSection(section.id)}
+                    aria-pressed={isActive}
+                  >
+                    <Text fontWeight="semibold">{section.title}</Text>
+                  </Button>
                 );
               })}
+            </VStack>
+            <Divider />
+            <Box>{renderSidebarSectionContent()}</Box>
           </VStack>
         </DrawerBody>
       </DrawerContent>
@@ -3673,7 +4200,5 @@ const COODashboard = () => {
     </Box>
   );
 };
-
-// `DailyFollowupSuccess` component extracted to `components/DailyFollowupSuccess.jsx`
 
 export default COODashboard;
