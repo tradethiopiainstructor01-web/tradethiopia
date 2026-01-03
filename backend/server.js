@@ -49,6 +49,8 @@ const demandRoutes = require('./routes/demandRoutes.js');
 const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
 const awardRoutes = require('./routes/awardRoutes.js');
 
+const consultancyRoutes = require('./routes/consultancyRoutes.js');
+
 const costRoutes = require('./routes/costRoutes.js');
 const requestRoutes = require('./routes/requestRoutes.js');
 const commissionApprovalRoutes = require('./routes/commissionApprovalRoutes.js');
@@ -263,6 +265,7 @@ app.use('/api/b2b', b2bMatchingRoutes);
 app.use('/api/saved-matches', savedMatchRoutes);
 app.use('/api/training-followups', trainingFollowupRoutes);
 app.use('/api/ensra-followups', ensraFollowupRoutes);
+app.use('/api/consultancies', consultancyRoutes);
 app.use('/api/salescustomers', salesCustomerRoutes);
 app.use('/api/sales-customers', salesCustomerRoutes);
 app.use('/api/packages/sales', packageSalesRoutes);

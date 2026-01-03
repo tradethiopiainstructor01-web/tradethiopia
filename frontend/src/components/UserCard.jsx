@@ -255,6 +255,8 @@ const UserCard = ({ user }) => {
                             <option value="IT">IT</option>
                             <option value="Enisra">Enisra</option>
                             <option value="HR">HR</option>
+                            <option value="COO">COO</option>
+                            <option value="reception">Reception</option>
                             </Select>
                             <Input
                                 placeholder="Salary"
