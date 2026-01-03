@@ -7,6 +7,8 @@ import TrainingFollowupTabPage from "./tabs/TrainingFollowupTabPage";
 import TrainingFollowupGrouped from "./tabs/TrainingFollowupGrouped";
 import TesbinnTabPage from "./tabs/TesbinnTabPage";
 import EnsraTabPage from "./tabs/EnsraTabPage";
+import ConsultancyTabPage from "./tabs/ConsultancyTabPage";
+import TradexTvTabPage from "./tabs/TradexTvTabPage";
 import {
   Box,
   Table,
@@ -3480,6 +3482,18 @@ useEffect(() => {
                   <Text>ENSRA</Text>
                 </HStack>
               </Tab>
+              <Tab>
+                <HStack spacing={2}>
+                  <CheckIcon />
+                  <Text>Consultancy</Text>
+                </HStack>
+              </Tab>
+              <Tab>
+                <HStack spacing={2}>
+                  <CheckIcon />
+                  <Text>TradeXTV</Text>
+                </HStack>
+              </Tab>
             </TabList>
             
             <TabPanels>
@@ -3660,6 +3674,20 @@ useEffect(() => {
               </TabPanel>
               <TabPanel px={0}>
                 {ensraModule}
+              </TabPanel>
+              <TabPanel px={0}>
+                <ConsultancyTabPage
+                  cardBg={cardBg}
+                  headerBg={headerBg}
+                  borderColor={borderColor}
+                />
+              </TabPanel>
+              <TabPanel px={0}>
+                <TradexTvTabPage
+                  cardBg={cardBg}
+                  headerBg={headerBg}
+                  borderColor={borderColor}
+                />
               </TabPanel>
             </TabPanels>
           </Tabs>
@@ -4271,6 +4299,7 @@ useEffect(() => {
             transform="translate(-50%, -50%)" 
             zIndex={1001}
             width={isMobile ? "95%" : "520px"}
+            maxH={{ base: "90vh", md: "80vh" }}
             bg={cardBg}
             boxShadow="2xl"
             border="1px solid"
@@ -4291,7 +4320,10 @@ useEffect(() => {
                 />
               </Flex>
             </CardHeader>
-            <CardBody>
+            <CardBody
+              maxH={{ base: "calc(90vh - 140px)", md: "calc(80vh - 140px)" }}
+              overflowY="auto"
+            >
               <VStack spacing={4} align="stretch">
                 <Box>
                   <Text fontWeight="bold" fontSize="lg">

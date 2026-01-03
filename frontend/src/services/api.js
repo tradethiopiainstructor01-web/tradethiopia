@@ -50,6 +50,19 @@ export const updateEnsraFollowup = (id, data) =>
 export const deleteEnsraFollowup = (id) =>
   axiosInstance.delete(`/ensra-followups/${id}`).then(response => response.data);
 
+// Consultancy
+export const fetchConsultancies = (params) =>
+  axiosInstance.get('/consultancies', { params }).then((response) => response.data);
+
+export const createConsultancy = (data) =>
+  axiosInstance.post('/consultancies', data).then((response) => response.data);
+
+export const updateConsultancy = (id, data) =>
+  axiosInstance.put(`/consultancies/${id}`, data).then((response) => response.data);
+
+export const deleteConsultancy = (id) =>
+  axiosInstance.delete(`/consultancies/${id}`).then((response) => response.data);
+
 // Courses
 export const fetchCourses = () =>
   axiosInstance.get('/courses').then(response => response.data);
