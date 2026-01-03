@@ -70,7 +70,7 @@ import { useUserStore } from '../store/user';
 const MotionBox = chakra(motion.div);
 import KpiCards from '../components/kpiCards';
 import NotificationsPanel from '../components/NotificationsPanel';
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import NotesLauncher from '../components/notes/NotesLauncher';
 import {
@@ -134,10 +134,14 @@ const fallbackRiskDistributionData = [
 ];
 
 const fallbackSocialReport = [
-  { platform: 'YouTube', target: 833, actual: 720 },
-  { platform: 'TikTok', target: 1666, actual: 1810 },
-  { platform: 'Facebook', target: 4166, actual: 3920 },
-  { platform: 'LinkedIn', target: 416, actual: 402 },
+  { platform: 'Facebook', weeklyTarget: 5, posted: 0, actual: 0, completed: false },
+  { platform: 'Instagram', weeklyTarget: 5, posted: 0, actual: 0, completed: false },
+  { platform: 'LinkedIn', weeklyTarget: 3, posted: 0, actual: 0, completed: false },
+  { platform: 'TikTok', weeklyTarget: 4, posted: 0, actual: 0, completed: false },
+  { platform: 'Twitter (X)', weeklyTarget: 4, posted: 0, actual: 0, completed: false },
+  { platform: 'Telegram', weeklyTarget: 5, posted: 0, actual: 0, completed: false },
+  { platform: 'Google', weeklyTarget: 3, posted: 0, actual: 0, completed: false },
+  { platform: 'YouTube', weeklyTarget: 2, posted: 0, actual: 0, completed: false },
 ];
 
 const tradexSocialReport = [
@@ -146,6 +150,40 @@ const tradexSocialReport = [
   { platform: 'Facebook', target: 4166, actual: 3920 },
   { platform: 'LinkedIn', target: 416, actual: 402 },
 ];
+
+const SOCIAL_TARGETS_STORAGE_KEY = 'weeklyTargets';
+
+const readStoredSocialTargets = () => {
+  if (typeof window === 'undefined') {
+    return fallbackSocialReport;
+  }
+  try {
+    const payload = window.localStorage.getItem(SOCIAL_TARGETS_STORAGE_KEY);
+    if (!payload) return fallbackSocialReport;
+    const parsed = JSON.parse(payload);
+    if (!Array.isArray(parsed)) {
+      return fallbackSocialReport;
+    }
+    return parsed.map((item) => ({
+      platform: item.platform || 'Platform',
+      weeklyTarget: Number(item.weeklyTarget) || 0,
+      posted: Number(item.posted) || 0,
+      actual: Number(item.actual) || Number(item.posted) || 0,
+      completed: Boolean(item.completed),
+    }));
+  } catch (err) {
+    console.warn('Failed to parse social targets from storage', err);
+    return fallbackSocialReport;
+  }
+};
+
+const getSocialStatus = (progress) => {
+  if (progress === 100) return { status: 'COMPLETED', colorScheme: 'green' };
+  if (progress >= 70) return { status: 'ON TRACK', colorScheme: 'green' };
+  if (progress >= 30) return { status: 'IN PROGRESS', colorScheme: 'yellow' };
+  if (progress >= 1) return { status: 'NEEDS ATTENTION', colorScheme: 'orange' };
+  return { status: 'BEHIND', colorScheme: 'red' };
+};
 
 const IT_TASK_STORAGE_KEY = 'tradethiopia_it_tasks';
 
@@ -180,6 +218,10 @@ const COODashboard = () => {
   // Mobile Navigation State
   const [currentMobileTab, setCurrentMobileTab] = useState('overview');
   const [activeSidebarSection, setActiveSidebarSection] = useState('expenses');
+  const overviewRef = useRef(null);
+  const financeRef = useRef(null);
+  const operationsRef = useRef(null);
+  const alertsRef = useRef(null);
   const sidebarSections = [
     {
       id: 'expenses',
@@ -375,12 +417,12 @@ const COODashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingDepts, setLoadingDepts] = useState(true);
   const [excludedDepartments, setExcludedDepartments] = useState(['Host', 'Sales Forces']);
-    const [itSummary, setItSummary] = useState({ total: 0, completed: 0, open: 0, points: 0 });
-    const [loadingIt, setLoadingIt] = useState(false);
-    const [salesStats, setSalesStats] = useState({
-      total: 0,
-      completedDeals: 0,
-      calledCustomers: 0,
+  const [itSummary, setItSummary] = useState({ total: 0, completed: 0, open: 0, points: 0 });
+  const [loadingIt, setLoadingIt] = useState(false);
+  const [salesStats, setSalesStats] = useState({
+    total: 0,
+    completedDeals: 0,
+    calledCustomers: 0,
     newProspects: 0,
     totalCommission: 0,
     grossCommission: 0,
@@ -391,14 +433,35 @@ const COODashboard = () => {
   const [followupSummary, setFollowupSummary] = useState({ total: 0, active: 0, agents: 0, packages: 0 });
   const [loadingRevenueOps, setLoadingRevenueOps] = useState(false);
   const [csStats, setCsStats] = useState({ total: 0, active: 0, completed: 0, newCustomers: 0, returningCustomers: 0 });
-    const [followupStats, setFollowupStats] = useState({ overdue: 0, pending: 0, completed: 0 });
-    const [loadingCsStats, setLoadingCsStats] = useState(false);
-    const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0, totalCostsRecorded: 0 });
-    const [loadingFinance, setLoadingFinance] = useState(false);
-    const [financeReports, setFinanceReports] = useState([]);
-    const [loadingFinanceReports, setLoadingFinanceReports] = useState(false);
-    const [revenueActuals, setRevenueActuals] = useState([]);
-    const [socialReportData, setSocialReportData] = useState(fallbackSocialReport);
+  const [followupStats, setFollowupStats] = useState({ overdue: 0, pending: 0, completed: 0 });
+  const [loadingCsStats, setLoadingCsStats] = useState(false);
+  const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0, totalCostsRecorded: 0 });
+  const [loadingFinance, setLoadingFinance] = useState(false);
+  const [financeReports, setFinanceReports] = useState([]);
+  const [loadingFinanceReports, setLoadingFinanceReports] = useState(false);
+  const [revenueActuals, setRevenueActuals] = useState([]);
+  const [socialTargets, setSocialTargets] = useState(() => readStoredSocialTargets());
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handler = () => {
+      setSocialTargets(readStoredSocialTargets());
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
+
+  useEffect(() => {
+    const refMap = {
+      overview: overviewRef,
+      finance: financeRef,
+      operations: operationsRef,
+      alerts: alertsRef,
+    };
+    const target = refMap[currentMobileTab]?.current;
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [currentMobileTab]);
   const monthOrder = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 
   const fallbackRevenueChartData = [
@@ -914,27 +977,34 @@ const COODashboard = () => {
       }));
     }, [salesStats, financeStats, csStats, itSummary, followupSummary]);
     const socialSummary = useMemo(() => {
-      const totalTarget = socialReportData.reduce((sum, row) => sum + (row.target || 0), 0);
-      const totalActual = socialReportData.reduce((sum, row) => sum + (row.actual || 0), 0);
+      const totalTarget = socialTargets.reduce((sum, row) => sum + (row.weeklyTarget || 0), 0);
+      const totalActual = socialTargets.reduce((sum, row) => sum + (row.actual || 0), 0);
       const deltaPct = totalTarget ? ((totalActual - totalTarget) / totalTarget) * 100 : 0;
       return {
         totalTarget,
         totalActual,
         deltaPct: Math.round(deltaPct * 10) / 10,
       };
-    }, [socialReportData]);
+    }, [socialTargets]);
     const socialReportRows = useMemo(
       () =>
-        socialReportData.map((row) => {
-          const deltaPercent = row.target
-            ? Math.round((((row.actual || 0) - row.target) / row.target) * 1000) / 10
-            : 0;
+        socialTargets.map((row) => {
+          const actual = Number(row.actual) || 0;
+          const target = Number(row.weeklyTarget) || 0;
+          const deltaPercent = target ? Math.round(((actual - target) / target) * 1000) / 10 : 0;
+          const progress = target ? Math.min(100, Math.round((actual / target) * 100)) : 0;
+          const statusInfo = getSocialStatus(progress);
           return {
             ...row,
+            actual,
+            target,
             deltaPercent,
+            progress,
+            status: row.completed ? 'COMPLETED' : statusInfo.status,
+            colorScheme: row.completed ? 'green' : statusInfo.colorScheme,
           };
         }),
-      [socialReportData]
+      [socialTargets]
     );
 
   const [broadcastTitle, setBroadcastTitle] = useState('');
@@ -1148,14 +1218,6 @@ const COODashboard = () => {
         tasks: csTasks,
         sla: csSla,
       },
-      {
-        department: 'Sales Manager',
-        status: computeStatusByRatio(salesOpen, Math.max(salesTasks, 1)),
-        color: 'green',
-        risks: salesRisks,
-        tasks: salesTasks,
-        sla: salesSla,
-      },
     ];
   }, [departments, excludedDepartments, followupSummary, followupStats, csStats, financeStats, salesStats, itSummary]);
 
@@ -1221,41 +1283,58 @@ const COODashboard = () => {
     };
   }, [loadItSummaryFromStorage]);
 
-  const fetchSalesStats = useCallback(async (range = timeRange) => {
-    setLoadingSales(true);
-    try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers/stats`, {
-        params: { range },
-        headers: currentUser?.token ? { Authorization: `Bearer ${currentUser.token}` } : {}
-      });
-      const data = res.data || {};
-      const grossCommission = data.grossCommissionMonthly ?? data.grossCommission ?? 0;
-      const totalCommission = data.totalCommissionMonthly ?? data.totalCommission ?? 0;
-      const commissionTax = data.commissionTaxMonthly ?? data.commissionTax ?? data.tax ?? 0;
-      setSalesStats({
-        total: data.total || 0,
-        completedDeals: data.completedDeals || 0,
-        calledCustomers: data.calledCustomers || 0,
-        newProspects: data.new || data.active || 0,
-        totalCommission,
-        grossCommission,
-        commissionTax,
-      });
-    } catch (err) {
-      console.warn('Failed to load sales stats', err);
-      setSalesStats({
-        total: 0,
-        completedDeals: 0,
-        calledCustomers: 0,
-        newProspects: 0,
-        totalCommission: 0,
-        grossCommission: 0,
-        commissionTax: 0,
-      });
-    } finally {
-      setLoadingSales(false);
-    }
-  }, [currentUser?.token, timeRange]);
+  const salesRangeMap = useMemo(
+    () => ({
+      '7d': 'week',
+      '30d': 'month',
+      '90d': 'quarter',
+      '365d': 'year',
+    }),
+    []
+  );
+
+  const fetchSalesStats = useCallback(
+    async (range = timeRange) => {
+      setLoadingSales(true);
+      try {
+        const mappedRange = salesRangeMap[range] || 'all';
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-manager/team-performance`, {
+          params: { timeRange: mappedRange },
+          headers: currentUser?.token ? { Authorization: `Bearer ${currentUser.token}` } : {},
+        });
+        const data = res.data || {};
+        const teamStats = data.teamStats || {};
+        const statusDistribution = Array.isArray(data.statusDistribution) ? data.statusDistribution : [];
+        const salesCount = statusDistribution.reduce((sum, bucket) => sum + (Number(bucket.value) || 0), 0);
+        const grossCommission = teamStats.totalTeamGrossCommission || 0;
+        const totalCommission = teamStats.totalTeamNetCommission || 0;
+        const commissionTax = Math.max(grossCommission - totalCommission, 0);
+        setSalesStats({
+          total: teamStats.totalTeamSales || 0,
+          completedDeals: teamStats.totalTeamSales || 0,
+          calledCustomers: salesCount,
+          newProspects: Array.isArray(data.agentPerformance) ? data.agentPerformance.length : 0,
+          totalCommission,
+          grossCommission,
+          commissionTax,
+        });
+      } catch (err) {
+        console.warn('Failed to load sales stats', err);
+        setSalesStats({
+          total: 0,
+          completedDeals: 0,
+          calledCustomers: 0,
+          newProspects: 0,
+          totalCommission: 0,
+          grossCommission: 0,
+          commissionTax: 0,
+        });
+      } finally {
+        setLoadingSales(false);
+      }
+    },
+    [currentUser?.token, salesRangeMap, timeRange]
+  );
 
   const fetchCsStats = useCallback(async () => {
     setLoadingCsStats(true);
@@ -1535,16 +1614,26 @@ const COODashboard = () => {
           target: Number(row.target) || 0,
           actual: Number(row.actual) || 0,
         }));
-        if (normalized.length) {
-          setSocialReportData(normalized);
-          const top = [...normalized].sort((a, b) => b.actual - a.actual)[0];
+        const fallbackList = socialTargets.length ? socialTargets : fallbackSocialReport;
+        const combinedList = normalized.length ? normalized : fallbackList;
+        if (combinedList.length) {
+          const top = [...combinedList].sort((a, b) => (b.actual || 0) - (a.actual || 0))[0];
           if (top) {
             summary[2] = {
               label: 'Top platform',
               value: top.platform,
-              sublabel: `${top.actual.toLocaleString()} vs ${top.target.toLocaleString()}`,
+              sublabel: `${(top.actual || 0).toLocaleString()} vs ${Number(top.target || 0).toLocaleString()}`,
             };
           }
+        }
+      } else if (socialTargets.length) {
+        const top = [...socialTargets].sort((a, b) => (b.actual || 0) - (a.actual || 0))[0];
+        if (top) {
+          summary[2] = {
+            label: 'Top platform',
+            value: top.platform,
+            sublabel: `${(top.actual || 0).toLocaleString()} vs ${Number(top.weeklyTarget || 0).toLocaleString()}`,
+          };
         }
       }
 
@@ -1581,7 +1670,7 @@ const COODashboard = () => {
     } finally {
       setTradexLoading(false);
     }
-  }, [currencyFormatter]);
+  }, [currencyFormatter, socialTargets]);
 
   // center the active tab in view when selection changes
   useEffect(() => {
@@ -1820,6 +1909,7 @@ const COODashboard = () => {
     <Box bg={useColorModeValue('gray.50', 'gray.900')} minH="100vh" py={{ base: 5, md: 7 }} px={{ base: 4, md: 6 }}>
       {/* Hero Section - Full Width */}
       <MotionBox
+        ref={overviewRef}
         bgGradient="linear(to-r, #dbeafe, #bfdbfe)"
         color="blue.900"
         p={{ base: 3, md: 4 }}
@@ -2205,6 +2295,7 @@ const COODashboard = () => {
         mb={6}
         px={4}
         py={2}
+        ref={alertsRef}
       >
         <Flex justify="space-between" align="center" mb={2}>
           <Flex align="center" gap={2}>
@@ -2504,7 +2595,7 @@ const COODashboard = () => {
           {/* Drawer opens legacy department list */}
         </Flex>
 
-        <Box mb={4} px={{ base: 4, md: 6 }}>
+        <Box mb={4} px={{ base: 4, md: 6 }} ref={operationsRef}>
           <Heading size="md">Operations & Department Dashboards</Heading>
           <Text fontSize="sm" color="gray.600">
             Toggle between department performance, purchase activity, and revenue insight panels.
@@ -2963,11 +3054,11 @@ const COODashboard = () => {
                   <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3} mb={3}>
                     <Box>
                       <Text fontSize="xs" color="gray.600">Target</Text>
-                      <Heading size="md">{currencyFormatter.format(socialSummary.totalTarget)}</Heading>
+                      <Heading size="md">{socialSummary.totalTarget.toLocaleString()}</Heading>
                     </Box>
                     <Box>
                       <Text fontSize="xs" color="gray.600">Actual</Text>
-                      <Heading size="md">{currencyFormatter.format(socialSummary.totalActual)}</Heading>
+                      <Heading size="md">{socialSummary.totalActual.toLocaleString()}</Heading>
                     </Box>
                     <Box>
                       <Text fontSize="xs" color="gray.600">Delta</Text>
@@ -2986,7 +3077,7 @@ const COODashboard = () => {
                   </SimpleGrid>
                   <VStack align="stretch" spacing={2}>
                     {socialReportRows.map((row) => {
-                      const statusColor = row.deltaPercent >= 0 ? 'green' : 'red';
+                      const statusColor = row.colorScheme || 'gray';
                       return (
                         <Flex
                           key={row.platform}
@@ -3001,12 +3092,11 @@ const COODashboard = () => {
                           <Box>
                             <Text fontWeight="semibold">{row.platform}</Text>
                             <Text fontSize="xs" color="gray.600">
-                              Target {row.target.toLocaleString()} · Actual {row.actual.toLocaleString()}
+                              Target {row.weeklyTarget.toLocaleString()} · Actual {row.actual.toLocaleString()}
                             </Text>
                           </Box>
                           <Tag size="sm" colorScheme={statusColor} variant="subtle">
-                            {row.deltaPercent >= 0 ? '+' : ''}
-                            {row.deltaPercent}%
+                            {row.status}
                           </Tag>
                         </Flex>
                       );
@@ -3100,7 +3190,7 @@ const COODashboard = () => {
         </Modal>
 
         <VStack spacing={6} align="stretch" w="100%">
-          <Box>
+          <Box ref={financeRef}>
             <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} wrap="wrap" gap={3} mb={3}>
               <Box>
                 <Heading size="md">Financial Snapshot</Heading>

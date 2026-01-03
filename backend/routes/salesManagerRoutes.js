@@ -23,7 +23,7 @@ router.route('/agents')
   .get(protect, authorize('salesmanager'), getAllAgents);
 
 router.route('/team-performance')
-  .get(protect, authorize('salesmanager'), getTeamPerformance);
+  .get(protect, authorize('salesmanager', 'coo'), getTeamPerformance);
 
 router.route('/dashboard-stats')
   .get(protect, authorize('salesmanager'), getDashboardStats);

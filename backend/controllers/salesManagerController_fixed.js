@@ -8,10 +8,10 @@ const asyncHandler = require('express-async-handler');
 const getAllSales = asyncHandler(async (req, res) => {
   try {
     // Only sales managers can access this
-    if (req.user.role !== 'salesmanager') {
-      res.status(403);
-      throw new Error('Access denied. Sales managers only.');
-    }
+      if (!['salesmanager', 'coo'].includes(req.user.role)) {
+        res.status(403);
+        throw new Error('Access denied. Sales managers only.');
+      }
 
     // Build filter object. By default show ALL sales unless a specific status is requested.
     let filter = {};
