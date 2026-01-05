@@ -134,6 +134,13 @@ const fallbackRiskDistributionData = [
   { name: 'Low', value: 36, color: '#10B981' },
 ];
 
+const fallbackProductPerformance = [
+  { name: 'TradexTV', revenue: 1800000, margin: 32 },
+  { name: 'Training', revenue: 1250000, margin: 28 },
+  { name: 'B2B', revenue: 980000, margin: 24 },
+  { name: 'CX Services', revenue: 720000, margin: 22 },
+];
+
 const fallbackSocialReport = [
   { platform: 'Facebook', weeklyTarget: 5, posted: 0, actual: 0, completed: false },
   { platform: 'Instagram', weeklyTarget: 5, posted: 0, actual: 0, completed: false },
@@ -1825,15 +1832,44 @@ const COODashboard = () => {
     [profitabilityTrend]
   );
 
-  const productPerformance = React.useMemo(
-    () => [
-      { name: 'TradexTV', revenue: 1800000, margin: 32 },
-      { name: 'Training', revenue: 1250000, margin: 28 },
-      { name: 'B2B', revenue: 980000, margin: 24 },
-      { name: 'CX Services', revenue: 720000, margin: 22 },
-    ],
-    []
-  );
+  const productPerformance = React.useMemo(() => {
+    if (!Array.isArray(revenueActuals) || !revenueActuals.length) {
+      return fallbackProductPerformance;
+    }
+
+    const aggregated = revenueActuals.reduce((acc, row) => {
+      const name = (row.metric || row.name || '').toString().trim();
+      if (!name) return acc;
+      const actual = Number(row.actual) || 0;
+      const target = Number(row.target) || 0;
+      if (!acc[name]) {
+        acc[name] = { name, revenue: 0, target: 0 };
+      }
+      acc[name].revenue += actual;
+      acc[name].target += target;
+      return acc;
+    }, {});
+
+    const sorted = Object.values(aggregated)
+      .filter((entry) => entry.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, fallbackProductPerformance.length);
+
+    if (!sorted.length) {
+      return fallbackProductPerformance;
+    }
+
+    return sorted.map((entry) => {
+      const targetRatio = entry.target
+        ? Math.round(((entry.revenue || 0) / Math.max(entry.target, 1)) * 100)
+        : 0;
+      return {
+        name: entry.name,
+        revenue: entry.revenue,
+        margin: Math.max(0, Math.min(150, targetRatio)),
+      };
+    });
+  }, [revenueActuals]);
 
   const customerGrowth = React.useMemo(
     () => [
@@ -1847,14 +1883,39 @@ const COODashboard = () => {
     []
   );
 
-  const businessHealth = React.useMemo(
-    () => ({
-      healthy: 68,
-      watch: 22,
-      risk: 10,
-    }),
-    []
-  );
+  const businessHealth = React.useMemo(() => {
+    if (!followupStats.total) {
+      return { healthy: 68, watch: 22, risk: 10 };
+    }
+    const completed = Math.max(followupStats.completed || 0, 0);
+    const overdue = Math.max(followupStats.overdue || 0, 0);
+    const watchCount = Math.max((followupStats.pending || 0) - overdue, 0);
+    const riskCount = overdue;
+    const total = Math.max(completed + watchCount + riskCount, 1);
+    const toPct = (value) => Math.round((value / total) * 100);
+    let healthy = toPct(completed);
+    let watch = toPct(watchCount);
+    let risk = toPct(riskCount);
+    const remainder = 100 - (healthy + watch + risk);
+    if (remainder > 0) {
+      healthy = Math.min(100, healthy + remainder);
+    } else if (remainder < 0) {
+      let overage = Math.abs(remainder);
+      const clampValue = (value) => {
+        const removal = Math.min(value, overage);
+        overage -= removal;
+        return value - removal;
+      };
+      watch = clampValue(watch);
+      if (overage > 0) {
+        risk = clampValue(risk);
+      }
+      if (overage > 0) {
+        healthy = Math.max(0, healthy - overage);
+      }
+    }
+    return { healthy, watch, risk };
+  }, [followupStats]);
 
   const financialCards = React.useMemo(
     () => [
