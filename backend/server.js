@@ -53,6 +53,7 @@ const consultancyRoutes = require('./routes/consultancyRoutes.js');
 
 const costRoutes = require('./routes/costRoutes.js');
 const requestRoutes = require('./routes/requestRoutes.js');
+const actionItemRoutes = require('./routes/actionItemRoutes.js');
 const commissionApprovalRoutes = require('./routes/commissionApprovalRoutes.js');
 // Load environment variables
 
@@ -291,6 +292,7 @@ app.use('/api/demands', demandRoutes);
 app.use('/api/payroll', payrollRoutes); // Add this line
 app.use('/api/requests', requestRoutes);
 app.use('/api/social-requests', requestRoutes);
+app.use('/api/action-items', actionItemRoutes);
 // Awards
 app.use('/api/awards', awardRoutes);
 
