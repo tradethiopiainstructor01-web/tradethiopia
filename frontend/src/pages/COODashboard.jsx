@@ -29,6 +29,7 @@ import {
   Stack,
   useColorMode,
   useColorModeValue,
+  useBreakpointValue,
   HStack,
   IconButton,
   Select,
@@ -1466,6 +1467,21 @@ const COODashboard = () => {
       display: item.isCurrency ? etbFormatter.format(item.value || 0) : item.value,
     }));
   }, [salesStats, etbFormatter]);
+
+  const salesLiveSummaryColumns = useBreakpointValue({
+    base: 1,
+    sm: 2,
+    md: 3,
+    lg: 4,
+    xl: 6,
+  }) || 1;
+  const salesMetricColumns = useBreakpointValue({
+    base: 1,
+    sm: 2,
+    md: 3,
+    lg: 4,
+  }) || 1;
+  const salesStatColumns = useBreakpointValue({ base: 1, md: 2, lg: 4 }) || 1;
 
   const toggleExcluded = (dept) => {
     if (dept === 'All') return;
@@ -3011,7 +3027,7 @@ const COODashboard = () => {
               </Box>
               <Tag colorScheme="green" variant="subtle">Live</Tag>
             </Flex>
-            <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 6 }} spacing={4}>
+            <SimpleGrid columns={salesLiveSummaryColumns} spacing={4}>
               <Box p={3} border="1px solid" borderColor="blackAlpha.100" borderRadius="lg" bg="gray.50">
                 <Text fontSize="xs" color="gray.600">Total Customers</Text>
                 <Heading size="md">{loadingSales ? '...' : salesStats.total}</Heading>
@@ -3043,7 +3059,7 @@ const COODashboard = () => {
             </SimpleGrid>
             <Box mt={6}>
               <Text fontWeight="semibold" mb={2}>Sales at a glance</Text>
-              <Flex align="flex-end" gap={3} h="180px" border="1px solid" borderColor="blackAlpha.100" borderRadius="lg" p={4} bg="gray.50">
+              <Flex align="flex-end" gap={3} flexWrap="wrap" h="180px" border="1px solid" borderColor="blackAlpha.100" borderRadius="lg" p={4} bg="gray.50">
                 {salesChartData.map((item) => (
                   <Flex key={item.label} direction="column" align="center" flex="1" minW="60px">
                     <Box
@@ -3177,7 +3193,7 @@ const COODashboard = () => {
                   <Heading size="sm">Sales Report</Heading>
                   <Badge colorScheme="green">Live</Badge>
                 </Flex>
-                <SimpleGrid columns={{ base: 2, md: 3 }} spacing={3}>
+                <SimpleGrid columns={salesStatColumns} spacing={3}>
                   <Box>
                     <Text fontSize="xs" color="gray.600">Total Customers</Text>
                     <Heading size="md">{loadingSales ? '...' : salesStats.total}</Heading>
@@ -4019,7 +4035,7 @@ const COODashboard = () => {
                 <Heading size="sm">Finance report</Heading>
                 <Tag size="sm" colorScheme="blue" variant="subtle">Live</Tag>
               </Flex>
-              <SimpleGrid columns={{ base: 2, md: 4 }} gap={3}>
+              <SimpleGrid columns={salesStatColumns} gap={3}>
                 <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
                   <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Revenue</Text>
                   <Heading size="md" mt={1}>{loadingFinance ? '...' : etbFormatter.format(financeStats.revenue || 0)}</Heading>
@@ -4118,7 +4134,7 @@ const COODashboard = () => {
                 const tax = salesStats.commissionTax || 0;
                 const rangeLabel = timeRangeLabels[timeRange] || timeRange;
                 return (
-                  <SimpleGrid columns={{ base: 2, md: 4 }} gap={3} mb={3}>
+                <SimpleGrid columns={salesMetricColumns} gap={3} mb={3}>
                     <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="orange.50">
                       <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Training gross ({rangeLabel})</Text>
                       <Heading size="md" mt={1} color="orange.600">
