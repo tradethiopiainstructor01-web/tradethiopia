@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Heading,
@@ -47,7 +47,7 @@ import {
   TabPanel,
   SimpleGrid,
 } from '@chakra-ui/react';
-import { FiSearch, FiDollarSign, FiEdit2, FiCalendar, FiFilter, FiChevronDown, FiDownload, FiUserCheck } from 'react-icons/fi';
+import { FiSearch, FiDollarSign, FiEdit2, FiCalendar, FiFilter, FiChevronDown, FiDownload, FiUserCheck, FiUpload } from 'react-icons/fi';
 import { getAllSales, getAllAgents, updateSupervisorComment } from '../../services/salesManagerService';
 import { assignCustomerToAgent } from '../../services/salesWorkflowService';
 import * as XLSX from 'xlsx';
@@ -74,6 +74,7 @@ const AllSalesPage = () => {
   });
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateRangeType, setDateRangeType] = useState('all');
+  const fileInputRef = useRef(null);
 
   const toast = useToast();
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -398,6 +399,96 @@ const AllSalesPage = () => {
       });
     }
   };
+
+  const parseImportedDate = (value) => {
+    if (!value) {
+      return new Date().toISOString();
+    }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return value.toISOString();
+    }
+    if (typeof value === 'number') {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed && parsed.y && parsed.m && parsed.d) {
+        return new Date(parsed.y, parsed.m - 1, parsed.d).toISOString();
+      }
+    }
+    const asDate = new Date(value);
+    if (!Number.isNaN(asDate.getTime())) {
+      return asDate.toISOString();
+    }
+    return new Date().toISOString();
+  };
+
+  const parseImportedCurrency = (value) => {
+    if (typeof value === 'number') {
+      return value;
+    }
+    const numeric = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(numeric) ? numeric : 0;
+  };
+
+  const normalizeImportedRow = (row, index, batchId) => ({
+    _id: `import-${batchId}-${index}`,
+    customerName: row['Customer Name'] || row.Customer || row.customerName || '',
+    phone: row.Phone || row.phone || '',
+    contactTitle: row['Training/Contact Title'] || row.Training || row.contactTitle || row.note || '',
+    agentId: row.Agent || row.agentId || '',
+    date: parseImportedDate(row.Date || row.date),
+    coursePrice: parseImportedCurrency(row['Course Price'] || row.coursePrice),
+    commission: { netCommission: parseImportedCurrency(row.Commission || row.commission) },
+    followupStatus: row.Status || row.followupStatus || 'Pending',
+    supervisorComment: row['Supervisor Comment'] || row.supervisorComment || ''
+  });
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.SheetNames[0];
+      if (!firstSheet) {
+        throw new Error('No sheet found in the file.');
+      }
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+      if (!rows.length) {
+        toast({
+          title: 'No rows found',
+          description: 'The selected file does not contain any rows to import.',
+          status: 'warning',
+          duration: 3000,
+          isClosable: true
+        });
+        return;
+      }
+
+      const batchId = Date.now();
+      const imported = rows.map((row, index) => normalizeImportedRow(row, index, batchId));
+      setCustomers(prev => [...prev, ...imported]);
+      toast({
+        title: 'Import complete',
+        description: `Imported ${imported.length} row(s) into the table.`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true
+      });
+    } catch (error) {
+      console.error('Import error:', error);
+      toast({
+        title: 'Import failed',
+        description: error.message || 'Unable to import the selected file.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true
+      });
+    } finally {
+      event.target.value = '';
+    }
+  };
   if (loading) {
     return (
       <Flex justify="center" align="center" height="200px">
@@ -432,6 +523,15 @@ const AllSalesPage = () => {
         
         <HStack spacing={3}>
           <Button
+            leftIcon={<FiUpload />}
+            onClick={() => fileInputRef.current?.click()}
+            colorScheme="blue"
+            size="sm"
+            variant="outline"
+          >
+            Import
+          </Button>
+          <Button
             leftIcon={<FiDownload />}
             onClick={exportToExcel}
             colorScheme="teal"
@@ -440,6 +540,13 @@ const AllSalesPage = () => {
           >
             Export to Excel
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleImportFile}
+            style={{ display: 'none' }}
+          />
         </HStack>
       </Flex>
       
