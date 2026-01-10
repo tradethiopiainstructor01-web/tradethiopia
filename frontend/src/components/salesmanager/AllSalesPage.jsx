@@ -48,7 +48,7 @@ import {
   SimpleGrid,
 } from '@chakra-ui/react';
 import { FiSearch, FiDollarSign, FiEdit2, FiCalendar, FiFilter, FiChevronDown, FiDownload, FiUserCheck, FiUpload } from 'react-icons/fi';
-import { getAllSales, getAllAgents, updateSupervisorComment } from '../../services/salesManagerService';
+import { getAllSales, getAllAgents, updateSupervisorComment, importSales } from '../../services/salesManagerService';
 import { assignCustomerToAgent } from '../../services/salesWorkflowService';
 import * as XLSX from 'xlsx';
 
@@ -65,6 +65,7 @@ const AllSalesPage = () => {
   const [agentModalSale, setAgentModalSale] = useState(null);
   const [agentSelection, setAgentSelection] = useState('');
   const [agentAssigning, setAgentAssigning] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     agent: '',
@@ -428,16 +429,14 @@ const AllSalesPage = () => {
     return Number.isFinite(numeric) ? numeric : 0;
   };
 
-  const normalizeImportedRow = (row, index, batchId) => ({
-    _id: `import-${batchId}-${index}`,
+  const normalizeImportedRow = (row) => ({
     customerName: row['Customer Name'] || row.Customer || row.customerName || '',
     phone: row.Phone || row.phone || '',
     contactTitle: row['Training/Contact Title'] || row.Training || row.contactTitle || row.note || '',
     agentId: row.Agent || row.agentId || '',
     date: parseImportedDate(row.Date || row.date),
     coursePrice: parseImportedCurrency(row['Course Price'] || row.coursePrice),
-    commission: { netCommission: parseImportedCurrency(row.Commission || row.commission) },
-    followupStatus: row.Status || row.followupStatus || 'Pending',
+    followupStatus: row.Status || row.followupStatus || 'Imported',
     supervisorComment: row['Supervisor Comment'] || row.supervisorComment || ''
   });
 
@@ -466,12 +465,13 @@ const AllSalesPage = () => {
         return;
       }
 
-      const batchId = Date.now();
-      const imported = rows.map((row, index) => normalizeImportedRow(row, index, batchId));
-      setCustomers(prev => [...prev, ...imported]);
+      setIsImporting(true);
+      const imported = rows.map((row) => normalizeImportedRow(row));
+      const response = await importSales(imported);
+      await fetchData();
       toast({
         title: 'Import complete',
-        description: `Imported ${imported.length} row(s) into the table.`,
+        description: `Imported ${response?.importedCount ?? imported.length} row(s).`,
         status: 'success',
         duration: 3000,
         isClosable: true
@@ -486,6 +486,7 @@ const AllSalesPage = () => {
         isClosable: true
       });
     } finally {
+      setIsImporting(false);
       event.target.value = '';
     }
   };
@@ -528,6 +529,8 @@ const AllSalesPage = () => {
             colorScheme="blue"
             size="sm"
             variant="outline"
+            isLoading={isImporting}
+            isDisabled={isImporting}
           >
             Import
           </Button>

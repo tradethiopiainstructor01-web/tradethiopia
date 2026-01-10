@@ -165,3 +165,20 @@ export const getAgentCommissionByUsername = async (username, month, year) => {
     throw error;
   }
 };
+
+// Import sales rows
+export const importSales = async (sales = []) => {
+  const token = localStorage.getItem('userToken');
+  // token attached by axiosInstance
+
+  try {
+    console.log('Importing sales with token:', token ? token.substring(0, 10) + '...' : 'null');
+    const response = await axiosInstance.post('/sales-manager/import-sales', { sales });
+    console.log('Import sales response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error importing sales:', error);
+    console.error('Error response:', error.response);
+    throw error;
+  }
+};

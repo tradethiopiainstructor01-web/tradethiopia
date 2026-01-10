@@ -2,6 +2,35 @@ const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
 const { calculateCommission, resolveSaleCommission } = require('../utils/commission');
+const mongoose = require('mongoose');
+
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase();
+const isAllowedManagerRole = (role) => (
+  ['salesmanager', 'hr', 'finance', 'admin'].includes(normalizeRoleValue(role))
+);
+
+const resolveAgentId = async (agentValue) => {
+  if (!agentValue) return null;
+  const value = String(agentValue).trim();
+  if (!value) return null;
+  if (mongoose.Types.ObjectId.isValid(value)) {
+    return value;
+  }
+
+  const regex = new RegExp(`^${escapeRegex(value)}$`, 'i');
+  const user = await User.findOne({
+    role: { $regex: /^sales$/i },
+    $or: [
+      { username: regex },
+      { fullName: regex },
+      { name: regex },
+      { email: regex }
+    ]
+  }).select('_id');
+
+  return user?._id?.toString() || null;
+};
 
 // @desc    Get all sales for sales manager (all agents)
 // @route   GET /api/sales-manager/all-sales
@@ -13,7 +42,7 @@ const getAllSales = asyncHandler(async (req, res) => {
     console.log('Query parameters:', req.query);
     
     // Only sales managers, HR, Finance, and Admin can access this
-    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
+    if (!isAllowedManagerRole(req.user?.role)) {
       console.log('Access denied - User role:', req.user.role);
       res.status(403);
       throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
@@ -113,7 +142,7 @@ const getAllSales = asyncHandler(async (req, res) => {
 const updateSupervisorComment = asyncHandler(async (req, res) => {
   try {
     // Only sales managers, HR, Finance, and Admin can access this
-    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
+    if (!isAllowedManagerRole(req.user?.role)) {
       res.status(403);
       throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
@@ -148,7 +177,7 @@ const updateSupervisorComment = asyncHandler(async (req, res) => {
 const getAllAgents = asyncHandler(async (req, res) => {
   try {
     // Only sales managers, HR, Finance, and Admin can access this
-    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
+    if (!isAllowedManagerRole(req.user?.role)) {
       res.status(403);
       throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
@@ -202,7 +231,7 @@ const getAllAgents = asyncHandler(async (req, res) => {
 const getTeamPerformance = asyncHandler(async (req, res) => {
   try {
     // Only sales managers, HR, Finance, and Admin can access this
-    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
+    if (!isAllowedManagerRole(req.user?.role)) {
       res.status(403);
       throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
@@ -391,7 +420,7 @@ const getTeamPerformance = asyncHandler(async (req, res) => {
 const getDashboardStats = asyncHandler(async (req, res) => {
   try {
     // Only sales managers, HR, Finance, and Admin can access this
-    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
+    if (!isAllowedManagerRole(req.user?.role)) {
       res.status(403);
       throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
@@ -446,7 +475,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 const getAgentSales = asyncHandler(async (req, res) => {
   try {
     // Only sales managers, HR, Finance, and Admin can access this
-    if (req.user.role !== 'salesmanager' && req.user.role !== 'hr' && req.user.role !== 'HR' && req.user.role !== 'finance' && req.user.role !== 'Finance' && req.user.role !== 'admin') {
+    if (!isAllowedManagerRole(req.user?.role)) {
       res.status(403);
       throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
@@ -484,11 +513,87 @@ const getAgentSales = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Import sales into SalesCustomer
+// @route   POST /api/sales-manager/import-sales
+// @access  Private (Sales Manager, HR, Finance, Admin)
+const importSales = asyncHandler(async (req, res) => {
+  if (!isAllowedManagerRole(req.user?.role)) {
+    res.status(403);
+    throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
+  }
+
+  const { sales = [] } = req.body || {};
+  if (!Array.isArray(sales) || sales.length === 0) {
+    res.status(400);
+    throw new Error('Sales array is required.');
+  }
+
+  const prepared = [];
+  const skipped = [];
+
+  for (let i = 0; i < sales.length; i += 1) {
+    const row = sales[i] || {};
+    const customerName = row.customerName || row.Customer || row['Customer Name'];
+    if (!customerName) {
+      skipped.push({ index: i, reason: 'Missing customerName' });
+      continue;
+    }
+
+    const agentValue = row.agentId || row.agent || row.Agent || row.agentName;
+    const resolvedAgentId = await resolveAgentId(agentValue);
+    const normalizedPrice = Number(row.coursePrice || row['Course Price'] || 0) || 0;
+    const followupStatus = row.followupStatus || row.Status || 'Imported';
+    const contactTitle = row.contactTitle || row['Training/Contact Title'] || row.Training || row.note || '';
+    const dateValue = row.date || row.Date;
+    const parsedDate = dateValue ? new Date(dateValue) : new Date();
+    const finalDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+
+    prepared.push({
+      agentId: resolvedAgentId || null,
+      createdBy: req.user._id,
+      source: row.source || 'Sales',
+      productInterest: row.productInterest || contactTitle || row.courseName || '',
+      pipelineStatus: resolvedAgentId ? 'Assigned' : 'Pending Assignment',
+      assignedBy: resolvedAgentId ? req.user._id : undefined,
+      assignedAt: resolvedAgentId ? new Date() : undefined,
+      customerName,
+      contactTitle,
+      phone: row.phone || row.Phone || '',
+      callStatus: row.callStatus || 'Not Called',
+      followupStatus,
+      packageScope: row.packageScope || '',
+      schedulePreference: row.schedulePreference || 'Regular',
+      email: row.email || '',
+      note: row.note || '',
+      supervisorComment: row.supervisorComment || row['Supervisor Comment'] || '',
+      courseName: row.courseName || contactTitle || '',
+      courseId: row.courseId || '',
+      date: finalDate,
+      coursePrice: normalizedPrice,
+      commission: calculateCommission(normalizedPrice)
+    });
+  }
+
+  if (!prepared.length) {
+    res.status(400);
+    throw new Error('No valid sales rows to import.');
+  }
+
+  const inserted = await SalesCustomer.insertMany(prepared, { ordered: false });
+
+  res.status(201).json({
+    importedCount: inserted.length,
+    skippedCount: skipped.length,
+    skipped
+  });
+});
+
 module.exports = {
   getAllSales,
   updateSupervisorComment,
   getAllAgents,
   getTeamPerformance,
   getDashboardStats,
-  getAgentSales
+  getAgentSales,
+  importSales
 };

@@ -8,7 +8,8 @@ const {
   getAllAgents,
   getTeamPerformance,
   getDashboardStats,
-  getAgentSales
+  getAgentSales,
+  importSales
 } = require('../controllers/salesManagerController');
 
 // All routes are protected
@@ -30,5 +31,8 @@ router.route('/dashboard-stats')
 
 router.route('/agent-sales/:agentId')
   .get(protect, authorize('salesmanager'), getAgentSales);
+
+router.route('/import-sales')
+  .post(protect, authorize('salesmanager', 'hr', 'HR', 'finance', 'Finance', 'admin'), importSales);
 
 module.exports = router;
