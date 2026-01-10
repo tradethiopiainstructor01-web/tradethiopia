@@ -29,6 +29,7 @@ import {
   Stack,
   useColorMode,
   useColorModeValue,
+  useBreakpointValue,
   HStack,
   IconButton,
   Select,
@@ -72,6 +73,7 @@ import KpiCards from '../components/kpiCards';
 import NotificationsPanel from '../components/NotificationsPanel';
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import NotesLauncher from '../components/notes/NotesLauncher';
 import {
   Drawer,
@@ -133,6 +135,13 @@ const fallbackRiskDistributionData = [
   { name: 'Low', value: 36, color: '#10B981' },
 ];
 
+const fallbackProductPerformance = [
+  { name: 'TradexTV', revenue: 1800000, margin: 32 },
+  { name: 'Training', revenue: 1250000, margin: 28 },
+  { name: 'B2B', revenue: 980000, margin: 24 },
+  { name: 'CX Services', revenue: 720000, margin: 22 },
+];
+
 const fallbackSocialReport = [
   { platform: 'Facebook', weeklyTarget: 5, posted: 0, actual: 0, completed: false },
   { platform: 'Instagram', weeklyTarget: 5, posted: 0, actual: 0, completed: false },
@@ -150,6 +159,50 @@ const tradexSocialReport = [
   { platform: 'Facebook', target: 4166, actual: 3920 },
   { platform: 'LinkedIn', target: 416, actual: 402 },
 ];
+
+const fallbackFinanceTimeline = [
+  { month: 'Jan 2025', revenue: 820000, expenses: 630000, profit: 190000, order: 202501 },
+  { month: 'Feb 2025', revenue: 880000, expenses: 660000, profit: 220000, order: 202502 },
+  { month: 'Mar 2025', revenue: 950000, expenses: 710000, profit: 240000, order: 202503 },
+  { month: 'Apr 2025', revenue: 1010000, expenses: 760000, profit: 250000, order: 202504 },
+  { month: 'May 2025', revenue: 1090000, expenses: 800000, profit: 290000, order: 202505 },
+  { month: 'Jun 2025', revenue: 1200000, expenses: 820000, profit: 380000, order: 202506 },
+];
+
+const buildFinanceTimeline = (monthlyRevenue = [], monthlyExpenses = []) => {
+  const timelineMap = new Map();
+
+  const accumulate = (list, targetProp) => {
+    (Array.isArray(list) ? list : []).forEach((entry) => {
+      if (!entry) return;
+      const label =
+        entry.label ||
+        entry.month ||
+        `${entry.year || ''}-${String(entry.periodValue || entry.monthValue || '').padStart(2, '0')}`
+          .replace(/^-+|-+$/g, '')
+          .trim() ||
+        'Unknown';
+      const total = Number(entry.total ?? entry.value ?? entry.amount ?? 0);
+      const order = Number(entry.order ?? entry.year ?? entry.periodValue ?? 0);
+      const existing = timelineMap.get(label) || { label, revenue: 0, expenses: 0, order: 0 };
+      existing.order = Math.max(existing.order || 0, order || 0);
+      existing[targetProp] += total;
+      timelineMap.set(label, existing);
+    });
+  };
+
+  accumulate(monthlyRevenue, 'revenue');
+  accumulate(monthlyExpenses, 'expenses');
+
+  if (!timelineMap.size) return [];
+
+  return Array.from(timelineMap.values())
+    .map((item) => ({
+      ...item,
+      profit: (item.revenue || 0) - (item.expenses || 0),
+    }))
+    .sort((a, b) => (b.order || 0) - (a.order || 0));
+};
 
 const SOCIAL_TARGETS_STORAGE_KEY = 'weeklyTargets';
 
@@ -250,75 +303,29 @@ const COODashboard = () => {
     },
   ];
   
-  // Sample action items data with enhanced priority system
-  const actionItems = useMemo(() => [
-    {
-      id: 1,
-      title: 'Urgent IT Infrastructure Upgrade Required',
-      description: 'Server capacity reaching 90% utilization, upgrade needed within 48 hours',
-      priority: 'critical',
-      department: 'IT',
-      timestamp: '2025-12-19T10:30:00Z',
-      assignee: 'System Admin',
-      dueDate: '2025-12-21T10:30:00Z',
-      status: 'open'
-    },
-    {
-      id: 2,
-      title: 'Finance Report Submission Delay',
-      description: 'Q4 financial reports overdue by 3 days, requires immediate attention',
-      priority: 'high',
-      department: 'Finance',
-      timestamp: '2025-12-19T09:15:00Z',
-      assignee: 'Finance Manager',
-      dueDate: '2025-12-20T09:15:00Z',
-      status: 'in-progress'
-    },
-    {
-      id: 3,
-      title: 'Customer Satisfaction Drop Detected',
-      description: 'CSAT scores declined 15% last week, investigation needed',
-      priority: 'high',
-      department: 'Customer Success',
-      timestamp: '2025-12-18T14:20:00Z',
-      assignee: 'CS Team Lead',
-      dueDate: '2025-12-25T14:20:00Z',
-      status: 'open'
-    },
-    {
-      id: 4,
-      title: 'Sales Target Adjustment Needed',
-      description: 'Q4 targets may not be achievable given current trajectory',
-      priority: 'medium',
-      department: 'Sales',
-      timestamp: '2025-12-18T11:45:00Z',
-      assignee: 'Sales Director',
-      dueDate: '2025-12-30T11:45:00Z',
-      status: 'review'
-    },
-    {
-      id: 5,
-      title: 'Marketing Campaign Review',
-      description: 'Q1 marketing budget allocation requires COO approval',
-      priority: 'low',
-      department: 'Marketing',
-      timestamp: '2025-12-17T16:30:00Z',
-      assignee: 'Marketing Head',
-      dueDate: '2026-01-15T16:30:00Z',
-      status: 'pending'
-    },
-    {
-      id: 6,
-      title: 'HR Compliance Training Due',
-      description: 'Annual compliance training for all employees must be completed',
-      priority: 'medium',
-      department: 'HR',
-      timestamp: '2025-12-16T09:00:00Z',
-      assignee: 'HR Manager',
-      dueDate: '2025-12-31T23:59:59Z',
-      status: 'open'
+  const [actionItems, setActionItems] = useState([]);
+  const [actionItemsLoading, setActionItemsLoading] = useState(false);
+  const [actionItemsError, setActionItemsError] = useState(null);
+
+  const fetchActionItems = useCallback(async () => {
+    setActionItemsLoading(true);
+    setActionItemsError(null);
+    try {
+      const response = await apiClient.get('/action-items');
+      const payload = Array.isArray(response.data?.data)
+        ? response.data.data
+        : Array.isArray(response.data)
+          ? response.data
+          : [];
+      setActionItems(payload);
+    } catch (error) {
+      console.error('Failed to load action items', error);
+      setActionItems([]);
+      setActionItemsError(error.message || 'Unable to load action items');
+    } finally {
+      setActionItemsLoading(false);
     }
-  ], []);
+  }, []);
   
   // Priority configuration
   const priorityConfig = {
@@ -435,7 +442,17 @@ const COODashboard = () => {
   const [csStats, setCsStats] = useState({ total: 0, active: 0, completed: 0, newCustomers: 0, returningCustomers: 0 });
   const [followupStats, setFollowupStats] = useState({ overdue: 0, pending: 0, completed: 0 });
   const [loadingCsStats, setLoadingCsStats] = useState(false);
-  const [financeStats, setFinanceStats] = useState({ revenue: 0, expenses: 0, profit: 0, invoices: 0, totalCostsRecorded: 0 });
+  const [financeStats, setFinanceStats] = useState({
+    revenue: 0,
+    expenses: 0,
+    profit: 0,
+    invoices: 0,
+    totalCostsRecorded: 0,
+    monthlyRevenue: [],
+    monthlyExpenses: [],
+    weeklyRevenue: [],
+    weeklyExpenses: [],
+  });
   const [loadingFinance, setLoadingFinance] = useState(false);
   const [financeReports, setFinanceReports] = useState([]);
   const [loadingFinanceReports, setLoadingFinanceReports] = useState(false);
@@ -462,6 +479,12 @@ const COODashboard = () => {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [currentMobileTab]);
+
+  useEffect(() => {
+    if (isActionItemsOpen) {
+      fetchActionItems();
+    }
+  }, [isActionItemsOpen, fetchActionItems]);
   const monthOrder = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 
   const fallbackRevenueChartData = [
@@ -653,22 +676,6 @@ const COODashboard = () => {
         };
       }
     );
-    const netProfitValue = Math.max(financeStats.profit || 0, 0);
-    const grossRevenueValue = Math.max(financeStats.revenue || 0, 0);
-    const lastProfitEntry = profitabilityTrend[profitabilityTrend.length - 1] || null;
-    const prevProfitEntry = profitabilityTrend[profitabilityTrend.length - 2] || lastProfitEntry;
-    const profitDelta = (lastProfitEntry?.profit || 0) - (prevProfitEntry?.profit || 0);
-    const profitMargin = Math.round(
-      ((lastProfitEntry?.profit || 0) / Math.max(financeStats.revenue || 1, 1)) * 100
-    );
-    const profitTrendLabel =
-      profitDelta === 0
-        ? 'Steady vs prior period'
-        : `${profitDelta > 0 ? 'Up' : 'Down'} ${currencyFormatter.format(
-            Math.abs(profitDelta)
-          )} vs prior period.`;
-    const recentProfitPoints = profitabilityTrend.slice(-3);
-
     switch (activeSidebarSection) {
       case 'expenses':
         return (
@@ -1379,11 +1386,25 @@ const COODashboard = () => {
         expenses: data.expenses || 0,
         profit: data.profit || 0,
         invoices: data.invoices || 0,
-        totalCostsRecorded: data.totalCostsRecorded ?? data.expenses ?? 0
+        totalCostsRecorded: data.totalCostsRecorded ?? data.expenses ?? 0,
+        monthlyRevenue: Array.isArray(data.monthlyRevenue) ? data.monthlyRevenue : [],
+        monthlyExpenses: Array.isArray(data.monthlyExpenses) ? data.monthlyExpenses : [],
+        weeklyRevenue: Array.isArray(data.weeklyRevenue) ? data.weeklyRevenue : [],
+        weeklyExpenses: Array.isArray(data.weeklyExpenses) ? data.weeklyExpenses : [],
       });
     } catch (err) {
       console.warn('Failed to load finance stats', err);
-      setFinanceStats({ revenue: 0, expenses: 0, profit: 0, invoices: 0 });
+      setFinanceStats({
+        revenue: 0,
+        expenses: 0,
+        profit: 0,
+        invoices: 0,
+        totalCostsRecorded: 0,
+        monthlyRevenue: [],
+        monthlyExpenses: [],
+        weeklyRevenue: [],
+        weeklyExpenses: [],
+      });
     } finally {
       setLoadingFinance(false);
     }
@@ -1446,6 +1467,21 @@ const COODashboard = () => {
       display: item.isCurrency ? etbFormatter.format(item.value || 0) : item.value,
     }));
   }, [salesStats, etbFormatter]);
+
+  const salesLiveSummaryColumns = useBreakpointValue({
+    base: 1,
+    sm: 2,
+    md: 3,
+    lg: 4,
+    xl: 6,
+  }) || 1;
+  const salesMetricColumns = useBreakpointValue({
+    base: 1,
+    sm: 2,
+    md: 3,
+    lg: 4,
+  }) || 1;
+  const salesStatColumns = useBreakpointValue({ base: 1, md: 2, lg: 4 }) || 1;
 
   const toggleExcluded = (dept) => {
     if (dept === 'All') return;
@@ -1798,39 +1834,58 @@ const COODashboard = () => {
     [financeStats]
   );
 
-  const profitabilityTrend = React.useMemo(
-    () => [
-      { month: 'Jan', profit: 780000 },
-      { month: 'Feb', profit: 820000 },
-      { month: 'Mar', profit: 910000 },
-      { month: 'Apr', profit: 960000 },
-      { month: 'May', profit: 1020000 },
-      { month: 'Jun', profit: 1180000 },
-    ],
-    []
-  );
+  const profitabilityTrend = React.useMemo(() => {
+    const merged = buildFinanceTimeline(financeStats.monthlyRevenue, financeStats.monthlyExpenses);
+    return merged.length ? merged : fallbackFinanceTimeline;
+  }, [financeStats.monthlyRevenue, financeStats.monthlyExpenses]);
 
   const revenueExpenseSeries = React.useMemo(
-    () => [
-      { month: 'Jan', revenue: 820000, expense: 630000 },
-      { month: 'Feb', revenue: 880000, expense: 660000 },
-      { month: 'Mar', revenue: 950000, expense: 710000 },
-      { month: 'Apr', revenue: 1010000, expense: 760000 },
-      { month: 'May', revenue: 1090000, expense: 800000 },
-      { month: 'Jun', revenue: 1200000, expense: 820000 },
-    ],
-    []
+    () => profitabilityTrend.map((entry) => ({
+      month: entry.month,
+      revenue: entry.revenue,
+      expense: entry.expenses,
+    })),
+    [profitabilityTrend]
   );
 
-  const productPerformance = React.useMemo(
-    () => [
-      { name: 'TradexTV', revenue: 1800000, margin: 32 },
-      { name: 'Training', revenue: 1250000, margin: 28 },
-      { name: 'B2B', revenue: 980000, margin: 24 },
-      { name: 'CX Services', revenue: 720000, margin: 22 },
-    ],
-    []
-  );
+  const productPerformance = React.useMemo(() => {
+    if (!Array.isArray(revenueActuals) || !revenueActuals.length) {
+      return fallbackProductPerformance;
+    }
+
+    const aggregated = revenueActuals.reduce((acc, row) => {
+      const name = (row.metric || row.name || '').toString().trim();
+      if (!name) return acc;
+      const actual = Number(row.actual) || 0;
+      const target = Number(row.target) || 0;
+      if (!acc[name]) {
+        acc[name] = { name, revenue: 0, target: 0 };
+      }
+      acc[name].revenue += actual;
+      acc[name].target += target;
+      return acc;
+    }, {});
+
+    const sorted = Object.values(aggregated)
+      .filter((entry) => entry.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, fallbackProductPerformance.length);
+
+    if (!sorted.length) {
+      return fallbackProductPerformance;
+    }
+
+    return sorted.map((entry) => {
+      const targetRatio = entry.target
+        ? Math.round(((entry.revenue || 0) / Math.max(entry.target, 1)) * 100)
+        : 0;
+      return {
+        name: entry.name,
+        revenue: entry.revenue,
+        margin: Math.max(0, Math.min(150, targetRatio)),
+      };
+    });
+  }, [revenueActuals]);
 
   const customerGrowth = React.useMemo(
     () => [
@@ -1844,14 +1899,39 @@ const COODashboard = () => {
     []
   );
 
-  const businessHealth = React.useMemo(
-    () => ({
-      healthy: 68,
-      watch: 22,
-      risk: 10,
-    }),
-    []
-  );
+  const businessHealth = React.useMemo(() => {
+    if (!followupStats.total) {
+      return { healthy: 68, watch: 22, risk: 10 };
+    }
+    const completed = Math.max(followupStats.completed || 0, 0);
+    const overdue = Math.max(followupStats.overdue || 0, 0);
+    const watchCount = Math.max((followupStats.pending || 0) - overdue, 0);
+    const riskCount = overdue;
+    const total = Math.max(completed + watchCount + riskCount, 1);
+    const toPct = (value) => Math.round((value / total) * 100);
+    let healthy = toPct(completed);
+    let watch = toPct(watchCount);
+    let risk = toPct(riskCount);
+    const remainder = 100 - (healthy + watch + risk);
+    if (remainder > 0) {
+      healthy = Math.min(100, healthy + remainder);
+    } else if (remainder < 0) {
+      let overage = Math.abs(remainder);
+      const clampValue = (value) => {
+        const removal = Math.min(value, overage);
+        overage -= removal;
+        return value - removal;
+      };
+      watch = clampValue(watch);
+      if (overage > 0) {
+        risk = clampValue(risk);
+      }
+      if (overage > 0) {
+        healthy = Math.max(0, healthy - overage);
+      }
+    }
+    return { healthy, watch, risk };
+  }, [followupStats]);
 
   const financialCards = React.useMemo(
     () => [
@@ -1896,6 +1976,57 @@ const COODashboard = () => {
   const customerLinePoints = React.useMemo(
     () => buildPolyline(customerGrowth, 'customers', 320, 140),
     [customerGrowth]
+  );
+  const profitSummary = React.useMemo(() => {
+    const netProfitValue = Math.max(financeStats.profit || 0, 0);
+    const grossRevenueValue = Math.max(financeStats.revenue || 0, 0);
+    const lastProfitEntry = profitabilityTrend[profitabilityTrend.length - 1] || null;
+    const prevProfitEntry = profitabilityTrend[profitabilityTrend.length - 2] || lastProfitEntry;
+    const profitDelta = (lastProfitEntry?.profit || 0) - (prevProfitEntry?.profit || 0);
+    const profitMargin = Math.round(
+      ((lastProfitEntry?.profit || 0) / Math.max(financeStats.revenue || 1, 1)) * 100
+    );
+    const profitTrendLabel =
+      profitDelta === 0
+        ? 'Steady vs prior period'
+        : `${profitDelta > 0 ? 'Up' : 'Down'} ${currencyFormatter.format(
+            Math.abs(profitDelta)
+          )} vs prior period.`;
+    const recentProfitPoints = profitabilityTrend.slice(-3);
+    return {
+      netProfitValue,
+      grossRevenueValue,
+      profitMargin,
+      profitTrendLabel,
+      recentProfitPoints,
+    };
+  }, [financeStats, profitabilityTrend, currencyFormatter]);
+  const {
+    netProfitValue,
+    grossRevenueValue,
+    profitMargin,
+    profitTrendLabel,
+    recentProfitPoints,
+  } = profitSummary;
+  const profitHighlights = React.useMemo(
+    () => [
+      {
+        label: 'Net profit',
+        value: etbFormatter.format(netProfitValue),
+        detail: 'Combined across every department',
+      },
+      {
+        label: 'Profit margin',
+        value: `${profitMargin}%`,
+        detail: 'Latest recorded period',
+      },
+      {
+        label: 'Gross revenue',
+        value: etbFormatter.format(grossRevenueValue),
+        detail: 'Total top-line tracked revenue',
+      },
+    ],
+    [etbFormatter, grossRevenueValue, netProfitValue, profitMargin]
   );
   const profitCoords = React.useMemo(() => profitLinePoints.split(' '), [profitLinePoints]);
   const customerCoords = React.useMemo(() => customerLinePoints.split(' '), [customerLinePoints]);
@@ -2316,6 +2447,16 @@ const COODashboard = () => {
         
         {isActionItemsOpen && (
           <Box>
+            {actionItemsLoading && (
+              <Center py={4}>
+                <Spinner size="sm" />
+              </Center>
+            )}
+            {actionItemsError && (
+              <Text fontSize="sm" color="red.500" mb={2}>
+                {actionItemsError}
+              </Text>
+            )}
             <Flex gap={2} mb={3} wrap="wrap">
               <Button 
                 size="xs" 
@@ -2359,75 +2500,83 @@ const COODashboard = () => {
               </Button>
             </Flex>
             
-            <Box maxH="200px" overflowY="auto" css={{
-              '&::-webkit-scrollbar': {
-                width: '6px',
-              },
-              '&::-webkit-scrollbar-thumb': {
-                background: useColorModeValue('gray.300', 'gray.600'),
-                borderRadius: '3px',
-              },
-            }}>
-              <VStack align="stretch" spacing={2}>
-                {filteredActionItems.length > 0 ? (
-                  filteredActionItems.map((item) => {
-                    const priorityInfo = priorityConfig[item.priority] || priorityConfig.medium;
-                    const statusInfo = statusConfig[item.status] || statusConfig.open;
-                    
-                    return (
-                      <Box 
-                        key={item.id}
-                        p={3}
-                        borderRadius="md"
-                        bg={useColorModeValue('white', 'gray.600')}
-                        border="1px solid"
-                        borderColor={`${priorityInfo.colorScheme}.200`}
-                        cursor="pointer"
-                        _hover={{ bg: useColorModeValue('gray.50', 'gray.500') }}
-                        onClick={() => openActionDetail(item)}
-                        // Touch-friendly enhancements
-                        onTouchStart={(e) => {
-                          e.currentTarget.style.transform = 'scale(0.98)';
-                        }}
-                        onTouchEnd={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                        }}
-                        transition="transform 0.2s"
-                      >
-                        <Flex justify="space-between" align="flex-start" mb={1}>
-                          <Text fontWeight="semibold" fontSize="sm">{item.title}</Text>
-                          <Flex gap={1}>
-                            <Badge 
-                              colorScheme={priorityInfo.colorScheme}
-                              fontSize="xs"
-                            >
-                              {priorityInfo.label}
-                            </Badge>
-                            <Badge 
-                              colorScheme={statusInfo.color.split('.')[0]}
-                              fontSize="xs"
-                            >
-                              {statusInfo.label}
-                            </Badge>
+            {!actionItemsLoading && (
+              <Box maxH="220px" overflowY="auto" css={{
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  background: useColorModeValue('gray.300', 'gray.600'),
+                  borderRadius: '3px',
+                },
+              }}>
+                <VStack align="stretch" spacing={2}>
+                  {filteredActionItems.length > 0 ? (
+                    filteredActionItems.map((item) => {
+                      const priorityInfo = priorityConfig[item.priority] || priorityConfig.medium;
+                      const statusInfo = statusConfig[item.status] || statusConfig.open;
+                      const dueDateValue = item.dueDate ? new Date(item.dueDate) : null;
+                      const dueLabel =
+                        dueDateValue && !Number.isNaN(dueDateValue.getTime())
+                          ? dueDateValue.toLocaleDateString()
+                          : 'No due date';
+                      const statusColor = (statusInfo.color || 'gray.500').split('.')[0];
+                      
+                      return (
+                        <Box 
+                          key={item.id}
+                          p={3}
+                          borderRadius="md"
+                          bg={useColorModeValue('white', 'gray.600')}
+                          border="1px solid"
+                          borderColor={`${priorityInfo.colorScheme}.200`}
+                          cursor="pointer"
+                          _hover={{ bg: useColorModeValue('gray.50', 'gray.500') }}
+                          onClick={() => openActionDetail(item)}
+                          // Touch-friendly enhancements
+                          onTouchStart={(e) => {
+                            e.currentTarget.style.transform = 'scale(0.98)';
+                          }}
+                          onTouchEnd={(e) => {
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                          transition="transform 0.2s"
+                        >
+                          <Flex justify="space-between" align="flex-start" mb={1}>
+                            <Text fontWeight="semibold" fontSize="sm">{item.title}</Text>
+                            <Flex gap={1}>
+                              <Badge 
+                                colorScheme={priorityInfo.colorScheme}
+                                fontSize="xs"
+                              >
+                                {priorityInfo.label}
+                              </Badge>
+                              <Badge 
+                                colorScheme={statusColor}
+                                fontSize="xs"
+                              >
+                                {statusInfo.label}
+                              </Badge>
+                            </Flex>
                           </Flex>
-                        </Flex>
-                        <Text fontSize="xs" color={useColorModeValue('gray.600', 'gray.300')} mb={2}>
-                          {item.description}
-                        </Text>
-                        <Flex justify="space-between" fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')}>
-                          <Text>{item.department}</Text>
-                          <Text>Due: {new Date(item.dueDate).toLocaleDateString()}</Text>
-                        </Flex>
-                      </Box>
-                    );
-                  })
-                ) : (
-                  <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')} textAlign="center" py={4}>
-                    No action items found for selected filter
-                  </Text>
-                )}
-              </VStack>
-            </Box>
+                          <Text fontSize="xs" color={useColorModeValue('gray.600', 'gray.300')} mb={2}>
+                            {item.description}
+                          </Text>
+                          <Flex justify="space-between" fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')}>
+                            <Text>{item.department}</Text>
+                            <Text>Due: {dueLabel}</Text>
+                          </Flex>
+                        </Box>
+                      );
+                    })
+                  ) : (
+                    <Text fontSize="sm" color={useColorModeValue('gray.500', 'gray.400')} textAlign="center" py={4}>
+                      No action items found for selected filter
+                    </Text>
+                  )}
+                </VStack>
+              </Box>
+            )}
           </Box>
         )}
       </Box>
@@ -2591,14 +2740,14 @@ const COODashboard = () => {
       </Box>
 
         <Flex align="center" gap={3} mb={4} wrap="wrap" px={{ base: 4, md: 6 }}>
-          <Button size="sm" variant="ghost" onClick={onOpenDeptDrawer}>Departments</Button>
+          <Button size="sm" variant="ghost" onClick={onOpenDeptDrawer}>Profit</Button>
           {/* Drawer opens legacy department list */}
         </Flex>
 
         <Box mb={4} px={{ base: 4, md: 6 }} ref={operationsRef}>
-          <Heading size="md">Operations & Department Dashboards</Heading>
+          <Heading size="md">Operations & Profit Dashboards</Heading>
           <Text fontSize="sm" color="gray.600">
-            Toggle between department performance, purchase activity, and revenue insight panels.
+            Toggle between profit performance, purchase activity, and revenue insight panels.
           </Text>
         </Box>
 
@@ -2618,7 +2767,7 @@ const COODashboard = () => {
             py={1}
             position="relative"
           >
-            <Tab flex="1">Departments</Tab>
+            <Tab flex="1">Profit</Tab>
             <Tab flex="1">Purchase</Tab>
             <Tab flex="1">Revenue</Tab>
             <TabIndicator
@@ -2630,48 +2779,111 @@ const COODashboard = () => {
           </TabList>
           <TabPanels mt={4}>
             <TabPanel px={{ base: 4, md: 6 }} py={0}>
-              <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={4}>
-                {orderedDepartments
-                  .filter((dept) => dept !== 'All')
-                  .map((dept) => {
-                    const route = deptRouteMap[dept.toLowerCase()];
-                    const isDisabled = dept === 'Sales Manager' && !isCoo;
-                    return (
-                      <Box
-                        key={`tab-${dept}`}
-                        p={4}
-                        borderRadius="xl"
-                        border="1px solid"
-                        borderColor={borderColor}
-                        bg={deptCardBg}
-                        minH="150px"
-                      >
-                        <Flex justify="space-between" align="center">
-                          <Heading size="sm">{dept}</Heading>
-                          <Badge variant="subtle" colorScheme="blue">
-                            Team
-                          </Badge>
-                        </Flex>
-                        <Text fontSize="sm" color="gray.500" mt={2}>
-                          Live analytics and requests for the {dept} team.
-                        </Text>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          colorScheme="blue"
-                          mt={4}
-                          isDisabled={isDisabled || !route}
-                          onClick={() => {
-                            if (!route) return;
-                            if (isDisabled) return;
-                            navigate(route);
-                          }}
-                        >
-                          Open view
-                        </Button>
-                      </Box>
-                    );
-                  })}
+              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                {profitHighlights.map((card) => (
+                  <Box
+                    key={card.label}
+                    p={4}
+                    borderRadius="xl"
+                    border="1px solid"
+                    borderColor={borderColor}
+                    bg={deptCardBg}
+                    minH="150px"
+                  >
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="wide" color="gray.500">
+                      {card.label}
+                    </Text>
+                    <Heading size="lg" mt={2} color="blue.600">
+                      {card.value}
+                    </Heading>
+                    <Text fontSize="sm" color="gray.500" mt={1}>
+                      {card.detail}
+                    </Text>
+                  </Box>
+                ))}
+              </SimpleGrid>
+
+              <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={4} mt={4}>
+                <Box
+                  borderWidth="1px"
+                  borderRadius="xl"
+                  borderColor={borderColor}
+                  bg={deptCardBg}
+                  p={4}
+                >
+                  <Flex justify="space-between" align="center" mb={2}>
+                    <Heading size="sm">Profit trend</Heading>
+                    <Tag size="sm" colorScheme="green" variant="subtle">
+                      {recentProfitPoints.length} periods
+                    </Tag>
+                  </Flex>
+                  <Text fontSize="xs" color="gray.500" mb={3}>
+                    {profitTrendLabel}
+                  </Text>
+                  <Box>
+                    <svg viewBox="0 0 320 140" width="100%" height="140">
+                      <polyline
+                        fill="none"
+                        stroke="#22c55e"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        points={profitLinePoints}
+                      />
+                      {profitabilityTrend.map((pt, idx) => {
+                        const [x, y] = profitCoords[idx]?.split(',') || [0, 0];
+                        return <circle key={pt.month} cx={x} cy={y} r="4" fill="#16a34a" />;
+                      })}
+                    </svg>
+                    <Flex justify="space-between" fontSize="xs" color="gray.500">
+                      {profitabilityTrend.map((pt) => (
+                        <Text key={`profit-${pt.month}`}>{pt.month}</Text>
+                      ))}
+                    </Flex>
+                  </Box>
+                </Box>
+
+                <Box
+                  borderWidth="1px"
+                  borderRadius="xl"
+                  borderColor={borderColor}
+                  bg={deptCardBg}
+                  p={4}
+                >
+                  <Flex justify="space-between" align="center" mb={2}>
+                    <Heading size="sm">Revenue vs Expense</Heading>
+                    <Tag size="sm" colorScheme="purple" variant="subtle">Live</Tag>
+                  </Flex>
+                  <Text fontSize="xs" color="gray.500" mb={3}>
+                    Aggregated spend discipline for the entire organization.
+                  </Text>
+                  <Box>
+                    <svg viewBox="0 0 320 140" width="100%" height="140">
+                      <polyline
+                        fill="none"
+                        stroke="#2563EB"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        points={revenueLinePoints}
+                      />
+                      <polyline
+                        fill="none"
+                        stroke="#EA580C"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        points={expenseLinePoints}
+                      />
+                    </svg>
+                    <Flex justify="space-between" fontSize="xs" color="gray.500">
+                      {revenueExpenseSeries.map((pt) => (
+                        <Text key={`revexp-${pt.month}`}>{pt.month}</Text>
+                      ))}
+                    </Flex>
+                    <HStack spacing={4} mt={2} fontSize="xs" color="gray.500">
+                      <HStack spacing={1}><Box w="10px" h="10px" bg="#2563EB" borderRadius="full" /> <Text>Revenue</Text></HStack>
+                      <HStack spacing={1}><Box w="10px" h="10px" bg="#EA580C" borderRadius="full" /> <Text>Expenses</Text></HStack>
+                    </HStack>
+                  </Box>
+                </Box>
               </SimpleGrid>
             </TabPanel>
             <TabPanel px={{ base: 4, md: 6 }} py={0}>
@@ -2815,7 +3027,7 @@ const COODashboard = () => {
               </Box>
               <Tag colorScheme="green" variant="subtle">Live</Tag>
             </Flex>
-            <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 6 }} spacing={4}>
+            <SimpleGrid columns={salesLiveSummaryColumns} spacing={4}>
               <Box p={3} border="1px solid" borderColor="blackAlpha.100" borderRadius="lg" bg="gray.50">
                 <Text fontSize="xs" color="gray.600">Total Customers</Text>
                 <Heading size="md">{loadingSales ? '...' : salesStats.total}</Heading>
@@ -2847,7 +3059,7 @@ const COODashboard = () => {
             </SimpleGrid>
             <Box mt={6}>
               <Text fontWeight="semibold" mb={2}>Sales at a glance</Text>
-              <Flex align="flex-end" gap={3} h="180px" border="1px solid" borderColor="blackAlpha.100" borderRadius="lg" p={4} bg="gray.50">
+              <Flex align="flex-end" gap={3} flexWrap="wrap" h="180px" border="1px solid" borderColor="blackAlpha.100" borderRadius="lg" p={4} bg="gray.50">
                 {salesChartData.map((item) => (
                   <Flex key={item.label} direction="column" align="center" flex="1" minW="60px">
                     <Box
@@ -2981,7 +3193,7 @@ const COODashboard = () => {
                   <Heading size="sm">Sales Report</Heading>
                   <Badge colorScheme="green">Live</Badge>
                 </Flex>
-                <SimpleGrid columns={{ base: 2, md: 3 }} spacing={3}>
+                <SimpleGrid columns={salesStatColumns} spacing={3}>
                   <Box>
                     <Text fontSize="xs" color="gray.600">Total Customers</Text>
                     <Heading size="md">{loadingSales ? '...' : salesStats.total}</Heading>
@@ -3505,8 +3717,8 @@ const COODashboard = () => {
           <Divider my={4} />
           <Flex align={{ base: 'flex-start', md: 'center' }} justify="space-between" wrap="wrap" gap={3}>
             <Box>
-              <Heading size="md">Operations & Department Dashboards</Heading>
-              <Text fontSize="sm" color={analyticsMuted}>Team performance, customer service, finance, and sales details.</Text>
+              <Heading size="md">Operations & Profit Dashboards</Heading>
+              <Text fontSize="sm" color={analyticsMuted}>Team performance, profit, customer service, finance, and sales details.</Text>
             </Box>
             <Tag colorScheme="gray" variant="subtle">Live</Tag>
           </Flex>
@@ -3823,7 +4035,7 @@ const COODashboard = () => {
                 <Heading size="sm">Finance report</Heading>
                 <Tag size="sm" colorScheme="blue" variant="subtle">Live</Tag>
               </Flex>
-              <SimpleGrid columns={{ base: 2, md: 4 }} gap={3}>
+              <SimpleGrid columns={salesStatColumns} gap={3}>
                 <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="gray.50">
                   <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Revenue</Text>
                   <Heading size="md" mt={1}>{loadingFinance ? '...' : etbFormatter.format(financeStats.revenue || 0)}</Heading>
@@ -3922,7 +4134,7 @@ const COODashboard = () => {
                 const tax = salesStats.commissionTax || 0;
                 const rangeLabel = timeRangeLabels[timeRange] || timeRange;
                 return (
-                  <SimpleGrid columns={{ base: 2, md: 4 }} gap={3} mb={3}>
+                <SimpleGrid columns={salesMetricColumns} gap={3} mb={3}>
                     <Box p={3} borderRadius="md" border="1px solid" borderColor="blackAlpha.100" bg="orange.50">
                       <Text fontSize="xs" color="gray.600" textTransform="uppercase" letterSpacing="wide">Training gross ({rangeLabel})</Text>
                       <Heading size="md" mt={1} color="orange.600">
