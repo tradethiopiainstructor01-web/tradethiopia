@@ -138,7 +138,9 @@ const AssetList = () => {
         Group: asset?.assets || '',
         Location: asset?.location || '',
         Status: asset?.status || '',
-        'Created At': asset?.createdAt ? new Date(asset.createdAt).toISOString().slice(0, 10) : '',
+        'Date Acquired': asset?.dateAcquired
+          ? new Date(asset.dateAcquired).toISOString().slice(0, 10)
+          : '',
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(exportData);
