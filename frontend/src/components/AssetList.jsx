@@ -5,6 +5,7 @@ import {
   HStack,
   Box,
   IconButton,
+  Button,
   useDisclosure,
   Input,
   Text,
@@ -14,9 +15,11 @@ import {
   VStack,
   Select,
   useColorModeValue,
+  useToast,
 } from '@chakra-ui/react';
-import { DeleteIcon } from '@chakra-ui/icons';
+import { DeleteIcon, DownloadIcon } from '@chakra-ui/icons';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import AssetDetailDrawer from './AssetDetailDrawer';
 
 const AssetList = () => {
@@ -29,6 +32,7 @@ const AssetList = () => {
   const [location, setLocation] = useState('');
   const [status, setStatus] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
+  const toast = useToast();
 
 
   const fetchAssetsData = async () => {
@@ -118,6 +122,35 @@ const AssetList = () => {
   
     return matchesSearch && matchesCategory && matchesAssignedTo && matchesLocation && matchesStatus && matchesAssets && matchesGroup; // Include matchesGroup
   });
+
+  const handleExportToExcel = () => {
+    if (!Array.isArray(assets) || assets.length === 0) {
+      toast({ title: 'No assets to export', status: 'info', duration: 2500, isClosable: true });
+      return;
+    }
+
+    try {
+      const exportData = assets.map((asset) => ({
+        'Name Tag': asset?.nameTag || '',
+        Name: asset?.name || '',
+        Category: asset?.category || '',
+        'Assigned To': asset?.assignedTo || '',
+        Group: asset?.assets || '',
+        Location: asset?.location || '',
+        Status: asset?.status || '',
+        'Created At': asset?.createdAt ? new Date(asset.createdAt).toISOString().slice(0, 10) : '',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Assets');
+      XLSX.writeFile(workbook, `assets_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast({ title: 'Export complete', description: 'Asset data exported to Excel.', status: 'success', duration: 3000, isClosable: true });
+    } catch (error) {
+      console.error('Error exporting assets:', error);
+      toast({ title: 'Export failed', description: 'Could not export asset data.', status: 'error', duration: 3000, isClosable: true });
+    }
+  };
 
   // Ensure assets is an array before mapping
   const uniqueCategories = Array.isArray(assets) ? [...new Set(assets.map(asset => asset?.category).filter(Boolean))] : [];
@@ -244,6 +277,17 @@ const AssetList = () => {
       </Box>
 
       <Box width={{ base: '100%', md: '70%' }} p={4}>
+        <Flex justify="flex-end" mb={3}>
+          <Button
+            leftIcon={<DownloadIcon />}
+            variant="outline"
+            colorScheme="teal"
+            size="sm"
+            onClick={handleExportToExcel}
+          >
+            Export Excel
+          </Button>
+        </Flex>
         <List spacing={3}>
           {filteredAssets.map(asset => (
             <ListItem key={asset?._id || asset?.nameTag} p={4} borderWidth={1} borderRadius="md" boxShadow="sm" bg={useColorModeValue("white", "gray.800")} _hover={{ bg: useColorModeValue('gray.100', 'gray.600') }} display="flex" alignItems="center">
