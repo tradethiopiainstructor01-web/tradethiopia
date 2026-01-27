@@ -75,6 +75,11 @@ const AllSalesPage = () => {
   });
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateRangeType, setDateRangeType] = useState('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [queryParams, setQueryParams] = useState({});
   const fileInputRef = useRef(null);
 
   const toast = useToast();
@@ -87,18 +92,20 @@ const AllSalesPage = () => {
   useEffect(() => {
     // Add a small delay to ensure auth is properly set up
     const timer = setTimeout(() => {
-      fetchData();
+      fetchData(queryParams);
       fetchAgents();
     }, 100);
     
     return () => clearTimeout(timer);
-  }, []);
+  }, [page, pageSize, queryParams]);
 
-  const fetchData = async (filterParams = {}) => {
+  const fetchData = async (filterParams = queryParams) => {
     setLoading(true);
     try {
       // Prepare filters for API call
       const apiFilters = {
+        page,
+        limit: pageSize,
         ...filterParams
       };
       // If statusFilter is set and not 'All', pass it to backend
@@ -109,8 +116,17 @@ const AllSalesPage = () => {
       }
       
       const data = await getAllSales(apiFilters);
-      setCustomers(data);
-      setFilteredCustomers(data);
+      // Support both new (paginated object) and legacy array responses
+      const rows = Array.isArray(data) ? data : data?.data || [];
+      setCustomers(rows);
+      setFilteredCustomers(rows);
+      if (!Array.isArray(data)) {
+        setTotal(data?.total || rows.length);
+        setTotalPages(Math.max(1, data?.totalPages || 1));
+      } else {
+        setTotal(rows.length);
+        setTotalPages(1);
+      }
       setError(null);
     } catch (err) {
       console.error('Error fetching sales:', err);
@@ -198,71 +214,84 @@ const AllSalesPage = () => {
   };
 
   const applyFilters = () => {
-    let result = [...customers];
-    
-    // Apply search filter
-    if (filters.search) {
-      const searchTerm = filters.search.toLowerCase();
-      result = result.filter(customer => 
-        (customer.customerName && customer.customerName.toLowerCase().includes(searchTerm)) ||
-        (customer.phone && customer.phone.toLowerCase().includes(searchTerm))
-      );
-    }
-    
-    // Apply agent filter
+    // Build server-side filters
+    const serverFilters = {};
+
     if (filters.agent) {
-      result = result.filter(customer => 
-        customer.agentId && 
-        ((typeof customer.agentId === 'object' && customer.agentId._id === filters.agent) ||
-        (typeof customer.agentId === 'string' && customer.agentId === filters.agent))
-      );
+      serverFilters.agentId = filters.agent;
     }
-    
-    // Apply status filter
+
     if (statusFilter && statusFilter !== 'All') {
-      result = result.filter(customer => customer.followupStatus === statusFilter);
+      serverFilters.status = statusFilter;
     }
-    
-    // Apply date range filter
-    if (dateRangeType !== 'all' && dateRangeType !== 'custom') {
-      const now = new Date();
-      let fromDate = new Date();
-      
-      switch (dateRangeType) {
-        case 'today':
-          fromDate.setHours(0, 0, 0, 0);
-          break;
-        case 'week':
-          fromDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          fromDate.setMonth(now.getMonth() - 1);
-          break;
-        case 'year':
-          fromDate.setFullYear(now.getFullYear() - 1);
-          break;
-        default:
-          break;
-      }
-      
-      result = result.filter(customer => {
-        const customerDate = new Date(customer.date);
-        return customerDate >= fromDate && customerDate <= now;
-      });
-    } else if (dateRangeType === 'custom') {
-      if (filters.dateFrom) {
-        const fromDate = new Date(filters.dateFrom);
-        result = result.filter(customer => new Date(customer.date) >= fromDate);
-      }
-      if (filters.dateTo) {
-        const toDate = new Date(filters.dateTo);
-        toDate.setHours(23, 59, 59, 999); // End of day
-        result = result.filter(customer => new Date(customer.date) <= toDate);
+
+    // Date range handling
+    if (dateRangeType !== 'all') {
+      if (dateRangeType === 'custom') {
+        if (filters.dateFrom) serverFilters.dateFrom = filters.dateFrom;
+        if (filters.dateTo) serverFilters.dateTo = filters.dateTo;
+      } else {
+        const now = new Date();
+        let fromDate = new Date();
+        switch (dateRangeType) {
+          case 'today':
+            fromDate.setHours(0, 0, 0, 0);
+            break;
+          case 'week':
+            fromDate.setDate(now.getDate() - 7);
+            break;
+          case 'month':
+            fromDate.setMonth(now.getMonth() - 1);
+            break;
+          case 'year':
+            fromDate.setFullYear(now.getFullYear() - 1);
+            break;
+          default:
+            break;
+        }
+        serverFilters.dateFrom = fromDate.toISOString();
+        serverFilters.dateTo = now.toISOString();
       }
     }
-    
-    setFilteredCustomers(result);
+
+    // Persist filters for pagination and fetch fresh data (page reset)
+    setQueryParams(serverFilters);
+    setPage(1);
+
+    // Client-side search applied on current page data after fetch
+    setTimeout(() => {
+      let result = [...customers];
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        result = result.filter(customer => 
+          (customer.customerName && customer.customerName.toLowerCase().includes(searchTerm)) ||
+          (customer.phone && customer.phone.toLowerCase().includes(searchTerm))
+        );
+      }
+      setFilteredCustomers(result);
+    }, 0);
   };
+
+  // Re-apply client-side search when data or search term changes
+  useEffect(() => {
+    if (filters.search) {
+      const term = filters.search.toLowerCase();
+      const result = customers.filter(customer =>
+        (customer.customerName && customer.customerName.toLowerCase().includes(term)) ||
+        (customer.phone && customer.phone.toLowerCase().includes(term))
+      );
+      setFilteredCustomers(result);
+    } else {
+      setFilteredCustomers(customers);
+    }
+  }, [customers, filters.search]);
+
+  // Keep current page within bounds when total pages change
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(Math.max(1, totalPages));
+    }
+  }, [totalPages]);
 
   const handleDateRangeChange = (rangeType) => {
     setDateRangeType(rangeType);
@@ -279,10 +308,10 @@ const AllSalesPage = () => {
     applyFilters();
   };
 
-  // Apply filters when they change
+  // Apply filters when they change (server filters + search)
   useEffect(() => {
     applyFilters();
-  }, [filters, statusFilter, dateRangeType, customers]);
+  }, [filters, statusFilter, dateRangeType]);
 
   const openEditModal = (sale) => {
     setCurrentSale(sale);
@@ -736,6 +765,44 @@ const AllSalesPage = () => {
           </Box>
         </CardBody>
       </Card>
+
+      {/* Pagination */}
+      <Flex justify="space-between" align="center" mt={4} flexWrap="wrap" gap={3}>
+        <HStack spacing={3}>
+          <Text fontSize="sm" color="gray.600">
+            Page {page} of {totalPages} • {total} records
+          </Text>
+          <Select
+            size="sm"
+            width="120px"
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            {[20, 50, 100, 200].map((size) => (
+              <option key={size} value={size}>{size} / page</option>
+            ))}
+          </Select>
+        </HStack>
+        <HStack spacing={2}>
+          <Button
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            isDisabled={page <= 1}
+          >
+            Previous
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            isDisabled={page >= totalPages}
+          >
+            Next
+          </Button>
+        </HStack>
+      </Flex>
       
       {/* Edit Supervisor Comment Modal */}
       <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} size="lg">

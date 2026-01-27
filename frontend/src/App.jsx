@@ -82,6 +82,7 @@ import CalendarPage from "./components/salesmanager/CalendarPage";
 import SettingsPage from "./components/salesmanager/SettingsPage";
 import PayrollPage from "./components/Payroll/PayrollPage";
 import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
+import KPIScorecardPage from "./pages/sales/KPIScorecardPage";
 
 import MessagesPage from "./pages/MessagesPage";
 import SalesMessagesPage from "./pages/SalesMessagesPage";
@@ -363,6 +364,7 @@ return (
         <Route path="dashboard" element={<SalesManagerDashboard />} />
         <Route path="all-sales" element={<AllSalesPage />} />
         <Route path="performance" element={<PerformancePage />} />
+        <Route path="kpi" element={<KPIScorecardPage />} />
         <Route path="team" element={<TeamManagementPage />} />
         <Route path="tasks" element={<TaskManagementPage />} />
         <Route path="reports" element={<ReportsPage />} />

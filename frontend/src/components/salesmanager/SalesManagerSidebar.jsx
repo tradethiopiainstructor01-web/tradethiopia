@@ -59,6 +59,7 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
     { name: 'Dashboard', icon: FiHome, path: '/salesmanager' },
     { name: 'All Sales', icon: FiDollarSign, path: '/salesmanager/all-sales' },
     { name: 'Performance', icon: FiTrendingUp, path: '/salesmanager/performance' },
+    { name: 'KPI', icon: FiBarChart2, path: '/salesmanager/kpi' },
     { name: 'Team Management', icon: FiUsers, path: '/salesmanager/team' },
     { name: 'Task Management', icon: FiCheckCircle, path: '/salesmanager/tasks' },
     { name: 'Reports', icon: FiPieChart, path: '/salesmanager/reports' },

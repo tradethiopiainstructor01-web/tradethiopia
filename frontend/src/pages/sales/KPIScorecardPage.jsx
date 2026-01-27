@@ -1,19 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Card,
   CardBody,
   CardHeader,
-  Flex,
-  Grid,
-  GridItem,
   Heading,
   Text,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
-  StatArrow,
   Table,
   Thead,
   Tbody,
@@ -22,927 +14,565 @@ import {
   Td,
   TableContainer,
   Badge,
-  Progress,
-  Select,
-  Button,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
+  Flex,
   HStack,
-  VStack,
-  Divider,
-  useColorModeValue,
-  Icon,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
-  Tooltip,
   Spinner,
   Alert,
   AlertIcon,
-  AlertTitle,
-  AlertDescription,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton,
-  useDisclosure,
-  Accordion,
-  AccordionItem,
-  AccordionButton,
-  AccordionPanel,
-  AccordionIcon
-} from '@chakra-ui/react';
-import { 
-  FaTrophy, 
-  FaMedal, 
-  FaStar, 
-  FaChartLine, 
-  FaUsers, 
-  FaLaptop, 
-  FaHeadset, 
-  FaDollarSign, 
-  FaShareAlt,
-  FaCheckCircle,
-  FaExclamationTriangle,
-  FaArrowUp,
-  FaArrowDown
-} from 'react-icons/fa';
-import { getDepartmentPerformance, getEmployeeAwards, getTaskCompletionData, getEmployeePerformance } from '../../services/kpiService';
+  Tooltip,
+  SimpleGrid,
+  Button,
+  Select as ChakraSelect,
+  Drawer,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerHeader,
+  DrawerBody,
+  DrawerCloseButton,
+  Stack,
+  Divider,
+  AlertDialog,
+  AlertDialogOverlay,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogBody,
+  AlertDialogFooter
+} from "@chakra-ui/react";
+import { useToast } from "@chakra-ui/react";
+import { getAllAgents } from "../../services/salesManagerService";
+
+// Helper to get ISO week number
+const getISOWeek = (dateObj) => {
+  const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+  // Thursday in current week decides the year
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return weekNo;
+};
 
 const KPIScorecardPage = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState('monthly');
-  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [kpiData, setKpiData] = useState(null);
-  const [awardsData, setAwardsData] = useState(null);
-  const [employeeData, setEmployeeData] = useState(null);
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [reportData, setReportData] = useState(null);
-  const [tabIndex, setTabIndex] = useState(0);
-  
-  // Department definitions
-  const departments = [
-    { id: 'it', name: 'IT', icon: FaLaptop, color: 'blue' },
-    { id: 'tradex', name: 'Tradex', icon: FaChartLine, color: 'green' },
-    { id: 'sales', name: 'Sales', icon: FaDollarSign, color: 'purple' },
-    { id: 'customer-success', name: 'Customer Success', icon: FaHeadset, color: 'teal' },
-    { id: 'social-media', name: 'Social Media', icon: FaShareAlt, color: 'pink' },
-    { id: 'finance', name: 'Finance', icon: FaDollarSign, color: 'yellow' }
-  ];
+  const [periodType, setPeriodType] = useState("month"); // month or week
+  const [periodValue, setPeriodValue] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const toast = useToast();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [savedItems, setSavedItems] = useState([]);
+  const [previewItem, setPreviewItem] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [filterType, setFilterType] = useState("all");
+  const [filterText, setFilterText] = useState("");
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const cancelRef = React.useRef();
 
-  // Fetch real-time data
+  // helpers for local persistence
+  const storageKey = "kpi-agent-scores-v1";
+  const periodKey = (type, value) => `${type}:${value}`;
+
+  const loadSavedRows = (type, value) => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      const entry = parsed[periodKey(type, value)];
+      if (!entry) return {};
+      // Support legacy structure (plain rows object)
+      return entry.rows || entry;
+    } catch (e) {
+      console.warn("loadSaved failed", e);
+      return {};
+    }
+  };
+
+  const loadSavedList = () => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Object.entries(parsed).map(([key, value]) => {
+        const [type, val] = key.split(":");
+        const savedAt = value.savedAt || null;
+        const rows = value.rows || value; // legacy
+        return { key, type, value: val, savedAt, rows };
+      }).sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
+    } catch (e) {
+      console.warn("loadSavedList failed", e);
+      return [];
+    }
+  };
+
+  const saveCurrent = () => {
+    const payload = agents.reduce((acc, row) => {
+      acc[row.id] = { target: row.target, achieved: row.achieved, absents: row.absents };
+      return acc;
+    }, {});
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      parsed[periodKey(periodType, periodValue)] = {
+        rows: payload,
+        savedAt: new Date().toISOString(),
+        periodType,
+        periodValue
+      };
+      localStorage.setItem(storageKey, JSON.stringify(parsed));
+      setError(null);
+      setSavedItems(loadSavedList());
+      toast({
+        title: "KPIs saved",
+        description: `Saved ${Object.keys(payload).length} agents for ${periodType} ${periodValue}.`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (e) {
+      console.warn("saveCurrent failed", e);
+      setError("Failed to save KPIs locally");
+      toast({
+        title: "Save failed",
+        description: "Unable to save KPI data locally.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
+    const loadAgents = async () => {
       try {
         setLoading(true);
+        const data = await getAllAgents();
+        const saved = loadSavedRows(periodType, periodValue);
+        const rows = (data || []).map((agent) => ({
+          id: agent._id,
+          name: agent.fullName || agent.username || "Unnamed Agent",
+          target: saved[agent._id]?.target || 0,
+          achieved: saved[agent._id]?.achieved || 0,
+          absents: saved[agent._id]?.absents || 0
+        }));
+        setAgents(rows);
         setError(null);
-        
-        // Fetch all required data in parallel
-        const [performanceData, awardsData, taskData, employeeData] = await Promise.all([
-          getDepartmentPerformance(),
-          getEmployeeAwards(),
-          getTaskCompletionData(),
-          getEmployeePerformance()
-        ]);
-        
-        setKpiData({
-          performance: performanceData,
-          tasks: taskData
-        });
-        
-        setAwardsData(awardsData);
-        setEmployeeData(employeeData);
       } catch (err) {
-        console.error('Error fetching KPI data:', err);
-        setError('Failed to load KPI data. Displaying fallback data.');
+        console.error("Error loading agents for KPI table", err);
+        setError("Failed to load agents");
+        setAgents([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, []);
+    setSavedItems(loadSavedList());
+    loadAgents();
+  }, [periodType, periodValue]);
 
-  // Function to generate detailed report data
-  const generateDetailedReport = () => {
-    if (!kpiData) return null;
-    
-    // Generate detailed report data
-    const report = {
-      overallStats: {
-        totalDepartments: departmentScores.length,
-        averageScore: Math.round(departmentScores.reduce((sum, dept) => sum + dept.progressScore, 0) / departmentScores.length) || 0,
-        highestScoringDept: departmentScores.reduce((prev, current) => (prev.progressScore > current.progressScore) ? prev : current),
-        lowestScoringDept: departmentScores.reduce((prev, current) => (prev.progressScore < current.progressScore) ? prev : current),
-        totalTasks: kpiData.tasks?.totalTasks || 0,
-        completedTasks: kpiData.tasks?.completedTasks || 0,
-        completionRate: kpiData.tasks?.totalTasks ? Math.round((kpiData.tasks.completedTasks / kpiData.tasks.totalTasks) * 100) : 0
-      },
-      departmentDetails: departmentScores.map(dept => ({
-        ...dept,
-        icon: departments.find(d => d.id === dept.id)?.icon,
-        color: departments.find(d => d.id === dept.id)?.color
-      })),
-      performanceTrends: kpiData.performance.teamPerformance?.salesTrend || [],
-      agentPerformance: kpiData.performance.teamPerformance?.agentPerformance || []
-    };
-    
-    return report;
+  const handleChange = (id, field, value) => {
+    const numeric = Number(value);
+    setAgents((rows) =>
+      rows.map((row) =>
+        row.id === id ? { ...row, [field]: Number.isNaN(numeric) ? 0 : numeric } : row
+      )
+    );
   };
 
-  // Handle detailed report button click
-  const handleViewDetailedReport = () => {
-    const report = generateDetailedReport();
-    setReportData(report);
-    onOpen();
+  const calcScore = (row) => {
+    const target = Number(row.target) || 0;
+    const achieved = Number(row.achieved) || 0;
+    const absents = Number(row.absents) || 0;
+    const achievementPct = target > 0 ? (achieved / target) * 100 : 0;
+    // New rule: each absent day reduces score by 1% (not 5 points)
+    const attendancePenalty = absents * 1;
+    const final = Math.max(0, Math.min(100, achievementPct - attendancePenalty));
+    return { achievementPct, attendancePenalty, final };
   };
 
-  // Calculate individual employee KPI score
-  const calculateEmployeeKpi = (agent) => {
-    if (!agent) return 0;
-    
-    // Calculate KPI based on completed deals (70%) and commission (30%)
-    const dealsScore = Math.min(100, (agent.completedDeals || 0) * 5); // Assuming max 20 deals for 100%
-    const commissionScore = Math.min(100, (agent.totalCommission || 0) / 10000); // Assuming max 1M for 100%
-    
-    // Apply 70/30 weighting
-    const kpiScore = Math.round((dealsScore * 0.7) + (commissionScore * 0.3));
-    return kpiScore;
-  };
-
-  // Get rank badge based on position
-  const getRankBadge = (rank) => {
-    if (!rank) return '#--';
-    
-    const rankBadges = ['🥇', '🥈', '🥉'];
-    if (rank <= 3) {
-      return rankBadges[rank - 1];
-    }
-    return `#${rank}`;
-  };
-
-  // Get rank color based on position
-  const getRankColor = (rank) => {
-    if (!rank) return 'gray';
-    
-    switch (rank) {
-      case 1: return 'yellow';
-      case 2: return 'gray';
-      case 3: return 'orange';
-      default: return 'gray';
-    }
-  };
-
-  // Calculate overall department scores from real data
-  const calculateDepartmentScores = () => {
-    if (!kpiData) return [];
-    
-    // Map real data to department format
-    const departmentMapping = {
-      'sales': {
-        id: 'sales',
-        name: 'Sales Department',
-        target: 85,
-        kpi70Percent: Math.min(100, Math.round((kpiData.performance.dashboardStats?.totalCompletedDeals || 0) / 2)),
-        hr30Percent: Math.min(100, Math.round((kpiData.performance.dashboardStats?.totalTeamGrossCommission || 0) / 10000)),
-        tasksCompleted: kpiData.tasks?.completedTasks || 75,
-        totalTasks: kpiData.tasks?.totalTasks || 100,
-        trend: (kpiData.performance.dashboardStats?.recentSales || 0) > 
-               (kpiData.performance.dashboardStats?.recentSales || 0) * 0.8 ? 'increase' : 'decrease'
-      },
-      'it': {
-        id: 'it',
-        name: 'IT Department',
-        target: 90,
-        kpi70Percent: 88,
-        hr30Percent: 95,
-        tasksCompleted: 42,
-        totalTasks: 45,
-        trend: 'increase'
-      },
-      'customer-success': {
-        id: 'customer-success',
-        name: 'Customer Success',
-        target: 90,
-        kpi70Percent: 93,
-        hr30Percent: 97,
-        tasksCompleted: 49,
-        totalTasks: 50,
-        trend: 'increase'
-      },
-      'tradex': {
-        id: 'tradex',
-        name: 'Tradex Department',
-        target: 85,
-        kpi70Percent: 85,
-        hr30Percent: 90,
-        tasksCompleted: 38,
-        totalTasks: 42,
-        trend: 'increase'
-      },
-      'social-media': {
-        id: 'social-media',
-        name: 'Social Media',
-        target: 85,
-        kpi70Percent: 78,
-        hr30Percent: 85,
-        tasksCompleted: 32,
-        totalTasks: 40,
-        trend: 'decrease'
-      },
-      'finance': {
-        id: 'finance',
-        name: 'Finance',
-        target: 88,
-        kpi70Percent: 86,
-        hr30Percent: 92,
-        tasksCompleted: 36,
-        totalTasks: 40,
-        trend: 'increase'
-      }
-    };
-
-    return Object.values(departmentMapping).map(dept => ({
-      ...dept,
-      completionPercentage: Math.round((dept.tasksCompleted / dept.totalTasks) * 100),
-      progressScore: Math.round((dept.kpi70Percent * 0.7) + (dept.hr30Percent * 0.3))
-    }));
-  };
-
-  const departmentScores = calculateDepartmentScores();
-
-  // Calculate overall company score
-  const calculateOverallScore = () => {
-    if (!kpiData) return { score: 85, trend: 'increase', previousScore: 78 };
-    
-    const avgScore = departmentScores.reduce((sum, dept) => sum + dept.progressScore, 0) / departmentScores.length;
-    return {
-      score: Math.round(avgScore) || 85,
-      trend: avgScore > 80 ? 'increase' : 'decrease',
-      previousScore: Math.max(70, Math.round(avgScore * 0.9)) || 78
-    };
-  };
-
-  const overallScore = calculateOverallScore();
-
-  const getAwardIcon = (awardType) => {
-    switch (awardType) {
-      case 'employee-of-month': return FaStar;
-      case 'manager-of-month': return FaTrophy;
-      case 'team-leader-of-month': return FaMedal;
-      case 'customer-hero-of-month': return FaHeadset;
-      default: return FaStar;
-    }
-  };
-
-  const getAwardColor = (awardType) => {
-    switch (awardType) {
-      case 'employee-of-month': return 'yellow';
-      case 'manager-of-month': return 'blue';
-      case 'team-leader-of-month': return 'purple';
-      case 'customer-hero-of-month': return 'teal';
-      default: return 'gray';
-    }
-  };
-
-  // Show loading spinner while fetching data
   if (loading) {
     return (
-      <Box p={6} display="flex" justifyContent="center" alignItems="center" height="100vh">
+      <Flex justify="center" align="center" minH="60vh">
         <Spinner size="xl" />
-      </Box>
+      </Flex>
     );
   }
 
   return (
     <Box p={6}>
-      <Flex justifyContent="space-between" alignItems="center" mb={6}>
-        <Box>
-          <Heading as="h1" size="lg" color="teal.600">
-            KPI Scorecard & Performance Dashboard
-          </Heading>
-          <Text color="gray.600">
-            Track department performance and recognize outstanding contributors
-          </Text>
-        </Box>
-        <HStack>
-          <Select 
-            value={selectedPeriod} 
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            width="150px"
-          >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="yearly">Yearly</option>
-          </Select>
-          <Select 
-            value={selectedDepartment} 
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            width="150px"
-          >
-            <option value="all">All Departments</option>
-            {departments.map(dept => (
-              <option key={dept.id} value={dept.id}>{dept.name}</option>
-            ))}
-          </Select>
-        </HStack>
-      </Flex>
+      <Heading size="lg" mb={2}>KPI Scorecard</Heading>
+      <Text color="gray.600" mb={4}>
+        Enter each agent's target, achieved amount, and absences to see their KPI result. Save per period (month/week) for later review.
+      </Text>
 
-      {/* Main Tabs */}
-      <Tabs variant="enclosed" index={tabIndex} onChange={(index) => setTabIndex(index)}>
-        <TabList mb="1em">
-          <Tab>Dashboard</Tab>
-          <Tab>Employee KPIs</Tab>
-        </TabList>
-        <TabPanels>
-          {/* Dashboard Tab */}
-          <TabPanel>
-            {/* Overall Performance Summary */}
-            <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={6} mb={8}>
-              <Card>
-                <CardBody>
-                  <Stat>
-                    <StatLabel>Overall Company Score</StatLabel>
-                    <StatNumber>{overallScore.score}/100</StatNumber>
-                    <StatHelpText>
-                      <StatArrow type={overallScore.trend} />
-                      {overallScore.trend === 'increase' ? '+' : ''}{overallScore.score - overallScore.previousScore} from last period
-                    </StatHelpText>
-                  </Stat>
-                </CardBody>
-              </Card>
-              
-              <Card>
-                <CardBody>
-                  <Stat>
-                    <StatLabel>Average Department Score</StatLabel>
-                    <StatNumber>
-                      {departmentScores.length > 0 ? 
-                        Math.round(departmentScores.reduce((sum, dept) => sum + dept.progressScore, 0) / departmentScores.length) : 0}/100
-                    </StatNumber>
-                    <StatHelpText>
-                      Across {departmentScores.length} departments
-                    </StatHelpText>
-                  </Stat>
-                </CardBody>
-              </Card>
-              
-              <Card>
-                <CardBody>
-                  <Stat>
-                    <StatLabel>Tasks Completion Rate</StatLabel>
-                    <StatNumber>
-                      {departmentScores.length > 0 ? 
-                        Math.round(departmentScores.reduce((sum, dept) => sum + dept.completionPercentage, 0) / departmentScores.length) : 0}%
-                    </StatNumber>
-                    <StatHelpText>
-                      Average across all departments
-                    </StatHelpText>
-                  </Stat>
-                </CardBody>
-              </Card>
-            </Grid>
+      <Card mb={5} boxShadow="lg">
+        <CardBody>
+          <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={4} alignItems="flex-end">
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold" mb={1}>Period Type</Text>
+              <ChakraSelect
+                value={periodType}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setPeriodType(next);
+                  const now = new Date();
+                  if (next === "month") {
+                    setPeriodValue(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+                  } else {
+                    const week = getISOWeek(now);
+                    setPeriodValue(`${now.getFullYear()}-W${String(week).padStart(2, "0")}`);
+                  }
+                }}
+                size="sm"
+              >
+                <option value="month">Monthly</option>
+                <option value="week">Weekly</option>
+              </ChakraSelect>
+            </Box>
 
-            {/* Awards Section */}
-            <Box mb={8}>
-              <Heading size="md" mb={4}>Monthly Recognition Awards</Heading>
-              {awardsData ? (
-                <Grid templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }} gap={4}>
-                  {Object.entries(awardsData).map(([awardType, award]) => (
-                    <Card key={awardType} boxShadow="md" borderLeftWidth="4px" borderLeftColor={`${getAwardColor(awardType)}.500`}>
-                      <CardBody>
-                        <Flex alignItems="center" mb={3}>
-                          <Icon as={getAwardIcon(awardType)} color={`${getAwardColor(awardType)}.500`} boxSize={6} mr={2} />
-                          <Heading size="sm">{award.name}</Heading>
-                        </Flex>
-                        <Text fontWeight="bold" fontSize="lg">{award.winner}</Text>
-                        <Text fontSize="sm" color="gray.600">{award.department}</Text>
-                        <Badge colorScheme={getAwardColor(awardType)} mt={2}>
-                          Score: {award.score}/100
-                        </Badge>
-                        <Text fontSize="xs" mt={2} fontStyle="italic">
-                          "{award.reason}"
-                        </Text>
-                      </CardBody>
-                    </Card>
-                  ))}
-                </Grid>
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold" mb={1}>Period</Text>
+              {periodType === "month" ? (
+                <input
+                  type="month"
+                  value={periodValue}
+                  onChange={(e) => setPeriodValue(e.target.value)}
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #E2E8F0" }}
+                />
               ) : (
-                <Text>No awards data available</Text>
+                <input
+                  type="week"
+                  value={periodValue}
+                  onChange={(e) => setPeriodValue(e.target.value)}
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #E2E8F0" }}
+                />
               )}
             </Box>
 
-            <Divider mb={6} />
+              <HStack spacing={3} justify={{ base: "flex-start", md: "flex-end" }}>
+              <Button colorScheme="teal" size="sm" onClick={() => setIsConfirmOpen(true)}>
+                Save KPIs
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsDrawerOpen(true)}
+              >
+                Load Saved
+              </Button>
+            </HStack>
+          </SimpleGrid>
+        </CardBody>
+      </Card>
 
-            {/* Department Performance */}
-            <Box mb={8}>
-              <Flex justifyContent="space-between" alignItems="center" mb={4}>
-                <Heading size="md">Department Performance</Heading>
-                <Button leftIcon={<FaChartLine />} colorScheme="teal" size="sm" onClick={handleViewDetailedReport}>
-                  Detailed Report
-                </Button>
-              </Flex>
-              
+      {error && (
+        <Alert status="error" mb={4}>
+          <AlertIcon />
+          {error}
+        </Alert>
+      )}
+
+      <Card>
+        <CardHeader pb={2}>
+          <Heading size="md">Agent KPI Targets & Attendance</Heading>
+          <Text color="gray.600" fontSize="sm">
+            Result = achievement % minus 1% per absence.
+          </Text>
+        </CardHeader>
+        <CardBody>
+          {agents.length === 0 ? (
+            <Text color="gray.500">No agents found.</Text>
+          ) : (
+            <TableContainer>
+              <Table size="sm">
+                <Thead>
+                  <Tr>
+                    <Th>Agent</Th>
+                    <Th>Target</Th>
+                    <Th>Achieved</Th>
+                    <Th>Absents</Th>
+                    <Th>Result</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {agents.map((row) => {
+                    const { achievementPct, attendancePenalty, final } = calcScore(row);
+                    return (
+                      <Tr key={row.id}>
+                        <Td fontWeight="medium">{row.name}</Td>
+                        <Td>
+                          <NumberInput
+                            size="sm"
+                            min={0}
+                            value={row.target}
+                            onChange={(_, num) => handleChange(row.id, "target", num)}
+                            maxW="120px"
+                          >
+                            <NumberInputField />
+                            <NumberInputStepper>
+                              <NumberIncrementStepper />
+                              <NumberDecrementStepper />
+                            </NumberInputStepper>
+                          </NumberInput>
+                        </Td>
+                        <Td>
+                          <NumberInput
+                            size="sm"
+                            min={0}
+                            value={row.achieved}
+                            onChange={(_, num) => handleChange(row.id, "achieved", num)}
+                            maxW="120px"
+                          >
+                            <NumberInputField />
+                            <NumberInputStepper>
+                              <NumberIncrementStepper />
+                              <NumberDecrementStepper />
+                            </NumberInputStepper>
+                          </NumberInput>
+                        </Td>
+                        <Td>
+                          <NumberInput
+                            size="sm"
+                            min={0}
+                            value={row.absents}
+                            onChange={(_, num) => handleChange(row.id, "absents", num)}
+                            maxW="100px"
+                          >
+                            <NumberInputField />
+                            <NumberInputStepper>
+                              <NumberIncrementStepper />
+                              <NumberDecrementStepper />
+                            </NumberInputStepper>
+                          </NumberInput>
+                        </Td>
+                        <Td>
+                          <HStack spacing={2}>
+                            <Badge colorScheme={final >= 90 ? "green" : final >= 70 ? "teal" : "orange"}>
+                              {final.toFixed(1)}%
+                            </Badge>
+                            <Tooltip label={`Achievement: ${achievementPct.toFixed(1)}% | Penalty: -${attendancePenalty.toFixed(1)}`}>
+                              <Text fontSize="xs" color="gray.600">
+                                net score
+                              </Text>
+                            </Tooltip>
+                          </HStack>
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </Tbody>
+              </Table>
+            </TableContainer>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Saved KPI Drawer */}
+      <Drawer isOpen={isDrawerOpen} placement="right" onClose={() => setIsDrawerOpen(false)} size="sm">
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <DrawerHeader>Saved KPI Periods</DrawerHeader>
+          <DrawerBody>
+            <Stack spacing={3}>
+              <HStack spacing={2} align="center">
+                <ChakraSelect
+                  size="sm"
+                  width="140px"
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                >
+                  <option value="all">All types</option>
+                  <option value="month">Monthly</option>
+                  <option value="week">Weekly</option>
+                </ChakraSelect>
+                <input
+                  placeholder="Filter by period (e.g. 2026-01)"
+                  value={filterText}
+                  onChange={(e) => setFilterText(e.target.value)}
+                  style={{ flex: 1, padding: "6px 10px", borderRadius: "6px", border: "1px solid #E2E8F0" }}
+                />
+              </HStack>
+
+              {savedItems.length === 0 ? (
+                <Text color="gray.500">No saved KPI entries yet.</Text>
+              ) : (
+                <Stack spacing={2} maxH="70vh" overflowY="auto" pr={2}>
+                  {savedItems
+                    .filter((item) => (filterType === "all" ? true : item.type === filterType))
+                    .filter((item) => item.value.toLowerCase().includes(filterText.toLowerCase()))
+                    .map((item) => (
+                      <Card
+                        key={item.key}
+                        variant="outline"
+                        borderColor="gray.200"
+                        _hover={{ borderColor: "teal.400", boxShadow: "md" }}
+                        py={2}
+                        px={2}
+                      >
+                        <CardBody p={2}>
+                          <Flex justify="space-between" align="center" mb={1}>
+                            <HStack spacing={2} align="center">
+                              <Badge colorScheme="teal" textTransform="capitalize">{item.type}</Badge>
+                              <Text fontWeight="semibold">{item.value}</Text>
+                            </HStack>
+                            <Text fontSize="xs" color="gray.500">
+                              {item.savedAt ? new Date(item.savedAt).toLocaleString() : "No date"}
+                            </Text>
+                          </Flex>
+                          <Flex justify="space-between" align="center" mb={2}>
+                            <HStack spacing={2}>
+                              <Badge colorScheme="purple" variant="subtle">
+                                {Object.keys(item.rows || {}).length} agents
+                              </Badge>
+                            </HStack>
+                            <HStack spacing={2}>
+                              <Button
+                                size="xs"
+                                colorScheme="teal"
+                                onClick={() => {
+                                  setPeriodType(item.type);
+                                  setPeriodValue(item.value);
+                                  const rows = item.rows || {};
+                                  setAgents((prev) =>
+                                    prev.map((row) => ({
+                                      ...row,
+                                      target: rows[row.id]?.target || 0,
+                                      achieved: rows[row.id]?.achieved || 0,
+                                      absents: rows[row.id]?.absents || 0
+                                    }))
+                                  );
+                                  setIsDrawerOpen(false);
+                                  toast({
+                                    title: "KPIs loaded",
+                                    description: `Loaded saved KPIs for ${item.type} ${item.value}`,
+                                    status: "info",
+                                    duration: 2500,
+                                    isClosable: true,
+                                  });
+                                }}
+                              >
+                                Load
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => {
+                                  setPreviewItem(item);
+                                  setIsPreviewOpen(true);
+                                }}
+                              >
+                                View
+                              </Button>
+                            </HStack>
+                          </Flex>
+                        </CardBody>
+                      </Card>
+                    ))}
+                </Stack>
+              )}
+            </Stack>
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Preview modal-like drawer for a saved set */}
+      {previewItem && (
+        <Drawer isOpen={isPreviewOpen} placement="left" onClose={() => setIsPreviewOpen(false)} size="xl">
+          <DrawerOverlay />
+          <DrawerContent>
+            <DrawerCloseButton />
+            <DrawerHeader>
+              Saved KPIs – {previewItem.type} {previewItem.value}
+            </DrawerHeader>
+            <DrawerBody>
+              <Text fontSize="sm" color="gray.500" mb={3}>
+                Saved at {previewItem.savedAt ? new Date(previewItem.savedAt).toLocaleString() : "Unknown"}
+              </Text>
               <TableContainer>
-                <Table variant="simple">
+                <Table size="sm">
                   <Thead>
                     <Tr>
-                      <Th>Department</Th>
-                      <Th>Score</Th>
-                      <Th>Target</Th>
-                      <Th>Completion</Th>
-                      <Th>KPI (70%)</Th>
-                      <Th>HR (30%)</Th>
-                      <Th>Trend</Th>
+                      <Th>Agent</Th>
+                      <Th isNumeric>Target</Th>
+                      <Th isNumeric>Achieved</Th>
+                      <Th isNumeric>Absents</Th>
+                      <Th isNumeric>Result</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {departmentScores.map((dept) => (
-                      <Tr key={dept.id}>
-                        <Td>
-                          <Flex alignItems="center">
-                            <Icon as={departments.find(d => d.id === dept.id)?.icon} 
-                                  color={`${departments.find(d => d.id === dept.id)?.color}.500`} 
-                                  mr={2} />
-                            {dept.name}
-                          </Flex>
-                        </Td>
-                        <Td>
-                          <Text fontWeight="bold">{dept.progressScore}/100</Text>
-                        </Td>
-                        <Td>{dept.target}%</Td>
-                        <Td>
-                          <Flex alignItems="center">
-                            <Text mr={2}>{dept.completionPercentage}%</Text>
-                            <Progress value={dept.completionPercentage} size="sm" width="100px" 
-                                      colorScheme={dept.completionPercentage >= dept.target ? 'green' : 'red'} />
-                          </Flex>
-                        </Td>
-                        <Td>
-                          <Tooltip label={`Based on task completion: ${dept.kpi70Percent}/100`}>
-                            <Text>{dept.kpi70Percent}</Text>
-                          </Tooltip>
-                        </Td>
-                        <Td>
-                          <Tooltip label={`HR assessment: ${dept.hr30Percent}/100`}>
-                            <Text>{dept.hr30Percent}</Text>
-                          </Tooltip>
-                        </Td>
-                        <Td>
-                          {dept.trend === 'increase' ? (
-                            <Icon as={FaArrowUp} color="green.500" />
-                          ) : (
-                            <Icon as={FaArrowDown} color="red.500" />
-                          )}
-                        </Td>
-                      </Tr>
-                    ))}
+                    {Object.entries(previewItem.rows || {}).map(([agentId, row]) => {
+                      const displayName =
+                        agents.find((a) => a.id === agentId)?.name || agentId;
+                      const { achievementPct, attendancePenalty, final } = calcScore({
+                        target: row.target,
+                        achieved: row.achieved,
+                        absents: row.absents
+                      });
+                      return (
+                        <Tr key={agentId}>
+                          <Td>{displayName}</Td>
+                          <Td isNumeric>{row.target}</Td>
+                          <Td isNumeric>{row.achieved}</Td>
+                          <Td isNumeric>{row.absents}</Td>
+                          <Td isNumeric>
+                            <Badge colorScheme={final >= 90 ? "green" : final >= 70 ? "teal" : "orange"}>
+                              {final.toFixed(1)}%
+                            </Badge>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
                   </Tbody>
                 </Table>
               </TableContainer>
-            </Box>
+            </DrawerBody>
+          </DrawerContent>
+        </Drawer>
+      )}
 
-            {/* KPI Calculation Explanation */}
-            <Card>
-              <CardHeader>
-                <Heading size="md">How KPI Scores Are Calculated</Heading>
-              </CardHeader>
-              <CardBody>
-                <VStack align="stretch" spacing={4}>
-                  <Box>
-                    <Text fontWeight="bold" mb={2}>Performance Score Formula:</Text>
-                    <Text>Final Score = (Task-Based KPI × 70%) + (HR Assessment × 30%)</Text>
-                  </Box>
-                  
-                  <Box>
-                    <Text fontWeight="bold" mb={2}>Task-Based KPI (70% of score):</Text>
-                    <Text>Calculated based on completion rate of assigned tasks and achievement of departmental targets.</Text>
-                  </Box>
-                  
-                  <Box>
-                    <Text fontWeight="bold" mb={2}>HR Assessment (30% of score):</Text>
-                    <Text>Evaluation by HR based on soft skills, teamwork, initiative, and other qualitative factors.</Text>
-                  </Box>
-                  
-                  <Box>
-                    <Text fontWeight="bold" mb={2}>Awards Criteria:</Text>
-                    <Text>Monthly awards are given to top performers in each category based on their overall KPI scores and notable contributions.</Text>
-                  </Box>
-                </VStack>
-              </CardBody>
-            </Card>
-          </TabPanel>
+      <AlertDialog
+        isOpen={isConfirmOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={() => setIsConfirmOpen(false)}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Submit KPI Period
+            </AlertDialogHeader>
 
-          {/* Employee KPIs Tab */}
-          <TabPanel>
-            <Box>
-              <Flex justifyContent="space-between" alignItems="center" mb={6}>
-                <Heading as="h2" size="lg" color="teal.600">
-                  Employee KPIs & Performance Ranking
-                </Heading>
-                <Text color="gray.600">
-                  Individual performance metrics calculated automatically from sales data
-                </Text>
-              </Flex>
+            <AlertDialogBody>
+              <Text mb={2}>Please double-check values. Once submitted, this KPI snapshot cannot be edited.</Text>
+              <Text fontWeight="semibold">Period:</Text>
+              <Text mb={1}>{periodType.toUpperCase()} — {periodValue}</Text>
+              <Text fontSize="sm" color="gray.600">Tip: If you need changes later, save a new snapshot for the same period.</Text>
+            </AlertDialogBody>
 
-              {employeeData && employeeData.length > 0 ? (
-                <Card>
-                  <CardBody>
-                    <TableContainer>
-                      <Table variant="simple">
-                        <Thead>
-                          <Tr>
-                            <Th>Rank</Th>
-                            <Th>Employee</Th>
-                            <Th>Department</Th>
-                            <Th>Completed Deals</Th>
-                            <Th>Total Sales Value</Th>
-                            <Th>Avg. Sale Value</Th>
-                            <Th>Commission Earned</Th>
-                            <Th>KPI Score</Th>
-                            <Th>Status</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {employeeData.map((employee, index) => {
-                            const kpiScore = calculateEmployeeKpi(employee);
-                            return (
-                              <Tr key={index}>
-                                <Td>
-                                  <Badge 
-                                    colorScheme={getRankColor(employee.rank)}
-                                    fontSize="md"
-                                  >
-                                    {getRankBadge(employee.rank)}
-                                  </Badge>
-                                </Td>
-                                <Td>
-                                  <Text fontWeight="bold">{employee.fullName || employee.username || 'Unknown'}</Text>
-                                </Td>
-                                <Td>Sales</Td>
-                                <Td>{employee.completedDeals || 0}</Td>
-                                <Td>{(employee.totalSalesValue || 0)?.toLocaleString()} ETB</Td>
-                                <Td>{(employee.avgSaleValue || 0)?.toLocaleString()} ETB</Td>
-                                <Td>{(employee.totalCommission || 0)?.toLocaleString()} ETB</Td>
-                                <Td>
-                                  <Badge 
-                                    colorScheme={
-                                      kpiScore >= 90 ? 'green' : 
-                                      kpiScore >= 75 ? 'yellow' : 
-                                      kpiScore >= 60 ? 'orange' : 'red'
-                                    }
-                                  >
-                                    {kpiScore}/100
-                                  </Badge>
-                                </Td>
-                                <Td>
-                                  <Badge colorScheme={employee.status === 'active' ? 'green' : 'red'}>
-                                    {employee.status || 'active'}
-                                  </Badge>
-                                </Td>
-                              </Tr>
-                            );
-                          })}
-                        </Tbody>
-                      </Table>
-                    </TableContainer>
-                  </CardBody>
-                </Card>
-              ) : (
-                <Card>
-                  <CardBody>
-                    <Text textAlign="center" py={8} color="gray.500">
-                      Loading employee performance data...
-                    </Text>
-                  </CardBody>
-                </Card>
-              )}
-            </Box>
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
-
-      {/* Detailed Report Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="6xl">
-        <ModalOverlay />
-        <ModalContent maxW="80vw" maxH="80vh">
-          <ModalHeader>Detailed Performance Report</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody overflowY="auto" maxH="70vh">
-            {reportData ? (
-              <Tabs variant="enclosed">
-                <TabList>
-                  <Tab>Overview</Tab>
-                  <Tab>Department Details</Tab>
-                  <Tab>Employee KPIs</Tab>
-                  <Tab>Performance Trends</Tab>
-                </TabList>
-                <TabPanels>
-                  {/* Overview Tab */}
-                  <TabPanel>
-                    <VStack spacing={6} align="stretch">
-                      {/* Overall Statistics */}
-                      <Card>
-                        <CardHeader>
-                          <Heading size="md">Overall Statistics</Heading>
-                        </CardHeader>
-                        <CardBody>
-                          <Grid templateColumns="repeat(4, 1fr)" gap={4}>
-                            <Stat>
-                              <StatLabel>Total Departments</StatLabel>
-                              <StatNumber>{reportData.overallStats.totalDepartments}</StatNumber>
-                            </Stat>
-                            <Stat>
-                              <StatLabel>Average Score</StatLabel>
-                              <StatNumber>{reportData.overallStats.averageScore}/100</StatNumber>
-                            </Stat>
-                            <Stat>
-                              <StatLabel>Task Completion</StatLabel>
-                              <StatNumber>{reportData.overallStats.completionRate}%</StatNumber>
-                            </Stat>
-                            <Stat>
-                              <StatLabel>Total Tasks</StatLabel>
-                              <StatNumber>{reportData.overallStats.totalTasks}</StatNumber>
-                            </Stat>
-                          </Grid>
-                        </CardBody>
-                      </Card>
-
-                      {/* Best & Worst Performers */}
-                      <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                        <Card border="2px" borderColor="green.500">
-                          <CardHeader>
-                            <Heading size="sm">Highest Scoring Department</Heading>
-                          </CardHeader>
-                          <CardBody>
-                            <Flex alignItems="center">
-                              <Icon as={reportData.overallStats.highestScoringDept.icon} 
-                                    color={`${reportData.overallStats.highestScoringDept.color}.500`} 
-                                    mr={2} />
-                              <Text fontWeight="bold">{reportData.overallStats.highestScoringDept.name}</Text>
-                            </Flex>
-                            <Text mt={2}>Score: {reportData.overallStats.highestScoringDept.progressScore}/100</Text>
-                            <Text>Completion: {reportData.overallStats.highestScoringDept.completionPercentage}%</Text>
-                          </CardBody>
-                        </Card>
-                        
-                        <Card border="2px" borderColor="red.500">
-                          <CardHeader>
-                            <Heading size="sm">Lowest Scoring Department</Heading>
-                          </CardHeader>
-                          <CardBody>
-                            <Flex alignItems="center">
-                              <Icon as={reportData.overallStats.lowestScoringDept.icon} 
-                                    color={`${reportData.overallStats.lowestScoringDept.color}.500`} 
-                                    mr={2} />
-                              <Text fontWeight="bold">{reportData.overallStats.lowestScoringDept.name}</Text>
-                            </Flex>
-                            <Text mt={2}>Score: {reportData.overallStats.lowestScoringDept.progressScore}/100</Text>
-                            <Text>Completion: {reportData.overallStats.lowestScoringDept.completionPercentage}%</Text>
-                          </CardBody>
-                        </Card>
-                      </Grid>
-                    </VStack>
-                  </TabPanel>
-
-                  {/* Department Details Tab */}
-                  <TabPanel>
-                    <Card>
-                      <CardHeader>
-                        <Heading size="md">Department Details</Heading>
-                      </CardHeader>
-                      <CardBody>
-                        <TableContainer>
-                          <Table variant="simple">
-                            <Thead>
-                              <Tr>
-                                <Th>Department</Th>
-                                <Th>Score</Th>
-                                <Th>Target</Th>
-                                <Th>Completion</Th>
-                                <Th>KPI (70%)</Th>
-                                <Th>HR (30%)</Th>
-                                <Th>Trend</Th>
-                              </Tr>
-                            </Thead>
-                            <Tbody>
-                              {reportData.departmentDetails.map((dept) => (
-                                <Tr key={dept.id}>
-                                  <Td>
-                                    <Flex alignItems="center">
-                                      <Icon as={dept.icon} color={`${dept.color}.500`} mr={2} />
-                                      {dept.name}
-                                    </Flex>
-                                  </Td>
-                                  <Td>
-                                    <Text fontWeight="bold">{dept.progressScore}/100</Text>
-                                  </Td>
-                                  <Td>{dept.target}%</Td>
-                                  <Td>
-                                    <Flex alignItems="center">
-                                      <Text mr={2}>{dept.completionPercentage}%</Text>
-                                      <Progress value={dept.completionPercentage} size="sm" width="80px" 
-                                                colorScheme={dept.completionPercentage >= dept.target ? 'green' : 'red'} />
-                                    </Flex>
-                                  </Td>
-                                  <Td>{dept.kpi70Percent}</Td>
-                                  <Td>{dept.hr30Percent}</Td>
-                                  <Td>
-                                    {dept.trend === 'increase' ? (
-                                      <Icon as={FaArrowUp} color="green.500" />
-                                    ) : (
-                                      <Icon as={FaArrowDown} color="red.500" />
-                                    )}
-                                  </Td>
-                                </Tr>
-                              ))}
-                            </Tbody>
-                          </Table>
-                        </TableContainer>
-                      </CardBody>
-                    </Card>
-                  </TabPanel>
-
-                  {/* Employee KPIs Tab */}
-                  <TabPanel>
-                    <VStack spacing={4} align="stretch">
-                      <Heading size="md">Individual Employee KPIs</Heading>
-                      {employeeData && employeeData.length > 0 ? (
-                        <Accordion allowMultiple>
-                          {departments.map(dept => {
-                            // For demo purposes, we'll show all employees under Sales department
-                            // In a real implementation, you would filter by actual department
-                            const deptAgents = employeeData.slice(0, 5); // Show first 5 for demo
-                            
-                            return (
-                              <AccordionItem key={dept.id}>
-                                <h2>
-                                  <AccordionButton>
-                                    <Flex alignItems="center" flex="1" textAlign="left">
-                                      <Icon as={dept.icon} color={`${dept.color}.500`} mr={2} />
-                                      {dept.name} Department
-                                    </Flex>
-                                    <AccordionIcon />
-                                  </AccordionButton>
-                                </h2>
-                                <AccordionPanel pb={4}>
-                                  <TableContainer>
-                                    <Table variant="simple" size="sm">
-                                      <Thead>
-                                        <Tr>
-                                          <Th>Rank</Th>
-                                          <Th>Employee</Th>
-                                          <Th>Completed Deals</Th>
-                                          <Th>Total Sales Value</Th>
-                                          <Th>Avg. Sale Value</Th>
-                                          <Th>Commission Earned</Th>
-                                          <Th>KPI Score</Th>
-                                          <Th>Status</Th>
-                                        </Tr>
-                                      </Thead>
-                                      <Tbody>
-                                        {deptAgents.map((agent, index) => {
-                                          const kpiScore = calculateEmployeeKpi(agent);
-                                          return (
-                                            <Tr key={index}>
-                                              <Td>
-                                                <Badge 
-                                                  colorScheme={getRankColor(agent.rank)}
-                                                  fontSize="sm"
-                                                >
-                                                  {getRankBadge(agent.rank)}
-                                                </Badge>
-                                              </Td>
-                                              <Td>
-                                                <Text fontWeight="bold">{agent.fullName || agent.username || 'Unknown'}</Text>
-                                              </Td>
-                                              <Td>{agent.completedDeals || 0}</Td>
-                                              <Td>{(agent.totalSalesValue || 0)?.toLocaleString()} ETB</Td>
-                                              <Td>{(agent.avgSaleValue || 0)?.toLocaleString()} ETB</Td>
-                                              <Td>{(agent.totalCommission || 0)?.toLocaleString()} ETB</Td>
-                                              <Td>
-                                                <Badge 
-                                                  colorScheme={
-                                                    kpiScore >= 90 ? 'green' : 
-                                                    kpiScore >= 75 ? 'yellow' : 
-                                                    kpiScore >= 60 ? 'orange' : 'red'
-                                                  }
-                                                >
-                                                  {kpiScore}/100
-                                                </Badge>
-                                              </Td>
-                                              <Td>
-                                                <Badge colorScheme={agent.status === 'active' ? 'green' : 'red'}>
-                                                  {agent.status || 'active'}
-                                                </Badge>
-                                              </Td>
-                                            </Tr>
-                                          );
-                                        })}
-                                      </Tbody>
-                                    </Table>
-                                  </TableContainer>
-                                </AccordionPanel>
-                              </AccordionItem>
-                            );
-                          })}
-                        </Accordion>
-                      ) : (
-                        <Text>Loading employee performance data...</Text>
-                      )}
-                    </VStack>
-                  </TabPanel>
-
-                  {/* Performance Trends Tab */}
-                  <TabPanel>
-                    <VStack spacing={6} align="stretch">
-                      {reportData.performanceTrends.length > 0 && (
-                        <Card>
-                          <CardHeader>
-                            <Heading size="md">Performance Trends</Heading>
-                          </CardHeader>
-                          <CardBody>
-                            <TableContainer>
-                              <Table variant="simple">
-                                <Thead>
-                                  <Tr>
-                                    <Th>Month</Th>
-                                    <Th>Sales</Th>
-                                    <Th>Revenue</Th>
-                                  </Tr>
-                                </Thead>
-                                <Tbody>
-                                  {reportData.performanceTrends.map((trend, index) => (
-                                    <Tr key={index}>
-                                      <Td>{trend.name}</Td>
-                                      <Td>{trend.sales}</Td>
-                                      <Td>{trend.revenue?.toLocaleString()} ETB</Td>
-                                    </Tr>
-                                  ))}
-                                </Tbody>
-                              </Table>
-                            </TableContainer>
-                          </CardBody>
-                        </Card>
-                      )}
-
-                      {/* Top Performers */}
-                      {reportData.agentPerformance.length > 0 && (
-                        <Card>
-                          <CardHeader>
-                            <Heading size="md">Top Performers</Heading>
-                          </CardHeader>
-                          <CardBody>
-                            <TableContainer>
-                              <Table variant="simple">
-                                <Thead>
-                                  <Tr>
-                                    <Th>Agent</Th>
-                                    <Th>Completed Deals</Th>
-                                    <Th>Gross Commission</Th>
-                                    <Th>Net Commission</Th>
-                                    <Th>Total Sales</Th>
-                                  </Tr>
-                                </Thead>
-                                <Tbody>
-                                  {[...reportData.agentPerformance]
-                                    .sort((a, b) => b.totalNetCommission - a.totalNetCommission)
-                                    .slice(0, 5)
-                                    .map((agent) => (
-                                      <Tr key={agent._id}>
-                                        <Td>{agent.fullName || agent.username}</Td>
-                                        <Td>{agent.completedDeals}</Td>
-                                        <Td>{agent.totalGrossCommission?.toLocaleString()} ETB</Td>
-                                        <Td>{agent.totalNetCommission?.toLocaleString()} ETB</Td>
-                                        <Td>{agent.totalSales?.toLocaleString()} ETB</Td>
-                                      </Tr>
-                                    ))}
-                                </Tbody>
-                              </Table>
-                            </TableContainer>
-                          </CardBody>
-                        </Card>
-                      )}
-                    </VStack>
-                  </TabPanel>
-                </TabPanels>
-              </Tabs>
-            ) : (
-              <Text>Loading report data...</Text>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            <Button colorScheme="blue" mr={3} onClick={onClose}>
-              Close
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={() => setIsConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="teal"
+                ml={3}
+                onClick={() => {
+                  setIsConfirmOpen(false);
+                  saveCurrent();
+                }}
+              >
+                Submit & Save
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };

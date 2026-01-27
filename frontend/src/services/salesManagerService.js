@@ -1,6 +1,6 @@
 import axiosInstance from './axiosInstance';
 
-// Get all sales for sales manager
+// Get all sales for sales manager (supports pagination)
 export const getAllSales = async (filters = {}) => {
   const token = localStorage.getItem('userToken');
   // token will be attached by axiosInstance interceptor; keep local logging

@@ -48,6 +48,11 @@ const getAllSales = asyncHandler(async (req, res) => {
       throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
 
+    // Pagination (defaults)
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const skip = (page - 1) * limit;
+
     // Build filter object. By default show ALL sales unless a specific status is requested.
     let filter = {};
 
@@ -80,17 +85,29 @@ const getAllSales = asyncHandler(async (req, res) => {
     
     console.log('Applied filter:', filter);
 
-    // Get all completed sales from all agents with filters
-    const sales = await SalesCustomer.find(filter)
-      .sort({ date: -1 })
-      .populate('commission');
+    // Get paginated sales with lean objects for speed
+    const [sales, totalCount] = await Promise.all([
+      SalesCustomer.find(filter)
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('customerName courseName coursePrice followupStatus phone date agentId supervisorComment commission createdAt updatedAt')
+        .lean(),
+      SalesCustomer.countDocuments(filter)
+    ]);
     
-    console.log(`Found ${sales.length} sales records`);
+    console.log(`Found ${sales.length} sales records (page ${page}, limit ${limit}, total ${totalCount})`);
 
-    // If no sales found, return empty array
+    // If no sales found, return empty array with meta
     if (sales.length === 0) {
       console.log('No sales found with current filter');
-      return res.json([]);
+      return res.json({
+        data: [],
+        page,
+        limit,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit)
+      });
     }
 
     // Populate agent information manually since agentId is stored as String
@@ -111,13 +128,12 @@ const getAllSales = asyncHandler(async (req, res) => {
 
     // Attach agent information to sales
     const salesWithAgents = sales.map(sale => {
-      const saleObj = sale.toObject();
       const commissionData = calculateCommission(Number(sale.coursePrice) || 0);
 
       return {
-        ...saleObj,
+        ...sale,
         commission: {
-          ...(saleObj.commission || {}),
+          ...(sale.commission || {}),
           grossCommission: commissionData.grossCommission,
           commissionTax: commissionData.commissionTax,
           netCommission: commissionData.netCommission
@@ -126,7 +142,13 @@ const getAllSales = asyncHandler(async (req, res) => {
       };
     });
 
-    res.json(salesWithAgents);
+    res.json({
+      data: salesWithAgents,
+      page,
+      limit,
+      total: totalCount,
+      totalPages: Math.max(1, Math.ceil(totalCount / limit))
+    });
   } catch (error) {
     console.error('Error in getAllSales:', error);
     res.status(500).json({ 
