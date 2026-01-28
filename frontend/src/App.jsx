@@ -84,6 +84,7 @@ import ContentTrackerReport from "./components/salesmanager/ContentTrackerReport
 import PayrollPage from "./components/Payroll/PayrollPage";
 import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
 import KPIScorecardPage from "./pages/sales/KPIScorecardPage";
+import CustomerKPIPage from "./pages/customer/CustomerKPIPage";
 
 import MessagesPage from "./pages/MessagesPage";
 import SalesMessagesPage from "./pages/SalesMessagesPage";
@@ -346,6 +347,7 @@ return (
       <Route path="/messages" element={<RedirectMessagesPage />} />
       <Route path="/sales/messages" element={<SalesMessagesPage />} />
       <Route path="/customer/messages" element={<CustomerMessagesPage />} />
+      <Route path="/customer/kpi" element={<CustomerKPIPage />} />
       <Route path="/supervisor" element={<SupervisorLayout />}>
         <Route index element={<SupervisorDashboardPage />} />
         <Route path="requests" element={<TeamRequestsPage />} />
