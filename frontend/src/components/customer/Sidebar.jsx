@@ -258,6 +258,19 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, acti
           {isCSM && (
             <SidebarLink
               isCollapsed={isCollapsed}
+              to="/customer/kpi"
+              icon={<FiBarChart2 />}
+              label="KPI"
+              active={isActive("/customer/kpi")}
+              iconColor={iconColor}
+              activeIconColor={activeIconColor}
+              textColor={textColor}
+              activeTextColor={activeTextColor}
+            />
+          )}
+          {isCSM && (
+            <SidebarLink
+              isCollapsed={isCollapsed}
               to="/followup-report"
               icon={<FiBarChart2 />}
               label="Follow Up Report"
