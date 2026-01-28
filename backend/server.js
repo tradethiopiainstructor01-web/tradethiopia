@@ -48,6 +48,7 @@ const itRoutes = require('./routes/itRoutes.js');
 const demandRoutes = require('./routes/demandRoutes.js');
 const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
 const awardRoutes = require('./routes/awardRoutes.js');
+const contentTrackerRoutes = require('./routes/contentTrackerRoutes');
 
 const consultancyRoutes = require('./routes/consultancyRoutes.js');
 
@@ -293,6 +294,7 @@ app.use('/api/payroll', payrollRoutes); // Add this line
 app.use('/api/requests', requestRoutes);
 app.use('/api/social-requests', requestRoutes);
 app.use('/api/action-items', actionItemRoutes);
+app.use('/api/content-tracker', contentTrackerRoutes);
 // Awards
 app.use('/api/awards', awardRoutes);
 

@@ -14,6 +14,7 @@ import TaskDashboard from './TaskDashboard.jsx';
 import MonthlyReport from './MonthlyReport.jsx';
 import SalesMessagesPage from '../../pages/SalesMessagesPage';
 import RequestPage from '../../pages/RequestPage';
+import ContentTrackerPage from './ContentTrackerPage.jsx';
 import { useUserStore } from '../../store/user';
 import { getUserDepartment } from '../../utils/department';
 
@@ -77,6 +78,8 @@ const Layout = ({ children, initialActiveItem }) => {
         return <SalesMessagesPage />;
       case 'Requests':
         return <RequestPage />;
+      case 'Content Tracker':
+        return <ContentTrackerPage />;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }

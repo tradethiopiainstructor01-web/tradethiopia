@@ -80,6 +80,7 @@ import TaskManagementPage from "./components/salesmanager/TaskManagementPage";
 import ReportsPage from "./components/salesmanager/ReportsPage";
 import CalendarPage from "./components/salesmanager/CalendarPage";
 import SettingsPage from "./components/salesmanager/SettingsPage";
+import ContentTrackerReport from "./components/salesmanager/ContentTrackerReport";
 import PayrollPage from "./components/Payroll/PayrollPage";
 import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
 import KPIScorecardPage from "./pages/sales/KPIScorecardPage";
@@ -368,6 +369,7 @@ return (
         <Route path="team" element={<TeamManagementPage />} />
         <Route path="tasks" element={<TaskManagementPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="content-tracker-report" element={<ContentTrackerReport />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="messages" element={<MessagesPage />} />

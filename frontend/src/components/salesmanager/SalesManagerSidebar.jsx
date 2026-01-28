@@ -27,14 +27,15 @@ import {
   FiUser, 
   FiChevronRight, 
   FiChevronLeft,
-  FiLogOut,
-  FiMessageSquare,
-  FiDollarSign,
-  FiTrendingUp,
-  FiCalendar,
-  FiPieChart,
-  FiHelpCircle,
-  FiCheckCircle
+  FiLogOut, 
+  FiMessageSquare, 
+  FiDollarSign, 
+  FiTrendingUp, 
+  FiCalendar, 
+  FiPieChart, 
+  FiHelpCircle, 
+  FiCheckCircle,
+  FiClipboard
 } from 'react-icons/fi';
 
 const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
@@ -63,6 +64,7 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
     { name: 'Team Management', icon: FiUsers, path: '/salesmanager/team' },
     { name: 'Task Management', icon: FiCheckCircle, path: '/salesmanager/tasks' },
     { name: 'Reports', icon: FiPieChart, path: '/salesmanager/reports' },
+    { name: 'Content Tracker Report', icon: FiClipboard, path: '/salesmanager/content-tracker-report' },
     { name: 'Calendar', icon: FiCalendar, path: '/salesmanager/calendar' },
     { name: 'Notice Board', icon: FiMessageSquare, path: '/salesmanager/messages' },
     { name: 'Settings', icon: FiSettings, path: '/salesmanager/settings' },
