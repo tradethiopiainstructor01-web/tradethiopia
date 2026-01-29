@@ -113,7 +113,12 @@ const KPIScorecardPage = () => {
 
   const saveCurrent = () => {
     const payload = agents.reduce((acc, row) => {
-      acc[row.id] = { target: row.target, achieved: row.achieved, absents: row.absents };
+      acc[row.id] = {
+        target: row.target,
+        achieved: row.achieved,
+        coreOutput: row.coreOutput,
+        absents: row.absents
+      };
       return acc;
     }, {});
     try {
@@ -159,6 +164,7 @@ const KPIScorecardPage = () => {
           name: agent.fullName || agent.username || "Unnamed Agent",
           target: saved[agent._id]?.target || 0,
           achieved: saved[agent._id]?.achieved || 0,
+          coreOutput: saved[agent._id]?.coreOutput || 0,
           absents: saved[agent._id]?.absents || 0
         }));
         setAgents(rows);
@@ -188,12 +194,15 @@ const KPIScorecardPage = () => {
   const calcScore = (row) => {
     const target = Number(row.target) || 0;
     const achieved = Number(row.achieved) || 0;
+    const coreOutput = Number(row.coreOutput) || 0;
     const absents = Number(row.absents) || 0;
     const achievementPct = target > 0 ? (achieved / target) * 100 : 0;
-    // New rule: each absent day reduces score by 1% (not 5 points)
+    const coreOutputPct = Math.max(0, Math.min(100, coreOutput));
+    const weightedScore = achievementPct * 0.5 + coreOutputPct * 0.5;
+    // Each absent day reduces score by 1%
     const attendancePenalty = absents * 1;
-    const final = Math.max(0, Math.min(100, achievementPct - attendancePenalty));
-    return { achievementPct, attendancePenalty, final };
+    const final = Math.max(0, Math.min(100, weightedScore - attendancePenalty));
+    return { achievementPct, coreOutputPct, attendancePenalty, final };
   };
 
   if (loading) {
@@ -208,7 +217,7 @@ const KPIScorecardPage = () => {
     <Box p={6}>
       <Heading size="lg" mb={2}>KPI Scorecard</Heading>
       <Text color="gray.600" mb={4}>
-        Enter each agent's target, achieved amount, and absences to see their KPI result. Save per period (month/week) for later review.
+        Enter each agent's target, achieved amount, core output, and absences to see their KPI result. Save per period (month/week) for later review.
       </Text>
 
       <Card mb={5} boxShadow="lg">
@@ -282,7 +291,7 @@ const KPIScorecardPage = () => {
         <CardHeader pb={2}>
           <Heading size="md">Agent KPI Targets & Attendance</Heading>
           <Text color="gray.600" fontSize="sm">
-            Result = achievement % minus 1% per absence.
+            Result = 50% achievement + 50% core output, minus 1% per absence.
           </Text>
         </CardHeader>
         <CardBody>
@@ -296,13 +305,14 @@ const KPIScorecardPage = () => {
                     <Th>Agent</Th>
                     <Th>Target</Th>
                     <Th>Achieved</Th>
+                    <Th>Core Output</Th>
                     <Th>Absents</Th>
                     <Th>Result</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
                   {agents.map((row) => {
-                    const { achievementPct, attendancePenalty, final } = calcScore(row);
+                    const { achievementPct, coreOutputPct, attendancePenalty, final } = calcScore(row);
                     return (
                       <Tr key={row.id}>
                         <Td fontWeight="medium">{row.name}</Td>
@@ -340,6 +350,21 @@ const KPIScorecardPage = () => {
                           <NumberInput
                             size="sm"
                             min={0}
+                            value={row.coreOutput}
+                            onChange={(_, num) => handleChange(row.id, "coreOutput", num)}
+                            maxW="120px"
+                          >
+                            <NumberInputField />
+                            <NumberInputStepper>
+                              <NumberIncrementStepper />
+                              <NumberDecrementStepper />
+                            </NumberInputStepper>
+                          </NumberInput>
+                        </Td>
+                        <Td>
+                          <NumberInput
+                            size="sm"
+                            min={0}
                             value={row.absents}
                             onChange={(_, num) => handleChange(row.id, "absents", num)}
                             maxW="100px"
@@ -356,7 +381,11 @@ const KPIScorecardPage = () => {
                             <Badge colorScheme={final >= 90 ? "green" : final >= 70 ? "teal" : "orange"}>
                               {final.toFixed(1)}%
                             </Badge>
-                            <Tooltip label={`Achievement: ${achievementPct.toFixed(1)}% | Penalty: -${attendancePenalty.toFixed(1)}`}>
+                            <Tooltip
+                              label={`Achievement: ${achievementPct.toFixed(1)}% | Core output: ${coreOutputPct.toFixed(
+                                1
+                              )}% | Penalty: -${attendancePenalty.toFixed(1)}`}
+                            >
                               <Text fontSize="xs" color="gray.600">
                                 net score
                               </Text>
@@ -445,6 +474,7 @@ const KPIScorecardPage = () => {
                                       ...row,
                                       target: rows[row.id]?.target || 0,
                                       achieved: rows[row.id]?.achieved || 0,
+                                      coreOutput: rows[row.id]?.coreOutput || 0,
                                       absents: rows[row.id]?.absents || 0
                                     }))
                                   );
@@ -502,6 +532,7 @@ const KPIScorecardPage = () => {
                       <Th>Agent</Th>
                       <Th isNumeric>Target</Th>
                       <Th isNumeric>Achieved</Th>
+                      <Th isNumeric>Core Output</Th>
                       <Th isNumeric>Absents</Th>
                       <Th isNumeric>Result</Th>
                     </Tr>
@@ -513,6 +544,7 @@ const KPIScorecardPage = () => {
                       const { achievementPct, attendancePenalty, final } = calcScore({
                         target: row.target,
                         achieved: row.achieved,
+                        coreOutput: row.coreOutput,
                         absents: row.absents
                       });
                       return (
@@ -520,6 +552,7 @@ const KPIScorecardPage = () => {
                           <Td>{displayName}</Td>
                           <Td isNumeric>{row.target}</Td>
                           <Td isNumeric>{row.achieved}</Td>
+                          <Td isNumeric>{row.coreOutput ?? 0}</Td>
                           <Td isNumeric>{row.absents}</Td>
                           <Td isNumeric>
                             <Badge colorScheme={final >= 90 ? "green" : final >= 70 ? "teal" : "orange"}>

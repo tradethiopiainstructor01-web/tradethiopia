@@ -83,13 +83,15 @@ import {
   FiChevronDown,
   FiLogOut,
   FiClipboard,
+  FiTarget,
 } from 'react-icons/fi';
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
-import { useUserStore } from '../store/user';
+import { normalizeRole, useUserStore } from '../store/user';
 import axios from 'axios';
 import { getNotifications } from '../services/notificationService';
 import NotificationsPanel from '../components/NotificationsPanel';
 import NotesLauncher from '../components/notes/NotesLauncher';
+import KpiScorecardSection from '../components/kpi/KpiScorecardSection';
 import MessagesPage from './MessagesPage';
 import { MoonIcon, SunIcon } from '@chakra-ui/icons';
 const defaultServiceOptions = ['Promotional video', 'Motion graphics', 'Graphics design', 'Brand promo video'];
@@ -155,7 +157,7 @@ const TradexTVDashboard = () => {
   // Tab state
   const [tabIndex, setTabIndex] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
-  const tabKeys = ['overview', 'projects', 'team', 'analytics', 'revenue', 'report', 'notice-board', 'settings'];
+  const tabKeys = ['overview', 'projects', 'team', 'analytics', 'kpi', 'revenue', 'report', 'notice-board', 'settings'];
   const handleTabsChange = (index) => {
     setTabIndex(index);
     const params = new URLSearchParams(location.search);
@@ -385,6 +387,23 @@ const TradexTVDashboard = () => {
     target: '',
   });
 
+  const tradextvUsers = useMemo(
+    () => (users || []).filter((user) => normalizeRole(user.role || user.userRole) === 'tradextv'),
+    [users]
+  );
+
+  const tradexMembers = useMemo(() => {
+    if (tradextvUsers.length) {
+      return tradextvUsers.map((user) => {
+        const id = user._id || user.id || user.email || user.username || user.fullName || user.name;
+        const name = user.fullName || user.username || user.name || user.email || 'Team Member';
+        return { id: String(id || name), name };
+      });
+    }
+    const fallbackOwners = [...new Set(projects.map((project) => project.owner).filter(Boolean))];
+    return fallbackOwners.map((name) => ({ id: name, name }));
+  }, [tradextvUsers, projects]);
+
   const currencyFormatter = useMemo(
     () =>
       new Intl.NumberFormat('en-US', {
@@ -450,6 +469,12 @@ const TradexTVDashboard = () => {
     const idx = tabParam ? tabKeys.indexOf(tabParam) : 0;
     setTabIndex(idx >= 0 ? idx : 0);
   }, [location.search]);
+
+  useEffect(() => {
+    if (users.length === 0 && !usersLoading && !usersError) {
+      fetchUsers();
+    }
+  }, [users.length, usersLoading, usersError, fetchUsers]);
 
   useEffect(() => {
     // Fetch users when opening the Team tab if not already loaded
@@ -686,6 +711,7 @@ const TradexTVDashboard = () => {
           { icon: FiMessageSquare, label: 'Projects', path: '/tradextv-dashboard?tab=projects' },
           { icon: FiUsers, label: 'Team', path: '/tradextv-dashboard?tab=team' },
           { icon: FiPieChart, label: 'Analytics', path: '/tradextv-dashboard?tab=analytics' },
+          { icon: FiTarget, label: 'KPI', path: '/tradextv-dashboard?tab=kpi' },
           { icon: FiBarChart2, label: 'Revenue', path: '/tradextv-dashboard?tab=revenue' },
           { icon: FiFileText, label: 'Report', path: '/tradextv-dashboard?tab=report' },
           { icon: FiClipboard, label: 'Requests', path: '/requests' },
@@ -883,6 +909,7 @@ const TradexTVDashboard = () => {
               <Tab>Projects</Tab>
               <Tab>Team</Tab>
               <Tab>Analytics</Tab>
+              <Tab>KPI</Tab>
               <Tab>Revenue</Tab>
               <Tab>Report</Tab>
               <Tab>Notice Board</Tab>
@@ -1104,9 +1131,9 @@ const TradexTVDashboard = () => {
               <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={3}>
                 <Box>
                   <Heading size="lg" mb={1}>Team</Heading>
-                  <Text color={mutedTextColor}>Accounts with the Tradex role.</Text>
+                  <Text color={mutedTextColor}>Accounts with the TradeXTV role.</Text>
                 </Box>
-                <Tag colorScheme="purple" variant="subtle">Role: tradex*</Tag>
+                <Tag colorScheme="purple" variant="subtle">Role: tradextv</Tag>
               </Flex>
               <Box overflowX="auto">
                 <Table size="sm" variant="simple">
@@ -1132,36 +1159,33 @@ const TradexTVDashboard = () => {
                           <Text color={negativeTextColor}>Failed to load users.</Text>
                         </Td>
                       </Tr>
+                    ) : tradextvUsers.length === 0 ? (
+                      <Tr>
+                        <Td colSpan={5}>
+                          <Text color={mutedTextColor}>No TradeXTV accounts found.</Text>
+                        </Td>
+                      </Tr>
                     ) : (
-                      (() => {
-                        const tradexUsers = users.filter((u) => (u.role || '').toLowerCase().includes('tradex'));
-                        if (tradexUsers.length === 0) {
-                          return (
-                            <Tr>
-                              <Td colSpan={5}>
-                                <Text color={mutedTextColor}>No Tradex accounts found.</Text>
-                              </Td>
-                            </Tr>
-                          );
-                        }
-                        return tradexUsers.map((u) => (
-                          <Tr key={u._id || u.username}>
-                            <Td fontWeight="semibold">{u.name || u.username || '—'}</Td>
-                            <Td>{u.username || '—'}</Td>
-                            <Td>{u.email || '—'}</Td>
-                            <Td>
-                              <Badge colorScheme="purple" variant="subtle">
-                                {u.role || '—'}
-                              </Badge>
-                            </Td>
-                            <Td>
-                              <Badge colorScheme={(u.status || '').toLowerCase() === 'active' ? 'green' : 'gray'} variant="subtle">
-                                {u.status || 'unknown'}
-                              </Badge>
-                            </Td>
-                          </Tr>
-                        ));
-                      })()
+                      tradextvUsers.map((u) => (
+                        <Tr key={u._id || u.username}>
+                          <Td fontWeight="semibold">{u.name || u.username || '???'}</Td>
+                          <Td>{u.username || '???'}</Td>
+                          <Td>{u.email || '???'}</Td>
+                          <Td>
+                            <Badge colorScheme="purple" variant="subtle">
+                              {u.role || '???'}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            <Badge
+                              colorScheme={(u.status || '').toLowerCase() === 'active' ? 'green' : 'gray'}
+                              variant="subtle"
+                            >
+                              {u.status || 'unknown'}
+                            </Badge>
+                          </Td>
+                        </Tr>
+                      ))
                     )}
                   </Tbody>
                 </Table>
@@ -1236,6 +1260,29 @@ const TradexTVDashboard = () => {
                   </Box>
                 </Box>
               </Grid>
+            </Box>
+          </TabPanel>
+
+          {/* KPI Tab */}
+          <TabPanel p={0}>
+            <Box 
+              bg={cardBg}
+              p={6}
+              borderRadius="lg"
+              boxShadow="sm"
+              borderWidth="1px"
+              borderColor={borderColor}
+              mb={8}
+            >
+              <KpiScorecardSection
+                title="TradeXTV KPI Scorecard"
+                description="Enter each team member's target, achieved amount, core output, and absences to calculate the KPI result."
+                storageKey="kpi-tradextv-scores-v1"
+                members={tradexMembers}
+                isLoading={usersLoading && tradextvUsers.length === 0}
+                nameLabel="Team Member"
+                emptyLabel="No TradeXTV team members found."
+              />
             </Box>
           </TabPanel>
 
@@ -1450,6 +1497,7 @@ const TradexTVDashboard = () => {
                   </Tbody>
                 </Table>
               </Box>
+
             </Box>
           </TabPanel>
 

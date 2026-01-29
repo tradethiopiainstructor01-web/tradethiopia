@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useContext } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Heading,
@@ -39,7 +39,7 @@ import {
   fetchContentTrackerEntries,
   updateContentTrackerEntry,
 } from '../../services/contentTrackerService';
-import AuthContext from '../../context/AuthContext.jsx';
+import { useUserStore } from '../../store/user';
 import {
   REQUIRED_COUNTS,
   SHARE_TARGET,
@@ -67,13 +67,13 @@ const ContentTrackerPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [shareEdits, setShareEdits] = useState({});
-  const { user } = useContext(AuthContext);
+  const currentUser = useUserStore((state) => state.currentUser);
   const [selectedMonth, setSelectedMonth] = useState(buildMonthKey());
   const isSalesManager = useMemo(() => {
-    if (!user) return false;
-    const normalized = (user.normalizedRole || user.role || '').toString().toLowerCase();
+    if (!currentUser) return false;
+    const normalized = (currentUser.normalizedRole || currentUser.role || '').toString().toLowerCase();
     return normalized.includes('salesmanager');
-  }, [user]);
+  }, [currentUser]);
   const toast = useToast();
   const {
     isOpen: isViewOpen,
@@ -85,7 +85,7 @@ const ContentTrackerPage = () => {
 
   const normalizeResponsePayload = (payload) => payload?.data ?? payload;
 
-  const userKey = useMemo(() => normalizeAgentKey(user), [user]);
+  const userKey = useMemo(() => normalizeAgentKey(currentUser), [currentUser]);
   const agentSummaries = useMemo(() => summarizeEntriesByAgent(contentRows, selectedMonth), [contentRows, selectedMonth]);
   const summaryMap = useMemo(() => mapSummariesByKey(agentSummaries), [agentSummaries]);
   const monthlyStats = useMemo(() => {

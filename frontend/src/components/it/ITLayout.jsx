@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUserStore } from '../../store/user';
+import { normalizeRole, useUserStore } from '../../store/user';
 import {
   Avatar,
   Badge,
@@ -80,6 +80,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import KpiScorecardSection from '../kpi/KpiScorecardSection';
 
 const INTERNAL_PROJECTS = [
   'Tradeethiopian.com',
@@ -531,6 +532,10 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
   const { colorMode, toggleColorMode } = useColorMode();
   const navigate = useNavigate();
   const clearUser = useUserStore((state) => state.clearUser);
+  const users = useUserStore((state) => state.users);
+  const usersLoading = useUserStore((state) => state.loading);
+  const usersError = useUserStore((state) => state.error);
+  const fetchUsers = useUserStore((state) => state.fetchUsers);
   const [activeSection, setActiveSection] = useState(initialTab);
   const [tasks, setTasks] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -590,6 +595,12 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
       console.warn('Unable to persist weekly target', err);
     }
   }, [weeklyTarget]);
+
+  useEffect(() => {
+    if (users.length === 0 && !usersLoading && !usersError) {
+      fetchUsers();
+    }
+  }, [users.length, usersLoading, usersError, fetchUsers]);
 
   const handleToggleStatus = (taskId) => {
     setTasks((prev) =>
@@ -701,6 +712,22 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
     const combinedPool = [...new Set([...defaultStaffPool, ...assigneesFromTasks])].sort();
     return combinedPool;
   }, [tasks]);
+
+  const itUsers = useMemo(
+    () => (users || []).filter((user) => normalizeRole(user.role || user.userRole) === 'it'),
+    [users]
+  );
+
+  const itKpiMembers = useMemo(() => {
+    if (itUsers.length) {
+      return itUsers.map((user) => {
+        const id = user._id || user.id || user.email || user.username || user.fullName || user.name;
+        const name = user.fullName || user.username || user.name || user.email || 'IT Staff';
+        return { id: String(id || name), name };
+      });
+    }
+    return staffPool.map((name) => ({ id: name, name }));
+  }, [itUsers, staffPool]);
 
   const staffPerformance = useMemo(() => {
     const stats = staffPool.map((name) => {
@@ -939,6 +966,7 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
           />
         </CardBody>
       </Card>
+
     </VStack>
   );
 
@@ -1062,6 +1090,20 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
           </TableContainer>
         </CardBody>
       </Card>
+    </VStack>
+  );
+
+  const renderKpi = () => (
+    <VStack spacing={6} align="stretch">
+      <KpiScorecardSection
+        title="IT KPI Scorecard"
+        description="Enter each team member's target, achieved amount, core output, and absences to calculate the KPI result."
+        storageKey="kpi-it-scores-v1"
+        members={itKpiMembers}
+        isLoading={usersLoading && itUsers.length === 0}
+        nameLabel="IT Staff"
+        emptyLabel="No IT staff found."
+      />
     </VStack>
   );
 
@@ -1225,6 +1267,7 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
     internal: renderInternal(),
     external: renderExternal(),
     performance: renderPerformance(),
+    kpi: renderKpi(),
     reports: renderReports(),
   };
 
@@ -1271,6 +1314,12 @@ const ITLayout = ({ initialTab = 'dashboard' }) => {
               icon={FiBarChart2}
               isActive={activeSection === 'performance'}
               onClick={() => setActiveSection('performance')}
+            />
+            <SidebarButton
+              label="KPI"
+              icon={FiTarget}
+              isActive={activeSection === 'kpi'}
+              onClick={() => setActiveSection('kpi')}
             />
             <SidebarButton
               label="Reports"

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Card,
@@ -43,8 +43,6 @@ import {
   AlertDialogFooter,
 } from "@chakra-ui/react";
 import { useToast } from "@chakra-ui/react";
-import { getCustomerServiceUsers } from "../../services/customerKPIService";
-import Layout from "../../components/customer/Layout";
 
 // Helper to get ISO week number
 const getISOWeek = (dateObj) => {
@@ -55,11 +53,18 @@ const getISOWeek = (dateObj) => {
   return weekNo;
 };
 
-const CustomerKPIPage = () => {
-  const [agents, setAgents] = useState([]);
-  const [loading, setLoading] = useState(true);
+const KpiScorecardSection = ({
+  title = "KPI Scorecard",
+  description = "",
+  storageKey = "kpi-scorecard-v1",
+  members = [],
+  nameLabel = "Member",
+  emptyLabel = "No members found.",
+  isLoading = false,
+}) => {
+  const [rows, setRows] = useState([]);
   const [error, setError] = useState(null);
-  const [periodType, setPeriodType] = useState("month"); // month or week
+  const [periodType, setPeriodType] = useState("month");
   const [periodValue, setPeriodValue] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -74,8 +79,6 @@ const CustomerKPIPage = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const cancelRef = useRef();
 
-  // helpers for local persistence
-  const storageKey = "csm-kpi-scores-v1";
   const periodKey = (type, value) => `${type}:${value}`;
 
   const loadSavedRows = (type, value) => {
@@ -112,7 +115,7 @@ const CustomerKPIPage = () => {
   };
 
   const saveCurrent = () => {
-    const payload = agents.reduce((acc, row) => {
+    const payload = rows.reduce((acc, row) => {
       acc[row.id] = {
         target: row.target,
         achieved: row.achieved,
@@ -135,7 +138,7 @@ const CustomerKPIPage = () => {
       setSavedItems(loadSavedList());
       toast({
         title: "KPIs saved",
-        description: `Saved ${Object.keys(payload).length} reps for ${periodType} ${periodValue}.`,
+        description: `Saved ${Object.keys(payload).length} entries for ${periodType} ${periodValue}.`,
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -154,85 +157,24 @@ const CustomerKPIPage = () => {
   };
 
   useEffect(() => {
-    const loadAgents = async () => {
-      try {
-        setLoading(true);
-        const data = await getCustomerServiceUsers();
-        const saved = loadSavedRows(periodType, periodValue);
-        const rows = (data || []).map((user) => ({
-          id: user._id,
-          name: user.fullName || user.username || "Customer Service",
-          target: saved[user._id]?.target || 0,
-          achieved: saved[user._id]?.achieved || 0,
-          coreOutput: saved[user._id]?.coreOutput || 0,
-          absents: saved[user._id]?.absents || 0,
-        }));
-
-        // Ensure current Customer Success Manager is present in the list
-        try {
-          const rawUser =
-            localStorage.getItem("user") ||
-            localStorage.getItem("userInfo") ||
-            localStorage.getItem("userData");
-          if (rawUser) {
-            const parsed = JSON.parse(rawUser);
-            const currentId = parsed?._id || parsed?.user?._id || parsed?.userId;
-            const role =
-              parsed?.role ||
-              parsed?.user?.role ||
-              parsed?.userRole ||
-              parsed?.user?.userRole ||
-              "";
-            const isCSManager = (role || "").toString().toLowerCase() === "customersuccessmanager";
-            if (isCSManager && currentId && !rows.find((r) => r.id === currentId)) {
-              rows.push({
-                id: currentId,
-                name: parsed?.fullName || parsed?.user?.fullName || parsed?.username || "Customer Success Manager",
-                target: saved[currentId]?.target || 0,
-                achieved: saved[currentId]?.achieved || 0,
-                coreOutput: saved[currentId]?.coreOutput || 0,
-                absents: saved[currentId]?.absents || 0,
-              });
-            }
-          }
-        } catch (e) {
-          console.warn("Could not add current CSM to KPI list", e);
-        }
-
-        setAgents(rows);
-        setError(null);
-      } catch (err) {
-        console.error("Error loading CS agents for KPI table", err);
-        // Fallback: try using saved rows if available
-        const saved = loadSavedRows(periodType, periodValue);
-        const savedRows = Object.entries(saved).map(([id, row]) => ({
-          id,
-          name: `Saved User ${id.slice(0, 6)}`,
-          target: row?.target || 0,
-          achieved: row?.achieved || 0,
-          coreOutput: row?.coreOutput || 0,
-          absents: row?.absents || 0,
-        }));
-        if (savedRows.length) {
-          setAgents(savedRows);
-          setError("Live list unavailable; showing last saved KPI entries.");
-        } else {
-          setAgents([]);
-          setError("Failed to load customer service users");
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    const saved = loadSavedRows(periodType, periodValue);
+    const mapped = (members || []).map((member) => ({
+      id: member.id,
+      name: member.name,
+      target: saved[member.id]?.target || 0,
+      achieved: saved[member.id]?.achieved || 0,
+      coreOutput: saved[member.id]?.coreOutput || 0,
+      absents: saved[member.id]?.absents || 0,
+    }));
+    setRows(mapped);
     setSavedItems(loadSavedList());
-    loadAgents();
-  }, [periodType, periodValue]);
+    setError(null);
+  }, [members, periodType, periodValue]);
 
   const handleChange = (id, field, value) => {
     const numeric = Number(value);
-    setAgents((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, [field]: Number.isNaN(numeric) ? 0 : numeric } : row))
+    setRows((items) =>
+      items.map((row) => (row.id === id ? { ...row, [field]: Number.isNaN(numeric) ? 0 : numeric } : row))
     );
   };
 
@@ -249,23 +191,24 @@ const CustomerKPIPage = () => {
     return { achievementPct, coreOutputPct, attendancePenalty, final };
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <Flex justify="center" align="center" minH="60vh">
-        <Spinner size="xl" />
+      <Flex justify="center" align="center" minH="200px">
+        <Spinner size="lg" />
       </Flex>
     );
   }
 
   return (
-    <Layout>
-      <Box p={6}>
-      <Heading size="lg" mb={2}>
-        Customer Service KPI Scorecard
+    <Box>
+      <Heading size="md" mb={2}>
+        {title}
       </Heading>
-      <Text color="gray.600" mb={4}>
-        Enter each customer service rep's target, achieved amount, core output, and absences to see their KPI result. Save per period for later review.
-      </Text>
+      {description ? (
+        <Text color="gray.600" mb={4}>
+          {description}
+        </Text>
+      ) : null}
 
       <Card mb={5} boxShadow="lg">
         <CardBody>
@@ -336,20 +279,20 @@ const CustomerKPIPage = () => {
 
       <Card>
         <CardHeader pb={2}>
-          <Heading size="md">Customer Service KPI Inputs</Heading>
+          <Heading size="sm">{nameLabel} KPI Inputs</Heading>
           <Text color="gray.600" fontSize="sm">
             Result = 50% achievement + 50% core output, minus 1% per absence.
           </Text>
         </CardHeader>
         <CardBody>
-          {agents.length === 0 ? (
-            <Text color="gray.500">No customer service reps found.</Text>
+          {rows.length === 0 ? (
+            <Text color="gray.500">{emptyLabel}</Text>
           ) : (
             <TableContainer>
               <Table size="sm">
                 <Thead>
                   <Tr>
-                    <Th>Customer Service Rep</Th>
+                    <Th>{nameLabel}</Th>
                     <Th>Target</Th>
                     <Th>Achieved</Th>
                     <Th>Core Output</Th>
@@ -358,7 +301,7 @@ const CustomerKPIPage = () => {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {agents.map((row) => {
+                  {rows.map((row) => {
                     const { achievementPct, coreOutputPct, attendancePenalty, final } = calcScore(row);
                     return (
                       <Tr key={row.id}>
@@ -458,7 +401,12 @@ const CustomerKPIPage = () => {
           <DrawerBody>
             <Stack spacing={3}>
               <HStack spacing={2} align="center">
-                <ChakraSelect size="sm" width="140px" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                <ChakraSelect
+                  size="sm"
+                  width="140px"
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                >
                   <option value="all">All types</option>
                   <option value="month">Monthly</option>
                   <option value="week">Weekly</option>
@@ -502,7 +450,7 @@ const CustomerKPIPage = () => {
                           <Flex justify="space-between" align="center" mb={2}>
                             <HStack spacing={2}>
                               <Badge colorScheme="purple" variant="subtle">
-                                {Object.keys(item.rows || {}).length} reps
+                                {Object.keys(item.rows || {}).length} entries
                               </Badge>
                             </HStack>
                             <HStack spacing={2}>
@@ -512,14 +460,14 @@ const CustomerKPIPage = () => {
                                 onClick={() => {
                                   setPeriodType(item.type);
                                   setPeriodValue(item.value);
-                                  const rows = item.rows || {};
-                                  setAgents((prev) =>
+                                  const savedRows = item.rows || {};
+                                  setRows((prev) =>
                                     prev.map((row) => ({
                                       ...row,
-                                      target: rows[row.id]?.target || 0,
-                                      achieved: rows[row.id]?.achieved || 0,
-                                      coreOutput: rows[row.id]?.coreOutput || 0,
-                                      absents: rows[row.id]?.absents || 0,
+                                      target: savedRows[row.id]?.target || 0,
+                                      achieved: savedRows[row.id]?.achieved || 0,
+                                      coreOutput: savedRows[row.id]?.coreOutput || 0,
+                                      absents: savedRows[row.id]?.absents || 0,
                                     }))
                                   );
                                   setIsDrawerOpen(false);
@@ -556,14 +504,14 @@ const CustomerKPIPage = () => {
         </DrawerContent>
       </Drawer>
 
-      {/* Preview modal-like drawer for a saved set */}
+      {/* Preview drawer for a saved set */}
       {previewItem && (
         <Drawer isOpen={isPreviewOpen} placement="left" onClose={() => setIsPreviewOpen(false)} size="xl">
           <DrawerOverlay />
           <DrawerContent>
             <DrawerCloseButton />
             <DrawerHeader>
-              Saved KPIs – {previewItem.type} {previewItem.value}
+              Saved KPIs - {previewItem.type} {previewItem.value}
             </DrawerHeader>
             <DrawerBody>
               <Text fontSize="sm" color="gray.500" mb={3}>
@@ -573,7 +521,7 @@ const CustomerKPIPage = () => {
                 <Table size="sm">
                   <Thead>
                     <Tr>
-                      <Th>Customer Service Rep</Th>
+                      <Th>{nameLabel}</Th>
                       <Th isNumeric>Target</Th>
                       <Th isNumeric>Achieved</Th>
                       <Th isNumeric>Core Output</Th>
@@ -582,16 +530,16 @@ const CustomerKPIPage = () => {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {Object.entries(previewItem.rows || {}).map(([agentId, row]) => {
-                      const displayName = agents.find((a) => a.id === agentId)?.name || agentId;
-                      const { achievementPct, attendancePenalty, final } = calcScore({
+                    {Object.entries(previewItem.rows || {}).map(([memberId, row]) => {
+                      const displayName = rows.find((r) => r.id === memberId)?.name || memberId;
+                      const { final } = calcScore({
                         target: row.target,
                         achieved: row.achieved,
                         coreOutput: row.coreOutput,
                         absents: row.absents,
                       });
                       return (
-                        <Tr key={agentId}>
+                        <Tr key={memberId}>
                           <Td>{displayName}</Td>
                           <Td isNumeric>{row.target}</Td>
                           <Td isNumeric>{row.achieved}</Td>
@@ -613,7 +561,6 @@ const CustomerKPIPage = () => {
         </Drawer>
       )}
 
-      {/* Confirm Save Dialog */}
       <AlertDialog
         isOpen={isConfirmOpen}
         leastDestructiveRef={cancelRef}
@@ -629,7 +576,7 @@ const CustomerKPIPage = () => {
               <Text mb={2}>Please double-check values. Once submitted, this KPI snapshot cannot be edited.</Text>
               <Text fontWeight="semibold">Period:</Text>
               <Text mb={1}>
-                {periodType.toUpperCase()} — {periodValue}
+                {periodType.toUpperCase()} - {periodValue}
               </Text>
               <Text fontSize="sm" color="gray.600">
                 Tip: If you need changes later, save a new snapshot for the same period.
@@ -648,15 +595,14 @@ const CustomerKPIPage = () => {
                   saveCurrent();
                 }}
               >
-                Submit & Save
+                Submit and Save
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
-      </Box>
-    </Layout>
+    </Box>
   );
 };
 
-export default CustomerKPIPage;
+export default KpiScorecardSection;

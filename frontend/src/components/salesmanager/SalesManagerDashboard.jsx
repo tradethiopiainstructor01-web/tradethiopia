@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -16,6 +16,7 @@ import {
   StatHelpText,
   StatArrow,
   Icon,
+  Input,
   useColorModeValue,
   useBreakpointValue,
   SimpleGrid,
