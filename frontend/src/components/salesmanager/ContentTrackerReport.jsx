@@ -47,14 +47,42 @@ import {
 
 const contentTypeOptions = ['Video', 'Graphics', 'Live Session', 'Testimonial'];
 
+const getWeekDateRange = (weekValue) => {
+  if (!weekValue) return null;
+  const match = weekValue.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return null;
+  const [, yearPart, weekPart] = match;
+  const year = Number(yearPart);
+  const week = Number(weekPart);
+  const simple = new Date(Date.UTC(year, 0, 4 + (week - 1) * 7));
+  const day = simple.getUTCDay();
+  const isoWeekStart = new Date(simple);
+  isoWeekStart.setUTCDate(simple.getUTCDate() - ((day + 6) % 7));
+  const isoWeekEnd = new Date(isoWeekStart);
+  isoWeekEnd.setUTCDate(isoWeekStart.getUTCDate() + 6);
+  const formatDate = (date) => date.toISOString().split('T')[0];
+  return { start: formatDate(isoWeekStart), end: formatDate(isoWeekEnd) };
+};
+
 const getEntryId = (entry) => entry?._id ?? entry?.id ?? entry;
 
 const normalizePayload = (payload) => payload?.data ?? payload;
 
+const formatAgentName = (entry) => {
+  const creator = entry?.createdBy;
+  if (!creator) return 'Unknown agent';
+  const nameParts = [creator.firstName, creator.lastName].filter(Boolean);
+  if (nameParts.length) {
+    return nameParts.join(' ');
+  }
+  return creator.fullName || creator.username || creator.email || 'Unknown agent';
+};
+
 const ContentTrackerReport = () => {
   const [entries, setEntries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState('');
+  const [filterMode, setFilterMode] = useState('date');
+  const [filterValue, setFilterValue] = useState('');
   const [error, setError] = useState('');
   const [selectedEntry, setSelectedEntry] = useState(null);
   const toast = useToast();
@@ -109,13 +137,22 @@ const ContentTrackerReport = () => {
   }, []);
 
   const filteredEntries = useMemo(() => {
-    if (!filterDate) return entries;
+    if (!filterValue) return entries;
+    if (filterMode === 'week') {
+      const range = getWeekDateRange(filterValue);
+      if (!range) return entries;
+      return entries.filter((entry) => {
+        if (!entry?.date) return false;
+        const rowDate = new Date(entry.date).toISOString().split('T')[0];
+        return rowDate >= range.start && rowDate <= range.end;
+      });
+    }
     return entries.filter((entry) => {
       if (!entry?.date) return false;
       const rowDate = new Date(entry.date).toISOString().split('T')[0];
-      return rowDate === filterDate;
+      return rowDate === filterValue;
     });
-  }, [entries, filterDate]);
+  }, [entries, filterMode, filterValue]);
 
   const openApproveModal = (entry) => {
     setSelectedEntry(entry);
@@ -250,89 +287,95 @@ const ContentTrackerReport = () => {
 
     return (
       <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200">
-        <Table variant="simple">
-          <Thead bg="gray.50">
-            <Tr>
-              <Th>Date</Th>
-              <Th>Content</Th>
-              <Th>Type</Th>
-              <Th>Link</Th>
-              <Th>Approved</Th>
-              <Th>Actions</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {filteredEntries.map((entry) => {
-              const id = getEntryId(entry);
-              return (
-                <Tr key={id}>
-                  <Td>{entry?.date ? new Date(entry.date).toISOString().split('T')[0] : '—'}</Td>
-                  <Td>
-                    <Text fontWeight="semibold">{entry.title}</Text>
-                    <Text fontSize="sm" color="gray.500">
-                      {entry.description || 'No description provided.'}
-                    </Text>
-                  </Td>
-                  <Td>{entry.type || '—'}</Td>
-                  <Td>
-                    <HStack spacing={2}>
-                      <FaLink />
-                      <Box
-                        as="a"
-                        href={entry.link || '#'}
-                        target="_blank"
-                        rel="noreferrer"
-                        color="teal.500"
-                      >
-                        {entry.link ? 'View post' : 'No link yet'}
-                      </Box>
-                    </HStack>
-                  </Td>
-                  <Td>
-                <Badge colorScheme={entry.approved ? 'green' : 'yellow'}>
-                  {entry.approved ? 'Yes' : 'No'}
-                </Badge>
-              </Td>
-              <Td>
-                <Stack direction="row" spacing={2}>
-                  <Button
-                    size="sm"
-                    colorScheme="teal"
-                    variant="outline"
-                    onClick={() => openApproveModal(entry)}
-                    isDisabled={entry.approved}
-                  >
-                    {entry.approved ? 'Approved' : 'Approve'}
-                  </Button>
-                  <IconButton
-                    aria-label="View entry"
-                    icon={<FaEye />}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => openViewModal(entry)}
-                  />
-                  <IconButton
-                    aria-label="Edit entry"
-                    icon={<FaEdit />}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => openEditModal(entry)}
-                  />
-                  <IconButton
-                    aria-label="Delete entry"
-                    icon={<FaTrash />}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => openDeleteModal(entry)}
-                  />
-                </Stack>
-              </Td>
-            </Tr>
-          );
-        })}
-          </Tbody>
-        </Table>
-      </Box>
+          <Table variant="simple">
+            <Thead bg="gray.50">
+              <Tr>
+                <Th>Date</Th>
+                <Th>Content</Th>
+                <Th>Agent</Th>
+                <Th>Type</Th>
+                <Th>Link</Th>
+                <Th>Approved</Th>
+                <Th>Actions</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {filteredEntries.map((entry) => {
+                const id = getEntryId(entry);
+                return (
+                  <Tr key={id}>
+                    <Td>{entry?.date ? new Date(entry.date).toISOString().split('T')[0] : '—'}</Td>
+                    <Td>
+                      <Text fontWeight="semibold">{entry.title}</Text>
+                      <Text fontSize="sm" color="gray.500">
+                        {entry.description || 'No description provided.'}
+                      </Text>
+                    </Td>
+                    <Td>
+                      <Text fontSize="sm" color="gray.600">
+                        {formatAgentName(entry)}
+                      </Text>
+                    </Td>
+                    <Td>{entry.type || '—'}</Td>
+                    <Td>
+                      <HStack spacing={2}>
+                        <FaLink />
+                        <Box
+                          as="a"
+                          href={entry.link || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          color="teal.500"
+                        >
+                          {entry.link ? 'View post' : 'No link yet'}
+                        </Box>
+                      </HStack>
+                    </Td>
+                    <Td>
+                      <Badge colorScheme={entry.approved ? 'green' : 'yellow'}>
+                        {entry.approved ? 'Yes' : 'No'}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Stack direction="row" spacing={2}>
+                        <Button
+                          size="sm"
+                          colorScheme="teal"
+                          variant="outline"
+                          onClick={() => openApproveModal(entry)}
+                          isDisabled={entry.approved}
+                        >
+                          {entry.approved ? 'Approved' : 'Approve'}
+                        </Button>
+                        <IconButton
+                          aria-label="View entry"
+                          icon={<FaEye />}
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openViewModal(entry)}
+                        />
+                        <IconButton
+                          aria-label="Edit entry"
+                          icon={<FaEdit />}
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEditModal(entry)}
+                        />
+                        <IconButton
+                          aria-label="Delete entry"
+                          icon={<FaTrash />}
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openDeleteModal(entry)}
+                        />
+                      </Stack>
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </Tbody>
+          </Table>
+        </Box>
     );
   };
 
@@ -342,14 +385,36 @@ const ContentTrackerReport = () => {
         <Heading size="lg">Content Tracker Report</Heading>
         <Box>
           <Text fontSize="sm" color="gray.500" mb={1}>
-            Filter by date
+            Filter entries
           </Text>
-          <Input
-            type="date"
-            value={filterDate}
-            onChange={(event) => setFilterDate(event.target.value)}
-            max="2026-12-31"
-          />
+          <Flex gap={2} wrap="wrap" align="flex-end">
+            <Select
+              value={filterMode}
+              onChange={(event) => {
+                setFilterMode(event.target.value);
+                setFilterValue('');
+              }}
+              minW="130px"
+            >
+              <option value="date">Day</option>
+              <option value="week">Week</option>
+            </Select>
+            {filterMode === 'week' ? (
+              <Input
+                type="week"
+                value={filterValue}
+                onChange={(event) => setFilterValue(event.target.value)}
+                max="2026-W52"
+              />
+            ) : (
+              <Input
+                type="date"
+                value={filterValue}
+                onChange={(event) => setFilterValue(event.target.value)}
+                max="2026-12-31"
+              />
+            )}
+          </Flex>
         </Box>
       </Flex>
 
@@ -411,6 +476,12 @@ const ContentTrackerReport = () => {
                 </Text>
                 <Text fontWeight="semibold" mb={2}>
                   {viewEntry.type || '—'}
+                </Text>
+                <Text fontSize="sm" mb={1} color="gray.500">
+                  Agent
+                </Text>
+                <Text fontWeight="semibold" mb={2}>
+                  {formatAgentName(viewEntry)}
                 </Text>
                 <Text fontSize="sm" mb={1} color="gray.500">
                   Link

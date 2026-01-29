@@ -13,7 +13,34 @@ exports.getEntries = async (req, res) => {
       query.approved = req.query.approved === 'true';
     }
 
-    if (req.query.date) {
+    const buildDayBoundary = (value, isStart) => {
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return null;
+      if (isStart) {
+        parsed.setHours(0, 0, 0, 0);
+      } else {
+        parsed.setHours(23, 59, 59, 999);
+      }
+      return parsed;
+    };
+
+    const dateRangeFilters = {};
+    if (req.query.dateFrom) {
+      const startDate = buildDayBoundary(req.query.dateFrom, true);
+      if (startDate) {
+        dateRangeFilters.$gte = startDate;
+      }
+    }
+    if (req.query.dateTo) {
+      const endDate = buildDayBoundary(req.query.dateTo, false);
+      if (endDate) {
+        dateRangeFilters.$lte = endDate;
+      }
+    }
+
+    if (Object.keys(dateRangeFilters).length > 0) {
+      query.date = dateRangeFilters;
+    } else if (req.query.date) {
       const parsedDate = new Date(req.query.date);
       if (!isNaN(parsedDate.getTime())) {
         const startOfDay = new Date(parsedDate);

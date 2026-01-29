@@ -23,6 +23,7 @@ import {
   SkeletonText,
   SkeletonCircle,
   Button,
+  Checkbox,
   Select,
   Alert,
   AlertIcon,
@@ -94,6 +95,7 @@ import { getDashboardStats, getSalesForecast, getTeamPerformance, getAllAgents }
 import { getPendingReceptionCustomers, assignCustomerToAgent } from '../../services/salesWorkflowService';
 import { getTasksForManager, getTaskStats } from '../../services/taskService';
 import { useUserStore } from '../../store/user';
+import { fetchContentTrackerEntries } from '../../services/contentTrackerService';
 
 // Register ChartJS components
 ChartJS.register(
@@ -162,6 +164,35 @@ const generateMockForecast = () => {
   };
 };
 
+const normalizeAgentKey = (entity) => {
+  if (!entity) return null;
+  if (typeof entity === 'string') {
+    const trimmed = entity.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (entity._id) return entity._id.toString();
+  if (entity.username) return entity.username.toLowerCase();
+  if (entity.fullName) return entity.fullName.toLowerCase().replace(/\\s+/g, '');
+  return null;
+};
+
+const normalizeTrackerResponse = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  return payload?.data ?? payload ?? [];
+};
+
+const getCurrentWeekRange = (referenceDate = new Date()) => {
+  const day = referenceDate.getDay();
+  const mondayOffset = (day + 6) % 7;
+  const start = new Date(referenceDate);
+  start.setDate(referenceDate.getDate() - mondayOffset);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+};
+
 // Debug wrapper component (removed)
 // const DebugWrapper = ({ children }) => {
 //   console.log('DebugWrapper rendered');
@@ -180,7 +211,8 @@ const SalesManagerDashboard = () => {
   console.log('LocalStorage userRole:', localStorage.getItem('userRole'));
   
   const [activeTab, setActiveTab] = useState(0);
-  const [timeRange, setTimeRange] = useState('month');
+  const [weeklyView, setWeeklyView] = useState(true);
+  const timeRange = weeklyView ? 'week' : 'month';
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalAgents: 0,
@@ -203,7 +235,7 @@ const SalesManagerDashboard = () => {
     confidence: []
   });
   
-  const [teamPerformance, setTeamPerformance] = useState([]);
+  const [teamPerformance, setTeamPerformance] = useState({ agentPerformance: [] });
   const [recentActivities, setRecentActivities] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [taskStats, setTaskStats] = useState({
@@ -219,6 +251,9 @@ const SalesManagerDashboard = () => {
   const [agentRoster, setAgentRoster] = useState([]);
   const [selectedAssignees, setSelectedAssignees] = useState({});
   const [error, setError] = useState(null);
+  const [weeklyContentCounts, setWeeklyContentCounts] = useState({});
+  const [weeklyContentLoading, setWeeklyContentLoading] = useState(false);
+  const [weeklyContentError, setWeeklyContentError] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const chartRef = useRef(null);
   const navigate = useNavigate();
@@ -445,9 +480,42 @@ const SalesManagerDashboard = () => {
     }
   };
 
+  const loadWeeklyContentCounts = useCallback(async () => {
+    setWeeklyContentLoading(true);
+    setWeeklyContentError(null);
+    try {
+      const { start, end } = getCurrentWeekRange();
+      const response = await fetchContentTrackerEntries({
+        approved: true,
+        dateFrom: start.toISOString(),
+        dateTo: end.toISOString()
+      });
+      const entries = normalizeTrackerResponse(response);
+      const counts = entries.reduce((acc, entry) => {
+        const creator = entry?.createdBy;
+        const key = normalizeAgentKey(creator);
+        if (!key) return acc;
+        if (!acc[key]) {
+          acc[key] = {
+            count: 0,
+            name: creator?.fullName || creator?.username || 'Unknown'
+          };
+        }
+        acc[key].count += 1;
+        return acc;
+      }, {});
+      setWeeklyContentCounts(counts);
+    } catch (err) {
+      console.error('Error fetching weekly content counts:', err);
+      setWeeklyContentError('Unable to load weekly approved posts.');
+    } finally {
+      setWeeklyContentLoading(false);
+    }
+  }, []);
+
   const fetchAllData = useCallback(async () => {
     console.log('Starting data fetch...');
-    console.log('Current timeRange:', timeRange);
+    console.log('Weekly view:', weeklyView, 'timeRange:', timeRange);
     try {
       setLoading(true);
       setError(null);
@@ -458,6 +526,7 @@ const SalesManagerDashboard = () => {
         fetchAgentData(),
         fetchRecentActivities(),
         fetchTaskData(),
+        loadWeeklyContentCounts(),
         fetchAgentRoster(),
         fetchPendingAssignments()
       ]);
@@ -474,7 +543,7 @@ const SalesManagerDashboard = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [timeRange, fetchAgentRoster, fetchPendingAssignments]);
+  }, [weeklyView, fetchAgentRoster, fetchPendingAssignments, loadWeeklyContentCounts]);
 
   useEffect(() => {
     console.log('SalesManagerDashboard mounted or updated');
@@ -609,13 +678,14 @@ const SalesManagerDashboard = () => {
     fetchAllData();
   };
 
-  // Handle time range change
-  const handleTimeRangeChange = (range) => {
-    setTimeRange(range);
-  };
-
   // Calculate progress percentage
   const progressPercentage = Math.min(Math.round((stats.totalTeamGrossCommission / (stats.revenueTarget || 1)) * 100), 100);
+
+  const getWeeklyPostCount = (agent) => {
+    const key = normalizeAgentKey(agent);
+    if (!key) return 0;
+    return weeklyContentCounts[key]?.count ?? 0;
+  };
 
   console.log('Rendering dashboard with state:', { loading, error, stats });
 
@@ -857,18 +927,14 @@ const SalesManagerDashboard = () => {
                   <Heading size="sm" color={textColor}>
                     Sales Overview
                   </Heading>
-                  <Select 
-                    size="xs" 
-                    w="fit-content" 
-                    value={timeRange}
-                    onChange={(e) => handleTimeRangeChange(e.target.value)}
-                    variant="filled"
+                  <Checkbox
+                    size="sm"
+                    colorScheme="teal"
+                    isChecked={weeklyView}
+                    onChange={(event) => setWeeklyView(event.target.checked)}
                   >
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                    <option value="quarter">This Quarter</option>
-                    <option value="year">This Year</option>
-                  </Select>
+                    Weekly view only
+                  </Checkbox>
                 </Flex>
               </CardHeader>
               <CardBody pt={0}>
@@ -912,19 +978,22 @@ const SalesManagerDashboard = () => {
                   <Heading size="sm" color={textColor}>
                     Agent Sales Report
                   </Heading>
-                  <Select 
-                    size="xs" 
-                    w="fit-content" 
-                    value={timeRange}
-                    onChange={(e) => handleTimeRangeChange(e.target.value)}
-                    variant="filled"
-                  >
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                    <option value="quarter">This Quarter</option>
-                    <option value="year">This Year</option>
-                    <option value="all">All Time</option>
-                  </Select>
+                  <HStack spacing={2} align="center">
+                    <Checkbox
+                      size="sm"
+                      colorScheme="teal"
+                      isChecked={weeklyView}
+                      onChange={(event) => setWeeklyView(event.target.checked)}
+                    >
+                      Weekly view only
+                    </Checkbox>
+                    {weeklyContentLoading && <Spinner size="xs" />}
+                    {weeklyContentError && (
+                      <Text fontSize="xs" color="red.500">
+                        {weeklyContentError}
+                      </Text>
+                    )}
+                  </HStack>
                 </Flex>
               </CardHeader>
               <CardBody pt={0}>
@@ -937,39 +1006,50 @@ const SalesManagerDashboard = () => {
                           <Th px={2} py={1} fontSize="xs" isNumeric>Total Sales Value</Th>
                           <Th px={2} py={1} fontSize="xs" isNumeric>Gross Commission</Th>
                           <Th px={2} py={1} fontSize="xs" isNumeric>Net Commission</Th>
+                          <Th px={2} py={1} fontSize="xs" isNumeric>
+                            Weekly Approved Posts
+                          </Th>
                         </Tr>
                       </Thead>
                       <Tbody>
-                        {teamPerformance.agentPerformance.map((agent, index) => (
-                          <Tr key={agent._id || index}>
-                            <Td px={2} py={1}>
-                              <Flex align="center">
-                                <Avatar 
-                                  size="xs" 
-                                  name={agent.fullName || agent.username} 
-                                  mr={2} 
-                                  bg="teal.500"
-                                />
-                                <Text fontSize="sm" fontWeight="medium">
-                                  {agent.fullName || agent.username}
+                        {teamPerformance.agentPerformance.map((agent, index) => {
+                          const weeklyCount = getWeeklyPostCount(agent);
+                          return (
+                            <Tr key={agent._id || index}>
+                              <Td px={2} py={1}>
+                                <Flex align="center">
+                                  <Avatar 
+                                    size="xs" 
+                                    name={agent.fullName || agent.username} 
+                                    mr={2} 
+                                    bg="teal.500"
+                                  />
+                                  <Text fontSize="sm" fontWeight="medium">
+                                    {agent.fullName || agent.username}
+                                  </Text>
+                                </Flex>
+                              </Td>
+                              <Td px={2} py={1} isNumeric>
+                                <Text fontSize="sm">ETB {(agent.totalSales || 0).toLocaleString()}</Text>
+                              </Td>
+                              <Td px={2} py={1} isNumeric>
+                                <Text fontSize="sm">
+                                  ETB {(agent.totalGrossCommission || 0).toLocaleString()}
                                 </Text>
-                              </Flex>
-                            </Td>
-                            <Td px={2} py={1} isNumeric>
-                              <Text fontSize="sm">ETB {(agent.totalSales || 0).toLocaleString()}</Text>
-                            </Td>
-                            <Td px={2} py={1} isNumeric>
-                              <Text fontSize="sm">
-                                ETB {(agent.totalGrossCommission || 0).toLocaleString()}
-                              </Text>
-                            </Td>
-                            <Td px={2} py={1} isNumeric>
-                              <Text fontSize="sm" fontWeight="bold">
-                                ETB {(agent.totalNetCommission || 0).toLocaleString()}
-                              </Text>
-                            </Td>
-                          </Tr>
-                        ))}
+                              </Td>
+                              <Td px={2} py={1} isNumeric>
+                                <Text fontSize="sm" fontWeight="bold">
+                                  ETB {(agent.totalNetCommission || 0).toLocaleString()}
+                                </Text>
+                              </Td>
+                              <Td px={2} py={1} isNumeric>
+                                <Badge colorScheme={weeklyCount ? 'teal' : 'gray'} fontSize="0.75rem">
+                                  {weeklyCount}
+                                </Badge>
+                              </Td>
+                            </Tr>
+                          );
+                        })}
                       </Tbody>
                     </Table>
                   </Box>
