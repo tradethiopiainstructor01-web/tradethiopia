@@ -96,6 +96,15 @@ import { getPendingReceptionCustomers, assignCustomerToAgent } from '../../servi
 import { getTasksForManager, getTaskStats } from '../../services/taskService';
 import { useUserStore } from '../../store/user';
 import { fetchContentTrackerEntries } from '../../services/contentTrackerService';
+import {
+  buildMonthKey,
+  getMonthRange,
+  normalizeTrackerResponse,
+  normalizeAgentKey,
+  summarizeEntriesByAgent,
+  mapSummariesByKey,
+  BONUS_AMOUNT,
+} from '../../utils/contentTrackerTargets';
 
 // Register ChartJS components
 ChartJS.register(
@@ -162,23 +171,6 @@ const generateMockForecast = () => {
     forecast: forecastData,
     confidence: forecastData.map(() => Math.floor(Math.random() * 30) + 70)
   };
-};
-
-const normalizeAgentKey = (entity) => {
-  if (!entity) return null;
-  if (typeof entity === 'string') {
-    const trimmed = entity.trim();
-    return trimmed ? trimmed : null;
-  }
-  if (entity._id) return entity._id.toString();
-  if (entity.username) return entity.username.toLowerCase();
-  if (entity.fullName) return entity.fullName.toLowerCase().replace(/\\s+/g, '');
-  return null;
-};
-
-const normalizeTrackerResponse = (payload) => {
-  if (Array.isArray(payload)) return payload;
-  return payload?.data ?? payload ?? [];
 };
 
 const getCurrentWeekRange = (referenceDate = new Date()) => {
@@ -254,9 +246,19 @@ const SalesManagerDashboard = () => {
   const [weeklyContentCounts, setWeeklyContentCounts] = useState({});
   const [weeklyContentLoading, setWeeklyContentLoading] = useState(false);
   const [weeklyContentError, setWeeklyContentError] = useState(null);
+  const [contentMonth, setContentMonth] = useState(buildMonthKey());
+  const [contentSummaries, setContentSummaries] = useState([]);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const chartRef = useRef(null);
   const navigate = useNavigate();
+  const initialContentLoadRef = useRef(true);
+  const contentSummaryMap = useMemo(() => mapSummariesByKey(contentSummaries), [contentSummaries]);
+  const contentBonusTotal = useMemo(
+    () => contentSummaries.reduce((sum, summary) => sum + (summary.bonusAmount || 0), 0),
+    [contentSummaries],
+  );
 
   // Responsive breakpoints
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -513,6 +515,34 @@ const SalesManagerDashboard = () => {
     }
   }, []);
 
+  const loadContentSummaries = useCallback(async () => {
+    setContentLoading(true);
+    setContentError(null);
+    try {
+      const range = getMonthRange(contentMonth);
+      if (!range) {
+        setContentSummaries([]);
+        return [];
+      }
+      const response = await fetchContentTrackerEntries({
+        approved: true,
+        dateFrom: range.start.toISOString(),
+        dateTo: range.end.toISOString(),
+      });
+      const entries = normalizeTrackerResponse(response);
+      const summaries = summarizeEntriesByAgent(entries, contentMonth);
+      setContentSummaries(summaries);
+      return summaries;
+    } catch (err) {
+      console.error('Error fetching monthly content summaries:', err);
+      setContentError('Unable to load monthly content completion data.');
+      setContentSummaries([]);
+      return [];
+    } finally {
+      setContentLoading(false);
+    }
+  }, [contentMonth]);
+
   const fetchAllData = useCallback(async () => {
     console.log('Starting data fetch...');
     console.log('Weekly view:', weeklyView, 'timeRange:', timeRange);
@@ -527,6 +557,7 @@ const SalesManagerDashboard = () => {
         fetchRecentActivities(),
         fetchTaskData(),
         loadWeeklyContentCounts(),
+        loadContentSummaries(),
         fetchAgentRoster(),
         fetchPendingAssignments()
       ]);
@@ -543,12 +574,20 @@ const SalesManagerDashboard = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [weeklyView, fetchAgentRoster, fetchPendingAssignments, loadWeeklyContentCounts]);
+  }, [weeklyView, fetchAgentRoster, fetchPendingAssignments, loadWeeklyContentCounts, loadContentSummaries]);
 
   useEffect(() => {
     console.log('SalesManagerDashboard mounted or updated');
     fetchAllData();
   }, [fetchAllData]);
+
+  useEffect(() => {
+    if (initialContentLoadRef.current) {
+      initialContentLoadRef.current = false;
+      return;
+    }
+    loadContentSummaries();
+  }, [contentMonth, loadContentSummaries]);
 
   // Fetch dashboard stats
   const fetchDashboardStats = async () => {
@@ -748,31 +787,53 @@ const SalesManagerDashboard = () => {
       value: `ETB ${(stats.totalTeamGrossCommission || 0).toLocaleString()}`,
       icon: FiDollarSign,
       color: 'purple'
+    },
+    {
+      title: 'Content Bonus Pool',
+      value: `ETB ${(contentBonusTotal || 0).toLocaleString()}`,
+      icon: FiShare2,
+      color: 'orange'
     }
   ];
 
   return (
       <Box p={{ base: 3, md: 4 }} bg={bgColor} minHeight="100vh">
-        <Flex justify="space-between" align="center" mb={4}>
-          <Heading 
-            as="h1" 
-            size={{ base: "md", md: "lg" }}
-            color={textColor}
-            fontWeight="semibold"
-          >
-            Sales Dashboard
-          </Heading>
-          <Button 
-            size="sm" 
-            colorScheme="blue" 
-            variant="ghost" 
-            leftIcon={<FiRefreshCw size={16} />}
-            onClick={handleRefresh}
-            isLoading={isRefreshing}
-          >
-            Refresh
-          </Button>
-        </Flex>
+  <Flex justify="space-between" align="center" mb={4} flexWrap="wrap" gap={3}>
+    <Heading 
+      as="h1" 
+      size={{ base: "md", md: "lg" }}
+      color={textColor}
+      fontWeight="semibold"
+    >
+      Sales Dashboard
+    </Heading>
+    <HStack spacing={3} align="flex-end">
+      <Input
+        type="month"
+        size="sm"
+        value={contentMonth}
+        onChange={(event) => setContentMonth(event.target.value)}
+        max={buildMonthKey()}
+        w="150px"
+      />
+      <Button 
+        size="sm" 
+        colorScheme="blue" 
+        variant="ghost" 
+        leftIcon={<FiRefreshCw size={16} />}
+        onClick={handleRefresh}
+        isLoading={isRefreshing}
+      >
+        Refresh
+      </Button>
+      {contentLoading && <Spinner size="xs" />}
+    </HStack>
+  </Flex>
+  {contentError && (
+    <Text fontSize="sm" color="red.500" mb={4}>
+      {contentError}
+    </Text>
+  )}
 
         {/* Stats Cards */}
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3} mb={5}>
@@ -1006,6 +1067,7 @@ const SalesManagerDashboard = () => {
                           <Th px={2} py={1} fontSize="xs" isNumeric>Total Sales Value</Th>
                           <Th px={2} py={1} fontSize="xs" isNumeric>Gross Commission</Th>
                           <Th px={2} py={1} fontSize="xs" isNumeric>Net Commission</Th>
+                          <Th px={2} py={1} fontSize="xs" isNumeric>Content Bonus</Th>
                           <Th px={2} py={1} fontSize="xs" isNumeric>
                             Weekly Approved Posts
                           </Th>
@@ -1014,6 +1076,9 @@ const SalesManagerDashboard = () => {
                       <Tbody>
                         {teamPerformance.agentPerformance.map((agent, index) => {
                           const weeklyCount = getWeeklyPostCount(agent);
+                          const contentBonusKey = normalizeAgentKey(agent);
+                          const contentSummary = contentBonusKey ? contentSummaryMap[contentBonusKey] : null;
+                          const contentBonus = contentSummary?.bonusAmount || 0;
                           return (
                             <Tr key={agent._id || index}>
                               <Td px={2} py={1}>
@@ -1040,6 +1105,15 @@ const SalesManagerDashboard = () => {
                               <Td px={2} py={1} isNumeric>
                                 <Text fontSize="sm" fontWeight="bold">
                                   ETB {(agent.totalNetCommission || 0).toLocaleString()}
+                                </Text>
+                              </Td>
+                              <Td px={2} py={1} isNumeric>
+                                <Text
+                                  fontSize="sm"
+                                  fontWeight="bold"
+                                  color={contentBonus ? 'green.600' : 'gray.500'}
+                                >
+                                  ETB {contentBonus.toLocaleString()}
                                 </Text>
                               </Td>
                               <Td px={2} py={1} isNumeric>

@@ -37,6 +37,7 @@ import {
   DrawerBody,
   DrawerFooter,
   DrawerCloseButton,
+  SimpleGrid,
 } from '@chakra-ui/react';
 import { FaLink, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import {
@@ -44,9 +45,16 @@ import {
   updateContentTrackerEntry,
   deleteContentTrackerEntry,
 } from '../../services/contentTrackerService';
+import {
+  REQUIRED_COUNTS,
+  SHARE_TARGET,
+  BONUS_AMOUNT,
+  buildMonthKey,
+  formatMonthLabel,
+  summarizeEntriesByAgent,
+} from '../../utils/contentTrackerTargets';
 
 const contentTypeOptions = ['Video', 'Graphics', 'Live Session', 'Testimonial'];
-
 const getWeekDateRange = (weekValue) => {
   if (!weekValue) return null;
   const match = weekValue.match(/^(\d{4})-W(\d{2})$/);
@@ -83,6 +91,7 @@ const ContentTrackerReport = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [filterMode, setFilterMode] = useState('date');
   const [filterValue, setFilterValue] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(buildMonthKey());
   const [error, setError] = useState('');
   const [selectedEntry, setSelectedEntry] = useState(null);
   const toast = useToast();
@@ -108,6 +117,7 @@ const ContentTrackerReport = () => {
   const [editType, setEditType] = useState(contentTypeOptions[0]);
   const [editLink, setEditLink] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editShares, setEditShares] = useState(0);
 
   const loadEntries = async () => {
     setIsLoading(true);
@@ -154,6 +164,24 @@ const ContentTrackerReport = () => {
     });
   }, [entries, filterMode, filterValue]);
 
+  const agentSummaries = useMemo(() => {
+    if (!selectedMonth) return [];
+    return summarizeEntriesByAgent(entries, selectedMonth)
+      .map((summary) => {
+        const name = formatAgentName({ createdBy: summary.agent });
+        return {
+          ...summary,
+          name,
+        };
+      })
+      .sort((a, b) => {
+        if (a.isComplete === b.isComplete) {
+          return (a.name || '').localeCompare(b.name || '');
+        }
+        return a.isComplete ? -1 : 1;
+      });
+  }, [entries, selectedMonth]);
+
   const openApproveModal = (entry) => {
     setSelectedEntry(entry);
     onOpen();
@@ -167,6 +195,7 @@ const ContentTrackerReport = () => {
   const openEditModal = (entry) => {
     setEditEntry(entry);
     setEditType(entry.type || contentTypeOptions[0]);
+    setEditShares(entry.shares ?? 0);
     setEditLink(entry.link || '');
     setEditDescription(entry.description || '');
     onEditOpen();
@@ -189,6 +218,7 @@ const ContentTrackerReport = () => {
 
   const closeEditModal = () => {
     setEditEntry(null);
+    setEditShares(0);
     onEditClose();
   };
 
@@ -289,15 +319,16 @@ const ContentTrackerReport = () => {
       <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200">
           <Table variant="simple">
             <Thead bg="gray.50">
-              <Tr>
-                <Th>Date</Th>
-                <Th>Content</Th>
-                <Th>Agent</Th>
-                <Th>Type</Th>
-                <Th>Link</Th>
-                <Th>Approved</Th>
-                <Th>Actions</Th>
-              </Tr>
+            <Tr>
+              <Th>Date</Th>
+              <Th>Content</Th>
+              <Th>Agent</Th>
+              <Th>Type</Th>
+              <Th>Shares</Th>
+              <Th>Link</Th>
+              <Th>Approved</Th>
+              <Th>Actions</Th>
+            </Tr>
             </Thead>
             <Tbody>
               {filteredEntries.map((entry) => {
@@ -317,6 +348,7 @@ const ContentTrackerReport = () => {
                       </Text>
                     </Td>
                     <Td>{entry.type || '—'}</Td>
+                    <Td>{entry.shares ?? 0}</Td>
                     <Td>
                       <HStack spacing={2}>
                         <FaLink />
@@ -379,6 +411,90 @@ const ContentTrackerReport = () => {
     );
   };
 
+  const renderEligibilitySummary = () => {
+    if (!selectedMonth) {
+      return (
+        <Alert status="info" borderRadius="md">
+          <AlertIcon />
+          Select a month to see who qualifies for the {BONUS_AMOUNT.toLocaleString()} birr bonus.
+        </Alert>
+      );
+    }
+
+    if (!agentSummaries.length) {
+      return (
+        <Alert status="warning" borderRadius="md">
+          <AlertIcon />
+          No approved content has been recorded for {formatMonthLabel(selectedMonth)} yet.
+        </Alert>
+      );
+    }
+
+    return (
+      <Box
+        bg="gray.50"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="md"
+        p={5}
+      >
+        <Flex justify="space-between" align="baseline" flexWrap="wrap" gap={4}>
+          <Text fontSize="lg" fontWeight="semibold">
+            {formatMonthLabel(selectedMonth)} eligibility
+          </Text>
+            <Badge colorScheme="teal" fontSize="0.85rem">
+            {BONUS_AMOUNT.toLocaleString()} birr bonus target
+          </Badge>
+        </Flex>
+        <Text fontSize="sm" color="gray.600" mt={1}>
+          Agents turn green once they deliver at least 2 videos, 2 graphics, 1 live
+          session, 1 testimonial, and {SHARE_TARGET} shares that have been approved this
+          month.
+        </Text>
+
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4} mt={4}>
+          {agentSummaries.map((agent) => (
+            <Box
+              key={agent.agentId}
+              bg={agent.isComplete ? 'green.50' : 'red.50'}
+              borderWidth="1px"
+              borderColor={agent.isComplete ? 'green.200' : 'red.200'}
+              borderRadius="md"
+              p={4}
+            >
+              <Flex justify="space-between" align="center" mb={2}>
+                <Text fontWeight="semibold">{agent.name}</Text>
+                <Badge colorScheme={agent.isComplete ? 'green' : 'red'}>
+                  {agent.isComplete ? 'Eligible' : 'Pending'}
+                </Badge>
+              </Flex>
+              <Stack spacing={0.5}>
+                {Object.entries(REQUIRED_COUNTS).map(([type, target]) => (
+                  <Text fontSize="sm" key={`${agent.agentId}-${type}`}>
+                    {type}: {agent.counts[type]}/{target}
+                  </Text>
+                ))}
+                <Text fontSize="sm">
+                  Shares: {Math.round(agent.shares)}/{SHARE_TARGET}
+                </Text>
+              </Stack>
+              <Text
+                fontSize="sm"
+                fontWeight="bold"
+                mt={2}
+                color={agent.isComplete ? 'green.600' : 'red.600'}
+              >
+                {agent.isComplete
+                  ? `✔ ${BONUS_AMOUNT.toLocaleString()} birr ready`
+                  : 'Criteria still pending'}
+              </Text>
+            </Box>
+          ))}
+        </SimpleGrid>
+      </Box>
+    );
+  };
+
   return (
     <Box>
       <Flex justify="space-between" align="center" mb={4} flexWrap="wrap" gap={4}>
@@ -417,6 +533,21 @@ const ContentTrackerReport = () => {
           </Flex>
         </Box>
       </Flex>
+
+      <Stack spacing={4} mb={6}>
+        <Box>
+          <Text fontSize="sm" color="gray.500" mb={1}>
+            Select month to evaluate
+          </Text>
+          <Input
+            type="month"
+            value={selectedMonth}
+            onChange={(event) => setSelectedMonth(event.target.value)}
+            max="2026-12"
+          />
+        </Box>
+        {renderEligibilitySummary()}
+      </Stack>
 
       {renderTable()}
 
@@ -495,6 +626,12 @@ const ContentTrackerReport = () => {
                 >
                   {viewEntry.link ? viewEntry.link : 'No link provided'}
                 </Text>
+                <Text fontSize="sm" mt={3} mb={1} color="gray.500">
+                  Shares
+                </Text>
+                <Text fontWeight="semibold" mb={2}>
+                  {viewEntry.shares ?? 0}
+                </Text>
               </Box>
             ) : (
               <Text>No entry selected.</Text>
@@ -554,6 +691,21 @@ const ContentTrackerReport = () => {
                   rows={3}
                 />
               </Box>
+              <Box>
+                <Text fontSize="sm" color="gray.600">
+                  Share count
+                </Text>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={editShares}
+                  onChange={(event) => {
+                    const nextValue = Number(event.target.value);
+                    setEditShares(Number.isFinite(nextValue) ? Math.max(0, nextValue) : 0);
+                  }}
+                />
+              </Box>
             </Stack>
           </ModalBody>
           <ModalFooter>
@@ -563,11 +715,12 @@ const ContentTrackerReport = () => {
             <Button colorScheme="teal" onClick={async () => {
                 if (!editEntry) return;
                 try {
-                  const response = await updateContentTrackerEntry(getEntryId(editEntry), {
-                    type: editType,
-                    link: editLink,
-                    description: editDescription,
-                  });
+                const response = await updateContentTrackerEntry(getEntryId(editEntry), {
+                  type: editType,
+                  link: editLink,
+                  description: editDescription,
+                  shares: editShares,
+                });
                   const updated = normalizePayload(response);
                   setEntries((prev) =>
                     prev.map((entry) =>

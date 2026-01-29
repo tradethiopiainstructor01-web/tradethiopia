@@ -49,6 +49,14 @@ import { AddIcon, DownloadIcon, ViewIcon, LockIcon, CheckIcon } from '@chakra-ui
 import { useNavigate } from 'react-router-dom';
 import Layout from '../Layout';
 import { fetchPayrollData, calculatePayroll, submitHrAdjustment, submitFinanceAdjustment, approvePayroll, lockPayroll, fetchCommissionData, submitCommission, deleteCommission, fetchSalesDataForCommission, finalizePayroll, fetchPayrollHistory } from '../../services/payrollService';
+import { fetchContentTrackerEntries } from '../../services/contentTrackerService';
+import {
+  getMonthRange,
+  normalizeTrackerResponse,
+  normalizeAgentKey,
+  summarizeEntriesByAgent,
+  mapSummariesByKey,
+} from '../../utils/contentTrackerTargets';
 
 const PayrollPage = ({ wrapLayout = true }) => {
   const [payrollData, setPayrollData] = useState([]);
@@ -87,6 +95,9 @@ const PayrollPage = ({ wrapLayout = true }) => {
     totalCommission: 0,
     commissionDetails: []
   });
+  const [contentSummaries, setContentSummaries] = useState([]);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState('');
   const [salesData, setSalesData] = useState([]);
   const [loadingSales, setLoadingSales] = useState(false);
   const [commissionDateRange, setCommissionDateRange] = useState({
@@ -127,6 +138,49 @@ const PayrollPage = ({ wrapLayout = true }) => {
   const tableBg = useColorModeValue('white', 'gray.800');
   const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
 
+  const loadPayrollContentSummaries = useCallback(async () => {
+    setContentLoading(true);
+    setContentError('');
+    try {
+      const range = getMonthRange(selectedMonth);
+      if (!range) {
+        setContentSummaries([]);
+        return [];
+      }
+      const response = await fetchContentTrackerEntries({
+        approved: true,
+        dateFrom: range.start.toISOString(),
+        dateTo: range.end.toISOString(),
+      });
+      const entries = normalizeTrackerResponse(response);
+      const summaries = summarizeEntriesByAgent(entries, selectedMonth);
+      setContentSummaries(summaries);
+      return summaries;
+    } catch (err) {
+      console.error('Failed to load content tracker summaries for payroll:', err);
+      setContentError('Unable to load the content tracker bonus data.');
+      setContentSummaries([]);
+      return [];
+    } finally {
+      setContentLoading(false);
+    }
+  }, [selectedMonth]);
+
+  const applyContentBonuses = (data, summaries) => {
+    const summaryMap = mapSummariesByKey(summaries);
+    return data.map((employee) => {
+      const agentKey = normalizeAgentKey(employee.userId);
+      const summary = agentKey ? summaryMap[agentKey] : null;
+      const baseSalary = employee.grossSalary ?? employee.basicSalary ?? 0;
+      const bonus = summary?.bonusAmount || 0;
+      return {
+        ...employee,
+        contentBonus: bonus,
+        grossSalaryWithBonus: baseSalary + bonus,
+      };
+    });
+  };
+
   // Fetch payroll data
 const fetchPayrollDataHandler = async () => {
   try {
@@ -136,7 +190,9 @@ const fetchPayrollDataHandler = async () => {
         department: selectedDepartment,
         role: selectedRole
       });
-      setPayrollData(data);
+      const summaries = await loadPayrollContentSummaries();
+      const baseSummaries = Array.isArray(summaries) && summaries.length ? summaries : contentSummaries;
+      setPayrollData(applyContentBonuses(data, baseSummaries));
       setError('');
     } catch (err) {
       console.error('Error fetching payroll data:', err);
@@ -508,7 +564,7 @@ const fetchPayrollDataHandler = async () => {
           `"${employee.employeeName || employee.userId?.fullName || employee.userId?.username || 'Unknown Employee'}"`,
           employee.department,
           employee.basicSalary || 0,
-          employee.grossSalary || employee.basicSalary || 0,
+          getDisplayGrossSalary(employee),
           employee.incomeTax || 0,
           employee.pension || 0,
           employee.overtimePay || 0,
@@ -567,7 +623,7 @@ const fetchPayrollDataHandler = async () => {
         pdfContent += `${employee.employeeName || employee.userId?.fullName || employee.userId?.username || 'Unknown Employee'}\n`;
         pdfContent += `  Department: ${employee.department}\n`;
         pdfContent += `  Basic Salary: ${formatCurrency(employee.basicSalary || 0)}\n`;
-        pdfContent += `  Gross Salary: ${formatCurrency(employee.grossSalary || employee.basicSalary || 0)}\n`;
+        pdfContent += `  Gross Salary: ${formatCurrency(getDisplayGrossSalary(employee))}\n`;
         pdfContent += `  Income Tax: ${formatCurrency(employee.incomeTax || 0)}\n`;
         pdfContent += `  Pension: ${formatCurrency(employee.pension || 0)}\n`;
         pdfContent += `  Overtime Pay: ${formatCurrency(employee.overtimePay || 0)}\n`;
@@ -1039,6 +1095,10 @@ const fetchPayrollDataHandler = async () => {
     }).format(amount);
   };
   
+  const getDisplayGrossSalary = (employee) => {
+    return employee.grossSalaryWithBonus ?? employee.grossSalary ?? employee.basicSalary ?? 0;
+  };
+  
   // Get status badge color
   const getStatusColor = (status) => {
     switch (status) {
@@ -1217,6 +1277,20 @@ const fetchPayrollDataHandler = async () => {
               </Box>
             </Grid>
             
+            {(contentLoading || contentError) && (
+              <Alert
+                status={contentError ? 'warning' : 'info'}
+                mt={4}
+                mb={4}
+                borderRadius="md"
+              >
+                <AlertIcon />
+                {contentLoading
+                  ? 'Loading content bonus data...'
+                  : contentError}
+              </Alert>
+            )}
+            
             <Flex 
               justify="flex-end" 
               mt={4}
@@ -1248,7 +1322,7 @@ const fetchPayrollDataHandler = async () => {
           />
           <StatCard 
             title="Total Gross Salary" 
-            value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.grossSalary || emp.basicSalary || 0), 0))} 
+            value={formatCurrency(payrollData.reduce((sum, emp) => sum + getDisplayGrossSalary(emp), 0))} 
             color="green.500" 
           />
           <StatCard 
@@ -1268,7 +1342,7 @@ const fetchPayrollDataHandler = async () => {
           />
           <StatCard 
             title="Total Pension (11%)" 
-            value={formatCurrency(payrollData.reduce((sum, emp) => sum + ((emp.grossSalary || emp.basicSalary || 0) * 0.11), 0))} 
+            value={formatCurrency(payrollData.reduce((sum, emp) => sum + (getDisplayGrossSalary(emp) * 0.11), 0))} 
             color="pink.500" 
           />
         </Grid>
@@ -1501,7 +1575,7 @@ const fetchPayrollDataHandler = async () => {
                         </Badge>
                       </Td>
                       <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
-                        {formatCurrency(employee.grossSalary || employee.basicSalary || 0)}
+                        {formatCurrency(getDisplayGrossSalary(employee))}
                       </Td>
                       <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.incomeTax || 0)}
@@ -1510,7 +1584,7 @@ const fetchPayrollDataHandler = async () => {
                         {formatCurrency(employee.pension || 0)}
                       </Td>
                       <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
-                        {formatCurrency((employee.grossSalary || employee.basicSalary || 0) * 0.11)}
+                        {formatCurrency(getDisplayGrossSalary(employee) * 0.11)}
                       </Td>
                       <Td py={1} px={2} fontSize="xs" borderBottom="1px solid" borderColor={borderColor}>
                         {formatCurrency(employee.overtimePay || 0)}
@@ -1682,7 +1756,7 @@ const fetchPayrollDataHandler = async () => {
                       {payrollData.length} Employees
                     </Td>
                     <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
-                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.grossSalary || emp.basicSalary || 0), 0))}
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + getDisplayGrossSalary(emp), 0))}
                     </Td>
                     <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
                       {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.incomeTax || 0), 0))}
@@ -1691,7 +1765,7 @@ const fetchPayrollDataHandler = async () => {
                       {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.pension || 0), 0))}
                     </Td>
                     <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
-                      {formatCurrency(payrollData.reduce((sum, emp) => sum + ((emp.grossSalary || emp.basicSalary || 0) * 0.11), 0))}
+                      {formatCurrency(payrollData.reduce((sum, emp) => sum + (getDisplayGrossSalary(emp) * 0.11), 0))}
                     </Td>
                     <Td py={1} px={2} fontSize="xs" borderTop="2px solid" borderColor={borderColor}>
                       {formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.overtimePay || 0), 0))}

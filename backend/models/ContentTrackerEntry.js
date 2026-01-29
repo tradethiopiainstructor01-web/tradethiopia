@@ -13,23 +13,28 @@ const ContentTrackerEntrySchema = new mongoose.Schema(
       default: '',
     },
     type: {
-      type: String,
-      enum: ['Video', 'Graphics', 'Live Session', 'Testimonial'],
-      default: 'Video',
-    },
-    link: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    approved: {
-      type: Boolean,
-      default: false,
-    },
-    date: {
-      type: Date,
-      default: () => new Date(),
-    },
+    type: String,
+    enum: ['Video', 'Graphics', 'Live Session', 'Testimonial'],
+    default: 'Video',
+  },
+  link: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  approved: {
+    type: Boolean,
+    default: false,
+  },
+  shares: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  date: {
+    type: Date,
+    default: () => new Date(),
+  },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

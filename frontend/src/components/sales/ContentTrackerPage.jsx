@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import {
   Box,
   Heading,
@@ -30,6 +30,7 @@ import {
   Alert,
   AlertIcon,
   useToast,
+  SimpleGrid,
 } from '@chakra-ui/react';
 import { FaLink, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import {
@@ -38,9 +39,20 @@ import {
   fetchContentTrackerEntries,
   updateContentTrackerEntry,
 } from '../../services/contentTrackerService';
+import AuthContext from '../../context/AuthContext.jsx';
+import {
+  REQUIRED_COUNTS,
+  SHARE_TARGET,
+  BONUS_AMOUNT,
+  buildMonthKey,
+  formatMonthLabel,
+  normalizeAgentKey,
+  summarizeEntriesByAgent,
+  mapSummariesByKey,
+  createEmptyCounts,
+} from '../../utils/contentTrackerTargets';
 
 const contentTypeOptions = ['Video', 'Graphics', 'Live Session', 'Testimonial'];
-
 const getEntryId = (entry) => entry?._id ?? entry?.id ?? entry;
 
 const ContentTrackerPage = () => {
@@ -48,11 +60,20 @@ const ContentTrackerPage = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [currentAction, setCurrentAction] = useState(null);
   const [modalType, setModalType] = useState(contentTypeOptions[0]);
+  const [modalShares, setModalShares] = useState(0);
   const [modalLink, setModalLink] = useState('');
   const [modalDescription, setModalDescription] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [shareEdits, setShareEdits] = useState({});
+  const { user } = useContext(AuthContext);
+  const [selectedMonth, setSelectedMonth] = useState(buildMonthKey());
+  const isSalesManager = useMemo(() => {
+    if (!user) return false;
+    const normalized = (user.normalizedRole || user.role || '').toString().toLowerCase();
+    return normalized.includes('salesmanager');
+  }, [user]);
   const toast = useToast();
   const {
     isOpen: isViewOpen,
@@ -63,6 +84,27 @@ const ContentTrackerPage = () => {
   const [viewEntry, setViewEntry] = useState(null);
 
   const normalizeResponsePayload = (payload) => payload?.data ?? payload;
+
+  const userKey = useMemo(() => normalizeAgentKey(user), [user]);
+  const agentSummaries = useMemo(() => summarizeEntriesByAgent(contentRows, selectedMonth), [contentRows, selectedMonth]);
+  const summaryMap = useMemo(() => mapSummariesByKey(agentSummaries), [agentSummaries]);
+  const monthlyStats = useMemo(() => {
+    const summary = userKey ? summaryMap[userKey] : null;
+    if (summary) {
+      return {
+        counts: summary.counts,
+        shares: summary.shares,
+        totalPosts: summary.totalPosts,
+        isComplete: summary.isComplete,
+      };
+    }
+    return {
+      counts: createEmptyCounts(),
+      shares: 0,
+      totalPosts: 0,
+      isComplete: false,
+    };
+  }, [summaryMap, userKey]);
 
   const loadEntries = async () => {
     setIsLoading(true);
@@ -130,19 +172,28 @@ const ContentTrackerPage = () => {
     }
   };
 
-  const toggleApproved = async (entryId) => {
+  const clearShareEdit = (entryId) => {
+    setShareEdits((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, entryId)) return prev;
+      const next = { ...prev };
+      delete next[entryId];
+      return next;
+    });
+  };
+
+  const handleShareChange = async (entryId, nextShares) => {
     try {
-      const current = contentRows.find((row) => getEntryId(row) === entryId);
-      const response = await updateContentTrackerEntry(entryId, {
-        approved: !current?.approved,
-      });
+      const parsedShares = Number(nextShares);
+      const safeShares = Number.isFinite(parsedShares) ? Math.max(0, parsedShares) : 0;
+      const response = await updateContentTrackerEntry(entryId, { shares: safeShares });
       const updated = normalizeResponsePayload(response);
       updateRowInState(updated);
+      clearShareEdit(entryId);
     } catch (err) {
-      console.error('Unable to toggle approval', err);
+      console.error('Unable to update share count', err);
       toast({
         title: 'Update failed',
-        description: 'Unable to toggle approval right now.',
+        description: 'Could not save the new share count.',
         status: 'error',
         duration: 4000,
         isClosable: true,
@@ -154,6 +205,7 @@ const ContentTrackerPage = () => {
     setSelectedItem(row);
     setCurrentAction(action);
     setModalType(row?.type ?? contentTypeOptions[0]);
+    setModalShares(row?.shares ?? 0);
     setModalLink(row?.link ?? '');
     setModalDescription(row?.description ?? '');
     onOpen();
@@ -165,6 +217,7 @@ const ContentTrackerPage = () => {
     setModalDescription('');
     setModalLink('');
     setModalType(contentTypeOptions[0]);
+    setModalShares(0);
     onClose();
   };
 
@@ -190,6 +243,7 @@ const ContentTrackerPage = () => {
           type: modalType,
           link: modalLink,
           description: modalDescription,
+          shares: modalShares,
         });
         const updated = normalizeResponsePayload(response);
         updateRowInState(updated);
@@ -217,6 +271,7 @@ const ContentTrackerPage = () => {
         description: '',
         approved: false,
         date: new Date().toISOString(),
+        shares: 0,
       };
       const response = await createContentTrackerEntry(payload);
       const created = normalizeResponsePayload(response);
@@ -288,6 +343,7 @@ const ContentTrackerPage = () => {
               <Th>Date</Th>
               <Th>Content</Th>
               <Th>Type</Th>
+              <Th>Shares</Th>
               <Th>Link</Th>
               <Th>Approved</Th>
               <Th textAlign="center">Actions</Th>
@@ -307,22 +363,58 @@ const ContentTrackerPage = () => {
                       {row.description || 'Add a short description when editing this entry.'}
                     </Text>
                   </Td>
-                  <Td>
-                    <Select
-                      value={row.type}
-                      onChange={(event) => handleTypeChange(rowId, event.target.value)}
-                      size="sm"
-                    >
+                <Td>
+                  <Select
+                    value={row.type}
+                    onChange={(event) => handleTypeChange(rowId, event.target.value)}
+                    size="sm"
+                  >
                       {contentTypeOptions.map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
                       ))}
                     </Select>
-                  </Td>
-                  <Td>
-                    <HStack spacing={2}>
-                      <FaLink />
+                </Td>
+                <Td>
+                  <Input
+                    type="number"
+                    size="sm"
+                    min={0}
+                    step={1}
+                    value={shareEdits[rowId] ?? (row.shares ?? 0)}
+                    onChange={(event) => {
+                      const { value } = event.target;
+                      setShareEdits((prev) => ({
+                        ...prev,
+                        [rowId]: value,
+                      }));
+                    }}
+                    onBlur={(event) => {
+                      const draft = shareEdits[rowId];
+                      if (draft === undefined) return;
+                      const parsed = Number(draft);
+                      if (!Number.isFinite(parsed)) {
+                        clearShareEdit(rowId);
+                        return;
+                      }
+                      const normalized = Math.max(0, parsed);
+                      if (normalized === (row.shares ?? 0)) {
+                        clearShareEdit(rowId);
+                        return;
+                      }
+                      handleShareChange(rowId, normalized);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.currentTarget.blur();
+                      }
+                    }}
+                  />
+                </Td>
+                <Td>
+                  <HStack spacing={2}>
+                    <FaLink />
                       <Box
                         as="a"
                         href={row.link || '#'}
@@ -406,6 +498,67 @@ const ContentTrackerPage = () => {
         </Box>
       </Flex>
 
+      {!isSalesManager && (
+        <Stack spacing={4} mb={6}>
+          <Box>
+            <Text fontSize="sm" color="gray.500" mb={1}>
+              Month for the post counter
+            </Text>
+            <Input
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              max={buildMonthKey()}
+            />
+          </Box>
+          <Box
+            bg="white"
+            borderWidth="1px"
+            borderRadius="md"
+            borderColor="gray.200"
+            p={5}
+          >
+            <Flex justify="space-between" align="baseline" flexWrap="wrap" gap={3}>
+              <Text fontSize="lg" fontWeight="semibold">
+                {formatMonthLabel(selectedMonth)} post counter
+              </Text>
+              <Badge colorScheme={monthlyStats.isComplete ? 'green' : 'red'}>
+                {monthlyStats.isComplete ? 'Target ready' : 'In progress'}
+              </Badge>
+            </Flex>
+            <Text fontSize="sm" color="gray.600" mt={1}>
+              Approved posts contribute toward the 3,000 birr bonus once the full mix is delivered alongside {SHARE_TARGET} shares.
+            </Text>
+            <SimpleGrid columns={{ base: 2, md: 3, lg: 5 }} spacing={3} mt={4}>
+              {Object.entries(REQUIRED_COUNTS).map(([type, target]) => (
+                <Box key={type} py={2} px={3} bg="gray.50" borderRadius="md">
+                  <Text fontSize="xs" color="gray.500">
+                    {type}
+                  </Text>
+                  <Text fontWeight="bold">
+                    {monthlyStats.counts[type]}/{target}
+                  </Text>
+                </Box>
+              ))}
+              <Box py={2} px={3} bg="gray.50" borderRadius="md">
+                <Text fontSize="xs" color="gray.500">
+                  Shares
+                </Text>
+                <Text fontWeight="bold">
+                  {monthlyStats.shares}/{SHARE_TARGET}
+                </Text>
+              </Box>
+              <Box py={2} px={3} bg="gray.50" borderRadius="md">
+                <Text fontSize="xs" color="gray.500">
+                  Approved posts
+                </Text>
+                <Text fontWeight="bold">{monthlyStats.totalPosts}</Text>
+              </Box>
+            </SimpleGrid>
+          </Box>
+        </Stack>
+      )}
+
       {renderTableSection()}
 
       <Modal isOpen={isOpen} onClose={handleCloseModal} size="md">
@@ -452,13 +605,21 @@ const ContentTrackerPage = () => {
                     rows={3}
                   />
                 </Box>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleApproved(getEntryId(selectedItem))}
-                >
-                  Toggle approved (currently {selectedItem.approved ? 'Yes' : 'No'})
-                </Button>
+                <Box>
+                  <Text fontSize="sm" color="gray.600">
+                    Share count
+                  </Text>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={modalShares}
+                    onChange={(event) => {
+                      const nextValue = Number(event.target.value);
+                      setModalShares(Number.isFinite(nextValue) ? Math.max(0, nextValue) : 0);
+                    }}
+                  />
+                </Box>
               </Stack>
             )}
             {selectedItem && currentAction === 'Delete' && (

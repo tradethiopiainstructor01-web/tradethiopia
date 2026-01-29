@@ -75,9 +75,15 @@ exports.getEntryById = async (req, res) => {
   }
 };
 
+const parsePositiveNumber = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, parsed);
+};
+
 exports.createEntry = async (req, res) => {
   try {
-    const { title, description = '', type = 'Video', link = '', approved = false, date } = req.body;
+    const { title, description = '', type = 'Video', link = '', approved = false, date, shares = 0 } = req.body;
     if (!title) {
       return res.status(400).json({ success: false, message: 'Title is required' });
     }
@@ -93,6 +99,7 @@ exports.createEntry = async (req, res) => {
       link,
       approved,
       date: date ? new Date(date) : undefined,
+      shares: parsePositiveNumber(shares),
       createdBy: req.user ? req.user._id : undefined,
     });
 
@@ -110,11 +117,15 @@ exports.updateEntry = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Content entry not found' });
     }
 
-    const updatableFields = ['title', 'description', 'type', 'link', 'approved', 'date'];
+    const updatableFields = ['title', 'description', 'type', 'link', 'approved', 'date', 'shares'];
     updatableFields.forEach((field) => {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         if (field === 'type' && req.body.type && !ALLOWED_TYPES.has(req.body.type)) {
           throw new Error(`Type must be one of ${Array.from(ALLOWED_TYPES).join(', ')}`);
+        }
+        if (field === 'shares') {
+          entry.shares = parsePositiveNumber(req.body.shares);
+          return;
         }
         entry[field] = req.body[field];
       }
