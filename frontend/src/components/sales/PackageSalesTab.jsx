@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Badge,
   Box,
@@ -35,6 +35,7 @@ import {
   SimpleGrid
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
+import { FiUpload } from 'react-icons/fi';
 import { fetchPackageSales, fetchPackageSalesFollowups, fetchUserProfile, createPackageSale } from '../../services/packageService';
 
 // Commission calculation function (same as commission.js but without social media boost)
@@ -89,6 +90,8 @@ const PackageSalesTab = () => {
   const [followups, setFollowups] = useState([]);
   const [followupsLoading, setFollowupsLoading] = useState(true);
   const [followupsError, setFollowupsError] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const importFileRef = useRef(null);
 
   const loadSales = useCallback(async () => {
     try {
@@ -241,6 +244,161 @@ const PackageSalesTab = () => {
     onOpenCommission();
   };
 
+  const normalizeEnumValue = (value, allowed) => {
+    if (value === null || value === undefined || value === '') return undefined;
+    const normalized = value.toString().trim().toLowerCase();
+    if (!normalized) return undefined;
+    return allowed.find(option => option.toLowerCase() === normalized);
+  };
+
+  const parseImportedDate = (value, XLSX) => {
+    if (!value) return undefined;
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return value.toISOString();
+    }
+    if (typeof value === 'number') {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed && parsed.y && parsed.m && parsed.d) {
+        return new Date(parsed.y, parsed.m - 1, parsed.d).toISOString();
+      }
+    }
+    const asDate = new Date(value);
+    if (!Number.isNaN(asDate.getTime())) {
+      return asDate.toISOString();
+    }
+    return undefined;
+  };
+
+  const normalizePackageType = (value) => {
+    if (value === null || value === undefined || value === '') return undefined;
+    const raw = value.toString().trim();
+    if (!raw) return undefined;
+    return raw.replace(/package\s*/i, '').trim();
+  };
+
+  const getImportValue = (row, keys) => {
+    for (const key of keys) {
+      if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
+        return row[key];
+      }
+    }
+    return '';
+  };
+
+  const buildImportedSale = (row, XLSX) => {
+    const customerNameRaw = getImportValue(row, ['Customer Name', 'customerName', 'Customer', 'Name', 'Company', 'Company Name']);
+    const contactPersonRaw = getImportValue(row, ['Contact Person', 'contactPerson', 'Contact', 'Representative']);
+    const emailRaw = getImportValue(row, ['Email', 'email']);
+    const phoneRaw = getImportValue(row, ['Phone', 'phone', 'Phone Number', 'Mobile']);
+    const packageNameRaw = getImportValue(row, ['Package Name', 'packageName']);
+    const packageTypeRaw = getImportValue(row, ['Package Type', 'packageType', 'Package']);
+    const purchaseDateRaw = getImportValue(row, ['Purchase Date', 'purchaseDate', 'Date']);
+    const expiryDateRaw = getImportValue(row, ['Expiry Date', 'expiryDate', 'Expiration']);
+    const statusRaw = getImportValue(row, ['Status', 'status']);
+    const notesRaw = getImportValue(row, ['Notes', 'Note', 'notes']);
+
+    const fallbackName = customerNameRaw || contactPersonRaw || emailRaw || phoneRaw;
+    if (!fallbackName) return null;
+
+    const customerName = fallbackName.toString().trim();
+    if (!customerName) return null;
+
+    const normalizedPackageType = normalizePackageType(packageTypeRaw);
+
+    const payload = {
+      customerName,
+      contactPerson: contactPersonRaw ? contactPersonRaw.toString().trim() : undefined,
+      email: emailRaw ? emailRaw.toString().trim().toLowerCase() : undefined,
+      phoneNumber: phoneRaw ? phoneRaw.toString().trim() : undefined,
+      packageName: packageNameRaw
+        ? packageNameRaw.toString().trim()
+        : (normalizedPackageType ? `Package ${normalizedPackageType}` : undefined),
+      packageType: normalizedPackageType,
+      purchaseDate: parseImportedDate(purchaseDateRaw, XLSX),
+      expiryDate: parseImportedDate(expiryDateRaw, XLSX),
+      status: normalizeEnumValue(statusRaw, ['Active', 'Expired', 'Cancelled']),
+      notes: notesRaw ? notesRaw.toString().trim() : undefined
+    };
+
+    return Object.fromEntries(Object.entries(payload).filter(([_, value]) => value !== undefined && value !== ''));
+  };
+
+  const runBatch = async (items, batchSize, worker) => {
+    const results = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const settled = await Promise.allSettled(batch.map(worker));
+      results.push(...settled);
+    }
+    return results;
+  };
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.SheetNames[0];
+      if (!firstSheet) {
+        throw new Error('No worksheet found in the selected file.');
+      }
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+      if (!rows.length) {
+        toast({
+          title: 'No rows found',
+          description: 'The selected file does not contain any rows to import.',
+          status: 'warning',
+          duration: 3000,
+          isClosable: true
+        });
+        return;
+      }
+
+      const payloads = rows.map((row) => buildImportedSale(row, XLSX)).filter(Boolean);
+      if (!payloads.length) {
+        toast({
+          title: 'Nothing to import',
+          description: 'No valid package sales rows were found. Please check your column headers.',
+          status: 'warning',
+          duration: 3500,
+          isClosable: true
+        });
+        return;
+      }
+
+      const results = await runBatch(payloads, 10, (payload) => createPackageSale(payload));
+      const successCount = results.filter(result => result.status === 'fulfilled').length;
+      const failureCount = results.length - successCount;
+      const skippedCount = rows.length - payloads.length;
+
+      await Promise.all([loadSales(), loadFollowups()]);
+
+      toast({
+        title: 'Import complete',
+        description: `Imported ${successCount} row(s). ${skippedCount ? `Skipped ${skippedCount}. ` : ''}${failureCount ? `Failed ${failureCount}.` : ''}`.trim(),
+        status: failureCount ? 'warning' : 'success',
+        duration: 4000,
+        isClosable: true
+      });
+    } catch (err) {
+      console.error('Package sales import failed', err);
+      toast({
+        title: 'Import failed',
+        description: err.message || 'Unable to import the selected file.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -299,10 +457,30 @@ const PackageSalesTab = () => {
         </Card>
       </SimpleGrid>
 
-      <Box mb={4} display="flex" justifyContent="space-between" alignItems="center">
+      <Flex mb={4} justifyContent="space-between" alignItems="center" wrap="wrap" gap={3}>
         <Text fontSize="lg" fontWeight="bold">Package Sales</Text>
-        <Button size="sm" colorScheme="teal" onClick={onOpenAdd} leftIcon={<AddIcon />}>New customer</Button>
-      </Box>
+        <HStack spacing={3}>
+          <Button
+            size="sm"
+            variant="outline"
+            colorScheme="blue"
+            leftIcon={<FiUpload />}
+            onClick={() => importFileRef.current?.click()}
+            isLoading={isImporting}
+            isDisabled={isImporting}
+          >
+            Import Excel
+          </Button>
+          <Button size="sm" colorScheme="teal" onClick={onOpenAdd} leftIcon={<AddIcon />}>New customer</Button>
+        </HStack>
+        <input
+          ref={importFileRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          onChange={handleImportFile}
+          style={{ display: 'none' }}
+        />
+      </Flex>
       
       {/* Add Customer Modal */}
       <Modal isOpen={isAddOpen} onClose={onCloseAdd} size="md">

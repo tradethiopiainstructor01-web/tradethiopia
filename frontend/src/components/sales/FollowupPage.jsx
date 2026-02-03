@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, 
   Heading, 
@@ -41,7 +41,8 @@ import {
   FiTrendingUp, 
   FiDollarSign,
   FiClock,
-  FiDownload
+  FiDownload,
+  FiUpload
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
 import PackageSalesTable from './PackageSalesTable';
@@ -100,6 +101,8 @@ const FollowupPage = () => {
   const [weekValue, setWeekValue] = useState(''); // yyyy-Www
   const [yearValue, setYearValue] = useState('');
   const [courses, setCourses] = useState(defaultCourses);
+  const [isImportingCustomers, setIsImportingCustomers] = useState(false);
+  const customerImportRef = useRef(null);
 
   const headerColor = useColorModeValue('gray.700', 'white');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -477,6 +480,149 @@ const FollowupPage = () => {
       ...prev,
       [filterName]: value
     }));
+  };
+
+  const normalizeEnumValue = (value, allowed) => {
+    if (value === null || value === undefined || value === '') return undefined;
+    const normalized = value.toString().trim().toLowerCase();
+    if (!normalized) return undefined;
+    return allowed.find(option => option.toLowerCase() === normalized);
+  };
+
+  const parseImportedNumber = (value) => {
+    if (value === null || value === undefined || value === '') return undefined;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const numeric = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(numeric) ? numeric : undefined;
+  };
+
+  const getImportValue = (row, keys) => {
+    for (const key of keys) {
+      if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
+        return row[key];
+      }
+    }
+    return '';
+  };
+
+  const buildImportedCustomer = (row) => {
+    const customerNameRaw = getImportValue(row, ['Customer Name', 'customerName', 'Customer', 'Name', 'Client Name', 'Company', 'Company Name']);
+    const contactTitleRaw = getImportValue(row, ['Contact Title', 'contactTitle', 'Training', 'Course', 'Course Name', 'Product', 'Interest']);
+    const emailRaw = getImportValue(row, ['Email', 'email']);
+    const phoneRaw = getImportValue(row, ['Phone', 'phone', 'Phone Number', 'Mobile', 'Contact Phone']);
+    const noteRaw = getImportValue(row, ['Note', 'Notes', 'note']);
+    const supervisorCommentRaw = getImportValue(row, ['Supervisor Comment', 'supervisorComment']);
+    const callStatusRaw = getImportValue(row, ['Call Status', 'callStatus']);
+    const followupStatusRaw = getImportValue(row, ['Follow-up Status', 'Followup Status', 'Status', 'followupStatus']);
+    const scheduleRaw = getImportValue(row, ['Schedule', 'Schedule Preference', 'schedulePreference']);
+    const packageScopeRaw = getImportValue(row, ['Package Scope', 'packageScope', 'Scope']);
+    const pipelineStatusRaw = getImportValue(row, ['Pipeline Status', 'pipelineStatus', 'Workflow Status']);
+    const sourceRaw = getImportValue(row, ['Source', 'source']);
+    const courseNameRaw = getImportValue(row, ['Course Name', 'Course', 'Training', 'contactTitle']);
+    const coursePriceRaw = getImportValue(row, ['Course Price', 'coursePrice', 'Price', 'Amount', 'Fee']);
+    const productInterestRaw = getImportValue(row, ['Product Interest', 'productInterest', 'Interest']);
+
+    const fallbackName = customerNameRaw || contactTitleRaw || courseNameRaw || emailRaw || phoneRaw;
+    if (!fallbackName) return null;
+
+    const customerName = fallbackName.toString().trim();
+    if (!customerName) return null;
+
+    const payload = {
+      customerName,
+      contactTitle: contactTitleRaw ? contactTitleRaw.toString().trim() : undefined,
+      email: emailRaw ? emailRaw.toString().trim().toLowerCase() : undefined,
+      phone: phoneRaw ? phoneRaw.toString().trim() : undefined,
+      note: noteRaw ? noteRaw.toString().trim() : undefined,
+      supervisorComment: supervisorCommentRaw ? supervisorCommentRaw.toString().trim() : undefined,
+      callStatus: normalizeEnumValue(callStatusRaw, ['Called', 'Not Called', 'Busy', 'No Answer', 'Callback']),
+      followupStatus: normalizeEnumValue(followupStatusRaw, ['Prospect', 'Pending', 'Completed', 'Scheduled', 'Cancelled']),
+      schedulePreference: normalizeEnumValue(scheduleRaw, ['Regular', 'Weekend', 'Night', 'Online']),
+      packageScope: normalizeEnumValue(packageScopeRaw, ['Local', 'International']),
+      pipelineStatus: normalizeEnumValue(pipelineStatusRaw, ['New', 'Pending Assignment', 'Assigned', 'In Progress', 'Closed']),
+      source: normalizeEnumValue(sourceRaw, ['Reception', 'Sales', 'Followup', 'Other']),
+      courseName: courseNameRaw ? courseNameRaw.toString().trim() : undefined,
+      coursePrice: parseImportedNumber(coursePriceRaw),
+      productInterest: productInterestRaw ? productInterestRaw.toString().trim() : undefined
+    };
+
+    return Object.fromEntries(Object.entries(payload).filter(([_, value]) => value !== undefined && value !== ''));
+  };
+
+  const runBatch = async (items, batchSize, worker) => {
+    const results = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const settled = await Promise.allSettled(batch.map(worker));
+      results.push(...settled);
+    }
+    return results;
+  };
+
+  const handleImportCustomers = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImportingCustomers(true);
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.SheetNames[0];
+      if (!firstSheet) {
+        throw new Error('No worksheet found in the selected file.');
+      }
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+      if (!rows.length) {
+        toast({
+          title: 'No rows found',
+          description: 'The selected file does not contain any rows to import.',
+          status: 'warning',
+          duration: 3000,
+          isClosable: true
+        });
+        return;
+      }
+
+      const payloads = rows.map(buildImportedCustomer).filter(Boolean);
+      if (!payloads.length) {
+        toast({
+          title: 'Nothing to import',
+          description: 'No valid customer rows were found. Please check your column headers.',
+          status: 'warning',
+          duration: 3500,
+          isClosable: true
+        });
+        return;
+      }
+
+      const results = await runBatch(payloads, 10, (payload) => createCustomer(payload));
+      const successCount = results.filter(result => result.status === 'fulfilled').length;
+      const failureCount = results.length - successCount;
+      const skippedCount = rows.length - payloads.length;
+
+      await Promise.all([fetchCustomers(), fetchStats()]);
+
+      toast({
+        title: 'Import complete',
+        description: `Imported ${successCount} row(s). ${skippedCount ? `Skipped ${skippedCount}. ` : ''}${failureCount ? `Failed ${failureCount}.` : ''}`.trim(),
+        status: failureCount ? 'warning' : 'success',
+        duration: 4000,
+        isClosable: true
+      });
+    } catch (err) {
+      console.error('Customer import failed', err);
+      toast({
+        title: 'Import failed',
+        description: err.message || 'Unable to import the selected file.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setIsImportingCustomers(false);
+      event.target.value = '';
+    }
   };
 
   // Export currently visible rows to XLSX (try sheetjs, fallback to CSV)
@@ -869,6 +1015,25 @@ const FollowupPage = () => {
               </MenuItem>
             </MenuList>
           </Menu>
+
+          <Button
+            leftIcon={<Icon as={FiUpload} />}
+            colorScheme="blue"
+            variant="outline"
+            type="button"
+            onClick={() => customerImportRef.current?.click()}
+            isLoading={isImportingCustomers}
+            isDisabled={isImportingCustomers}
+          >
+            Import Excel
+          </Button>
+          <input
+            ref={customerImportRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleImportCustomers}
+            style={{ display: 'none' }}
+          />
 
           <Button onClick={() => { setDateFilterType('All'); setStartDate(''); setEndDate(''); setWeekValue(''); setYearValue(''); }} variant="ghost">Clear Date</Button>
         </Flex>
