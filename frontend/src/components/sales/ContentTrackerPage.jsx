@@ -54,6 +54,23 @@ import {
 
 const contentTypeOptions = ['Video', 'Graphics', 'Live Session', 'Testimonial'];
 const getEntryId = (entry) => entry?._id ?? entry?.id ?? entry;
+const formatAgentName = (entry, currentUser) => {
+  const creator = entry?.createdBy;
+  if (!creator) {
+    return currentUser?.username || 'Unknown agent';
+  }
+
+  if (typeof creator === 'string') {
+    if (currentUser?._id && creator === currentUser._id) {
+      return currentUser?.username || 'Unknown agent';
+    }
+    return 'Unknown agent';
+  }
+
+  const nameParts = [creator.firstName, creator.lastName].filter(Boolean);
+  if (nameParts.length) return nameParts.join(' ');
+  return creator.fullName || creator.username || creator.email || currentUser?.username || 'Unknown agent';
+};
 
 const ContentTrackerPage = () => {
   const [contentRows, setContentRows] = useState([]);
@@ -342,6 +359,7 @@ const ContentTrackerPage = () => {
             <Tr>
               <Th>Date</Th>
               <Th>Content</Th>
+              <Th>Agent Name</Th>
               <Th>Type</Th>
               <Th>Shares</Th>
               <Th>Link</Th>
@@ -363,6 +381,11 @@ const ContentTrackerPage = () => {
                       {row.description || 'Add a short description when editing this entry.'}
                     </Text>
                   </Td>
+                <Td>
+                  <Text fontSize="sm" color="gray.600">
+                    {formatAgentName(row, currentUser)}
+                  </Text>
+                </Td>
                 <Td>
                   <Select
                     value={row.type}
@@ -671,6 +694,12 @@ const ContentTrackerPage = () => {
                 </Text>
                 <Text fontWeight="semibold" mb={2}>
                   {viewEntry.type || '—'}
+                </Text>
+                <Text fontSize="sm" mb={1} color="gray.500">
+                  Agent Name
+                </Text>
+                <Text fontWeight="semibold" mb={2}>
+                  {formatAgentName(viewEntry, currentUser)}
                 </Text>
                 <Text fontSize="sm" mb={1} color="gray.500">
                   Link

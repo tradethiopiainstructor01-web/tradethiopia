@@ -1,6 +1,28 @@
 const ContentTrackerEntry = require('../models/ContentTrackerEntry');
 
 const ALLOWED_TYPES = new Set(['Video', 'Graphics', 'Live Session', 'Testimonial']);
+const GLOBAL_CONTENT_ACCESS_ROLES = new Set(['salesmanager', 'admin', 'finance', 'hr', 'coo']);
+
+const normalizeRole = (role = '') => role.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const hasGlobalContentAccess = (user) => GLOBAL_CONTENT_ACCESS_ROLES.has(normalizeRole(user?.role));
+
+const getEntryOwnerId = (entry) => {
+  if (!entry?.createdBy) return null;
+  if (typeof entry.createdBy === 'object' && entry.createdBy._id) {
+    return entry.createdBy._id.toString();
+  }
+  return entry.createdBy.toString();
+};
+
+const isEntryOwner = (entry, user) => {
+  const ownerId = getEntryOwnerId(entry);
+  const userId = user?._id ? user._id.toString() : null;
+  if (!ownerId || !userId) return false;
+  return ownerId === userId;
+};
+
+const canAccessEntry = (entry, user) => hasGlobalContentAccess(user) || isEntryOwner(entry, user);
 
 exports.getEntries = async (req, res) => {
   try {
@@ -51,9 +73,14 @@ exports.getEntries = async (req, res) => {
       }
     }
 
+    const hasGlobalAccess = hasGlobalContentAccess(req.user);
+    if (!hasGlobalAccess && req.user?._id) {
+      query.createdBy = req.user._id;
+    }
+
     const entries = await ContentTrackerEntry.find(query)
       .sort({ date: -1 })
-      .populate('createdBy', 'firstName lastName email');
+      .populate('createdBy', 'fullName username email');
 
     res.json({ success: true, data: entries });
   } catch (error) {
@@ -64,9 +91,12 @@ exports.getEntries = async (req, res) => {
 
 exports.getEntryById = async (req, res) => {
   try {
-    const entry = await ContentTrackerEntry.findById(req.params.id);
+    const entry = await ContentTrackerEntry.findById(req.params.id).populate('createdBy', 'fullName username email');
     if (!entry) {
       return res.status(404).json({ success: false, message: 'Content entry not found' });
+    }
+    if (!canAccessEntry(entry, req.user)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this content entry' });
     }
     res.json({ success: true, data: entry });
   } catch (error) {
@@ -92,12 +122,14 @@ exports.createEntry = async (req, res) => {
       return res.status(400).json({ success: false, message: `Type must be one of ${Array.from(ALLOWED_TYPES).join(', ')}` });
     }
 
+    const normalizedApproved = hasGlobalContentAccess(req.user) ? approved === true : false;
+
     const entry = await ContentTrackerEntry.create({
       title,
       description,
       type,
       link,
-      approved,
+      approved: normalizedApproved,
       date: date ? new Date(date) : undefined,
       shares: parsePositiveNumber(shares),
       createdBy: req.user ? req.user._id : undefined,
@@ -115,6 +147,15 @@ exports.updateEntry = async (req, res) => {
     const entry = await ContentTrackerEntry.findById(req.params.id);
     if (!entry) {
       return res.status(404).json({ success: false, message: 'Content entry not found' });
+    }
+    if (!canAccessEntry(entry, req.user)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this content entry' });
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(req.body, 'approved') &&
+      !hasGlobalContentAccess(req.user)
+    ) {
+      return res.status(403).json({ success: false, message: 'Not authorized to approve content entries' });
     }
 
     const updatableFields = ['title', 'description', 'type', 'link', 'approved', 'date', 'shares'];
@@ -144,6 +185,9 @@ exports.deleteEntry = async (req, res) => {
     const entry = await ContentTrackerEntry.findById(req.params.id);
     if (!entry) {
       return res.status(404).json({ success: false, message: 'Content entry not found' });
+    }
+    if (!canAccessEntry(entry, req.user)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this content entry' });
     }
 
     await entry.remove();
