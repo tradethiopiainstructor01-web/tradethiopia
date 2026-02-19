@@ -7,6 +7,8 @@ const {
 const {
   importLeadInternationalRecords,
   createLeadInternationalRecord,
+  updateLeadInternationalRecord,
+  deleteLeadInternationalRecord,
   getLeadInternationalRecords
 } = require('../controllers/leadInternationalController');
 
@@ -24,6 +26,8 @@ router.get('/match/seller/:sellerId', getTopMatchesForSeller);
 // Lead International records
 router.get('/lead-international', getLeadInternationalRecords);
 router.post('/lead-international', createLeadInternationalRecord);
+router.put('/lead-international/:id', updateLeadInternationalRecord);
+router.delete('/lead-international/:id', deleteLeadInternationalRecord);
 router.post('/lead-international/import', importLeadInternationalRecords);
 
 module.exports = router;

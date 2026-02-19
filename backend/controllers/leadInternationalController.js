@@ -78,6 +78,7 @@ const normalizeCell = (value) => {
 };
 
 const toFrontendRow = (record = {}) => ({
+  _id: record._id,
   Months: record.months || '',
   OFFICE: record.office || '',
   REGDATE: record.regDate || '',
@@ -190,6 +191,53 @@ const createLeadInternationalRecord = async (req, res) => {
   }
 };
 
+const updateLeadInternationalRecord = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const candidateRow =
+      req.body && typeof req.body === 'object' && req.body.row && typeof req.body.row === 'object'
+        ? req.body.row
+        : req.body;
+
+    const mappedRow = mapIncomingRow(candidateRow);
+    if (!mappedRow) {
+      return res.status(400).json({ error: 'No valid lead international row was provided.' });
+    }
+
+    const updated = await LeadInternationalRecord.findByIdAndUpdate(id, mappedRow, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Lead international row not found.' });
+    }
+
+    return res.status(200).json({
+      record: toFrontendRow(updated.toObject()),
+    });
+  } catch (error) {
+    console.error('Lead international update failed:', error);
+    return res.status(500).json({ error: error.message || 'Failed to update lead international row.' });
+  }
+};
+
+const deleteLeadInternationalRecord = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await LeadInternationalRecord.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Lead international row not found.' });
+    }
+
+    return res.status(200).json({ message: 'Lead international row deleted successfully.' });
+  } catch (error) {
+    console.error('Lead international delete failed:', error);
+    return res.status(500).json({ error: error.message || 'Failed to delete lead international row.' });
+  }
+};
+
 const getLeadInternationalRecords = async (req, res) => {
   try {
     const records = await LeadInternationalRecord.find().sort({ createdAt: -1 });
@@ -207,5 +255,7 @@ const getLeadInternationalRecords = async (req, res) => {
 module.exports = {
   importLeadInternationalRecords,
   createLeadInternationalRecord,
+  updateLeadInternationalRecord,
+  deleteLeadInternationalRecord,
   getLeadInternationalRecords,
 };

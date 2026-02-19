@@ -243,10 +243,20 @@ const B2BDashboard = () => {
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'detail'
   const [detailViewType, setDetailViewType] = useState('match'); // 'match', 'buyer', or 'seller'
   const [savedBy, setSavedBy] = useState('user@example.com'); // In a real app, this would come from auth context
-  const [leadInternationalRows, setLeadInternationalRows] = useState(LEAD_INTERNATIONAL_SAMPLE_ROWS);
+  const [leadInternationalRows, setLeadInternationalRows] = useState(() =>
+    LEAD_INTERNATIONAL_SAMPLE_ROWS.map((row, index) => ({
+      ...row,
+      _rowKey: `sample-${index + 1}`,
+    }))
+  );
   const [isImportingLeadFile, setIsImportingLeadFile] = useState(false);
   const [newLeadInternationalRow, setNewLeadInternationalRow] = useState(createEmptyLeadInternationalRow);
   const [isSavingLeadInternationalRow, setIsSavingLeadInternationalRow] = useState(false);
+  const [editLeadInternationalRow, setEditLeadInternationalRow] = useState(createEmptyLeadInternationalRow);
+  const [editingLeadInternationalTarget, setEditingLeadInternationalTarget] = useState(null);
+  const [isUpdatingLeadInternationalRow, setIsUpdatingLeadInternationalRow] = useState(false);
+  const [deletingLeadInternationalTarget, setDeletingLeadInternationalTarget] = useState(null);
+  const [isDeletingLeadInternationalRow, setIsDeletingLeadInternationalRow] = useState(false);
   const [leadColumnVisibility, setLeadColumnVisibility] = useState(() =>
     LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
       acc[column] = true;
@@ -267,6 +277,8 @@ const B2BDashboard = () => {
   const { isOpen: isMatchModalOpen, onOpen: onMatchModalOpen, onClose: onMatchModalClose } = useDisclosure();
   const { isOpen: isDetailModalOpen, onOpen: onDetailModalOpen, onClose: onDetailModalClose } = useDisclosure();
   const { isOpen: isLeadAddModalOpen, onOpen: onLeadAddModalOpen, onClose: onLeadAddModalClose } = useDisclosure();
+  const { isOpen: isLeadEditModalOpen, onOpen: onLeadEditModalOpen, onClose: onLeadEditModalClose } = useDisclosure();
+  const { isOpen: isLeadDeleteModalOpen, onOpen: onLeadDeleteModalOpen, onClose: onLeadDeleteModalClose } = useDisclosure();
 
   // Fetch buyers and sellers
   const fetchData = async () => {
@@ -634,11 +646,20 @@ const B2BDashboard = () => {
     return hasData ? mappedRow : null;
   };
 
-  const normalizeLeadInternationalRowShape = (row) =>
-    LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
+  const normalizeLeadInternationalRowShape = (row, index = 0) => {
+    const normalized = LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
       acc[column] = row?.[column] ?? '';
       return acc;
     }, {});
+
+    normalized._id = row?._id || row?.id || '';
+    normalized._rowKey =
+      row?._rowKey ||
+      normalized._id ||
+      `lead-local-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+
+    return normalized;
+  };
 
   const fetchLeadInternationalRecords = async () => {
     try {
@@ -648,10 +669,14 @@ const B2BDashboard = () => {
         : (Array.isArray(response.data) ? response.data : []);
 
       if (records.length > 0) {
-        setLeadInternationalRows(records.map(normalizeLeadInternationalRowShape));
+        setLeadInternationalRows(records.map((row, index) => normalizeLeadInternationalRowShape(row, index)));
       } else {
         // Keep sample rows when backend has no records yet.
-        setLeadInternationalRows(LEAD_INTERNATIONAL_SAMPLE_ROWS);
+        setLeadInternationalRows(
+          LEAD_INTERNATIONAL_SAMPLE_ROWS.map((row, index) =>
+            normalizeLeadInternationalRowShape({ ...row, _rowKey: `sample-${index + 1}` }, index)
+          )
+        );
       }
     } catch (error) {
       console.error('Failed to fetch Lead International records:', error);
@@ -662,7 +687,11 @@ const B2BDashboard = () => {
         duration: 3500,
         isClosable: true,
       });
-      setLeadInternationalRows(LEAD_INTERNATIONAL_SAMPLE_ROWS);
+      setLeadInternationalRows(
+        LEAD_INTERNATIONAL_SAMPLE_ROWS.map((row, index) =>
+          normalizeLeadInternationalRowShape({ ...row, _rowKey: `sample-${index + 1}` }, index)
+        )
+      );
     }
   };
 
@@ -714,8 +743,8 @@ const B2BDashboard = () => {
       );
 
       const savedRows = Array.isArray(importResponse.data?.records)
-        ? importResponse.data.records.map(normalizeLeadInternationalRowShape)
-        : mappedRows;
+        ? importResponse.data.records.map((row, index) => normalizeLeadInternationalRowShape(row, index))
+        : mappedRows.map((row, index) => normalizeLeadInternationalRowShape(row, index));
 
       setLeadInternationalRows(savedRows);
       setActiveTab(4);
@@ -844,6 +873,157 @@ const B2BDashboard = () => {
       });
     } finally {
       setIsSavingLeadInternationalRow(false);
+    }
+  };
+
+  const handleOpenLeadEditModal = (row) => {
+    setEditingLeadInternationalTarget(row);
+    setEditLeadInternationalRow(
+      LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
+        acc[column] = row?.[column] ?? '';
+        return acc;
+      }, {})
+    );
+    onLeadEditModalOpen();
+  };
+
+  const handleCloseLeadEditModal = () => {
+    setEditingLeadInternationalTarget(null);
+    onLeadEditModalClose();
+  };
+
+  const handleEditLeadInternationalFieldChange = (column, value) => {
+    setEditLeadInternationalRow((prev) => ({
+      ...prev,
+      [column]: value,
+    }));
+  };
+
+  const handleSaveLeadInternationalEdit = async () => {
+    if (!editingLeadInternationalTarget) return;
+
+    const hasAnyValue = LEAD_INTERNATIONAL_COLUMNS.some(
+      (column) => String(editLeadInternationalRow[column] || '').trim() !== ''
+    );
+    if (!hasAnyValue) {
+      toast({
+        title: 'No data to save',
+        description: 'Please fill at least one field before saving.',
+        status: 'warning',
+        duration: 2500,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsUpdatingLeadInternationalRow(true);
+    try {
+      let updatedRow = normalizeLeadInternationalRowShape({
+        ...editLeadInternationalRow,
+        _id: editingLeadInternationalTarget._id || '',
+        _rowKey: editingLeadInternationalTarget._rowKey,
+      });
+
+      if (editingLeadInternationalTarget._id) {
+        const response = await axios.put(
+          `${import.meta.env.VITE_API_URL}/api/b2b/lead-international/${editingLeadInternationalTarget._id}`,
+          { row: editLeadInternationalRow }
+        );
+
+        updatedRow = response.data?.record
+          ? normalizeLeadInternationalRowShape({
+              ...response.data.record,
+              _rowKey: editingLeadInternationalTarget._rowKey,
+            })
+          : updatedRow;
+      }
+
+      setLeadInternationalRows((prev) =>
+        prev.map((row) => {
+          if (editingLeadInternationalTarget._id && row._id) {
+            return row._id === editingLeadInternationalTarget._id ? updatedRow : row;
+          }
+          return row._rowKey === editingLeadInternationalTarget._rowKey ? updatedRow : row;
+        })
+      );
+
+      toast({
+        title: 'Lead updated',
+        description: editingLeadInternationalTarget._id
+          ? 'The row was updated in backend successfully.'
+          : 'The local row was updated successfully.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+
+      handleCloseLeadEditModal();
+    } catch (error) {
+      console.error('Failed to update lead international row:', error);
+      toast({
+        title: 'Update failed',
+        description: error.response?.data?.error || error.message || 'Unable to update this row.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setIsUpdatingLeadInternationalRow(false);
+    }
+  };
+
+  const handleOpenLeadDeleteModal = (row) => {
+    setDeletingLeadInternationalTarget(row);
+    onLeadDeleteModalOpen();
+  };
+
+  const handleCloseLeadDeleteModal = () => {
+    setDeletingLeadInternationalTarget(null);
+    onLeadDeleteModalClose();
+  };
+
+  const handleConfirmLeadDelete = async () => {
+    if (!deletingLeadInternationalTarget) return;
+
+    setIsDeletingLeadInternationalRow(true);
+    try {
+      if (deletingLeadInternationalTarget._id) {
+        await axios.delete(
+          `${import.meta.env.VITE_API_URL}/api/b2b/lead-international/${deletingLeadInternationalTarget._id}`
+        );
+      }
+
+      setLeadInternationalRows((prev) =>
+        prev.filter((row) => {
+          if (deletingLeadInternationalTarget._id && row._id) {
+            return row._id !== deletingLeadInternationalTarget._id;
+          }
+          return row._rowKey !== deletingLeadInternationalTarget._rowKey;
+        })
+      );
+
+      toast({
+        title: 'Lead deleted',
+        description: deletingLeadInternationalTarget._id
+          ? 'The row was deleted from backend successfully.'
+          : 'The local row was deleted successfully.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+
+      handleCloseLeadDeleteModal();
+    } catch (error) {
+      console.error('Failed to delete lead international row:', error);
+      toast({
+        title: 'Delete failed',
+        description: error.response?.data?.error || error.message || 'Unable to delete this row.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeletingLeadInternationalRow(false);
     }
   };
 
@@ -1623,6 +1803,7 @@ const B2BDashboard = () => {
                   <Table variant="simple" size="sm">
                     <Thead>
                       <Tr>
+                        <Th minW="120px">Actions</Th>
                         {visibleLeadInternationalColumns.map((column) => (
                           <Th key={column}>{column}</Th>
                         ))}
@@ -1630,7 +1811,27 @@ const B2BDashboard = () => {
                     </Thead>
                     <Tbody>
                       {filteredLeadInternationalRows.map((row, rowIndex) => (
-                        <Tr key={`lead-international-${rowIndex}`}>
+                        <Tr key={row._id || row._rowKey || `lead-international-${rowIndex}`}>
+                          <Td>
+                            <HStack spacing={2}>
+                              <IconButton
+                                aria-label="Edit lead row"
+                                icon={<EditIcon />}
+                                size="xs"
+                                colorScheme="blue"
+                                variant="outline"
+                                onClick={() => handleOpenLeadEditModal(row)}
+                              />
+                              <IconButton
+                                aria-label="Delete lead row"
+                                icon={<DeleteIcon />}
+                                size="xs"
+                                colorScheme="red"
+                                variant="outline"
+                                onClick={() => handleOpenLeadDeleteModal(row)}
+                              />
+                            </HStack>
+                          </Td>
                           {visibleLeadInternationalColumns.map((column) => (
                             <Td key={`${column}-${rowIndex}`}>{row[column] || '-'}</Td>
                           ))}
@@ -1686,6 +1887,83 @@ const B2BDashboard = () => {
               isLoading={isSavingLeadInternationalRow}
             >
               Add
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Lead International Edit Modal */}
+      <Modal isOpen={isLeadEditModalOpen} onClose={handleCloseLeadEditModal} size="5xl" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit Lead International Row</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Box
+              display="grid"
+              gridTemplateColumns={{ base: '1fr', md: '1fr 1fr' }}
+              gap={4}
+            >
+              {LEAD_INTERNATIONAL_COLUMNS.map((column) => (
+                <FormControl key={`lead-edit-input-${column}`}>
+                  <FormLabel>{column === 'UNIT_' ? 'UNIT' : column.replace(/_/g, ' ')}</FormLabel>
+                  {column === 'HSDSC' || column === 'COMERCIALDSC' ? (
+                    <Textarea
+                      value={editLeadInternationalRow[column] || ''}
+                      onChange={(event) => handleEditLeadInternationalFieldChange(column, event.target.value)}
+                      rows={3}
+                    />
+                  ) : (
+                    <Input
+                      value={editLeadInternationalRow[column] || ''}
+                      onChange={(event) => handleEditLeadInternationalFieldChange(column, event.target.value)}
+                    />
+                  )}
+                </FormControl>
+              ))}
+            </Box>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={handleCloseLeadEditModal}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleSaveLeadInternationalEdit}
+              isLoading={isUpdatingLeadInternationalRow}
+            >
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Lead International Delete Modal */}
+      <Modal isOpen={isLeadDeleteModalOpen} onClose={handleCloseLeadDeleteModal} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Delete Lead Row</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>
+              Are you sure you want to delete this lead row?
+            </Text>
+            {deletingLeadInternationalTarget?.BUYER ? (
+              <Text mt={2} fontSize="sm" color="gray.500">
+                Buyer: {deletingLeadInternationalTarget.BUYER}
+              </Text>
+            ) : null}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={handleCloseLeadDeleteModal}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="red"
+              onClick={handleConfirmLeadDelete}
+              isLoading={isDeletingLeadInternationalRow}
+            >
+              Delete
             </Button>
           </ModalFooter>
         </ModalContent>
