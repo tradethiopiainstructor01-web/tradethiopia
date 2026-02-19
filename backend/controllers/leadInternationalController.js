@@ -1,0 +1,211 @@
+const LeadInternationalRecord = require('../models/LeadInternationalRecord');
+
+const FRONTEND_COLUMNS = [
+  'Months',
+  'OFFICE',
+  'REGDATE',
+  'ASSDATE',
+  'EXPTRADER',
+  'BUYER',
+  'PRODUCT',
+  'EMAIL',
+  'WEBSITE',
+  'HS',
+  'HSDSC',
+  'CAT_COD',
+  'COMERCIALDSC',
+  'GWEIGHT',
+  'NWEIGHT',
+  'FOB_VALUE_IN_USD',
+  'FOB_VALUE_IN_BIRR',
+  'QTY',
+  'UNIT_',
+  'CDESTINATION',
+];
+
+const HEADER_ALIASES = {
+  MONTH: 'months',
+  MONTHS: 'months',
+  OFFICE: 'office',
+  REGDATE: 'regDate',
+  ASSDATE: 'assDate',
+  EXPTRADER: 'expTrader',
+  EXPORTER: 'expTrader',
+  BUYER: 'buyer',
+  PRODUCT: 'product',
+  PRODUCTNAME: 'product',
+  ITEM: 'product',
+  EMAIL: 'email',
+  MAIL: 'email',
+  BUYEREMAIL: 'email',
+  WEBSITE: 'website',
+  WEB: 'website',
+  URL: 'website',
+  SITE: 'website',
+  HS: 'hs',
+  HSDSC: 'hsDsc',
+  HSDESC: 'hsDsc',
+  CATCOD: 'catCod',
+  CATEGORYCODE: 'catCod',
+  CATEGORY: 'catCod',
+  COMERCIALDSC: 'comercialDsc',
+  COMMERCIALDSC: 'comercialDsc',
+  GWEIGHT: 'gWeight',
+  GROSSWEIGHT: 'gWeight',
+  NWEIGHT: 'nWeight',
+  NETWEIGHT: 'nWeight',
+  FOBVALUEINUSD: 'fobValueInUsd',
+  FOBVALUEUSD: 'fobValueInUsd',
+  FOBVALUEINBIRR: 'fobValueInBirr',
+  FOBVALUEBIRR: 'fobValueInBirr',
+  QTY: 'qty',
+  QUANTITY: 'qty',
+  UNIT: 'unit',
+  UNIT_: 'unit',
+  CDESTINATION: 'cDestination',
+  DESTINATION: 'cDestination',
+};
+
+const normalizeHeader = (value = '') =>
+  String(value)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
+const normalizeCell = (value) => {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+};
+
+const toFrontendRow = (record = {}) => ({
+  Months: record.months || '',
+  OFFICE: record.office || '',
+  REGDATE: record.regDate || '',
+  ASSDATE: record.assDate || '',
+  EXPTRADER: record.expTrader || '',
+  BUYER: record.buyer || '',
+  PRODUCT: record.product || '',
+  EMAIL: record.email || '',
+  WEBSITE: record.website || '',
+  HS: record.hs || '',
+  HSDSC: record.hsDsc || '',
+  CAT_COD: record.catCod || '',
+  COMERCIALDSC: record.comercialDsc || '',
+  GWEIGHT: record.gWeight || '',
+  NWEIGHT: record.nWeight || '',
+  FOB_VALUE_IN_USD: record.fobValueInUsd || '',
+  FOB_VALUE_IN_BIRR: record.fobValueInBirr || '',
+  QTY: record.qty || '',
+  UNIT_: record.unit || '',
+  CDESTINATION: record.cDestination || '',
+});
+
+const mapIncomingRow = (row = {}) => {
+  const mapped = {
+    months: '',
+    office: '',
+    regDate: '',
+    assDate: '',
+    expTrader: '',
+    buyer: '',
+    product: '',
+    email: '',
+    website: '',
+    hs: '',
+    hsDsc: '',
+    catCod: '',
+    comercialDsc: '',
+    gWeight: '',
+    nWeight: '',
+    fobValueInUsd: '',
+    fobValueInBirr: '',
+    qty: '',
+    unit: '',
+    cDestination: '',
+  };
+
+  Object.entries(row || {}).forEach(([key, value]) => {
+    const normalized = normalizeHeader(key);
+    const field = HEADER_ALIASES[normalized];
+    if (!field) return;
+    mapped[field] = normalizeCell(value);
+  });
+
+  const hasAnyValue = Object.values(mapped).some((value) => value !== '');
+  return hasAnyValue ? mapped : null;
+};
+
+const importLeadInternationalRecords = async (req, res) => {
+  try {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    const replaceExisting = req.body?.replaceExisting !== false;
+
+    if (!rows.length) {
+      return res.status(400).json({ error: 'rows must be a non-empty array.' });
+    }
+
+    const mappedRows = rows.map(mapIncomingRow).filter(Boolean);
+    if (!mappedRows.length) {
+      return res.status(400).json({ error: 'No valid lead international rows were provided.' });
+    }
+
+    if (replaceExisting) {
+      await LeadInternationalRecord.deleteMany({});
+    }
+
+    await LeadInternationalRecord.insertMany(mappedRows, { ordered: false });
+    const savedRows = await LeadInternationalRecord.find().sort({ createdAt: -1 });
+
+    return res.status(201).json({
+      importedCount: mappedRows.length,
+      totalCount: savedRows.length,
+      columns: FRONTEND_COLUMNS,
+      records: savedRows.map((record) => toFrontendRow(record.toObject())),
+    });
+  } catch (error) {
+    console.error('Lead international import failed:', error);
+    return res.status(500).json({ error: error.message || 'Failed to import lead international rows.' });
+  }
+};
+
+const createLeadInternationalRecord = async (req, res) => {
+  try {
+    const candidateRow =
+      req.body && typeof req.body === 'object' && req.body.row && typeof req.body.row === 'object'
+        ? req.body.row
+        : req.body;
+
+    const mappedRow = mapIncomingRow(candidateRow);
+    if (!mappedRow) {
+      return res.status(400).json({ error: 'No valid lead international row was provided.' });
+    }
+
+    const created = await LeadInternationalRecord.create(mappedRow);
+    return res.status(201).json({
+      record: toFrontendRow(created.toObject()),
+    });
+  } catch (error) {
+    console.error('Lead international create failed:', error);
+    return res.status(500).json({ error: error.message || 'Failed to create lead international row.' });
+  }
+};
+
+const getLeadInternationalRecords = async (req, res) => {
+  try {
+    const records = await LeadInternationalRecord.find().sort({ createdAt: -1 });
+    return res.status(200).json({
+      totalCount: records.length,
+      columns: FRONTEND_COLUMNS,
+      records: records.map((record) => toFrontendRow(record.toObject())),
+    });
+  } catch (error) {
+    console.error('Failed to fetch lead international records:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch lead international rows.' });
+  }
+};
+
+module.exports = {
+  importLeadInternationalRecords,
+  createLeadInternationalRecord,
+  getLeadInternationalRecords,
+};

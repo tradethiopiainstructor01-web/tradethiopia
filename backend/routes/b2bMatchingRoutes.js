@@ -4,6 +4,11 @@ const {
   getTopMatchesForBuyer,
   getTopMatchesForSeller
 } = require('../controllers/b2bMatchingController');
+const {
+  importLeadInternationalRecords,
+  createLeadInternationalRecord,
+  getLeadInternationalRecords
+} = require('../controllers/leadInternationalController');
 
 const router = express.Router();
 
@@ -15,5 +20,10 @@ router.get('/match/buyer/:buyerId', getTopMatchesForBuyer);
 
 // Get top matches for a specific seller
 router.get('/match/seller/:sellerId', getTopMatchesForSeller);
+
+// Lead International records
+router.get('/lead-international', getLeadInternationalRecords);
+router.post('/lead-international', createLeadInternationalRecord);
+router.post('/lead-international/import', importLeadInternationalRecords);
 
 module.exports = router;

@@ -77,6 +77,7 @@ const LEAD_INTERNATIONAL_COLUMNS = [
   'BUYER',
   'PRODUCT',
   'EMAIL',
+  'WEBSITE',
   'HS',
   'HSDSC',
   'CAT_COD',
@@ -100,6 +101,7 @@ const LEAD_INTERNATIONAL_SAMPLE_ROWS = [
     BUYER: 'AL NAJLA TRADING EST',
     PRODUCT: 'PEPPER POWDER',
     EMAIL: '',
+    WEBSITE: '',
     HS: '04021000',
     HSDSC: '- In powder, granules',
     CAT_COD: 'Animal Products',
@@ -121,6 +123,7 @@ const LEAD_INTERNATIONAL_SAMPLE_ROWS = [
     BUYER: 'HABIBA ADEN',
     PRODUCT: 'SECOND GRADE FRESH MILK',
     EMAIL: '',
+    WEBSITE: '',
     HS: '04029100',
     HSDSC: '- Not containing added sugar',
     CAT_COD: 'Animal Products',
@@ -142,6 +145,7 @@ const LEAD_INTERNATIONAL_SAMPLE_ROWS = [
     BUYER: 'GEGRIHET',
     PRODUCT: 'SAMPLE OF BUTTER',
     EMAIL: '',
+    WEBSITE: '',
     HS: '04051000',
     HSDSC: '- Butter',
     CAT_COD: 'Animal Products',
@@ -171,6 +175,10 @@ const LEAD_INTERNATIONAL_HEADER_ALIASES = {
   EMAIL: 'EMAIL',
   MAIL: 'EMAIL',
   BUYEREMAIL: 'EMAIL',
+  WEBSITE: 'WEBSITE',
+  WEB: 'WEBSITE',
+  URL: 'WEBSITE',
+  SITE: 'WEBSITE',
   HS: 'HS',
   HSDSC: 'HSDSC',
   HSDESC: 'HSDSC',
@@ -215,6 +223,12 @@ const normalizeLeadHeader = (key) =>
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
 
+const createEmptyLeadInternationalRow = () =>
+  LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
+    acc[column] = '';
+    return acc;
+  }, {});
+
 const B2BDashboard = () => {
   const [buyers, setBuyers] = useState([]);
   const [sellers, setSellers] = useState([]);
@@ -231,6 +245,8 @@ const B2BDashboard = () => {
   const [savedBy, setSavedBy] = useState('user@example.com'); // In a real app, this would come from auth context
   const [leadInternationalRows, setLeadInternationalRows] = useState(LEAD_INTERNATIONAL_SAMPLE_ROWS);
   const [isImportingLeadFile, setIsImportingLeadFile] = useState(false);
+  const [newLeadInternationalRow, setNewLeadInternationalRow] = useState(createEmptyLeadInternationalRow);
+  const [isSavingLeadInternationalRow, setIsSavingLeadInternationalRow] = useState(false);
   const [leadColumnVisibility, setLeadColumnVisibility] = useState(() =>
     LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
       acc[column] = true;
@@ -250,6 +266,7 @@ const B2BDashboard = () => {
   const { isOpen: isSellerDrawerOpen, onOpen: onSellerDrawerOpen, onClose: onSellerDrawerClose } = useDisclosure();
   const { isOpen: isMatchModalOpen, onOpen: onMatchModalOpen, onClose: onMatchModalClose } = useDisclosure();
   const { isOpen: isDetailModalOpen, onOpen: onDetailModalOpen, onClose: onDetailModalClose } = useDisclosure();
+  const { isOpen: isLeadAddModalOpen, onOpen: onLeadAddModalOpen, onClose: onLeadAddModalClose } = useDisclosure();
 
   // Fetch buyers and sellers
   const fetchData = async () => {
@@ -617,6 +634,38 @@ const B2BDashboard = () => {
     return hasData ? mappedRow : null;
   };
 
+  const normalizeLeadInternationalRowShape = (row) =>
+    LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
+      acc[column] = row?.[column] ?? '';
+      return acc;
+    }, {});
+
+  const fetchLeadInternationalRecords = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/b2b/lead-international`);
+      const records = Array.isArray(response.data?.records)
+        ? response.data.records
+        : (Array.isArray(response.data) ? response.data : []);
+
+      if (records.length > 0) {
+        setLeadInternationalRows(records.map(normalizeLeadInternationalRowShape));
+      } else {
+        // Keep sample rows when backend has no records yet.
+        setLeadInternationalRows(LEAD_INTERNATIONAL_SAMPLE_ROWS);
+      }
+    } catch (error) {
+      console.error('Failed to fetch Lead International records:', error);
+      toast({
+        title: 'Lead International not loaded',
+        description: error.response?.data?.error || 'Using local sample data until backend records are available.',
+        status: 'warning',
+        duration: 3500,
+        isClosable: true,
+      });
+      setLeadInternationalRows(LEAD_INTERNATIONAL_SAMPLE_ROWS);
+    }
+  };
+
   const handleImportLeadInternationalFile = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -656,11 +705,23 @@ const B2BDashboard = () => {
         return;
       }
 
-      setLeadInternationalRows(mappedRows);
+      const importResponse = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/b2b/lead-international/import`,
+        {
+          rows: mappedRows,
+          replaceExisting: true,
+        }
+      );
+
+      const savedRows = Array.isArray(importResponse.data?.records)
+        ? importResponse.data.records.map(normalizeLeadInternationalRowShape)
+        : mappedRows;
+
+      setLeadInternationalRows(savedRows);
       setActiveTab(4);
       toast({
         title: 'Import complete',
-        description: `Loaded ${mappedRows.length} row(s) into Lead International.`,
+        description: `Saved ${savedRows.length} row(s) to backend and loaded Lead International.`,
         status: 'success',
         duration: 3500,
         isClosable: true,
@@ -713,6 +774,77 @@ const B2BDashboard = () => {
         return acc;
       }, {})
     );
+  };
+
+  const resetNewLeadInternationalRow = () => {
+    setNewLeadInternationalRow(createEmptyLeadInternationalRow());
+  };
+
+  const handleOpenLeadAddModal = () => {
+    resetNewLeadInternationalRow();
+    onLeadAddModalOpen();
+  };
+
+  const handleCloseLeadAddModal = () => {
+    onLeadAddModalClose();
+  };
+
+  const handleLeadInternationalFieldChange = (column, value) => {
+    setNewLeadInternationalRow((prev) => ({
+      ...prev,
+      [column]: value,
+    }));
+  };
+
+  const handleAddLeadInternationalRow = async () => {
+    const hasAnyValue = LEAD_INTERNATIONAL_COLUMNS.some(
+      (column) => String(newLeadInternationalRow[column] || '').trim() !== ''
+    );
+
+    if (!hasAnyValue) {
+      toast({
+        title: 'No data to add',
+        description: 'Please fill at least one field before adding.',
+        status: 'warning',
+        duration: 2500,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsSavingLeadInternationalRow(true);
+    try {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/b2b/lead-international`, {
+        row: newLeadInternationalRow,
+      });
+
+      const createdRow = response.data?.record
+        ? normalizeLeadInternationalRowShape(response.data.record)
+        : normalizeLeadInternationalRowShape(newLeadInternationalRow);
+
+      setLeadInternationalRows((prev) => [createdRow, ...prev]);
+      setActiveTab(4);
+      toast({
+        title: 'Lead added',
+        description: 'The row was saved to backend successfully.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      handleCloseLeadAddModal();
+      resetNewLeadInternationalRow();
+    } catch (error) {
+      console.error('Failed to add lead international row:', error);
+      toast({
+        title: 'Add failed',
+        description: error.response?.data?.error || error.message || 'Unable to save this row.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSavingLeadInternationalRow(false);
+    }
   };
 
   // Handle view match details
@@ -776,8 +908,11 @@ const B2BDashboard = () => {
     
     const loadData = async () => {
       if (isMounted) {
-        await fetchData();
-        await fetchSavedMatches();
+        await Promise.all([
+          fetchData(),
+          fetchSavedMatches(),
+          fetchLeadInternationalRecords(),
+        ]);
       }
     };
     
@@ -861,7 +996,13 @@ const B2BDashboard = () => {
           <Tooltip label="Refresh data">
             <IconButton
               icon={<RepeatIcon />}
-              onClick={fetchData}
+              onClick={async () => {
+                await Promise.all([
+                  fetchData(),
+                  fetchSavedMatches(),
+                  fetchLeadInternationalRecords(),
+                ]);
+              }}
               isLoading={loading}
               size="sm"
             />
@@ -931,6 +1072,17 @@ const B2BDashboard = () => {
             isDisabled={isImportingLeadFile}
           >
             Import Excel
+          </Button>
+
+          <Button
+            colorScheme="teal"
+            variant="solid"
+            onClick={handleOpenLeadAddModal}
+            display={activeTab === 4 ? 'inline-flex' : 'none'}
+            size="sm"
+            leftIcon={<AddIcon />}
+          >
+            Add
           </Button>
 
           <input
@@ -1442,6 +1594,15 @@ const B2BDashboard = () => {
                     >
                       Import Excel
                     </Button>
+
+                    <Button
+                      size="sm"
+                      colorScheme="teal"
+                      onClick={handleOpenLeadAddModal}
+                      leftIcon={<AddIcon />}
+                    >
+                      Add
+                    </Button>
                   </HStack>
                 </Flex>
 
@@ -1483,6 +1644,52 @@ const B2BDashboard = () => {
           </TabPanels>
         </Tabs>
       </Box>
+
+      {/* Lead International Add Modal */}
+      <Modal isOpen={isLeadAddModalOpen} onClose={handleCloseLeadAddModal} size="5xl" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Add Lead International Row</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Box
+              display="grid"
+              gridTemplateColumns={{ base: '1fr', md: '1fr 1fr' }}
+              gap={4}
+            >
+              {LEAD_INTERNATIONAL_COLUMNS.map((column) => (
+                <FormControl key={`lead-input-${column}`}>
+                  <FormLabel>{column === 'UNIT_' ? 'UNIT' : column.replace(/_/g, ' ')}</FormLabel>
+                  {column === 'HSDSC' || column === 'COMERCIALDSC' ? (
+                    <Textarea
+                      value={newLeadInternationalRow[column] || ''}
+                      onChange={(event) => handleLeadInternationalFieldChange(column, event.target.value)}
+                      rows={3}
+                    />
+                  ) : (
+                    <Input
+                      value={newLeadInternationalRow[column] || ''}
+                      onChange={(event) => handleLeadInternationalFieldChange(column, event.target.value)}
+                    />
+                  )}
+                </FormControl>
+              ))}
+            </Box>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={handleCloseLeadAddModal}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="teal"
+              onClick={handleAddLeadInternationalRow}
+              isLoading={isSavingLeadInternationalRow}
+            >
+              Add
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Buyer Form Drawer */}
       <Drawer isOpen={isBuyerDrawerOpen} placement="right" size="md" onClose={onBuyerDrawerClose}>
