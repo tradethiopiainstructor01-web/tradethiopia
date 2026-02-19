@@ -190,7 +190,7 @@ exports.deleteEntry = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this content entry' });
     }
 
-    await entry.remove();
+    await entry.deleteOne();
     res.json({ success: true, message: 'Entry deleted' });
   } catch (error) {
     console.error('ContentTrackerController.deleteEntry', error);

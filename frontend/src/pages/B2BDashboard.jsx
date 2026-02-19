@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Text,
@@ -52,7 +52,12 @@ import {
   FormLabel,
   Textarea,
   HStack,
-  VStack
+  VStack,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Checkbox
 } from '@chakra-ui/react';
 import { AddIcon, SearchIcon, RepeatIcon, ViewIcon, EditIcon, DeleteIcon, StarIcon, CloseIcon } from '@chakra-ui/icons';
 import axios from 'axios';
@@ -62,6 +67,153 @@ import SellerForm from '../components/SellerForm';
 import MatchDetails from '../components/MatchDetails';
 import CustomerDetails from '../components/CustomerDetails';
 import NotesLauncher from '../components/notes/NotesLauncher';
+
+const LEAD_INTERNATIONAL_COLUMNS = [
+  'Months',
+  'OFFICE',
+  'REGDATE',
+  'ASSDATE',
+  'EXPTRADER',
+  'BUYER',
+  'PRODUCT',
+  'EMAIL',
+  'HS',
+  'HSDSC',
+  'CAT_COD',
+  'COMERCIALDSC',
+  'GWEIGHT',
+  'NWEIGHT',
+  'FOB_VALUE_IN_USD',
+  'FOB_VALUE_IN_BIRR',
+  'QTY',
+  'UNIT_',
+  'CDESTINATION',
+];
+
+const LEAD_INTERNATIONAL_SAMPLE_ROWS = [
+  {
+    Months: 'Hamile',
+    OFFICE: 'AAK06',
+    REGDATE: '7/13/2024',
+    ASSDATE: '7/13/2024',
+    EXPTRADER: 'ADAM MOHAMMED',
+    BUYER: 'AL NAJLA TRADING EST',
+    PRODUCT: 'PEPPER POWDER',
+    EMAIL: '',
+    HS: '04021000',
+    HSDSC: '- In powder, granules',
+    CAT_COD: 'Animal Products',
+    COMERCIALDSC: 'PEPPER POWDER',
+    GWEIGHT: '7,000.00',
+    NWEIGHT: '7,000.00',
+    FOB_VALUE_IN_USD: '33,110.00',
+    FOB_VALUE_IN_BIRR: '1,919,248.00',
+    QTY: '',
+    UNIT_: '',
+    CDESTINATION: 'Saudi Arabia',
+  },
+  {
+    Months: 'Hamile',
+    OFFICE: 'IJJ00',
+    REGDATE: '8/2/2024',
+    ASSDATE: '8/2/2024',
+    EXPTRADER: 'HABIBA ADEN ISMAIEL',
+    BUYER: 'HABIBA ADEN',
+    PRODUCT: 'SECOND GRADE FRESH MILK',
+    EMAIL: '',
+    HS: '04029100',
+    HSDSC: '- Not containing added sugar',
+    CAT_COD: 'Animal Products',
+    COMERCIALDSC: 'SECOND GRADE FRESH MILK',
+    GWEIGHT: '61,728.00',
+    NWEIGHT: '61,728.00',
+    FOB_VALUE_IN_USD: '5,000.00',
+    FOB_VALUE_IN_BIRR: '406,383.00',
+    QTY: '',
+    UNIT_: '',
+    CDESTINATION: 'Somalia',
+  },
+  {
+    Months: 'Hamile',
+    OFFICE: 'AAA00',
+    REGDATE: '7/25/2024',
+    ASSDATE: '7/25/2024',
+    EXPTRADER: 'SHEWIT G/AMANUEL AAFEWERKI',
+    BUYER: 'GEGRIHET',
+    PRODUCT: 'SAMPLE OF BUTTER',
+    EMAIL: '',
+    HS: '04051000',
+    HSDSC: '- Butter',
+    CAT_COD: 'Animal Products',
+    COMERCIALDSC: 'SAMPLE OF BUTTER',
+    GWEIGHT: '3.00',
+    NWEIGHT: '2.00',
+    FOB_VALUE_IN_USD: '3.00',
+    FOB_VALUE_IN_BIRR: '174.00',
+    QTY: '',
+    UNIT_: '',
+    CDESTINATION: 'Canada',
+  },
+];
+
+const LEAD_INTERNATIONAL_HEADER_ALIASES = {
+  MONTH: 'Months',
+  MONTHS: 'Months',
+  OFFICE: 'OFFICE',
+  REGDATE: 'REGDATE',
+  ASSDATE: 'ASSDATE',
+  EXPTRADER: 'EXPTRADER',
+  EXPORTER: 'EXPTRADER',
+  BUYER: 'BUYER',
+  PRODUCT: 'PRODUCT',
+  PRODUCTNAME: 'PRODUCT',
+  ITEM: 'PRODUCT',
+  EMAIL: 'EMAIL',
+  MAIL: 'EMAIL',
+  BUYEREMAIL: 'EMAIL',
+  HS: 'HS',
+  HSDSC: 'HSDSC',
+  HSDESC: 'HSDSC',
+  CATCOD: 'CAT_COD',
+  CATEGORYCODE: 'CAT_COD',
+  CATEGORY: 'CAT_COD',
+  COMERCIALDSC: 'COMERCIALDSC',
+  COMMERCIALDSC: 'COMERCIALDSC',
+  GWEIGHT: 'GWEIGHT',
+  GROSSWEIGHT: 'GWEIGHT',
+  NWEIGHT: 'NWEIGHT',
+  NETWEIGHT: 'NWEIGHT',
+  FOBVALUEINUSD: 'FOB_VALUE_IN_USD',
+  FOBVALUEUSD: 'FOB_VALUE_IN_USD',
+  FOBVALUEINBIRR: 'FOB_VALUE_IN_BIRR',
+  FOBVALUEBIRR: 'FOB_VALUE_IN_BIRR',
+  QTY: 'QTY',
+  QUANTITY: 'QTY',
+  UNIT: 'UNIT_',
+  CDESTINATION: 'CDESTINATION',
+  DESTINATION: 'CDESTINATION',
+};
+
+const LEAD_INTERNATIONAL_DATE_COLUMNS = new Set(['REGDATE', 'ASSDATE']);
+const LEAD_INTERNATIONAL_NUMBER_COLUMNS = new Set([
+  'GWEIGHT',
+  'NWEIGHT',
+  'FOB_VALUE_IN_USD',
+  'FOB_VALUE_IN_BIRR',
+]);
+
+const formatLeadDateValue = (value) => {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).trim();
+  return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+};
+
+const normalizeLeadHeader = (key) =>
+  String(key || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
 
 const B2BDashboard = () => {
   const [buyers, setBuyers] = useState([]);
@@ -77,6 +229,15 @@ const B2BDashboard = () => {
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'detail'
   const [detailViewType, setDetailViewType] = useState('match'); // 'match', 'buyer', or 'seller'
   const [savedBy, setSavedBy] = useState('user@example.com'); // In a real app, this would come from auth context
+  const [leadInternationalRows, setLeadInternationalRows] = useState(LEAD_INTERNATIONAL_SAMPLE_ROWS);
+  const [isImportingLeadFile, setIsImportingLeadFile] = useState(false);
+  const [leadColumnVisibility, setLeadColumnVisibility] = useState(() =>
+    LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
+      acc[column] = true;
+      return acc;
+    }, {})
+  );
+  const leadImportRef = useRef(null);
   const toast = useToast();
   
   const getScopeBadgeColor = (scope = "All") => {
@@ -394,6 +555,166 @@ const B2BDashboard = () => {
     ))
   );
 
+  const formatLeadImportedCell = (column, value, XLSX) => {
+    if (value === null || value === undefined || value === '') return '';
+
+    if (LEAD_INTERNATIONAL_DATE_COLUMNS.has(column)) {
+      if (typeof value === 'number' && XLSX?.SSF?.parse_date_code) {
+        const parsedDate = XLSX.SSF.parse_date_code(value);
+        if (parsedDate?.y && parsedDate?.m && parsedDate?.d) {
+          return `${parsedDate.m}/${parsedDate.d}/${parsedDate.y}`;
+        }
+      }
+      return formatLeadDateValue(value);
+    }
+
+    if (LEAD_INTERNATIONAL_NUMBER_COLUMNS.has(column)) {
+      const numericValue =
+        typeof value === 'number'
+          ? value
+          : Number(String(value).replace(/,/g, ''));
+
+      if (Number.isFinite(numericValue)) {
+        return numericValue.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      }
+      return String(value).trim();
+    }
+
+    if (column === 'QTY') {
+      const numericValue =
+        typeof value === 'number'
+          ? value
+          : Number(String(value).replace(/,/g, ''));
+
+      if (Number.isFinite(numericValue)) {
+        if (Number.isInteger(numericValue)) return numericValue.toString();
+        return numericValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+    }
+
+    return String(value).trim();
+  };
+
+  const mapLeadInternationalRow = (row, XLSX) => {
+    const mappedRow = LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
+      acc[column] = '';
+      return acc;
+    }, {});
+
+    Object.entries(row || {}).forEach(([header, value]) => {
+      const normalizedHeader = normalizeLeadHeader(header);
+      const targetColumn = LEAD_INTERNATIONAL_HEADER_ALIASES[normalizedHeader];
+      if (!targetColumn) return;
+      mappedRow[targetColumn] = formatLeadImportedCell(targetColumn, value, XLSX);
+    });
+
+    const hasData = LEAD_INTERNATIONAL_COLUMNS.some(
+      (column) => String(mappedRow[column] || '').trim() !== ''
+    );
+    return hasData ? mappedRow : null;
+  };
+
+  const handleImportLeadInternationalFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImportingLeadFile(true);
+    try {
+      const XLSX = await import('xlsx');
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const firstSheet = workbook.SheetNames?.[0];
+
+      if (!firstSheet) {
+        throw new Error('No worksheet found in the selected file.');
+      }
+
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+      if (!rows.length) {
+        toast({
+          title: 'No rows found',
+          description: 'The selected file does not contain data to import.',
+          status: 'warning',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const mappedRows = rows.map((row) => mapLeadInternationalRow(row, XLSX)).filter(Boolean);
+      if (!mappedRows.length) {
+        toast({
+          title: 'Nothing to import',
+          description: 'No matching Lead International columns were found in this file.',
+          status: 'warning',
+          duration: 3500,
+          isClosable: true,
+        });
+        return;
+      }
+
+      setLeadInternationalRows(mappedRows);
+      setActiveTab(4);
+      toast({
+        title: 'Import complete',
+        description: `Loaded ${mappedRows.length} row(s) into Lead International.`,
+        status: 'success',
+        duration: 3500,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Failed to import Lead International file:', error);
+      toast({
+        title: 'Import failed',
+        description: error.message || 'Unable to import the selected file.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setIsImportingLeadFile(false);
+      event.target.value = '';
+    }
+  };
+
+  const filteredLeadInternationalRows = leadInternationalRows.filter((row) =>
+    LEAD_INTERNATIONAL_COLUMNS.some((column) =>
+      String(row[column] ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
+
+  const visibleLeadInternationalColumns = LEAD_INTERNATIONAL_COLUMNS.filter(
+    (column) => leadColumnVisibility[column] !== false
+  );
+
+  const toggleLeadColumnVisibility = (column) => {
+    setLeadColumnVisibility((prev) => {
+      const next = {
+        ...prev,
+        [column]: !prev[column],
+      };
+
+      // Keep at least one column visible.
+      if (Object.values(next).every((isVisible) => !isVisible)) {
+        next[column] = true;
+      }
+
+      return next;
+    });
+  };
+
+  const showAllLeadColumns = () => {
+    setLeadColumnVisibility(
+      LEAD_INTERNATIONAL_COLUMNS.reduce((acc, column) => {
+        acc[column] = true;
+        return acc;
+      }, {})
+    );
+  };
+
   // Handle view match details
   const handleViewMatch = (match) => {
     setSelectedItem(match);
@@ -571,6 +892,54 @@ const B2BDashboard = () => {
           >
             Add Seller
           </Button>
+
+          <Menu closeOnSelect={false}>
+            <MenuButton
+              as={Button}
+              variant="outline"
+              size="sm"
+              display={activeTab === 4 ? 'inline-flex' : 'none'}
+            >
+              Column Attributes
+            </MenuButton>
+            <MenuList maxH="300px" overflowY="auto">
+              {LEAD_INTERNATIONAL_COLUMNS.map((column) => (
+                <MenuItem key={`lead-col-top-${column}`} closeOnSelect={false}>
+                  <Checkbox
+                    isChecked={!!leadColumnVisibility[column]}
+                    onChange={() => toggleLeadColumnVisibility(column)}
+                  >
+                    {column}
+                  </Checkbox>
+                </MenuItem>
+              ))}
+              <MenuItem closeOnSelect={false}>
+                <Button size="xs" variant="ghost" onClick={showAllLeadColumns}>
+                  Select All
+                </Button>
+              </MenuItem>
+            </MenuList>
+          </Menu>
+
+          <Button
+            colorScheme="blue"
+            variant="outline"
+            onClick={() => leadImportRef.current?.click()}
+            display={activeTab === 4 ? 'inline-flex' : 'none'}
+            size="sm"
+            isLoading={isImportingLeadFile}
+            isDisabled={isImportingLeadFile}
+          >
+            Import Excel
+          </Button>
+
+          <input
+            ref={leadImportRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleImportLeadInternationalFile}
+            style={{ display: 'none' }}
+          />
         </Flex>
 
         <Tabs index={activeTab} onChange={setActiveTab}>
@@ -579,6 +948,7 @@ const B2BDashboard = () => {
             <Tab>Sellers ({sellers.length})</Tab>
             <Tab>Matches ({matches.length})</Tab>
             <Tab>Saved Matches ({savedMatches.length})</Tab>
+            <Tab>Lead International ({leadInternationalRows.length})</Tab>
           </TabList>
 
           <TabPanels>
@@ -1021,6 +1391,92 @@ const B2BDashboard = () => {
                       </Tbody>
                     </Table>
                   </>
+                )}
+              </Box>
+            </TabPanel>
+
+            {/* Lead International Tab */}
+            <TabPanel>
+              <Box overflowX="auto">
+                <Flex
+                  mb={4}
+                  justifyContent="space-between"
+                  alignItems="center"
+                  flexWrap="wrap"
+                  gap={2}
+                >
+                  <Text fontWeight="bold">
+                    Lead International Records ({filteredLeadInternationalRows.length})
+                  </Text>
+                  <HStack spacing={2}>
+                    <Menu closeOnSelect={false}>
+                      <MenuButton as={Button} size="sm" variant="outline">
+                        Column Attributes
+                      </MenuButton>
+                      <MenuList maxH="300px" overflowY="auto">
+                        {LEAD_INTERNATIONAL_COLUMNS.map((column) => (
+                          <MenuItem key={`lead-col-tab-${column}`} closeOnSelect={false}>
+                            <Checkbox
+                              isChecked={!!leadColumnVisibility[column]}
+                              onChange={() => toggleLeadColumnVisibility(column)}
+                            >
+                              {column}
+                            </Checkbox>
+                          </MenuItem>
+                        ))}
+                        <MenuItem closeOnSelect={false}>
+                          <Button size="xs" variant="ghost" onClick={showAllLeadColumns}>
+                            Select All
+                          </Button>
+                        </MenuItem>
+                      </MenuList>
+                    </Menu>
+
+                    <Button
+                      size="sm"
+                      colorScheme="blue"
+                      variant="outline"
+                      onClick={() => leadImportRef.current?.click()}
+                      isLoading={isImportingLeadFile}
+                      isDisabled={isImportingLeadFile}
+                    >
+                      Import Excel
+                    </Button>
+                  </HStack>
+                </Flex>
+
+                {filteredLeadInternationalRows.length === 0 ? (
+                  <Flex
+                    direction="column"
+                    align="center"
+                    justify="center"
+                    height="200px"
+                    textAlign="center"
+                  >
+                    <Text fontSize="lg" mb={3}>No lead international records found.</Text>
+                    <Text color="gray.500">
+                      Import an Excel file to load lead international data.
+                    </Text>
+                  </Flex>
+                ) : (
+                  <Table variant="simple" size="sm">
+                    <Thead>
+                      <Tr>
+                        {visibleLeadInternationalColumns.map((column) => (
+                          <Th key={column}>{column}</Th>
+                        ))}
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {filteredLeadInternationalRows.map((row, rowIndex) => (
+                        <Tr key={`lead-international-${rowIndex}`}>
+                          {visibleLeadInternationalColumns.map((column) => (
+                            <Td key={`${column}-${rowIndex}`}>{row[column] || '-'}</Td>
+                          ))}
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
                 )}
               </Box>
             </TabPanel>
