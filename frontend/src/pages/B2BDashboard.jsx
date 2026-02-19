@@ -73,6 +73,8 @@ const LEAD_INTERNATIONAL_COLUMNS = [
   'OFFICE',
   'REGDATE',
   'ASSDATE',
+  'LEAD_TYPE',
+  'ROLE',
   'EXPTRADER',
   'BUYER',
   'PRODUCT',
@@ -97,6 +99,8 @@ const LEAD_INTERNATIONAL_SAMPLE_ROWS = [
     OFFICE: 'AAK06',
     REGDATE: '7/13/2024',
     ASSDATE: '7/13/2024',
+    LEAD_TYPE: 'International',
+    ROLE: 'Buyer',
     EXPTRADER: 'ADAM MOHAMMED',
     BUYER: 'AL NAJLA TRADING EST',
     PRODUCT: 'PEPPER POWDER',
@@ -119,6 +123,8 @@ const LEAD_INTERNATIONAL_SAMPLE_ROWS = [
     OFFICE: 'IJJ00',
     REGDATE: '8/2/2024',
     ASSDATE: '8/2/2024',
+    LEAD_TYPE: 'International',
+    ROLE: 'Seller',
     EXPTRADER: 'HABIBA ADEN ISMAIEL',
     BUYER: 'HABIBA ADEN',
     PRODUCT: 'SECOND GRADE FRESH MILK',
@@ -141,6 +147,8 @@ const LEAD_INTERNATIONAL_SAMPLE_ROWS = [
     OFFICE: 'AAA00',
     REGDATE: '7/25/2024',
     ASSDATE: '7/25/2024',
+    LEAD_TYPE: 'International',
+    ROLE: 'Buyer',
     EXPTRADER: 'SHEWIT G/AMANUEL AAFEWERKI',
     BUYER: 'GEGRIHET',
     PRODUCT: 'SAMPLE OF BUTTER',
@@ -166,6 +174,11 @@ const LEAD_INTERNATIONAL_HEADER_ALIASES = {
   OFFICE: 'OFFICE',
   REGDATE: 'REGDATE',
   ASSDATE: 'ASSDATE',
+  LEADTYPE: 'LEAD_TYPE',
+  TYPE: 'LEAD_TYPE',
+  LEADSCOPE: 'LEAD_TYPE',
+  ROLE: 'ROLE',
+  BYER: 'ROLE',
   EXPTRADER: 'EXPTRADER',
   EXPORTER: 'EXPTRADER',
   BUYER: 'BUYER',
@@ -263,6 +276,7 @@ const B2BDashboard = () => {
       return acc;
     }, {})
   );
+  const [leadCategory, setLeadCategory] = useState('All');
   const leadImportRef = useRef(null);
   const toast = useToast();
   
@@ -770,11 +784,24 @@ const B2BDashboard = () => {
     }
   };
 
-  const filteredLeadInternationalRows = leadInternationalRows.filter((row) =>
-    LEAD_INTERNATIONAL_COLUMNS.some((column) =>
+  const filteredLeadInternationalRows = leadInternationalRows.filter((row) => {
+    const matchesSearch = LEAD_INTERNATIONAL_COLUMNS.some((column) =>
       String(row[column] ?? '').toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+    );
+    if (!matchesSearch) return false;
+
+    if (leadCategory === 'Buyer') {
+      const buyerName = String(row.BUYER ?? '').trim();
+      return buyerName !== '';
+    }
+
+    if (leadCategory === 'Seller') {
+      const sellerName = String(row.EXPTRADER ?? '').trim();
+      return sellerName !== '';
+    }
+
+    return true;
+  });
 
   const visibleLeadInternationalColumns = LEAD_INTERNATIONAL_COLUMNS.filter(
     (column) => leadColumnVisibility[column] !== false
@@ -1741,6 +1768,18 @@ const B2BDashboard = () => {
                     Lead International Records ({filteredLeadInternationalRows.length})
                   </Text>
                   <HStack spacing={2}>
+                    <Select
+                      size="sm"
+                      width="130px"
+                      value={leadCategory}
+                      onChange={(event) => setLeadCategory(event.target.value)}
+                      aria-label="Lead international category"
+                    >
+                      <option value="All">All</option>
+                      <option value="Buyer">Buyer</option>
+                      <option value="Seller">Seller</option>
+                    </Select>
+
                     <Menu closeOnSelect={false}>
                       <MenuButton as={Button} size="sm" variant="outline">
                         Column Attributes
@@ -1861,7 +1900,25 @@ const B2BDashboard = () => {
               {LEAD_INTERNATIONAL_COLUMNS.map((column) => (
                 <FormControl key={`lead-input-${column}`}>
                   <FormLabel>{column === 'UNIT_' ? 'UNIT' : column.replace(/_/g, ' ')}</FormLabel>
-                  {column === 'HSDSC' || column === 'COMERCIALDSC' ? (
+                  {column === 'LEAD_TYPE' ? (
+                    <Select
+                      placeholder="Select lead type"
+                      value={newLeadInternationalRow[column] || ''}
+                      onChange={(event) => handleLeadInternationalFieldChange(column, event.target.value)}
+                    >
+                      <option value="Local">Local</option>
+                      <option value="International">International</option>
+                    </Select>
+                  ) : column === 'ROLE' ? (
+                    <Select
+                      placeholder="Select role"
+                      value={newLeadInternationalRow[column] || ''}
+                      onChange={(event) => handleLeadInternationalFieldChange(column, event.target.value)}
+                    >
+                      <option value="Buyer">Buyer</option>
+                      <option value="Seller">Seller</option>
+                    </Select>
+                  ) : column === 'HSDSC' || column === 'COMERCIALDSC' ? (
                     <Textarea
                       value={newLeadInternationalRow[column] || ''}
                       onChange={(event) => handleLeadInternationalFieldChange(column, event.target.value)}
@@ -1907,7 +1964,25 @@ const B2BDashboard = () => {
               {LEAD_INTERNATIONAL_COLUMNS.map((column) => (
                 <FormControl key={`lead-edit-input-${column}`}>
                   <FormLabel>{column === 'UNIT_' ? 'UNIT' : column.replace(/_/g, ' ')}</FormLabel>
-                  {column === 'HSDSC' || column === 'COMERCIALDSC' ? (
+                  {column === 'LEAD_TYPE' ? (
+                    <Select
+                      placeholder="Select lead type"
+                      value={editLeadInternationalRow[column] || ''}
+                      onChange={(event) => handleEditLeadInternationalFieldChange(column, event.target.value)}
+                    >
+                      <option value="Local">Local</option>
+                      <option value="International">International</option>
+                    </Select>
+                  ) : column === 'ROLE' ? (
+                    <Select
+                      placeholder="Select role"
+                      value={editLeadInternationalRow[column] || ''}
+                      onChange={(event) => handleEditLeadInternationalFieldChange(column, event.target.value)}
+                    >
+                      <option value="Buyer">Buyer</option>
+                      <option value="Seller">Seller</option>
+                    </Select>
+                  ) : column === 'HSDSC' || column === 'COMERCIALDSC' ? (
                     <Textarea
                       value={editLeadInternationalRow[column] || ''}
                       onChange={(event) => handleEditLeadInternationalFieldChange(column, event.target.value)}

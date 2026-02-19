@@ -6,6 +6,8 @@ const leadInternationalRecordSchema = new mongoose.Schema(
     office: { type: String, default: '' },
     regDate: { type: String, default: '' },
     assDate: { type: String, default: '' },
+    leadType: { type: String, default: '' },
+    role: { type: String, default: '' },
     expTrader: { type: String, default: '' },
     buyer: { type: String, default: '' },
     product: { type: String, default: '' },
