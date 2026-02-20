@@ -84,6 +84,13 @@ const normalizeCell = (value) => {
   return String(value).trim();
 };
 
+const normalizeLeadType = (value) => {
+  const cleaned = normalizeCell(value).toLowerCase();
+  if (cleaned === 'local') return 'Local';
+  if (cleaned === 'international' || cleaned === 'intl') return 'International';
+  return '';
+};
+
 const toFrontendRow = (record = {}) => ({
   _id: record._id,
   Months: record.months || '',
@@ -143,6 +150,8 @@ const mapIncomingRow = (row = {}) => {
     mapped[field] = normalizeCell(value);
   });
 
+  mapped.leadType = normalizeLeadType(mapped.leadType);
+
   const hasAnyValue = Object.values(mapped).some((value) => value !== '');
   return hasAnyValue ? mapped : null;
 };
@@ -151,18 +160,38 @@ const importLeadInternationalRecords = async (req, res) => {
   try {
     const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
     const replaceExisting = req.body?.replaceExisting !== false;
+    const replaceScope = normalizeCell(req.body?.replaceScope).toLowerCase();
+    const requestedLeadType = normalizeLeadType(req.body?.leadType);
 
     if (!rows.length) {
       return res.status(400).json({ error: 'rows must be a non-empty array.' });
     }
 
-    const mappedRows = rows.map(mapIncomingRow).filter(Boolean);
+    const mappedRows = rows
+      .map(mapIncomingRow)
+      .filter(Boolean)
+      .map((row) => ({
+        ...row,
+        leadType: requestedLeadType || row.leadType,
+      }));
     if (!mappedRows.length) {
       return res.status(400).json({ error: 'No valid lead international rows were provided.' });
     }
 
     if (replaceExisting) {
-      await LeadInternationalRecord.deleteMany({});
+      if (replaceScope === 'leadtype') {
+        const targetLeadType = requestedLeadType || mappedRows[0]?.leadType || '';
+        if (!targetLeadType) {
+          return res.status(400).json({
+            error: 'leadType is required when replaceScope is "leadType".',
+          });
+        }
+        await LeadInternationalRecord.deleteMany({
+          leadType: { $regex: `^${targetLeadType}$`, $options: 'i' },
+        });
+      } else {
+        await LeadInternationalRecord.deleteMany({});
+      }
     }
 
     await LeadInternationalRecord.insertMany(mappedRows, { ordered: false });

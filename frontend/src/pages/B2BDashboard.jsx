@@ -713,6 +713,7 @@ const B2BDashboard = () => {
   const handleImportLeadInternationalFile = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const importLeadType = activeTab === 5 ? 'Local' : 'International';
 
     setIsImportingLeadFile(true);
     try {
@@ -737,7 +738,13 @@ const B2BDashboard = () => {
         return;
       }
 
-      const mappedRows = rows.map((row) => mapLeadInternationalRow(row, XLSX)).filter(Boolean);
+      const mappedRows = rows
+        .map((row) => mapLeadInternationalRow(row, XLSX))
+        .filter(Boolean)
+        .map((row) => ({
+          ...row,
+          LEAD_TYPE: importLeadType,
+        }));
       if (!mappedRows.length) {
         toast({
           title: 'Nothing to import',
@@ -753,7 +760,9 @@ const B2BDashboard = () => {
         `${import.meta.env.VITE_API_URL}/api/b2b/lead-international/import`,
         {
           rows: mappedRows,
-          replaceExisting: true,
+          replaceExisting: false,
+          replaceScope: 'leadType',
+          leadType: importLeadType,
         }
       );
 
@@ -762,13 +771,10 @@ const B2BDashboard = () => {
         : mappedRows.map((row, index) => normalizeLeadInternationalRowShape(row, index));
 
       setLeadInternationalRows(savedRows);
-      const hasLocalRows = savedRows.some(
-        (row) => String(row.LEAD_TYPE || '').trim().toLowerCase() === 'local'
-      );
-      setActiveTab(hasLocalRows ? 5 : 4);
+      setActiveTab(importLeadType === 'Local' ? 5 : 4);
       toast({
         title: 'Import complete',
-        description: `Saved ${savedRows.length} row(s) to backend and loaded Lead International.`,
+        description: `Saved ${savedRows.length} row(s) to backend and loaded Lead ${importLeadType}.`,
         status: 'success',
         duration: 3500,
         isClosable: true,
