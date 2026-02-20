@@ -279,6 +279,7 @@ const B2BDashboard = () => {
   const [leadCategory, setLeadCategory] = useState('All');
   const leadImportRef = useRef(null);
   const toast = useToast();
+  const isLeadTabActive = activeTab === 4 || activeTab === 5;
   
   const getScopeBadgeColor = (scope = "All") => {
     if (scope === 'International') return 'purple';
@@ -761,7 +762,10 @@ const B2BDashboard = () => {
         : mappedRows.map((row, index) => normalizeLeadInternationalRowShape(row, index));
 
       setLeadInternationalRows(savedRows);
-      setActiveTab(4);
+      const hasLocalRows = savedRows.some(
+        (row) => String(row.LEAD_TYPE || '').trim().toLowerCase() === 'local'
+      );
+      setActiveTab(hasLocalRows ? 5 : 4);
       toast({
         title: 'Import complete',
         description: `Saved ${savedRows.length} row(s) to backend and loaded Lead International.`,
@@ -785,23 +789,45 @@ const B2BDashboard = () => {
   };
 
   const filteredLeadInternationalRows = leadInternationalRows.filter((row) => {
+    const leadType = String(row.LEAD_TYPE || '').trim().toLowerCase();
+    if (leadType && leadType !== 'international') return false;
+
     const matchesSearch = LEAD_INTERNATIONAL_COLUMNS.some((column) =>
       String(row[column] ?? '').toLowerCase().includes(searchTerm.toLowerCase())
     );
     if (!matchesSearch) return false;
 
-    if (leadCategory === 'Buyer') {
-      const buyerName = String(row.BUYER ?? '').trim();
-      return buyerName !== '';
-    }
-
-    if (leadCategory === 'Seller') {
-      const sellerName = String(row.EXPTRADER ?? '').trim();
-      return sellerName !== '';
-    }
+    const roleValue = String(row.ROLE || '').trim().toLowerCase();
+    if (leadCategory === 'Buyer') return roleValue === 'buyer';
+    if (leadCategory === 'Seller') return roleValue === 'seller';
 
     return true;
   });
+
+  const filteredLeadLocalRows = leadInternationalRows.filter((row) => {
+    const leadType = String(row.LEAD_TYPE || '').trim().toLowerCase();
+    if (leadType !== 'local') return false;
+
+    const matchesSearch = LEAD_INTERNATIONAL_COLUMNS.some((column) =>
+      String(row[column] ?? '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    if (!matchesSearch) return false;
+
+    const roleValue = String(row.ROLE || '').trim().toLowerCase();
+    if (leadCategory === 'Buyer') return roleValue === 'buyer';
+    if (leadCategory === 'Seller') return roleValue === 'seller';
+
+    return true;
+  });
+
+  const leadInternationalCount = leadInternationalRows.filter((row) => {
+    const leadType = String(row.LEAD_TYPE || '').trim().toLowerCase();
+    return !leadType || leadType === 'international';
+  }).length;
+
+  const leadLocalCount = leadInternationalRows.filter(
+    (row) => String(row.LEAD_TYPE || '').trim().toLowerCase() === 'local'
+  ).length;
 
   const visibleLeadInternationalColumns = LEAD_INTERNATIONAL_COLUMNS.filter(
     (column) => leadColumnVisibility[column] !== false
@@ -879,7 +905,8 @@ const B2BDashboard = () => {
         : normalizeLeadInternationalRowShape(newLeadInternationalRow);
 
       setLeadInternationalRows((prev) => [createdRow, ...prev]);
-      setActiveTab(4);
+      const createdLeadType = String(createdRow.LEAD_TYPE || '').trim().toLowerCase();
+      setActiveTab(createdLeadType === 'local' ? 5 : 4);
       toast({
         title: 'Lead added',
         description: 'The row was saved to backend successfully.',
@@ -1273,7 +1300,7 @@ const B2BDashboard = () => {
             colorScheme="blue"
             variant="outline"
             onClick={() => leadImportRef.current?.click()}
-            display={activeTab === 4 ? 'inline-flex' : 'none'}
+            display={isLeadTabActive ? 'inline-flex' : 'none'}
             size="sm"
             isLoading={isImportingLeadFile}
             isDisabled={isImportingLeadFile}
@@ -1285,7 +1312,7 @@ const B2BDashboard = () => {
             colorScheme="teal"
             variant="solid"
             onClick={handleOpenLeadAddModal}
-            display={activeTab === 4 ? 'inline-flex' : 'none'}
+            display={isLeadTabActive ? 'inline-flex' : 'none'}
             size="sm"
             leftIcon={<AddIcon />}
           >
@@ -1307,7 +1334,8 @@ const B2BDashboard = () => {
             <Tab>Sellers ({sellers.length})</Tab>
             <Tab>Matches ({matches.length})</Tab>
             <Tab>Saved Matches ({savedMatches.length})</Tab>
-            <Tab>Lead International ({leadInternationalRows.length})</Tab>
+            <Tab>Lead International ({leadInternationalCount})</Tab>
+            <Tab>Lead Local ({leadLocalCount})</Tab>
           </TabList>
 
           <TabPanels>
@@ -1881,6 +1909,134 @@ const B2BDashboard = () => {
                 )}
               </Box>
             </TabPanel>
+
+            {/* Lead Local Tab */}
+            <TabPanel>
+              <Box overflowX="auto">
+                <Flex
+                  mb={4}
+                  justifyContent="space-between"
+                  alignItems="center"
+                  flexWrap="wrap"
+                  gap={2}
+                >
+                  <Text fontWeight="bold">
+                    Lead Local Records ({filteredLeadLocalRows.length})
+                  </Text>
+                  <HStack spacing={2}>
+                    <Select
+                      size="sm"
+                      width="130px"
+                      value={leadCategory}
+                      onChange={(event) => setLeadCategory(event.target.value)}
+                      aria-label="Lead local category"
+                    >
+                      <option value="All">All</option>
+                      <option value="Buyer">Buyer</option>
+                      <option value="Seller">Seller</option>
+                    </Select>
+
+                    <Menu closeOnSelect={false}>
+                      <MenuButton as={Button} size="sm" variant="outline">
+                        Column Attributes
+                      </MenuButton>
+                      <MenuList maxH="300px" overflowY="auto">
+                        {LEAD_INTERNATIONAL_COLUMNS.map((column) => (
+                          <MenuItem key={`lead-local-col-tab-${column}`} closeOnSelect={false}>
+                            <Checkbox
+                              isChecked={!!leadColumnVisibility[column]}
+                              onChange={() => toggleLeadColumnVisibility(column)}
+                            >
+                              {column}
+                            </Checkbox>
+                          </MenuItem>
+                        ))}
+                        <MenuItem closeOnSelect={false}>
+                          <Button size="xs" variant="ghost" onClick={showAllLeadColumns}>
+                            Select All
+                          </Button>
+                        </MenuItem>
+                      </MenuList>
+                    </Menu>
+
+                    <Button
+                      size="sm"
+                      colorScheme="blue"
+                      variant="outline"
+                      onClick={() => leadImportRef.current?.click()}
+                      isLoading={isImportingLeadFile}
+                      isDisabled={isImportingLeadFile}
+                    >
+                      Import Excel
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      colorScheme="teal"
+                      onClick={handleOpenLeadAddModal}
+                      leftIcon={<AddIcon />}
+                    >
+                      Add
+                    </Button>
+                  </HStack>
+                </Flex>
+
+                {filteredLeadLocalRows.length === 0 ? (
+                  <Flex
+                    direction="column"
+                    align="center"
+                    justify="center"
+                    height="200px"
+                    textAlign="center"
+                  >
+                    <Text fontSize="lg" mb={3}>No lead local records found.</Text>
+                    <Text color="gray.500">
+                      Import an Excel file to load lead local data.
+                    </Text>
+                  </Flex>
+                ) : (
+                  <Table variant="simple" size="sm">
+                    <Thead>
+                      <Tr>
+                        <Th minW="120px">Actions</Th>
+                        {visibleLeadInternationalColumns.map((column) => (
+                          <Th key={`lead-local-${column}`}>{column}</Th>
+                        ))}
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {filteredLeadLocalRows.map((row, rowIndex) => (
+                        <Tr key={row._id || row._rowKey || `lead-local-${rowIndex}`}>
+                          <Td>
+                            <HStack spacing={2}>
+                              <IconButton
+                                aria-label="Edit lead local row"
+                                icon={<EditIcon />}
+                                size="xs"
+                                colorScheme="blue"
+                                variant="outline"
+                                onClick={() => handleOpenLeadEditModal(row)}
+                              />
+                              <IconButton
+                                aria-label="Delete lead local row"
+                                icon={<DeleteIcon />}
+                                size="xs"
+                                colorScheme="red"
+                                variant="outline"
+                                onClick={() => handleOpenLeadDeleteModal(row)}
+                              />
+                            </HStack>
+                          </Td>
+                          {visibleLeadInternationalColumns.map((column) => (
+                            <Td key={`${column}-lead-local-${rowIndex}`}>{row[column] || '-'}</Td>
+                          ))}
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                )}
+              </Box>
+            </TabPanel>
           </TabPanels>
         </Tabs>
       </Box>
@@ -2131,3 +2287,4 @@ const B2BDashboard = () => {
 };
 
 export default B2BDashboard;
+
