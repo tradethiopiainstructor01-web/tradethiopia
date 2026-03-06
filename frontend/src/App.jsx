@@ -81,6 +81,7 @@ import ReportsPage from "./components/salesmanager/ReportsPage";
 import CalendarPage from "./components/salesmanager/CalendarPage";
 import SettingsPage from "./components/salesmanager/SettingsPage";
 import ContentTrackerReport from "./components/salesmanager/ContentTrackerReport";
+import CourseManagerPage from "./components/salesmanager/CourseManagerPage";
 import PayrollPage from "./components/Payroll/PayrollPage";
 import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
 import KPIScorecardPage from "./pages/sales/KPIScorecardPage";
@@ -365,6 +366,7 @@ return (
       >
         <Route index element={<SalesManagerDashboard />} />
         <Route path="dashboard" element={<SalesManagerDashboard />} />
+        <Route path="course" element={<CourseManagerPage />} />
         <Route path="all-sales" element={<AllSalesPage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="kpi" element={<KPIScorecardPage />} />
