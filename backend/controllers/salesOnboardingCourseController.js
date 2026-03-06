@@ -1,6 +1,8 @@
 const asyncHandler = require('express-async-handler');
+const path = require('path');
 const SalesOnboardingCourse = require('../models/SalesOnboardingCourse');
-const { storage, InputFile } = require('../config/appwriteClient');
+const { File } = require('node-fetch-native-with-agent');
+const { storage } = require('../config/appwriteClient');
 
 const COURSE_KEY = 'sales-onboarding';
 
@@ -101,6 +103,11 @@ const getCoursePayload = (body = {}) => {
 const buildAppwriteFileUrl = (fileId) =>
   `https://cloud.appwrite.io/v1/storage/buckets/${process.env.APPWRITE_BUCKET_ID}/files/${fileId}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
 
+const getMissingAppwriteConfig = () =>
+  ['APPWRITE_ENDPOINT', 'APPWRITE_PROJECT_ID', 'APPWRITE_API_KEY', 'APPWRITE_BUCKET_ID'].filter(
+    (key) => !process.env[key]
+  );
+
 const getPublishedCourse = asyncHandler(async (req, res) => {
   const course = await SalesOnboardingCourse.findOne({
     key: COURSE_KEY,
@@ -200,23 +207,68 @@ const uploadSlideImage = asyncHandler(async (req, res) => {
     });
   }
 
-  if (!process.env.APPWRITE_BUCKET_ID || !process.env.APPWRITE_PROJECT_ID) {
-    return res.status(500).json({
+  if (!req.file.mimetype?.startsWith('image/')) {
+    return res.status(400).json({
       success: false,
-      message: 'Appwrite storage is not configured.',
+      message: 'Only image uploads are supported for onboarding slides.',
     });
   }
 
-  const fileName = `sales-onboarding-${Date.now()}-${req.file.originalname}`;
-  const file = InputFile.fromBuffer(req.file.buffer, fileName);
+  const missingConfig = getMissingAppwriteConfig();
 
-  const uploaded = await storage.createFile({
-    bucketId: process.env.APPWRITE_BUCKET_ID,
-    fileId: 'unique()',
-    file,
+  if (missingConfig.length) {
+    return res.status(500).json({
+      success: false,
+      message: `Appwrite storage is not configured. Missing: ${missingConfig.join(', ')}`,
+    });
+  }
+
+  const originalName = path.basename(req.file.originalname || 'upload');
+  const safeName = originalName.replace(/\s+/g, '-');
+  const fileName = `sales-onboarding-${Date.now()}-${safeName}`;
+  const file = new File([req.file.buffer], fileName, {
+    type: req.file.mimetype || 'application/octet-stream',
   });
 
+  let uploaded;
+
+  try {
+    uploaded = await storage.createFile({
+      bucketId: process.env.APPWRITE_BUCKET_ID,
+      fileId: 'unique()',
+      file,
+    });
+  } catch (error) {
+    console.error('Sales onboarding slide image upload failed:', {
+      message: error?.message,
+      code: error?.code,
+      type: error?.type,
+      response: error?.response,
+      fileName,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+    });
+
+    return res.status(502).json({
+      success: false,
+      message: error?.response?.message || error?.message || 'Image upload failed.',
+    });
+  }
+
   const fileId = uploaded?.$id;
+
+  if (!fileId) {
+    console.error('Sales onboarding slide image upload returned no file id.', {
+      uploaded,
+      fileName,
+    });
+
+    return res.status(502).json({
+      success: false,
+      message: 'Image upload failed: storage service returned no file id.',
+    });
+  }
+
   const fileUrl = buildAppwriteFileUrl(fileId);
 
   res.status(201).json({

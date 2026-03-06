@@ -226,7 +226,14 @@ export const uploadSalesOnboardingSlideImage = async (file) => {
     });
     return response.data;
   } catch (error) {
-    console.error('Error uploading onboarding slide image:', error);
+    console.error('Error uploading onboarding slide image:', {
+      fileName: file?.name,
+      fileType: file?.type,
+      fileSize: file?.size,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data,
+    });
     throw error;
   }
 };
