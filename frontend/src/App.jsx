@@ -169,6 +169,7 @@ return (
       <Route path="/employee-file-upload" element={<EmployeeFileUploadForm />} />
       <Route path="/users" element={<LayoutWrapper><HomePage /></LayoutWrapper>} />
       <Route path="/dashboard" element={<LayoutWrapper><Dashboard /></LayoutWrapper>} />
+      <Route path="/course" element={<LayoutWrapper><AdminTrainingUpload /></LayoutWrapper>} />
       <Route path="/documentupload" element={<DocumentUploadForm />} />
       <Route path="/category" element={<LayoutWrapper><Category /></LayoutWrapper>} />
       <Route path="/documentlist" element={<LayoutWrapper><DocumentList /></LayoutWrapper>} />

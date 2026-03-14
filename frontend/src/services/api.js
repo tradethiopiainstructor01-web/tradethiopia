@@ -75,3 +75,29 @@ export const updateCourse = (id, data) =>
 
 export const deleteCourse = (id) =>
   axiosInstance.delete(`/courses/${id}`).then(response => response.data);
+
+export const addCourseSlide = (courseId, formData) =>
+  axiosInstance.post(`/courses/${courseId}/slides`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }).then(response => response.data);
+
+export const updateCourseSlide = (courseId, slideId, data) =>
+  axiosInstance.put(`/courses/${courseId}/slides/${slideId}`, data).then(response => response.data);
+
+export const addCourseQuestion = (courseId, data) =>
+  axiosInstance.post(`/courses/${courseId}/questions`, data).then(response => response.data);
+
+export const updateCourseQuestion = (courseId, questionId, data) =>
+  axiosInstance.put(`/courses/${courseId}/questions/${questionId}`, data).then(response => response.data);
+
+export const deleteCourseQuestion = (courseId, questionId) =>
+  axiosInstance.delete(`/courses/${courseId}/questions/${questionId}`).then(response => response.data);
+
+export const uploadCourseSlideImage = (formData) =>
+  axiosInstance.post('/courses/slide-image', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }).then(response => response.data);

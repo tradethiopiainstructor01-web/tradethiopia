@@ -134,6 +134,14 @@ const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
           </Flex>
         </Link>
 
+        {/* HR Course Link */}
+        <Link as={RouterLink} to="/course" _hover={{ textDecoration: "none" }}>
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiBookOpen} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">HR Course</Text>}
+          </Flex>
+        </Link>
+
         {/* Awards Link */}
         <Link as={RouterLink} to="/awards" _hover={{ textDecoration: "none" }}>
           <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
