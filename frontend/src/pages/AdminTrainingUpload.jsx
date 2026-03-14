@@ -10,7 +10,6 @@ import {
   FormLabel,
   Heading,
   IconButton,
-  Image,
   Input,
   Select,
   SimpleGrid,
@@ -32,6 +31,7 @@ import {
   addCourseQuestion,
   addCourseSlide,
   createCourse,
+  deleteCourse,
   deleteCourseQuestion,
   fetchCourses,
   updateCourse,
@@ -180,6 +180,13 @@ const AdminTrainingUpload = () => {
     }));
   };
 
+  const resetEditorState = () => {
+    setEditingSlideId("");
+    setEditingQuestionId("");
+    setSlideForm(createEmptySlideForm(1));
+    setQuestionForm(createEmptyQuestionForm(1));
+  };
+
   const syncSelectedCourse = (course) => {
     setSelectedCourseId(course._id);
     setCourseForm({
@@ -187,6 +194,62 @@ const AdminTrainingUpload = () => {
       overview: course.overview || course.description || "",
       passPercentage: String(course.passPercentage ?? 75)
     });
+  };
+
+  const handleCreateNewCourse = () => {
+    setSelectedCourseId("");
+    setCourseForm(emptyCourseForm);
+    resetEditorState();
+  };
+
+  const handleEditCourse = (course) => {
+    syncSelectedCourse(course);
+    resetEditorState();
+  };
+
+  const handleDeleteCourse = async (courseId) => {
+    const course = courses.find((item) => item._id === courseId);
+    if (!courseId || !course) {
+      return;
+    }
+
+    if (!window.confirm(`Delete course "${course.name}"?`)) {
+      return;
+    }
+
+    try {
+      await deleteCourse(courseId);
+      const remainingCourses = courses.filter((item) => item._id !== courseId);
+      const nextCourse = remainingCourses[0] || null;
+
+      setCourses(remainingCourses);
+      setSelectedCourseId(nextCourse?._id || "");
+      if (nextCourse) {
+        setCourseForm({
+          name: nextCourse.name || "",
+          overview: nextCourse.overview || nextCourse.description || "",
+          passPercentage: String(nextCourse.passPercentage ?? 75)
+        });
+      } else {
+        setCourseForm(emptyCourseForm);
+      }
+      resetEditorState();
+
+      toast({
+        title: "Course deleted",
+        status: "success",
+        duration: 2500,
+        isClosable: true
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to delete course",
+        description: error?.response?.data?.message || error.message || "",
+        status: "error",
+        duration: 3000,
+        isClosable: true
+      });
+    }
   };
 
   const saveCourse = async (status) => {
@@ -676,6 +739,14 @@ const AdminTrainingUpload = () => {
       <Card mb={6}>
         <CardBody>
           <Heading size="md" mb={4}>1. Create Course</Heading>
+          <Flex mb={4} justify="space-between" align={{ base: "flex-start", md: "center" }} direction={{ base: "column", md: "row" }} gap={3}>
+            <Text color="gray.600">
+              {selectedCourse ? `Editing course: ${selectedCourse.name}` : "Create a new HR course or pick one to edit."}
+            </Text>
+            <Button variant="outline" onClick={handleCreateNewCourse}>
+              New Course
+            </Button>
+          </Flex>
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
             <FormControl isRequired>
               <FormLabel>Course Title</FormLabel>
@@ -715,6 +786,33 @@ const AdminTrainingUpload = () => {
               No saved course yet. Click <strong>Save Draft</strong> first.
             </Text>
           )}
+
+          <VStack spacing={3} align="stretch" mt={6}>
+            {courses.map((course) => (
+              <Box key={course._id} borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={4}>
+                <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} direction={{ base: "column", md: "row" }} gap={3}>
+                  <Box>
+                    <Text fontWeight="bold">{course.name}</Text>
+                    <Text fontSize="sm" color="gray.500">
+                      {course.status === "published" ? "Published" : "Draft"} • {course.slides?.length || 0} slides • {course.quizQuestions?.length || 0} questions
+                    </Text>
+                  </Box>
+                  <Flex gap={2}>
+                    <Button size="sm" leftIcon={<EditIcon />} onClick={() => handleEditCourse(course)}>
+                      Edit
+                    </Button>
+                    <IconButton
+                      aria-label={`Delete course ${course.name}`}
+                      icon={<DeleteIcon />}
+                      colorScheme="red"
+                      variant="ghost"
+                      onClick={() => handleDeleteCourse(course._id)}
+                    />
+                  </Flex>
+                </Flex>
+              </Box>
+            ))}
+          </VStack>
         </CardBody>
       </Card>
 
@@ -843,6 +941,22 @@ const AdminTrainingUpload = () => {
                     </Button>
                   </Box>
                 </Box>
+
+                <VStack spacing={4} align="stretch" mt={4}>
+                  {(selectedCourse?.slides || []).map((slide) => (
+                    <Box key={slide._id || `${slide.slideNumber}-${slide.title}`} borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={4}>
+                      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} direction={{ base: "column", md: "row" }} gap={3}>
+                        <Box>
+                          <Text fontWeight="bold" mb={1}>Slide {slide.slideNumber}</Text>
+                          <Text color="gray.600">Use edit to update this slide inside HR Course.</Text>
+                        </Box>
+                        <Button size="sm" leftIcon={<EditIcon />} onClick={() => handleEditSlide(slide)}>
+                          Edit
+                        </Button>
+                      </Flex>
+                    </Box>
+                  ))}
+                </VStack>
               </TabPanel>
 
               <TabPanel px={0}>
@@ -960,22 +1074,7 @@ const AdminTrainingUpload = () => {
                       <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} direction={{ base: "column", md: "row" }} gap={3}>
                         <Box>
                           <Text fontWeight="bold" mb={2}>Question {quizQuestion.questionNumber}</Text>
-                          <Text mb={3}>{quizQuestion.question}</Text>
-                          <VStack spacing={2} align="stretch">
-                            {(quizQuestion.options || []).map((option, index) => (
-                              <Text key={`${quizQuestion._id || quizQuestion.questionNumber}-option-${index}`} fontSize="sm" color="gray.700">
-                                {`${String.fromCharCode(65 + index)}. ${option}`}
-                              </Text>
-                            ))}
-                          </VStack>
-                          <Text fontSize="sm" mt={3} color="gray.500">
-                            Correct answer: {`Option ${(Number(quizQuestion.correctAnswer) || 0) + 1}`}
-                          </Text>
-                          {quizQuestion.explanation ? (
-                            <Text fontSize="sm" mt={1} color="gray.500">
-                              Explanation: {quizQuestion.explanation}
-                            </Text>
-                          ) : null}
+                          <Text color="gray.600">Use edit to update this question inside HR Course.</Text>
                         </Box>
                         <Flex gap={2}>
                           <Button size="sm" leftIcon={<EditIcon />} onClick={() => handleEditQuestion(quizQuestion)}>
@@ -996,105 +1095,6 @@ const AdminTrainingUpload = () => {
               </TabPanel>
             </TabPanels>
           </Tabs>
-        </CardBody>
-      </Card>
-
-      <Card mb={6}>
-        <CardBody>
-          <Heading size="md" mb={4}>Slides</Heading>
-          {!selectedCourse ? (
-            <Text color="gray.600">Create or select a course first to start adding slides.</Text>
-          ) : selectedCourse.slides?.length ? (
-            <VStack spacing={4} align="stretch">
-              {selectedCourse.slides.map((slide) => (
-                <Box key={slide._id || `${slide.slideNumber}-${slide.title}`} borderWidth="1px" borderRadius="lg" p={4}>
-                  <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} direction={{ base: "column", md: "row" }} gap={3}>
-                    <Box>
-                      <Text fontWeight="bold">Slide {slide.slideNumber}: {slide.title}</Text>
-                      <Text fontSize="sm" color="gray.500" wordBreak="break-all">
-                        {slide.imageUrl}
-                      </Text>
-                      {slide.body ? (
-                        <Text mt={2} color="gray.700">
-                          {slide.body}
-                        </Text>
-                      ) : null}
-                      {slide.materialUrl ? (
-                        <Text fontSize="sm" mt={2} color="gray.500" wordBreak="break-all">
-                          {slide.materialUrl}
-                        </Text>
-                      ) : null}
-                    </Box>
-                    <Flex gap={2}>
-                      <Badge colorScheme="blue">Auto Numbered</Badge>
-                      <Button size="sm" leftIcon={<EditIcon />} onClick={() => handleEditSlide(slide)}>
-                        Edit
-                      </Button>
-                    </Flex>
-                  </Flex>
-                  {slide.imageUrl ? (
-                    <Box mt={4}>
-                      <Image
-                        src={slide.imageUrl}
-                        alt={slide.title}
-                        borderRadius="md"
-                        maxH="220px"
-                        objectFit="cover"
-                      />
-                    </Box>
-                  ) : null}
-                </Box>
-              ))}
-            </VStack>
-          ) : (
-            <Text color="gray.600">No slides added yet.</Text>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card mb={6}>
-        <CardBody>
-          <Heading size="md" mb={2}>Appwrite Image Gallery</Heading>
-          <Text color="gray.600" mb={5}>
-            Responsive section displaying slide images stored in Appwrite Cloud Storage.
-          </Text>
-          {!selectedCourse?.slides?.length ? (
-            <Text color="gray.600">No uploaded Appwrite images available yet.</Text>
-          ) : (
-            <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={5}>
-              {selectedCourse.slides.map((slide) => (
-                <Box
-                  key={`gallery-${slide._id || slide.slideNumber}`}
-                  borderWidth="1px"
-                  borderColor="gray.200"
-                  borderRadius="xl"
-                  overflow="hidden"
-                  bg="white"
-                >
-                  <Box bg="gray.50">
-                    <Image
-                      src={slide.imageUrl}
-                      alt={slide.title}
-                      w="100%"
-                      h={{ base: "200px", md: "220px" }}
-                      objectFit="cover"
-                    />
-                  </Box>
-                  <Box p={4}>
-                    <Text fontWeight="bold" mb={1}>
-                      Slide {slide.slideNumber}
-                    </Text>
-                    <Text color="gray.700" mb={3}>
-                      {slide.title}
-                    </Text>
-                    <Text fontSize="sm" color="gray.500" wordBreak="break-all">
-                      {slide.imageUrl}
-                    </Text>
-                  </Box>
-                </Box>
-              ))}
-            </SimpleGrid>
-          )}
         </CardBody>
       </Card>
 

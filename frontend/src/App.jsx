@@ -52,6 +52,7 @@ import COODashboard from './pages/COODashboard';
 import ReceptionDashboard from './pages/ReceptionDashboard';
 import TradexTVDashboard from './pages/TradexTVDashboard';
 import PricingPage from './pages/sales/PricingPage.jsx';
+import HRTrainingPage from './pages/HRTrainingPage.jsx';
 import RevenuePage from './pages/sales/RevenuePage.jsx';
 import PurchasePage from './pages/sales/PurchasePage.jsx';
 import CostManagementPage from './pages/sales/CostManagementPage.jsx';
@@ -171,6 +172,7 @@ return (
       <Route path="/users" element={<LayoutWrapper><HomePage /></LayoutWrapper>} />
       <Route path="/dashboard" element={<LayoutWrapper><Dashboard /></LayoutWrapper>} />
       <Route path="/course" element={<LayoutWrapper><AdminTrainingUpload /></LayoutWrapper>} />
+      <Route path="/hr-training" element={<LayoutWrapper><HRTrainingPage /></LayoutWrapper>} />
       <Route path="/documentupload" element={<DocumentUploadForm />} />
       <Route path="/category" element={<LayoutWrapper><Category /></LayoutWrapper>} />
       <Route path="/documentlist" element={<LayoutWrapper><DocumentList /></LayoutWrapper>} />
