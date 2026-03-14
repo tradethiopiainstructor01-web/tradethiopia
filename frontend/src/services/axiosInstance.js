@@ -36,7 +36,13 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('Axios response error:', error);
+    console.error('Axios response error:', {
+      method: error.config?.method,
+      url: error.config?.url,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data,
+    });
     if (error.response?.status === 401) {
       // Token expired or invalid
       localStorage.removeItem('userToken');

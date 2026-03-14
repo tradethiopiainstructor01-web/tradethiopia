@@ -182,3 +182,58 @@ export const importSales = async (sales = []) => {
     throw error;
   }
 };
+
+// Sales onboarding course (manager)
+export const getManagerSalesOnboardingCourse = async () => {
+  try {
+    const response = await axiosInstance.get('/sales-onboarding-course/manage');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching manager onboarding course:', error);
+    throw error;
+  }
+};
+
+export const saveManagerSalesOnboardingCourse = async (payload) => {
+  try {
+    const response = await axiosInstance.put('/sales-onboarding-course/manage', payload);
+    return response.data;
+  } catch (error) {
+    console.error('Error saving manager onboarding course:', error);
+    throw error;
+  }
+};
+
+export const publishManagerSalesOnboardingCourse = async () => {
+  try {
+    const response = await axiosInstance.post('/sales-onboarding-course/manage/publish');
+    return response.data;
+  } catch (error) {
+    console.error('Error publishing manager onboarding course:', error);
+    throw error;
+  }
+};
+
+export const uploadSalesOnboardingSlideImage = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await axiosInstance.post('/sales-onboarding-course/manage/upload-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error uploading onboarding slide image:', {
+      fileName: file?.name,
+      fileType: file?.type,
+      fileSize: file?.size,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data,
+    });
+    throw error;
+  }
+};

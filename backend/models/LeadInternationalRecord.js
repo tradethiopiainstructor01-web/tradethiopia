@@ -13,6 +13,7 @@ const leadInternationalRecordSchema = new mongoose.Schema(
     product: { type: String, default: '' },
     email: { type: String, default: '' },
     website: { type: String, default: '' },
+    phone: { type: String, default: '' },
     hs: { type: String, default: '' },
     hsDsc: { type: String, default: '' },
     catCod: { type: String, default: '' },

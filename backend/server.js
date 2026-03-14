@@ -56,6 +56,7 @@ const costRoutes = require('./routes/costRoutes.js');
 const requestRoutes = require('./routes/requestRoutes.js');
 const actionItemRoutes = require('./routes/actionItemRoutes.js');
 const commissionApprovalRoutes = require('./routes/commissionApprovalRoutes.js');
+const salesOnboardingCourseRoutes = require('./routes/salesOnboardingCourseRoutes.js');
 // Load environment variables
 
 // Initialize Express app
@@ -300,6 +301,7 @@ app.use('/api/awards', awardRoutes);
 
 // Commission Approval
 app.use('/api/commissions', commissionApprovalRoutes);
+app.use('/api/sales-onboarding-course', salesOnboardingCourseRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

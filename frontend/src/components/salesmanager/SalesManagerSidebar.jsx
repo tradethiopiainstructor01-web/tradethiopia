@@ -35,7 +35,8 @@ import {
   FiPieChart, 
   FiHelpCircle, 
   FiCheckCircle,
-  FiClipboard
+  FiClipboard,
+  FiBookOpen
 } from 'react-icons/fi';
 
 const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
@@ -58,6 +59,7 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
 
   const LinkItems = [
     { name: 'Dashboard', icon: FiHome, path: '/salesmanager' },
+    { name: 'Course', icon: FiBookOpen, path: '/salesmanager/course' },
     { name: 'All Sales', icon: FiDollarSign, path: '/salesmanager/all-sales' },
     { name: 'Performance', icon: FiTrendingUp, path: '/salesmanager/performance' },
     { name: 'KPI', icon: FiBarChart2, path: '/salesmanager/kpi' },
