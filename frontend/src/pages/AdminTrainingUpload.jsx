@@ -9,6 +9,8 @@ import {
   FormControl,
   FormLabel,
   Heading,
+  HStack,
+  Image,
   IconButton,
   Input,
   Select,
@@ -47,10 +49,10 @@ const emptyCourseForm = {
 };
 
 const createEmptySlideForm = (slideNumber = 1) => ({
-  title: `Slide ${slideNumber}`,
-  image: null,
+  title: `Chapter ${slideNumber}`,
   imageFileId: "",
   imageUrl: "",
+  imageUrls: [],
   body: "",
   materialUrl: ""
 });
@@ -64,6 +66,22 @@ const createEmptyQuestionForm = (questionNumber = 1) => ({
 });
 
 const isPersistedCourse = (course) => course?._id && !String(course._id).startsWith("seed-");
+const asArray = (value, fallback = []) => (Array.isArray(value) ? value : fallback);
+const asText = (value, fallback = "") => {
+  if (value === null || value === undefined) return fallback;
+  return String(value).trim();
+};
+const sanitizeImageUrls = (imageUrls = []) => {
+  const values = asArray(imageUrls, [])
+    .map((value) => asText(value, ""))
+    .filter(Boolean);
+
+  return values.filter((value, index) => values.indexOf(value) === index);
+};
+const normalizeSlideImageUrls = (slide = {}) =>
+  sanitizeImageUrls([asText(slide?.imageUrl, ""), ...asArray(slide?.imageUrls, [])]);
+const getPrimaryImageUrl = (imageUrls = [], fallback = "") =>
+  sanitizeImageUrls(imageUrls)[0] || asText(fallback, "");
 
 const AdminTrainingUpload = () => {
   const toast = useToast();
@@ -154,7 +172,7 @@ const AdminTrainingUpload = () => {
     }
     setSlideForm((prev) => ({
       ...prev,
-      title: prev.title && !/^Slide \d+$/i.test(prev.title.trim()) ? prev.title : `Slide ${nextSlideNumber}`
+      title: prev.title && !/^Chapter \d+$/i.test(prev.title.trim()) ? prev.title : `Chapter ${nextSlideNumber}`
     }));
   }, [nextSlideNumber, editingSlideId]);
 
@@ -267,7 +285,9 @@ const AdminTrainingUpload = () => {
       name: courseForm.name.trim(),
       description: courseForm.overview.trim(),
       overview: courseForm.overview.trim(),
-      passPercentage: Number(courseForm.passPercentage) || 75,
+      passPercentage: Number.isFinite(Number(courseForm.passPercentage))
+        ? Number(courseForm.passPercentage)
+        : 75,
       status,
       draftSavedAt: status === "draft" ? new Date().toISOString() : undefined,
       publishedAt: status === "published" ? new Date().toISOString() : undefined,
@@ -287,7 +307,7 @@ const AdminTrainingUpload = () => {
       await saveCourse("draft");
       toast({
         title: "Course draft saved",
-        description: "You can now add slides to this course.",
+        description: "You can now add chapters to this course.",
         status: "success",
         duration: 2500,
         isClosable: true
@@ -342,12 +362,40 @@ const AdminTrainingUpload = () => {
   };
 
   const handleSlideFieldChange = (field) => (event) => {
-    const value = field === "image" ? event.target.files?.[0] || null : event.target.value;
     setSlideForm((prev) => ({
-        ...prev,
-        [field]: value,
-      ...(field === "image" ? { imageUrl: "" } : {})
+      ...prev,
+      [field]: event.target.value
     }));
+  };
+
+  const updateSlideImageFields = (updater) => {
+    setSlideForm((prev) => {
+      const nextImageUrls =
+        typeof updater === "function" ? updater(asArray(prev.imageUrls, [])) : updater;
+
+      return {
+        ...prev,
+        imageUrls: asArray(nextImageUrls, []),
+        imageUrl: getPrimaryImageUrl(asArray(nextImageUrls, []), ""),
+        imageFileId: getPrimaryImageUrl(asArray(nextImageUrls, []), "") ? prev.imageFileId : ""
+      };
+    });
+  };
+
+  const addSlideImageUrlField = () => {
+    updateSlideImageFields((imageUrls) => [...imageUrls, ""]);
+  };
+
+  const updateSlideImageUrl = (imageIndex, value) => {
+    updateSlideImageFields((imageUrls) =>
+      imageUrls.map((imageUrl, index) => (index === imageIndex ? value : imageUrl))
+    );
+  };
+
+  const removeSlideImage = (imageIndex) => {
+    updateSlideImageFields((imageUrls) =>
+      imageUrls.filter((_, index) => index !== imageIndex)
+    );
   };
 
   const handleQuestionFieldChange = (field) => (event) => {
@@ -389,44 +437,44 @@ const AdminTrainingUpload = () => {
   };
 
   const handleSlideImageUpload = async (event) => {
-    const file = event.target.files?.[0] || null;
-    setSlideForm((prev) => ({
-      ...prev,
-      image: file,
-      imageUrl: ""
-    }));
+    const files = Array.from(event.target.files || []).filter(Boolean);
 
-    if (!file) {
+    if (!files.length) {
       return;
     }
 
     setIsUploadingImage(true);
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const response = await uploadCourseSlideImage(formData);
+      const uploadedImageUrls = [];
+      let firstUploadedFileId = "";
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("image", file);
+        const response = await uploadCourseSlideImage(formData);
+        if (response?.imageUrl) {
+          uploadedImageUrls.push(response.imageUrl);
+        }
+        if (!firstUploadedFileId && response?.fileId) {
+          firstUploadedFileId = response.fileId;
+        }
+      }
 
       setSlideForm((prev) => ({
         ...prev,
-        image: file,
-        imageUrl: response?.imageUrl || "",
-        imageFileId: response?.fileId || ""
+        imageUrls: [...asArray(prev.imageUrls, []), ...uploadedImageUrls],
+        imageUrl: getPrimaryImageUrl([...asArray(prev.imageUrls, []), ...uploadedImageUrls], ""),
+        imageFileId: prev.imageFileId || firstUploadedFileId || ""
       }));
 
       toast({
-        title: "Image uploaded",
-        description: response?.imageUrl || "Appwrite image URL created.",
+        title: files.length > 1 ? "Images uploaded" : "Image uploaded",
+        description: "HR chapter image upload completed successfully.",
         status: "success",
         duration: 2500,
         isClosable: true
       });
     } catch (error) {
-      setSlideForm((prev) => ({
-        ...prev,
-        image: null,
-        imageFileId: "",
-        imageUrl: ""
-      }));
       toast({
         title: "Image upload failed",
         description: error?.response?.data?.message || error.message || "",
@@ -444,7 +492,7 @@ const AdminTrainingUpload = () => {
     if (!selectedCourse?._id) {
       toast({
         title: "Create the course first",
-        description: "Save the course draft before adding slides.",
+        description: "Save the course draft before adding chapters.",
         status: "warning",
         duration: 3000,
         isClosable: true
@@ -454,7 +502,7 @@ const AdminTrainingUpload = () => {
 
     if (!slideForm.title.trim()) {
       toast({
-        title: "Slide title is required",
+        title: "Chapter title is required",
         status: "warning",
         duration: 2500,
         isClosable: true
@@ -462,9 +510,11 @@ const AdminTrainingUpload = () => {
       return;
     }
 
-    if (!slideForm.imageUrl) {
+    const imageUrls = sanitizeImageUrls(slideForm.imageUrls);
+
+    if (!imageUrls.length) {
       toast({
-        title: "Slide image is required",
+        title: "At least one chapter image is required",
         status: "warning",
         duration: 2500,
         isClosable: true
@@ -479,7 +529,8 @@ const AdminTrainingUpload = () => {
             title: slideForm.title.trim(),
             body: slideForm.body || "",
             materialUrl: slideForm.materialUrl || "",
-            imageUrl: slideForm.imageUrl || "",
+            imageUrl: imageUrls[0] || "",
+            imageUrls,
             imageFileId: slideForm.imageFileId || ""
           })
         : await (() => {
@@ -487,7 +538,8 @@ const AdminTrainingUpload = () => {
             formData.append("title", slideForm.title.trim());
             formData.append("body", slideForm.body || "");
             formData.append("materialUrl", slideForm.materialUrl || "");
-            formData.append("imageUrl", slideForm.imageUrl || "");
+            formData.append("imageUrl", imageUrls[0] || "");
+            formData.append("imageUrls", JSON.stringify(imageUrls));
             formData.append("imageFileId", slideForm.imageFileId || "");
             return addCourseSlide(selectedCourse._id, formData);
           })();
@@ -500,26 +552,26 @@ const AdminTrainingUpload = () => {
 
       setEditingSlideId("");
       setSlideForm({
-        title: `Slide ${nextSlideNumber + 1}`,
-        image: null,
+        title: `Chapter ${nextSlideNumber + 1}`,
         imageFileId: "",
         imageUrl: "",
+        imageUrls: [],
         body: "",
         materialUrl: ""
       });
       setTimeout(scrollSlideComposerIntoView, 100);
       toast({
-        title: editingSlideId ? "Slide updated" : "Slide added",
+        title: editingSlideId ? "Chapter updated" : "Chapter added",
         description: editingSlideId
-          ? "The slide changes were saved."
-          : "The image was uploaded and saved as an Appwrite link.",
+          ? "The chapter changes were saved."
+          : "The chapter images were uploaded and saved successfully.",
         status: "success",
         duration: 2500,
         isClosable: true
       });
     } catch (error) {
       toast({
-        title: "Failed to add slide",
+        title: "Failed to save chapter",
         description: error?.response?.data?.message || error.message || "",
         status: "error",
         duration: 3000,
@@ -532,11 +584,12 @@ const AdminTrainingUpload = () => {
 
   const handleEditSlide = (slide) => {
     setEditingSlideId(slide._id || "");
+    const imageUrls = normalizeSlideImageUrls(slide);
     setSlideForm({
-      title: slide.title || `Slide ${slide.slideNumber}`,
-      image: null,
+      title: slide.title || `Chapter ${slide.slideNumber}`,
       imageFileId: slide.imageFileId || "",
-      imageUrl: slide.imageUrl || "",
+      imageUrl: imageUrls[0] || "",
+      imageUrls,
       body: slide.body || "",
       materialUrl: slide.materialUrl || ""
     });
@@ -686,9 +739,9 @@ const AdminTrainingUpload = () => {
         gap={4}
       >
         <Box>
-          <Heading mb={2} color="teal.700">Course Publisher</Heading>
+          <Heading mb={2} color="teal.700">HR Course Editor</Heading>
           <Text color="gray.600">
-            Build unlimited slides and quiz questions. Publish to the sales dashboard tutorial page.
+            Edit HR courses, manage chapter content, and attach multiple images to every chapter.
           </Text>
         </Box>
         <Stack direction={{ base: "column", md: "row" }} spacing={3}>
@@ -701,10 +754,10 @@ const AdminTrainingUpload = () => {
       <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={6}>
         <Card>
           <CardBody py={7}>
-            <Text color="gray.500" fontSize="sm">Slides</Text>
+            <Text color="gray.500" fontSize="sm">Chapters</Text>
             <Heading size="2xl" mt={2}>{summary.slideCount}</Heading>
             <Text mt={2} color="gray.600">
-              Unlimited pages supported
+              Unlimited chapters supported
             </Text>
           </CardBody>
         </Card>
@@ -779,7 +832,7 @@ const AdminTrainingUpload = () => {
           </SimpleGrid>
           {selectedCourse ? (
             <Text mt={4} color="gray.600">
-              Active course: <strong>{selectedCourse.name}</strong> with {selectedCourse.slides?.length || 0} slide(s).
+              Active course: <strong>{selectedCourse.name}</strong> with {selectedCourse.slides?.length || 0} chapter(s).
             </Text>
           ) : (
             <Text mt={4} color="gray.600">
@@ -794,7 +847,7 @@ const AdminTrainingUpload = () => {
                   <Box>
                     <Text fontWeight="bold">{course.name}</Text>
                     <Text fontSize="sm" color="gray.500">
-                      {course.status === "published" ? "Published" : "Draft"} • {course.slides?.length || 0} slides • {course.quizQuestions?.length || 0} questions
+                      {course.status === "published" ? "Published" : "Draft"} | {course.slides?.length || 0} chapters | {course.quizQuestions?.length || 0} questions
                     </Text>
                   </Box>
                   <Flex gap={2}>
@@ -830,7 +883,7 @@ const AdminTrainingUpload = () => {
                 fontWeight="medium"
                 _selected={{ color: "teal.700" }}
               >
-                Slides ({selectedCourse?.slides?.length || 0})
+                Chapters ({selectedCourse?.slides?.length || 0})
               </Tab>
               <Tab
                 ml={2}
@@ -852,12 +905,12 @@ const AdminTrainingUpload = () => {
                   <Box p={6}>
                     <Flex justify="space-between" align="center" mb={5}>
                       <Heading size="md">
-                        {editingSlideId ? `Edit Slide ${selectedCourse?.slides?.find((slide) => slide._id === editingSlideId)?.slideNumber || ""}` : `Slide ${selectedCourse ? nextSlideNumber : 1}`}
+                        {editingSlideId ? `Edit Chapter ${selectedCourse?.slides?.find((slide) => slide._id === editingSlideId)?.slideNumber || ""}` : `Chapter ${selectedCourse ? nextSlideNumber : 1}`}
                       </Heading>
                       <Flex gap={2}>
                         {editingSlideId ? (
                           <IconButton
-                            aria-label="Cancel slide edit"
+                            aria-label="Cancel chapter edit"
                             icon={<CloseIcon />}
                             variant="ghost"
                             colorScheme="gray"
@@ -865,7 +918,7 @@ const AdminTrainingUpload = () => {
                           />
                         ) : null}
                         <IconButton
-                          aria-label="Delete slide draft"
+                          aria-label="Delete chapter draft"
                           icon={<DeleteIcon />}
                           variant="ghost"
                           colorScheme="red"
@@ -876,33 +929,30 @@ const AdminTrainingUpload = () => {
 
                     <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                       <FormControl isRequired>
-                        <FormLabel>Title</FormLabel>
+                        <FormLabel>Chapter Title</FormLabel>
                         <Input
                           value={slideForm.title}
                           onChange={handleSlideFieldChange("title")}
-                          placeholder={`Slide ${selectedCourse ? nextSlideNumber : 1}`}
+                          placeholder={`Chapter ${selectedCourse ? nextSlideNumber : 1}`}
                           isDisabled={!selectedCourse}
                         />
                       </FormControl>
                       <FormControl>
-                        <FormLabel>Image URL</FormLabel>
-                        <Input
-                          value={slideForm.imageUrl}
-                          placeholder="https://cloud.appwrite.io/v1/storage/buckets/68de2cd2000edc9d02c9/files/.../view?project=66fa8216001614a2f7cd"
-                          isReadOnly
-                        />
-                      </FormControl>
-                      <FormControl gridColumn={{ md: "2 / span 1" }}>
+                        <FormLabel>Upload Chapter Images</FormLabel>
                         <Input
                           type="file"
                           accept="image/*"
+                          multiple
                           onChange={handleSlideImageUpload}
                           p={1}
                           isDisabled={!selectedCourse || isUploadingImage}
                         />
+                        <Text mt={2} fontSize="xs" color="gray.500">
+                          Upload one or many images for this chapter.
+                        </Text>
                       </FormControl>
                       <FormControl gridColumn={{ md: "1 / span 2" }}>
-                        <FormLabel>Body</FormLabel>
+                        <FormLabel>Chapter Content</FormLabel>
                         <Textarea
                           value={slideForm.body}
                           onChange={handleSlideFieldChange("body")}
@@ -911,6 +961,71 @@ const AdminTrainingUpload = () => {
                           isDisabled={!selectedCourse}
                         />
                       </FormControl>
+                      <FormControl gridColumn={{ md: "1 / span 2" }}>
+                        <HStack justify="space-between" mb={2}>
+                          <FormLabel mb={0}>Image URLs</FormLabel>
+                          <Button
+                            size="sm"
+                            leftIcon={<AddIcon />}
+                            variant="outline"
+                            onClick={addSlideImageUrlField}
+                            isDisabled={!selectedCourse}
+                          >
+                            Add Image URL
+                          </Button>
+                        </HStack>
+                        <VStack spacing={2} align="stretch">
+                          {slideForm.imageUrls.length ? (
+                            slideForm.imageUrls.map((imageUrl, imageIndex) => (
+                              <HStack key={`slide-form-image-${imageIndex}`} align="start">
+                                <Input
+                                  value={imageUrl}
+                                  placeholder={`Image URL ${imageIndex + 1}`}
+                                  onChange={(event) => updateSlideImageUrl(imageIndex, event.target.value)}
+                                  isDisabled={!selectedCourse}
+                                />
+                                <IconButton
+                                  aria-label={`Remove image ${imageIndex + 1}`}
+                                  icon={<DeleteIcon />}
+                                  variant="ghost"
+                                  colorScheme="red"
+                                  onClick={() => removeSlideImage(imageIndex)}
+                                  isDisabled={!selectedCourse}
+                                />
+                              </HStack>
+                            ))
+                          ) : (
+                            <Text fontSize="sm" color="gray.500">
+                              No images added yet.
+                            </Text>
+                          )}
+                        </VStack>
+                      </FormControl>
+                      {slideForm.imageUrls.some((imageUrl) => asText(imageUrl, "")) ? (
+                        <SimpleGrid gridColumn={{ md: "1 / span 2" }} columns={{ base: 1, sm: 2, md: 3 }} spacing={3}>
+                          {slideForm.imageUrls
+                            .filter((imageUrl) => asText(imageUrl, ""))
+                            .map((imageUrl, imageIndex) => (
+                              <Box
+                                key={`slide-form-image-preview-${imageIndex}`}
+                                borderWidth="1px"
+                                borderColor="gray.200"
+                                borderRadius="md"
+                                overflow="hidden"
+                                bg="gray.50"
+                              >
+                                <Image
+                                  src={imageUrl}
+                                  alt={`HR chapter image ${imageIndex + 1}`}
+                                  w="100%"
+                                  h="160px"
+                                  objectFit="cover"
+                                  bg="gray.100"
+                                />
+                              </Box>
+                            ))}
+                        </SimpleGrid>
+                      ) : null}
                       <FormControl gridColumn={{ md: "1 / span 2" }}>
                         <FormLabel>Material URL</FormLabel>
                         <Input
@@ -937,7 +1052,7 @@ const AdminTrainingUpload = () => {
                       isLoading={isAddingSlide}
                       isDisabled={!selectedCourse || isUploadingImage}
                     >
-                      {editingSlideId ? "Update Slide" : "Add Slide"}
+                      {editingSlideId ? "Update Chapter" : "Add Chapter"}
                     </Button>
                   </Box>
                 </Box>
@@ -947,8 +1062,10 @@ const AdminTrainingUpload = () => {
                     <Box key={slide._id || `${slide.slideNumber}-${slide.title}`} borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={4}>
                       <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} direction={{ base: "column", md: "row" }} gap={3}>
                         <Box>
-                          <Text fontWeight="bold" mb={1}>Slide {slide.slideNumber}</Text>
-                          <Text color="gray.600">Use edit to update this slide inside HR Course.</Text>
+                          <Text fontWeight="bold" mb={1}>Chapter {slide.slideNumber}</Text>
+                          <Text color="gray.600">
+                            {normalizeSlideImageUrls(slide).length} image(s) attached. Use edit to update this chapter inside HR Course.
+                          </Text>
                         </Box>
                         <Button size="sm" leftIcon={<EditIcon />} onClick={() => handleEditSlide(slide)}>
                           Edit

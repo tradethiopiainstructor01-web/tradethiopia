@@ -5,6 +5,7 @@ const slideSchema = new mongoose.Schema(
     title: { type: String, default: '' },
     body: { type: String, default: '' },
     imageUrl: { type: String, default: '' },
+    imageUrls: [{ type: String }],
     materialUrl: { type: String, default: '' },
   },
   { _id: false }

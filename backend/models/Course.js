@@ -6,7 +6,8 @@ const courseSlideSchema = new mongoose.Schema({
   body: { type: String, default: '' },
   materialUrl: { type: String, default: '' },
   imageFileId: { type: String, default: '' },
-  imageUrl: { type: String, default: '' }
+  imageUrl: { type: String, default: '' },
+  imageUrls: [{ type: String }]
 }, { _id: true, timestamps: true });
 
 const courseQuizQuestionSchema = new mongoose.Schema({

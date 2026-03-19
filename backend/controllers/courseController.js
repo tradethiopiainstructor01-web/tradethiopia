@@ -9,6 +9,43 @@ const appwriteProjectId = process.env.APPWRITE_PROJECT_ID || '66fa8216001614a2f7
 const buildAppwriteViewUrl = (fileId) =>
   `https://cloud.appwrite.io/v1/storage/buckets/${appwriteBucketId}/files/${fileId}/view?project=${appwriteProjectId}`;
 
+const asText = (value, fallback = '') => {
+  if (value === null || value === undefined) return fallback;
+  return String(value).trim();
+};
+
+const parseArrayField = (value = []) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (error) {
+      return [trimmed];
+    }
+  }
+
+  return [value];
+};
+
+const uniqueTextArray = (value = []) =>
+  value
+    .map((item) => asText(item, ''))
+    .filter(Boolean)
+    .filter((item, index, array) => array.indexOf(item) === index);
+
 // Fallback seed in case DB is empty to keep frontend dropdowns populated
 const fallbackCourses = [
   { name: 'International Trade Import Export', price: 6917, category: 'Business', level: 'Intermediate' },
@@ -146,7 +183,7 @@ const uploadCourseSlideImage = asyncHandler(async (req, res) => {
 // POST /api/courses/:id/slides
 const addCourseSlide = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, body, materialUrl, imageUrl, imageFileId } = req.body;
+  const { title, body, materialUrl, imageUrl, imageUrls, imageFileId } = req.body;
 
   if (!title) {
     return res.status(400).json({ message: 'Slide title is required' });
@@ -157,7 +194,10 @@ const addCourseSlide = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'Course not found' });
   }
 
-  let resolvedImageUrl = imageUrl || '';
+  let resolvedImageUrls = uniqueTextArray([
+    imageUrl,
+    ...parseArrayField(imageUrls),
+  ]);
   let resolvedImageFileId = imageFileId || '';
 
   if (req.file) {
@@ -169,12 +209,15 @@ const addCourseSlide = asyncHandler(async (req, res) => {
       file
     });
 
-    resolvedImageUrl = buildAppwriteViewUrl(uploadedFile.$id);
+    resolvedImageUrls = uniqueTextArray([
+      ...resolvedImageUrls,
+      buildAppwriteViewUrl(uploadedFile.$id),
+    ]);
     resolvedImageFileId = uploadedFile.$id;
   }
 
-  if (!resolvedImageUrl) {
-    return res.status(400).json({ message: 'Slide image is required' });
+  if (!resolvedImageUrls.length) {
+    return res.status(400).json({ message: 'At least one slide image is required' });
   }
 
   const slideNumber = course.slides.length + 1;
@@ -185,7 +228,8 @@ const addCourseSlide = asyncHandler(async (req, res) => {
     body: body || '',
     materialUrl: materialUrl || '',
     imageFileId: resolvedImageFileId,
-    imageUrl: resolvedImageUrl
+    imageUrl: resolvedImageUrls[0] || '',
+    imageUrls: resolvedImageUrls
   });
 
   await course.save();
@@ -199,7 +243,7 @@ const addCourseSlide = asyncHandler(async (req, res) => {
 // PUT /api/courses/:id/slides/:slideId
 const updateCourseSlide = asyncHandler(async (req, res) => {
   const { id, slideId } = req.params;
-  const { title, body, materialUrl, imageUrl, imageFileId } = req.body;
+  const { title, body, materialUrl, imageUrl, imageUrls, imageFileId } = req.body;
 
   const course = await Course.findById(id);
   if (!course) {
@@ -220,11 +264,19 @@ const updateCourseSlide = asyncHandler(async (req, res) => {
   if (materialUrl !== undefined) {
     slide.materialUrl = materialUrl || '';
   }
-  if (imageUrl !== undefined && imageUrl) {
-    slide.imageUrl = imageUrl;
+  if (
+    Object.prototype.hasOwnProperty.call(req.body, 'imageUrls') ||
+    Object.prototype.hasOwnProperty.call(req.body, 'imageUrl')
+  ) {
+    const nextImageUrls = uniqueTextArray([
+      imageUrl,
+      ...parseArrayField(imageUrls),
+    ]);
+    slide.imageUrls = nextImageUrls;
+    slide.imageUrl = nextImageUrls[0] || '';
   }
-  if (imageFileId !== undefined && imageFileId) {
-    slide.imageFileId = imageFileId;
+  if (imageFileId !== undefined) {
+    slide.imageFileId = imageFileId || '';
   }
 
   await course.save();
