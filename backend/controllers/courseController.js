@@ -46,6 +46,74 @@ const uniqueTextArray = (value = []) =>
     .filter(Boolean)
     .filter((item, index, array) => array.indexOf(item) === index);
 
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const normalizeSlides = (slides = []) => {
+  if (!Array.isArray(slides)) {
+    return [];
+  }
+
+  return slides
+    .map((slide, index) => {
+      const title = asText(slide?.title, `Chapter ${index + 1}`);
+      const body = asText(slide?.body, '');
+      const materialUrl = asText(slide?.materialUrl, '');
+      const imageFileId = asText(slide?.imageFileId, '');
+      const imageUrls = uniqueTextArray([
+        asText(slide?.imageUrl, ''),
+        ...parseArrayField(slide?.imageUrls),
+      ]);
+      const imageUrl = imageUrls[0] || '';
+
+      if (!title && !body && !materialUrl && !imageUrl && !imageUrls.length) {
+        return null;
+      }
+
+      return {
+        slideNumber: index + 1,
+        title,
+        body,
+        materialUrl,
+        imageFileId,
+        imageUrl,
+        imageUrls,
+      };
+    })
+    .filter(Boolean);
+};
+
+const normalizeQuizQuestions = (quizQuestions = []) => {
+  if (!Array.isArray(quizQuestions)) {
+    return [];
+  }
+
+  return quizQuestions
+    .map((quizQuestion, index) => {
+      const question = asText(quizQuestion?.question, `Question ${index + 1}`);
+      const options = parseArrayField(quizQuestion?.options)
+        .map((option) => asText(option, ''))
+        .filter(Boolean);
+
+      if (!question || options.length < 2) {
+        return null;
+      }
+
+      const answerInput = Number(quizQuestion?.correctAnswer);
+      const correctAnswer = Number.isFinite(answerInput)
+        ? clamp(Math.trunc(answerInput), 0, options.length - 1)
+        : 0;
+
+      return {
+        questionNumber: index + 1,
+        question,
+        options,
+        correctAnswer,
+        explanation: asText(quizQuestion?.explanation, ''),
+      };
+    })
+    .filter(Boolean);
+};
+
 // Fallback seed in case DB is empty to keep frontend dropdowns populated
 const fallbackCourses = [
   { name: 'International Trade Import Export', price: 6917, category: 'Business', level: 'Intermediate' },
@@ -88,7 +156,9 @@ const createCourse = asyncHandler(async (req, res) => {
     isActive,
     status,
     draftSavedAt,
-    publishedAt
+    publishedAt,
+    slides,
+    quizQuestions
   } = req.body;
 
   if (!name) {
@@ -108,7 +178,9 @@ const createCourse = asyncHandler(async (req, res) => {
     isActive,
     status: status || 'draft',
     draftSavedAt: draftSavedAt || (status !== 'published' ? new Date() : null),
-    publishedAt: status === 'published' ? (publishedAt || new Date()) : null
+    publishedAt: status === 'published' ? (publishedAt || new Date()) : null,
+    slides: normalizeSlides(slides),
+    quizQuestions: normalizeQuizQuestions(quizQuestions)
   });
 
   const created = await course.save();
@@ -143,6 +215,14 @@ const updateCourse = asyncHandler(async (req, res) => {
       course[field] = req.body[field];
     }
   });
+
+  if (Array.isArray(req.body.slides)) {
+    course.slides = normalizeSlides(req.body.slides);
+  }
+
+  if (Array.isArray(req.body.quizQuestions)) {
+    course.quizQuestions = normalizeQuizQuestions(req.body.quizQuestions);
+  }
 
   const updated = await course.save();
   res.json(updated);

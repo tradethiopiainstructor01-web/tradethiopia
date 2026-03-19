@@ -11,6 +11,7 @@ import {
   Heading,
   HStack,
   Image,
+  IconButton,
   Link,
   Modal,
   ModalBody,
@@ -29,6 +30,7 @@ import {
   Text,
   VStack
 } from "@chakra-ui/react";
+import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { fetchCourses } from "../services/api";
 
 const isPersistedCourse = (course) => course?._id && !String(course._id).startsWith("seed-");
@@ -711,8 +713,16 @@ const HRTrainingPage = () => {
 
                 {currentSlideImages.length > 1 && (
                   <HStack justify="space-between">
-                    <Button onClick={() => goToPreviewImage(-1)}>Previous Image</Button>
-                    <Button onClick={() => goToPreviewImage(1)}>Next Image</Button>
+                    <IconButton
+                      aria-label="Previous image"
+                      icon={<ChevronLeftIcon boxSize={6} />}
+                      onClick={() => goToPreviewImage(-1)}
+                    />
+                    <IconButton
+                      aria-label="Next image"
+                      icon={<ChevronRightIcon boxSize={6} />}
+                      onClick={() => goToPreviewImage(1)}
+                    />
                   </HStack>
                 )}
               </VStack>
