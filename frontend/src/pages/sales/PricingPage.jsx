@@ -26,7 +26,7 @@ import {
   useToast
 } from "@chakra-ui/react";
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon } from "@chakra-ui/icons";
-import { fetchCourses, createCourse, updateCourse, deleteCourse } from "../../services/api";
+import { fetchExternalCourses, createExternalCourse, updateExternalCourse, deleteExternalCourse } from "../../services/api";
 
 const emptyCourse = {
   name: "",
@@ -50,7 +50,7 @@ const PricingPage = () => {
   const loadCourses = async () => {
     setLoading(true);
     try {
-      const data = await fetchCourses();
+      const data = await fetchExternalCourses();
       setCourses(Array.isArray(data) ? data : []);
     } catch (err) {
       toast({
@@ -99,10 +99,10 @@ const PricingPage = () => {
       };
       const isSeed = editingId && typeof editingId === "string" && editingId.startsWith("seed-");
       if (editingId && !isSeed) {
-        await updateCourse(editingId, payload);
+        await updateExternalCourse(editingId, payload);
         toast({ title: "Course updated", status: "success", duration: 2500, isClosable: true });
       } else {
-        await createCourse(payload);
+        await createExternalCourse(payload);
         toast({ title: "Course added", status: "success", duration: 2500, isClosable: true });
       }
       setFormData(emptyCourse);
@@ -143,7 +143,7 @@ const PricingPage = () => {
       return;
     }
     try {
-      await deleteCourse(id);
+      await deleteExternalCourse(id);
       toast({ title: "Course removed", status: "info", duration: 2500, isClosable: true });
       loadCourses();
     } catch (err) {
@@ -167,9 +167,9 @@ const PricingPage = () => {
         <HStack justify="space-between" mb={6} align={{ base: "flex-start", md: "center" }} spacing={4} flexDir={{ base: "column", md: "row" }}>
           <Box>
             <Heading as="h1" size="xl" color={headerColor} mb={1}>
-              Training Courses Pricing
+              External Course Pricing
             </Heading>
-            <Text color="gray.500">Finance controls course prices; sales reads these values automatically.</Text>
+            <Text color="gray.500">Finance creates priced external courses here, and they are stored in the external database.</Text>
           </Box>
           <HStack spacing={2}>
             {editingId && <Button leftIcon={<CloseIcon boxSize={3} />} variant="outline" onClick={cancelEdit}>Cancel edit</Button>}
@@ -182,7 +182,7 @@ const PricingPage = () => {
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={6}>
           <Card bg={cardBg} borderColor={borderColor} borderWidth="1px">
             <CardBody>
-              <Text fontSize="sm" color="gray.500">Active courses</Text>
+              <Text fontSize="sm" color="gray.500">Active external courses</Text>
               <Heading size="lg">{summary.active}</Heading>
               <Text color="gray.500">of {summary.total} total</Text>
             </CardBody>
@@ -191,24 +191,24 @@ const PricingPage = () => {
             <CardBody>
               <Text fontSize="sm" color="gray.500">Average price</Text>
               <Heading size="lg">{formatCurrency(summary.avgPrice)}</Heading>
-              <Text color="gray.500">Across active courses</Text>
+              <Text color="gray.500">Across external courses</Text>
             </CardBody>
           </Card>
           <Card bg={cardBg} borderColor={borderColor} borderWidth="1px">
             <CardBody>
               <Text fontSize="sm" color="gray.500">Sync status</Text>
               <Badge colorScheme="teal" mt={1}>Live for Sales follow-up</Badge>
-              <Text color="gray.500">Sales uses these prices in commission calculations.</Text>
+              <Text color="gray.500">Sales reads training titles and prices from this external database.</Text>
             </CardBody>
           </Card>
         </SimpleGrid>
 
         <Box as="form" onSubmit={handleSubmit} bg={cardBg} p={4} borderRadius="lg" borderWidth="1px" borderColor={borderColor} mb={6}>
-          <Heading size="md" mb={4}>{editingId ? "Edit course" : "Add new course"}</Heading>
+          <Heading size="md" mb={4}>{editingId ? "Edit external course" : "Add external course"}</Heading>
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
             <FormControl isRequired>
               <FormLabel>Name</FormLabel>
-              <Input value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} placeholder="Course title" />
+              <Input value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} placeholder="External course title" />
             </FormControl>
             <FormControl isRequired>
               <FormLabel>Price (ETB)</FormLabel>
@@ -225,7 +225,7 @@ const PricingPage = () => {
           </SimpleGrid>
           <HStack mt={4} spacing={3}>
             <Button type="submit" colorScheme="teal" leftIcon={editingId ? <CheckIcon /> : <AddIcon />} isLoading={saving}>
-              {editingId ? "Update course" : "Save course"}
+              {editingId ? "Update external course" : "Save external course"}
             </Button>
             {editingId && (
               <Button variant="ghost" onClick={cancelEdit}>Cancel</Button>
@@ -236,7 +236,7 @@ const PricingPage = () => {
         <Card bg={cardBg} borderWidth="1px" borderColor={borderColor}>
           <CardBody>
             <HStack justify="space-between" mb={3}>
-              <Heading size="md">Course price list</Heading>
+              <Heading size="md">External course database</Heading>
               {loading && <Spinner size="sm" />}
             </HStack>
             <Box overflowX="auto">
@@ -278,7 +278,7 @@ const PricingPage = () => {
                   {!loading && courses.length === 0 && (
                     <Tr>
                       <Td colSpan={6}>
-                        <Text color="gray.500">No courses found. Add one above to publish pricing.</Text>
+                        <Text color="gray.500">No external courses found. Add one above to save into the external database.</Text>
                       </Td>
                     </Tr>
                   )}

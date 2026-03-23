@@ -285,6 +285,8 @@ app.use('/api/sales-targets', salesTargetRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/external-courses', require('./routes/externalCourseRoutes'));
+app.use('/api/internal-courses', require('./routes/internalCourseRoutes'));
 app.use('/api/product-followups', productFollowupRoutes);
 app.use('/api/it', itRoutes);
 app.use('/api/finance', require('./routes/financeRoutes'));

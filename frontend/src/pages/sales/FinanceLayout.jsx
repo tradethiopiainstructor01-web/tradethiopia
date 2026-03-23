@@ -112,6 +112,7 @@ const FinanceLayout = ({ children }) => {
     { label: 'Inventory', icon: FaBoxes, path: '/finance-dashboard/inventory' },
     { label: 'Orders', icon: FaShoppingCart, path: '/finance-dashboard/orders' },
     { label: 'Pricing', icon: FaDollarSign, path: '/finance-dashboard/pricing' },
+    { label: 'Create Course', icon: FaDollarSign, path: '/finance-dashboard/create-course' },
     { label: 'Revenue', icon: FaDollarSign, path: '/finance-dashboard/revenue' },
     { label: 'Imported Items', icon: FaUsers, path: '/finance-dashboard/purchase' },
     { label: 'Costs', icon: FaMoneyBillWave, path: '/finance-dashboard/costs' },

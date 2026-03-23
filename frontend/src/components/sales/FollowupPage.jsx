@@ -48,17 +48,17 @@ import FollowupCustomerTable from './FollowupCustomerTable';
 import PackageSalesTable from './PackageSalesTable';
 import PackageSalesTab from './PackageSalesTab';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
-import { fetchCourses as fetchCoursesApi } from '../../services/api';
-import axios from 'axios';const defaultCourses = [
-  { _id: 'international-trade-import-export', name: 'International Trade Import Export', price: 6917 },
-  { _id: 'stock-market-trading', name: 'Stock Market Trading', price: 5500 },
-  { _id: 'data-science', name: 'Data Science', price: 2000 },
-  { _id: 'coffee-cupping', name: 'Coffee Cupping', price: 29000 },
-  { _id: 'ui-ux-design', name: 'UI/UX Design', price: 1000 },
-  { _id: 'digital-marketing', name: 'Digital Marketing', price: 800 },
-  { _id: 'cybersecurity', name: 'Cybersecurity', price: 1800 },
-  { _id: 'devops-engineering', name: 'DevOps Engineering', price: 2200 },
-  { _id: 'cloud-computing', name: 'Cloud Computing', price: 2100 },
+import { fetchExternalCourses as fetchCoursesApi } from '../../services/api';
+import axios from 'axios';
+
+const defaultCourses = [
+  { _id: 'external-seed-0', name: 'International Trade Import Export', price: 0 },
+  { _id: 'external-seed-1', name: 'Stock Market Trading', price: 0 },
+  { _id: 'external-seed-2', name: 'Data Science', price: 0 },
+  { _id: 'external-seed-3', name: 'Coffee Cupping', price: 0 },
+  { _id: 'external-seed-4', name: 'TradeEthiopia Business TV & Radio', price: 0 },
+  { _id: 'external-seed-5', name: 'Digital Marketing for International Trade', price: 0 },
+  { _id: 'external-seed-6', name: 'International Trade Brokerage', price: 0 },
 ];
 
 const FollowupPage = () => {

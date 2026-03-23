@@ -67,6 +67,18 @@ export const deleteConsultancy = (id) =>
 export const fetchCourses = () =>
   axiosInstance.get('/courses').then(response => response.data);
 
+export const fetchExternalCourses = () =>
+  axiosInstance.get('/external-courses').then(response => response.data);
+
+export const createExternalCourse = (data) =>
+  axiosInstance.post('/external-courses', data).then(response => response.data);
+
+export const updateExternalCourse = (id, data) =>
+  axiosInstance.put(`/external-courses/${id}`, data).then(response => response.data);
+
+export const deleteExternalCourse = (id) =>
+  axiosInstance.delete(`/external-courses/${id}`).then(response => response.data);
+
 export const createCourse = (data) =>
   axiosInstance.post('/courses', data).then(response => response.data);
 
