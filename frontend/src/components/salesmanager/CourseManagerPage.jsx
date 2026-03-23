@@ -11,6 +11,7 @@ import {
   FormLabel,
   Heading,
   HStack,
+  Image,
   IconButton,
   Input,
   NumberInput,
@@ -38,9 +39,10 @@ import {
 } from '../../services/salesManagerService';
 
 const createSlide = (index = 0) => ({
-  title: `Slide ${index + 1}`,
+  title: `Chapter ${index + 1}`,
   body: '',
   imageUrl: '',
+  imageUrls: [],
   materialUrl: '',
 });
 
@@ -63,11 +65,39 @@ const defaultCourse = {
 
 const asArray = (value, fallback = []) => (Array.isArray(value) ? value : fallback);
 
+const asText = (value, fallback = '') => {
+  if (value === null || value === undefined) return fallback;
+  return String(value).trim();
+};
+
+const normalizeSlideImageUrls = (slide = {}) => {
+  const values = [
+    asText(slide?.imageUrl, ''),
+    ...asArray(slide?.imageUrls, []),
+  ]
+    .map((value) => asText(value, ''))
+    .filter(Boolean);
+
+  return values.filter((value, index) => values.indexOf(value) === index);
+};
+
+const sanitizeImageUrls = (imageUrls = []) => {
+  const values = asArray(imageUrls, [])
+    .map((value) => asText(value, ''))
+    .filter(Boolean);
+
+  return values.filter((value, index) => values.indexOf(value) === index);
+};
+
+const getPrimaryImageUrl = (imageUrls = [], fallback = '') =>
+  sanitizeImageUrls(imageUrls)[0] || asText(fallback, '');
+
 const normalizeForEditor = (course = {}) => {
   const slides = asArray(course.slides, []).map((slide, index) => ({
-    title: slide?.title || `Slide ${index + 1}`,
+    title: slide?.title || `Chapter ${index + 1}`,
     body: slide?.body || '',
-    imageUrl: slide?.imageUrl || '',
+    imageUrl: getPrimaryImageUrl(normalizeSlideImageUrls(slide), ''),
+    imageUrls: normalizeSlideImageUrls(slide),
     materialUrl: slide?.materialUrl || '',
   }));
 
@@ -158,22 +188,63 @@ const CourseManagerPage = () => {
     }));
   };
 
-  const handleSlideImageUpload = async (slideIndex, file) => {
-    if (!file) return;
+  const updateSlideImages = (slideIndex, updater) => {
+    setCourse((prev) => ({
+      ...prev,
+      slides: prev.slides.map((slide, index) => {
+        if (index !== slideIndex) return slide;
+
+        const nextImageUrls =
+          typeof updater === 'function' ? updater(asArray(slide.imageUrls, [])) : updater;
+
+        return {
+          ...slide,
+          imageUrls: asArray(nextImageUrls, []),
+          imageUrl: getPrimaryImageUrl(asArray(nextImageUrls, []), ''),
+        };
+      }),
+    }));
+  };
+
+  const addSlideImageUrlField = (slideIndex) => {
+    updateSlideImages(slideIndex, (imageUrls) => [...imageUrls, '']);
+  };
+
+  const updateSlideImageUrl = (slideIndex, imageIndex, value) => {
+    updateSlideImages(slideIndex, (imageUrls) =>
+      imageUrls.map((imageUrl, index) => (index === imageIndex ? value : imageUrl))
+    );
+  };
+
+  const removeSlideImage = (slideIndex, imageIndex) => {
+    updateSlideImages(slideIndex, (imageUrls) =>
+      imageUrls.filter((_, index) => index !== imageIndex)
+    );
+  };
+
+  const handleSlideImageUpload = async (slideIndex, files) => {
+    const uploads = Array.from(files || []).filter(Boolean);
+    if (!uploads.length) return;
 
     setUploadingSlideIndex(slideIndex);
     try {
-      const response = await uploadSalesOnboardingSlideImage(file);
-      const fileUrl = response?.data?.fileUrl || '';
+      const uploadResponses = [];
 
-      if (!fileUrl) {
-        throw new Error('Upload succeeded but no image URL was returned.');
+      for (const file of uploads) {
+        const response = await uploadSalesOnboardingSlideImage(file);
+        const fileUrl = response?.data?.fileUrl || '';
+
+        if (!fileUrl) {
+          throw new Error('Upload succeeded but no image URL was returned.');
+        }
+
+        uploadResponses.push(fileUrl);
       }
 
-      updateSlideField(slideIndex, 'imageUrl', fileUrl);
+      updateSlideImages(slideIndex, (imageUrls) => [...imageUrls, ...uploadResponses]);
       toast({
-        title: 'Image uploaded',
-        description: 'Slide image uploaded to Appwrite and linked. Save draft or publish to persist course changes.',
+        title: uploads.length > 1 ? 'Images uploaded' : 'Image uploaded',
+        description: 'Chapter images uploaded to Appwrite and linked. Save draft or publish to persist course changes.',
         status: 'success',
         duration: 2500,
         isClosable: true,
@@ -288,8 +359,20 @@ const CourseManagerPage = () => {
   const createPayload = () => ({
     title: course.title,
     overview: course.overview,
-    passPercentage: Number(course.passPercentage) || 75,
-    slides: course.slides,
+    passPercentage: Number.isFinite(Number(course.passPercentage))
+      ? Number(course.passPercentage)
+      : 75,
+    slides: course.slides.map((slide, index) => {
+      const imageUrls = sanitizeImageUrls(slide.imageUrls);
+
+      return {
+        title: asText(slide.title, `Chapter ${index + 1}`),
+        body: asText(slide.body, ''),
+        imageUrl: imageUrls[0] || '',
+        imageUrls,
+        materialUrl: asText(slide.materialUrl, ''),
+      };
+    }),
     quizQuestions: course.quizQuestions,
   });
 
@@ -355,10 +438,10 @@ const CourseManagerPage = () => {
       >
         <Box>
           <Heading as="h1" size="xl" color={headerColor} mb={1}>
-            Course Publisher
+            Sales Course Editor
           </Heading>
           <Text color="gray.500">
-            Build unlimited slides and quiz questions. Publish to the sales dashboard tutorial page.
+            Edit the sales course, manage chapter content, and attach multiple images to every chapter.
           </Text>
         </Box>
         <HStack spacing={2}>
@@ -378,10 +461,10 @@ const CourseManagerPage = () => {
         <Card bg={cardBg} borderWidth="1px" borderColor={borderColor}>
           <CardBody>
             <Text fontSize="sm" color="gray.500">
-              Slides
+              Chapters
             </Text>
             <Heading size="lg">{summary.slides}</Heading>
-            <Text color="gray.500">Unlimited pages supported</Text>
+            <Text color="gray.500">Unlimited chapters supported</Text>
           </CardBody>
         </Card>
         <Card bg={cardBg} borderWidth="1px" borderColor={borderColor}>
@@ -458,7 +541,7 @@ const CourseManagerPage = () => {
       {!loading && (
         <Tabs colorScheme="teal" variant="enclosed">
           <TabList>
-            <Tab>Slides ({course.slides.length})</Tab>
+            <Tab>Chapters ({course.slides.length})</Tab>
             <Tab>Quiz ({course.quizQuestions.length})</Tab>
           </TabList>
           <TabPanels>
@@ -468,9 +551,9 @@ const CourseManagerPage = () => {
                   <Card key={`slide-${slideIndex}`} bg={cardBg} borderWidth="1px" borderColor={borderColor}>
                     <CardBody>
                       <HStack justify="space-between" mb={4}>
-                        <Heading size="sm">Slide {slideIndex + 1}</Heading>
+                        <Heading size="sm">Chapter {slideIndex + 1}</Heading>
                         <IconButton
-                          aria-label={`Remove slide ${slideIndex + 1}`}
+                          aria-label={`Remove chapter ${slideIndex + 1}`}
                           icon={<DeleteIcon />}
                           size="sm"
                           colorScheme="red"
@@ -480,7 +563,7 @@ const CourseManagerPage = () => {
                       </HStack>
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
                         <FormControl>
-                          <FormLabel>Title</FormLabel>
+                          <FormLabel>Chapter Title</FormLabel>
                           <Input
                             value={slide.title}
                             onChange={(event) =>
@@ -489,30 +572,27 @@ const CourseManagerPage = () => {
                           />
                         </FormControl>
                         <FormControl>
-                          <FormLabel>Image URL</FormLabel>
-                          <Input
-                            value={slide.imageUrl}
-                            onChange={(event) =>
-                              updateSlideField(slideIndex, 'imageUrl', event.target.value)
-                            }
-                          />
+                          <FormLabel>Upload Chapter Images</FormLabel>
                           <HStack mt={2}>
                             <Input
                               type="file"
                               accept="image/*"
+                              multiple
                               p={1}
                               onChange={(event) => {
-                                const file = event.target.files?.[0];
-                                handleSlideImageUpload(slideIndex, file);
+                                handleSlideImageUpload(slideIndex, event.target.files);
                                 event.target.value = '';
                               }}
                             />
                             {uploadingSlideIndex === slideIndex && <Spinner size="sm" />}
                           </HStack>
+                          <Text fontSize="xs" color="gray.500" mt={2}>
+                            You can upload multiple images for this chapter at once.
+                          </Text>
                         </FormControl>
                       </SimpleGrid>
                       <FormControl mt={3}>
-                        <FormLabel>Body</FormLabel>
+                        <FormLabel>Chapter Content</FormLabel>
                         <Textarea
                           value={slide.body}
                           minH="120px"
@@ -521,6 +601,73 @@ const CourseManagerPage = () => {
                           }
                         />
                       </FormControl>
+                      <Box mt={4}>
+                        <HStack justify="space-between" mb={2}>
+                          <Text fontSize="sm" fontWeight="semibold">
+                            Image URLs
+                          </Text>
+                          <Button
+                            size="sm"
+                            leftIcon={<AddIcon />}
+                            variant="outline"
+                            onClick={() => addSlideImageUrlField(slideIndex)}
+                          >
+                            Add Image URL
+                          </Button>
+                        </HStack>
+                        <VStack align="stretch" spacing={2}>
+                          {slide.imageUrls.length > 0 ? (
+                            slide.imageUrls.map((imageUrl, imageIndex) => (
+                              <HStack key={`slide-${slideIndex}-image-${imageIndex}`} align="start">
+                                <Input
+                                  value={imageUrl}
+                                  placeholder={`Image URL ${imageIndex + 1}`}
+                                  onChange={(event) =>
+                                    updateSlideImageUrl(slideIndex, imageIndex, event.target.value)
+                                  }
+                                />
+                                <IconButton
+                                  aria-label={`Remove image ${imageIndex + 1}`}
+                                  icon={<DeleteIcon />}
+                                  size="sm"
+                                  colorScheme="red"
+                                  variant="ghost"
+                                  onClick={() => removeSlideImage(slideIndex, imageIndex)}
+                                />
+                              </HStack>
+                            ))
+                          ) : (
+                            <Text fontSize="sm" color="gray.500">
+                              No images added yet.
+                            </Text>
+                          )}
+                        </VStack>
+                      </Box>
+                      {slide.imageUrls.some((imageUrl) => asText(imageUrl, '')) && (
+                        <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={3} mt={4}>
+                          {slide.imageUrls
+                            .filter((imageUrl) => asText(imageUrl, ''))
+                            .map((imageUrl, imageIndex) => (
+                              <Box
+                                key={`slide-${slideIndex}-image-preview-${imageIndex}`}
+                                borderWidth="1px"
+                                borderColor={borderColor}
+                                borderRadius="md"
+                                overflow="hidden"
+                                bg="gray.50"
+                              >
+                                <Image
+                                  src={imageUrl}
+                                  alt={`Chapter ${slideIndex + 1} image ${imageIndex + 1}`}
+                                  w="full"
+                                  h="160px"
+                                  objectFit="cover"
+                                  bg="gray.100"
+                                />
+                              </Box>
+                            ))}
+                        </SimpleGrid>
+                      )}
                       <FormControl mt={3}>
                         <FormLabel>Material URL</FormLabel>
                         <Input
@@ -534,7 +681,7 @@ const CourseManagerPage = () => {
                   </Card>
                 ))}
                 <Button leftIcon={<AddIcon />} colorScheme="teal" variant="outline" onClick={addSlide}>
-                  Add Slide
+                  Add Chapter
                 </Button>
               </VStack>
             </TabPanel>

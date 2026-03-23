@@ -12,7 +12,13 @@ import {
   Heading,
   HStack,
   Image,
+  IconButton,
   Link,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalOverlay,
   Progress,
   SimpleGrid,
   Spinner,
@@ -24,6 +30,7 @@ import {
   Text,
   VStack,
 } from '@chakra-ui/react';
+import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 
 const fallbackCourse = {
   title: 'Sales Onboarding Course',
@@ -36,6 +43,7 @@ const fallbackCourse = {
       title: 'Welcome',
       body: 'Welcome to the onboarding flow. Check back soon for manager-published content.',
       imageUrl: '',
+      imageUrls: [],
       materialUrl: '',
     },
     {
@@ -43,6 +51,7 @@ const fallbackCourse = {
       title: 'Mission',
       body: 'Understand customer needs and match every lead to the right course and follow-up.',
       imageUrl: '',
+      imageUrls: [],
       materialUrl: '',
     },
   ],
@@ -69,19 +78,31 @@ const asText = (value, fallback = '') => {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+const normalizeImageUrls = (slide = {}) => {
+  const values = [
+    asText(slide?.imageUrl, ''),
+    ...(Array.isArray(slide?.imageUrls) ? slide.imageUrls : []),
+  ]
+    .map((value) => asText(value, ''))
+    .filter(Boolean);
+
+  return values.filter((value, index) => values.indexOf(value) === index);
+};
+
 const normalizeSlides = (slides = []) => {
   if (!Array.isArray(slides)) return [];
 
   return slides
     .map((slide, index) => {
-      const title = asText(slide?.title, `Slide ${index + 1}`);
+      const title = asText(slide?.title, `Chapter ${index + 1}`);
       const body = asText(slide?.body, '');
-      const imageUrl = asText(slide?.imageUrl, '');
+      const imageUrls = normalizeImageUrls(slide);
+      const imageUrl = imageUrls[0] || '';
       const materialUrl = asText(slide?.materialUrl, '');
       const id = asText(slide?.id || slide?._id, `slide-${index + 1}`);
 
-      if (!title && !body && !imageUrl && !materialUrl) return null;
-      return { id, title, body, imageUrl, materialUrl };
+      if (!title && !body && !imageUrl && !materialUrl && imageUrls.length === 0) return null;
+      return { id, title, body, imageUrl, imageUrls, materialUrl };
     })
     .filter(Boolean);
 };
@@ -137,6 +158,8 @@ const Training = () => {
     Array(fallbackCourse.quizQuestions.length).fill(null)
   );
   const [isQuizComplete, setIsQuizComplete] = useState(false);
+  const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -228,6 +251,8 @@ const Training = () => {
   const didPass = quizScore >= requiredScore;
 
   const currentSlide = slides[currentSlideIndex] || null;
+  const currentSlideImages = currentSlide?.imageUrls?.filter(Boolean) || [];
+  const selectedPreviewImage = currentSlideImages[selectedImageIndex] || '';
   const currentQuestion = quizQuestions[currentQuestionIndex] || null;
   const selectedForCurrentQuestion = selectedAnswers[currentQuestionIndex];
 
@@ -259,6 +284,32 @@ const Training = () => {
     setIsQuizComplete(false);
   };
 
+  const openImagePreview = (imageIndex) => {
+    if (!currentSlideImages.length) return;
+    setSelectedImageIndex(clamp(imageIndex, 0, currentSlideImages.length - 1));
+    setIsImagePreviewOpen(true);
+  };
+
+  const closeImagePreview = () => {
+    setIsImagePreviewOpen(false);
+  };
+
+  const goToPreviewImage = (direction) => {
+    if (currentSlideImages.length <= 1) return;
+
+    setSelectedImageIndex((prev) => {
+      const nextIndex = prev + direction;
+      if (nextIndex < 0) return currentSlideImages.length - 1;
+      if (nextIndex >= currentSlideImages.length) return 0;
+      return nextIndex;
+    });
+  };
+
+  useEffect(() => {
+    setSelectedImageIndex(0);
+    setIsImagePreviewOpen(false);
+  }, [currentSlideIndex]);
+
   return (
     <Box bg="gray.50" minH="100vh" py={4} px={{ base: 2, md: 4 }}>
       <Container maxW="container.xl">
@@ -285,9 +336,9 @@ const Training = () => {
               </Text>
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3} mt={4}>
                 <Box bg="whiteAlpha.250" borderRadius="md" p={3}>
-                  <Text fontWeight="semibold">Slides</Text>
+                  <Text fontWeight="semibold">Chapters</Text>
                   <Text fontSize="sm">
-                    Manager-published slides for sales onboarding. Pages are flexible and can grow as needed.
+                    Manager-published onboarding chapters with flexible content and multiple images.
                   </Text>
                 </Box>
                 <Box bg="whiteAlpha.250" borderRadius="md" p={3}>
@@ -345,14 +396,14 @@ const Training = () => {
 
         <Tabs colorScheme="teal" variant="enclosed">
           <TabList>
-            <Tab>Slides ({slides.length})</Tab>
+            <Tab>Chapters ({slides.length})</Tab>
             <Tab>Quiz ({quizQuestions.length})</Tab>
           </TabList>
           <TabPanels>
             <TabPanel px={0} pt={4}>
               <Box bg="white" borderRadius="xl" boxShadow="sm" p={{ base: 4, md: 6 }}>
                 {slides.length === 0 || !currentSlide ? (
-                  <Text color="gray.600">No slides published yet.</Text>
+                  <Text color="gray.600">No chapters published yet.</Text>
                 ) : (
                   <>
                     <Flex
@@ -364,7 +415,7 @@ const Training = () => {
                     >
                       <Heading size="md">{currentSlide.title}</Heading>
                       <Badge colorScheme="blue" px={2} py={1} borderRadius="md">
-                        Slide {currentSlideIndex + 1} / {slides.length}
+                        Chapter {currentSlideIndex + 1} / {slides.length}
                       </Badge>
                     </Flex>
 
@@ -382,24 +433,52 @@ const Training = () => {
                           justifyContent="center"
                           bg="gray.50"
                         >
-                          {currentSlide.imageUrl ? (
-                            <Image
-                              src={currentSlide.imageUrl}
-                              alt={`${currentSlide.title} visual`}
-                              maxH="210px"
-                              objectFit="contain"
-                              borderRadius="md"
-                              fallback={<Text color="gray.600">Image unavailable.</Text>}
-                            />
+                          {currentSlideImages.length ? (
+                            <SimpleGrid columns={{ base: 1, md: currentSlideImages.length > 1 ? 2 : 1 }} spacing={3} w="full">
+                              {currentSlideImages.map((imageUrl, imageIndex) => (
+                                <Box
+                                  key={`${currentSlide.id || currentSlideIndex}-image-${imageIndex}`}
+                                  borderRadius="md"
+                                  overflow="hidden"
+                                  bg="white"
+                                  borderWidth="1px"
+                                  borderColor="gray.200"
+                                  cursor="zoom-in"
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => openImagePreview(imageIndex)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                      event.preventDefault();
+                                      openImagePreview(imageIndex);
+                                    }
+                                  }}
+                                >
+                                  <Image
+                                    src={imageUrl}
+                                    alt={`${currentSlide.title} visual ${imageIndex + 1}`}
+                                    w="full"
+                                    maxH="210px"
+                                    objectFit="contain"
+                                    bg="gray.100"
+                                  />
+                                </Box>
+                              ))}
+                            </SimpleGrid>
                           ) : (
                             <Text color="gray.600">No image attached.</Text>
                           )}
                         </Box>
+                        {currentSlideImages.length > 0 && (
+                          <Text mt={2} fontSize="xs" color="gray.500">
+                            Click any image to open it in full size.
+                          </Text>
+                        )}
 
                         {currentSlide.materialUrl && (
                           <Link href={currentSlide.materialUrl} isExternal>
                             <Button mt={3} size="sm" colorScheme="teal" variant="outline">
-                              Open Slide Material
+                              Open Chapter Material
                             </Button>
                           </Link>
                         )}
@@ -407,7 +486,7 @@ const Training = () => {
 
                       <VStack align="stretch" spacing={3}>
                         <Text fontSize="xs" color="gray.500">
-                          Slide content
+                          Chapter content
                         </Text>
                         <Box bg="teal.50" borderRadius="md" p={3}>
                           <Text fontSize="sm" color="teal.800">
@@ -435,14 +514,14 @@ const Training = () => {
 
                     <HStack justify="space-between">
                       <Button onClick={() => goToSlide(currentSlideIndex - 1)} isDisabled={currentSlideIndex === 0}>
-                        Previous Slide
+                        Previous Chapter
                       </Button>
                       <Button
                         colorScheme="teal"
                         onClick={() => goToSlide(currentSlideIndex + 1)}
                         isDisabled={currentSlideIndex === slides.length - 1}
                       >
-                        Next Slide
+                        Next Chapter
                       </Button>
                     </HStack>
                   </>
@@ -488,7 +567,7 @@ const Training = () => {
                           <Text color={didPass ? 'green.800' : 'red.800'} mt={1}>
                             {didPass
                               ? 'Pass: You completed the onboarding quiz successfully.'
-                              : 'Fail: Review slides and retake the quiz.'}
+                              : 'Fail: Review the chapters and retake the quiz.'}
                           </Text>
                         </Box>
                         <Button alignSelf="start" colorScheme="teal" onClick={resetQuiz}>
@@ -589,6 +668,64 @@ const Training = () => {
             </TabPanel>
           </TabPanels>
         </Tabs>
+
+        <Modal isOpen={isImagePreviewOpen} onClose={closeImagePreview} size="6xl" isCentered>
+          <ModalOverlay bg="blackAlpha.700" />
+          <ModalContent bg="gray.900" color="white">
+            <ModalCloseButton />
+            <ModalBody p={{ base: 3, md: 5 }}>
+              <VStack spacing={4} align="stretch">
+                <Flex justify="space-between" align="center" gap={3} pr={10}>
+                  <Text fontWeight="semibold">
+                    {currentSlide?.title || 'Chapter image'}
+                  </Text>
+                  {currentSlideImages.length > 1 && (
+                    <Badge colorScheme="teal">
+                      Image {selectedImageIndex + 1} / {currentSlideImages.length}
+                    </Badge>
+                  )}
+                </Flex>
+
+                <Box
+                  minH={{ base: '280px', md: '70vh' }}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  bg="blackAlpha.400"
+                  borderRadius="lg"
+                  overflow="hidden"
+                >
+                  {selectedPreviewImage ? (
+                    <Image
+                      src={selectedPreviewImage}
+                      alt={`${currentSlide?.title || 'Chapter'} full preview`}
+                      maxH="70vh"
+                      maxW="100%"
+                      objectFit="contain"
+                    />
+                  ) : (
+                    <Text color="gray.300">Image unavailable.</Text>
+                  )}
+                </Box>
+
+                {currentSlideImages.length > 1 && (
+                  <HStack justify="space-between">
+                    <IconButton
+                      aria-label="Previous image"
+                      icon={<ChevronLeftIcon boxSize={6} />}
+                      onClick={() => goToPreviewImage(-1)}
+                    />
+                    <IconButton
+                      aria-label="Next image"
+                      icon={<ChevronRightIcon boxSize={6} />}
+                      onClick={() => goToPreviewImage(1)}
+                    />
+                  </HStack>
+                )}
+              </VStack>
+            </ModalBody>
+          </ModalContent>
+        </Modal>
       </Container>
     </Box>
   );

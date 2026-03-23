@@ -9,6 +9,111 @@ const appwriteProjectId = process.env.APPWRITE_PROJECT_ID || '66fa8216001614a2f7
 const buildAppwriteViewUrl = (fileId) =>
   `https://cloud.appwrite.io/v1/storage/buckets/${appwriteBucketId}/files/${fileId}/view?project=${appwriteProjectId}`;
 
+const asText = (value, fallback = '') => {
+  if (value === null || value === undefined) return fallback;
+  return String(value).trim();
+};
+
+const parseArrayField = (value = []) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (error) {
+      return [trimmed];
+    }
+  }
+
+  return [value];
+};
+
+const uniqueTextArray = (value = []) =>
+  value
+    .map((item) => asText(item, ''))
+    .filter(Boolean)
+    .filter((item, index, array) => array.indexOf(item) === index);
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const normalizeSlides = (slides = []) => {
+  if (!Array.isArray(slides)) {
+    return [];
+  }
+
+  return slides
+    .map((slide, index) => {
+      const title = asText(slide?.title, `Chapter ${index + 1}`);
+      const body = asText(slide?.body, '');
+      const materialUrl = asText(slide?.materialUrl, '');
+      const imageFileId = asText(slide?.imageFileId, '');
+      const imageUrls = uniqueTextArray([
+        asText(slide?.imageUrl, ''),
+        ...parseArrayField(slide?.imageUrls),
+      ]);
+      const imageUrl = imageUrls[0] || '';
+
+      if (!title && !body && !materialUrl && !imageUrl && !imageUrls.length) {
+        return null;
+      }
+
+      return {
+        slideNumber: index + 1,
+        title,
+        body,
+        materialUrl,
+        imageFileId,
+        imageUrl,
+        imageUrls,
+      };
+    })
+    .filter(Boolean);
+};
+
+const normalizeQuizQuestions = (quizQuestions = []) => {
+  if (!Array.isArray(quizQuestions)) {
+    return [];
+  }
+
+  return quizQuestions
+    .map((quizQuestion, index) => {
+      const question = asText(quizQuestion?.question, `Question ${index + 1}`);
+      const options = parseArrayField(quizQuestion?.options)
+        .map((option) => asText(option, ''))
+        .filter(Boolean);
+
+      if (!question || options.length < 2) {
+        return null;
+      }
+
+      const answerInput = Number(quizQuestion?.correctAnswer);
+      const correctAnswer = Number.isFinite(answerInput)
+        ? clamp(Math.trunc(answerInput), 0, options.length - 1)
+        : 0;
+
+      return {
+        questionNumber: index + 1,
+        question,
+        options,
+        correctAnswer,
+        explanation: asText(quizQuestion?.explanation, ''),
+      };
+    })
+    .filter(Boolean);
+};
+
 // Fallback seed in case DB is empty to keep frontend dropdowns populated
 const fallbackCourses = [
   { name: 'International Trade Import Export', price: 6917, category: 'Business', level: 'Intermediate' },
@@ -51,7 +156,9 @@ const createCourse = asyncHandler(async (req, res) => {
     isActive,
     status,
     draftSavedAt,
-    publishedAt
+    publishedAt,
+    slides,
+    quizQuestions
   } = req.body;
 
   if (!name) {
@@ -71,7 +178,9 @@ const createCourse = asyncHandler(async (req, res) => {
     isActive,
     status: status || 'draft',
     draftSavedAt: draftSavedAt || (status !== 'published' ? new Date() : null),
-    publishedAt: status === 'published' ? (publishedAt || new Date()) : null
+    publishedAt: status === 'published' ? (publishedAt || new Date()) : null,
+    slides: normalizeSlides(slides),
+    quizQuestions: normalizeQuizQuestions(quizQuestions)
   });
 
   const created = await course.save();
@@ -106,6 +215,14 @@ const updateCourse = asyncHandler(async (req, res) => {
       course[field] = req.body[field];
     }
   });
+
+  if (Array.isArray(req.body.slides)) {
+    course.slides = normalizeSlides(req.body.slides);
+  }
+
+  if (Array.isArray(req.body.quizQuestions)) {
+    course.quizQuestions = normalizeQuizQuestions(req.body.quizQuestions);
+  }
 
   const updated = await course.save();
   res.json(updated);
@@ -146,7 +263,7 @@ const uploadCourseSlideImage = asyncHandler(async (req, res) => {
 // POST /api/courses/:id/slides
 const addCourseSlide = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, body, materialUrl, imageUrl, imageFileId } = req.body;
+  const { title, body, materialUrl, imageUrl, imageUrls, imageFileId } = req.body;
 
   if (!title) {
     return res.status(400).json({ message: 'Slide title is required' });
@@ -157,7 +274,10 @@ const addCourseSlide = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'Course not found' });
   }
 
-  let resolvedImageUrl = imageUrl || '';
+  let resolvedImageUrls = uniqueTextArray([
+    imageUrl,
+    ...parseArrayField(imageUrls),
+  ]);
   let resolvedImageFileId = imageFileId || '';
 
   if (req.file) {
@@ -169,12 +289,15 @@ const addCourseSlide = asyncHandler(async (req, res) => {
       file
     });
 
-    resolvedImageUrl = buildAppwriteViewUrl(uploadedFile.$id);
+    resolvedImageUrls = uniqueTextArray([
+      ...resolvedImageUrls,
+      buildAppwriteViewUrl(uploadedFile.$id),
+    ]);
     resolvedImageFileId = uploadedFile.$id;
   }
 
-  if (!resolvedImageUrl) {
-    return res.status(400).json({ message: 'Slide image is required' });
+  if (!resolvedImageUrls.length) {
+    return res.status(400).json({ message: 'At least one slide image is required' });
   }
 
   const slideNumber = course.slides.length + 1;
@@ -185,7 +308,8 @@ const addCourseSlide = asyncHandler(async (req, res) => {
     body: body || '',
     materialUrl: materialUrl || '',
     imageFileId: resolvedImageFileId,
-    imageUrl: resolvedImageUrl
+    imageUrl: resolvedImageUrls[0] || '',
+    imageUrls: resolvedImageUrls
   });
 
   await course.save();
@@ -199,7 +323,7 @@ const addCourseSlide = asyncHandler(async (req, res) => {
 // PUT /api/courses/:id/slides/:slideId
 const updateCourseSlide = asyncHandler(async (req, res) => {
   const { id, slideId } = req.params;
-  const { title, body, materialUrl, imageUrl, imageFileId } = req.body;
+  const { title, body, materialUrl, imageUrl, imageUrls, imageFileId } = req.body;
 
   const course = await Course.findById(id);
   if (!course) {
@@ -220,11 +344,19 @@ const updateCourseSlide = asyncHandler(async (req, res) => {
   if (materialUrl !== undefined) {
     slide.materialUrl = materialUrl || '';
   }
-  if (imageUrl !== undefined && imageUrl) {
-    slide.imageUrl = imageUrl;
+  if (
+    Object.prototype.hasOwnProperty.call(req.body, 'imageUrls') ||
+    Object.prototype.hasOwnProperty.call(req.body, 'imageUrl')
+  ) {
+    const nextImageUrls = uniqueTextArray([
+      imageUrl,
+      ...parseArrayField(imageUrls),
+    ]);
+    slide.imageUrls = nextImageUrls;
+    slide.imageUrl = nextImageUrls[0] || '';
   }
-  if (imageFileId !== undefined && imageFileId) {
-    slide.imageFileId = imageFileId;
+  if (imageFileId !== undefined) {
+    slide.imageFileId = imageFileId || '';
   }
 
   await course.save();

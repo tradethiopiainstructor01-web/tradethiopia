@@ -9,19 +9,21 @@ const COURSE_KEY = 'sales-onboarding';
 const fallbackCourseData = {
   title: 'Sales Onboarding Course',
   overview:
-    'Published by Sales Manager. Complete all slides and the quiz to finish onboarding.',
+    'Published by Sales Manager. Complete all chapters and the quiz to finish onboarding.',
   passPercentage: 75,
   slides: [
     {
       title: 'Welcome',
       body: 'Welcome to the onboarding course. Start here to understand your sales role.',
       imageUrl: '',
+      imageUrls: [],
       materialUrl: '',
     },
     {
       title: 'Mission',
       body: 'Your mission is to identify customer needs and match them to the right solution.',
       imageUrl: '',
+      imageUrls: [],
       materialUrl: '',
     },
   ],
@@ -42,19 +44,32 @@ const asText = (value, fallback = '') => {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+const uniqueTextArray = (value = []) => {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => asText(item, ''))
+    .filter(Boolean)
+    .filter((item, index, array) => array.indexOf(item) === index);
+};
+
 const normalizeSlides = (slides = []) => {
   if (!Array.isArray(slides)) return [];
 
   return slides
     .map((slide, index) => {
-      const title = asText(slide?.title, `Slide ${index + 1}`);
+      const title = asText(slide?.title, `Chapter ${index + 1}`);
       const body = asText(slide?.body, '');
-      const imageUrl = asText(slide?.imageUrl, '');
+      const imageUrls = uniqueTextArray([
+        asText(slide?.imageUrl, ''),
+        ...(Array.isArray(slide?.imageUrls) ? slide.imageUrls : []),
+      ]);
+      const imageUrl = imageUrls[0] || '';
       const materialUrl = asText(slide?.materialUrl, '');
-      const hasContent = title || body || imageUrl || materialUrl;
+      const hasContent = title || body || imageUrl || materialUrl || imageUrls.length > 0;
       if (!hasContent) return null;
 
-      return { title, body, imageUrl, materialUrl };
+      return { title, body, imageUrl, imageUrls, materialUrl };
     })
     .filter(Boolean);
 };
