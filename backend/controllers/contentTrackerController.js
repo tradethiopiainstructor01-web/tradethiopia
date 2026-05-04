@@ -1,6 +1,6 @@
 const ContentTrackerEntry = require('../models/ContentTrackerEntry');
 
-const ALLOWED_TYPES = new Set(['Video', 'Graphics', 'Live Session', 'Testimonial']);
+const ALLOWED_TYPES = new Set(['Video', 'Graphics', 'Live Session', 'Testimonial', 'Bulk Email', 'Messages', 'Leads']);
 const GLOBAL_CONTENT_ACCESS_ROLES = new Set(['salesmanager', 'admin', 'finance', 'hr', 'coo']);
 
 const normalizeRole = (role = '') => role.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
