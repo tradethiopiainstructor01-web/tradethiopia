@@ -14,7 +14,7 @@ const ContentTrackerEntrySchema = new mongoose.Schema(
     },
     type: {
     type: String,
-    enum: ['Video', 'Graphics', 'Live Session', 'Testimonial'],
+    enum: ['Video', 'Graphics', 'Live Session', 'Testimonial', 'Bulk Email', 'Messages', 'Leads'],
     default: 'Video',
   },
   link: {

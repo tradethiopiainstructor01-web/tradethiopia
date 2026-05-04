@@ -321,6 +321,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   <option value="Busy">Busy</option>
                   <option value="No Answer">No Answer</option>
                   <option value="Callback">Callback</option>
+                  <option value="2x Called">2x Called</option>
                 </>
               ) : field === 'schedulePreference' ? (
                 <>
@@ -423,6 +424,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   <option value="Busy">Busy</option>
                   <option value="No Answer">No Answer</option>
                   <option value="Callback">Callback</option>
+                  <option value="2x Called">2x Called</option>
                 </>
               ) : field === 'schedulePreference' ? (
                 <>
@@ -493,6 +495,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         case 'Busy': return 'red';
         case 'No Answer': return 'orange';
         case 'Callback': return 'purple';
+        case '2x Called': return 'teal';
         default: return 'gray';
       }
     } else {

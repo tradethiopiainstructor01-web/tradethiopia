@@ -535,7 +535,7 @@ const FollowupPage = () => {
       phone: phoneRaw ? phoneRaw.toString().trim() : undefined,
       note: noteRaw ? noteRaw.toString().trim() : undefined,
       supervisorComment: supervisorCommentRaw ? supervisorCommentRaw.toString().trim() : undefined,
-      callStatus: normalizeEnumValue(callStatusRaw, ['Called', 'Not Called', 'Busy', 'No Answer', 'Callback']),
+      callStatus: normalizeEnumValue(callStatusRaw, ['Called', 'Not Called', 'Busy', 'No Answer', 'Callback', '2x Called']),
       followupStatus: normalizeEnumValue(followupStatusRaw, ['Prospect', 'Pending', 'Completed', 'Scheduled', 'Cancelled']),
       schedulePreference: normalizeEnumValue(scheduleRaw, ['Regular', 'Weekend', 'Night', 'Online']),
       packageScope: normalizeEnumValue(packageScopeRaw, ['Local', 'International']),
@@ -928,6 +928,7 @@ const FollowupPage = () => {
             <option value="Busy">Busy</option>
             <option value="No Answer">No Answer</option>
             <option value="Callback">Callback</option>
+            <option value="2x Called">2x Called</option>
           </Select>
           
           <Select 

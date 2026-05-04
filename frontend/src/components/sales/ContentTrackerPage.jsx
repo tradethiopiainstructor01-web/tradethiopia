@@ -52,7 +52,7 @@ import {
   createEmptyCounts,
 } from '../../utils/contentTrackerTargets';
 
-const contentTypeOptions = ['Video', 'Graphics', 'Live Session', 'Testimonial'];
+const contentTypeOptions = ['Video', 'Graphics', 'Live Session', 'Testimonial', 'Bulk Email', 'Messages', 'Leads'];
 const getEntryId = (entry) => entry?._id ?? entry?.id ?? entry;
 const formatAgentName = (entry, currentUser) => {
   const creator = entry?.createdBy;
