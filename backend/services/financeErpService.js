@@ -34,6 +34,7 @@ const { checkAndConsumeBudget, checkBudgetAvailability } = require('./budgetServ
 const { getRequiredApprovals } = require('./approvalPolicyService');
 const jobService = require('./jobService');
 const inventoryAccountingService = require('./inventoryAccountingService');
+const { runTransaction } = require('./mongoTransaction');
 
 const models = {
   accounts: Account,
@@ -89,6 +90,119 @@ const nextNumber = async (type) => {
   const date = new Date();
   const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
   return `${prefix}-${stamp}-${Date.now().toString().slice(-6)}`;
+};
+
+const isDuplicateKeyError = (error) => error?.code === 11000 || /E11000 duplicate key/i.test(error?.message || '');
+
+const normalizeIdempotencyKey = (key) => {
+  const normalized = String(key || '').trim();
+  if (!normalized) return null;
+  if (normalized.length < 8 || normalized.length > 128) {
+    const error = new Error('Idempotency key must be between 8 and 128 characters');
+    error.statusCode = 400;
+    throw error;
+  }
+  return normalized;
+};
+
+const workflowIdempotencyKey = ({ workflow, body, req, reference }) => {
+  const requestHeader = typeof req.get === 'function'
+    ? req.get('Idempotency-Key')
+    : req.headers?.['idempotency-key'];
+  const fallbackKey = reference
+    ? `${workflow}:${req.user?._id || 'anonymous'}:${reference}`
+    : null;
+  return normalizeIdempotencyKey(body.idempotencyKey || requestHeader || fallbackKey);
+};
+
+const assertTaxRate = (value) => {
+  const taxRate = Number(value || 0);
+  if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) {
+    const error = new Error('Tax rate must be between 0 and 100');
+    error.statusCode = 400;
+    throw error;
+  }
+  return taxRate;
+};
+
+const normalizeWorkflowItems = (items) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    const error = new Error('At least one workflow item is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return items.map((item, index) => {
+    const quantity = Number(item.quantity || 0);
+    const unitPrice = Number(item.unitPrice || 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      const error = new Error(`Item ${index + 1} quantity must be greater than zero`);
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      const error = new Error(`Item ${index + 1} unit price must be greater than zero`);
+      error.statusCode = 400;
+      throw error;
+    }
+    return {
+      ...item,
+      quantity,
+      unitPrice,
+      taxRate: assertTaxRate(item.taxRate)
+    };
+  });
+};
+
+const workflowItemsTotal = (items) => Number(items.reduce((sum, item) => {
+  const subtotal = Number(item.quantity || 0) * Number(item.unitPrice || 0);
+  return sum + subtotal + (subtotal * (Number(item.taxRate || 0) / 100));
+}, 0).toFixed(2));
+
+const assertWorkflowPayment = (paymentAmount, total) => {
+  const amount = financePostingService.assertValidAmount(paymentAmount || 0, 'payment amount');
+  if (amount > total + 0.01) {
+    const error = new Error('Payment amount cannot exceed workflow total');
+    error.statusCode = 400;
+    throw error;
+  }
+  return amount;
+};
+
+const findSalesWorkflowByIdempotencyKey = async (idempotencyKey) => {
+  if (!idempotencyKey) return null;
+  const invoice = await Invoice.findOne({ idempotencyKey });
+  if (!invoice) return null;
+  const [customer, payment, journalEntry] = await Promise.all([
+    Customer.findById(invoice.customer),
+    Payment.findOne({ invoice: invoice._id }).sort({ createdAt: -1 }),
+    invoice.journalEntry ? JournalEntry.findById(invoice.journalEntry) : null
+  ]);
+  return { customer, invoice, payment, journalEntry, idempotent: true };
+};
+
+const findPurchaseWorkflowByIdempotencyKey = async (idempotencyKey) => {
+  if (!idempotencyKey) return null;
+  const bill = await Bill.findOne({ idempotencyKey });
+  if (!bill) return null;
+  const [vendor, payment, journalEntry] = await Promise.all([
+    Vendor.findById(bill.vendor),
+    Payment.findOne({ bill: bill._id }).sort({ createdAt: -1 }),
+    bill.journalEntry ? JournalEntry.findById(bill.journalEntry) : null
+  ]);
+  return { vendor, bill, payment, journalEntry, idempotent: true };
+};
+
+const findExpenseWorkflowByIdempotencyKey = async (idempotencyKey) => {
+  if (!idempotencyKey) return null;
+  const expense = await Expense.findOne({ idempotencyKey });
+  if (!expense) return null;
+  const [approval, payment, journalEntry] = await Promise.all([
+    Approval.findOne({ targetType: 'expense', targetId: expense._id }).sort({ createdAt: -1 }),
+    expense.payment ? Payment.findById(expense.payment) : Payment.findOne({ expense: expense._id }).sort({ createdAt: -1 }),
+    expense.journalEntry ? JournalEntry.findById(expense.journalEntry) : null
+  ]);
+  return { expense, approval, payment, journalEntry, idempotent: true };
 };
 
 const audit = async ({ req, action, entityType, entityId, before, after, session }) => {
@@ -238,9 +352,22 @@ const createApprovalRequests = async ({ targetType, targetId, amount, department
 };
 
 const createSalesWorkflow = async (body, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const idempotencyKey = workflowIdempotencyKey({
+    workflow: 'sales-order',
+    body,
+    req,
+    reference: body.salesOrderNumber
+  });
+  const existing = await findSalesWorkflowByIdempotencyKey(idempotencyKey);
+  if (existing) return existing;
+
+  const items = normalizeWorkflowItems(body.items);
+  const total = workflowItemsTotal(items);
+  const paymentAmount = assertWorkflowPayment(body.payment?.amount, total);
+
+  await ensureDefaultAccounts();
   try {
+    return await runTransaction(async (session) => {
     await ensureDefaultAccounts(session);
     const receivable = await getAccountByCode('1100', session);
     const revenue = await getAccountByCode('4000', session);
@@ -252,7 +379,8 @@ const createSalesWorkflow = async (body, req) => {
       customer: customer._id,
       salesOrderNumber: body.salesOrderNumber,
       status: 'approved',
-      items: body.items,
+      items,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
       createdBy: req.user?._id
     }], { session });
 
@@ -277,14 +405,14 @@ const createSalesWorkflow = async (body, req) => {
     invoice.status = 'posted';
 
     let payment;
-    if (Number(body.payment?.amount || 0) > 0) {
+    if (paymentAmount > 0) {
       const [createdPayment] = await Payment.create([{
         paymentNumber: await nextNumber('payment'),
         direction: 'inbound',
         partnerType: 'customer',
         customer: customer._id,
         invoice: invoice._id,
-        amount: Number(body.payment.amount),
+        amount: paymentAmount,
         method: body.payment.method || 'bank',
         createdBy: req.user?._id
       }], { session });
@@ -313,20 +441,34 @@ const createSalesWorkflow = async (body, req) => {
 
     await invoice.save({ session });
     await audit({ req, action: 'workflow.sales_order_to_ledger', entityType: 'invoice', entityId: invoice._id, after: invoice.toObject(), session });
-    await session.commitTransaction();
     return { customer, invoice, payment, journalEntry: invoiceEntry };
+    });
   } catch (error) {
-    await session.abortTransaction();
+    if (isDuplicateKeyError(error)) {
+      const duplicate = await findSalesWorkflowByIdempotencyKey(idempotencyKey);
+      if (duplicate) return duplicate;
+    }
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 
 const createPurchaseWorkflow = async (body, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const idempotencyKey = workflowIdempotencyKey({
+    workflow: 'purchase-order',
+    body,
+    req,
+    reference: body.purchaseOrderNumber
+  });
+  const existing = await findPurchaseWorkflowByIdempotencyKey(idempotencyKey);
+  if (existing) return existing;
+
+  const items = normalizeWorkflowItems(body.items);
+  const total = workflowItemsTotal(items);
+  const paymentAmount = assertWorkflowPayment(body.payment?.amount, total);
+
+  await ensureDefaultAccounts();
   try {
+    return await runTransaction(async (session) => {
     await ensureDefaultAccounts(session);
     const payable = await getAccountByCode('2000', session);
     const expenseAccount = await getAccountByCode('5000', session);
@@ -338,7 +480,8 @@ const createPurchaseWorkflow = async (body, req) => {
       vendor: vendor._id,
       purchaseOrderNumber: body.purchaseOrderNumber,
       status: 'approved',
-      items: body.items,
+      items,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
       createdBy: req.user?._id
     }], { session });
 
@@ -386,14 +529,14 @@ const createPurchaseWorkflow = async (body, req) => {
     bill.status = 'posted';
 
     let payment;
-    if (Number(body.payment?.amount || 0) > 0) {
+    if (paymentAmount > 0) {
       const [createdPayment] = await Payment.create([{
         paymentNumber: await nextNumber('payment'),
         direction: 'outbound',
         partnerType: 'vendor',
         vendor: vendor._id,
         bill: bill._id,
-        amount: Number(body.payment.amount),
+        amount: paymentAmount,
         method: body.payment.method || 'bank',
         createdBy: req.user?._id
       }], { session });
@@ -422,20 +565,37 @@ const createPurchaseWorkflow = async (body, req) => {
     bill.journalEntry = billEntry._id;
     await bill.save({ session });
     await audit({ req, action: 'workflow.purchase_order_to_ledger', entityType: 'bill', entityId: bill._id, after: bill.toObject(), session });
-    await session.commitTransaction();
     return { vendor, bill, approval: approval[0], payment, journalEntry: billEntry };
+    });
   } catch (error) {
-    await session.abortTransaction();
+    if (isDuplicateKeyError(error)) {
+      const duplicate = await findPurchaseWorkflowByIdempotencyKey(idempotencyKey);
+      if (duplicate) return duplicate;
+    }
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 
 const createExpenseWorkflow = async (body, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const idempotencyKey = workflowIdempotencyKey({
+    workflow: 'expense-request',
+    body,
+    req,
+    reference: body.number
+  });
+  const existing = await findExpenseWorkflowByIdempotencyKey(idempotencyKey);
+  if (existing) return existing;
+
+  const amount = financePostingService.assertValidAmount(body.amount, 'amount');
+  if (amount <= 0) {
+    const error = new Error('Expense amount must be greater than zero');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await ensureDefaultAccounts();
   try {
+    return await runTransaction(async (session) => {
     await ensureDefaultAccounts(session);
     const expenseAccount = await getAccountByCode('5000', session);
     const cash = await getAccountByCode('1000', session);
@@ -445,9 +605,10 @@ const createExpenseWorkflow = async (body, req) => {
       employee: body.employee || req.user?._id,
       category: body.category,
       description: body.description,
-      amount: Number(body.amount),
+      amount,
       status: 'approved',
       account: body.account || expenseAccount._id,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
       createdBy: req.user?._id,
       approvedBy: req.user?._id
     }], { session });
@@ -531,13 +692,14 @@ const createExpenseWorkflow = async (body, req) => {
     await expense.save({ session });
     await payment.save({ session });
     await audit({ req, action: 'workflow.expense_to_reports', entityType: 'expense', entityId: expense._id, after: expense.toObject(), session });
-    await session.commitTransaction();
     return { expense, approval, payment, journalEntry: accrualEntry, paymentJournalEntry: paymentEntry };
+    });
   } catch (error) {
-    await session.abortTransaction();
+    if (isDuplicateKeyError(error)) {
+      const duplicate = await findExpenseWorkflowByIdempotencyKey(idempotencyKey);
+      if (duplicate) return duplicate;
+    }
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 
@@ -692,9 +854,7 @@ const approveInvoice = (id, req) => transitionDocument({
 });
 
 const postInvoice = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const invoice = await Invoice.findById(id).session(session);
     if (!invoice) throw new Error('Invoice not found');
     const before = invoice.toObject();
@@ -728,20 +888,12 @@ const postInvoice = async (id, req) => {
       req,
       session
     });
-    await session.commitTransaction();
     return { invoice, journalEntry: entry };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const reverseInvoice = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const invoice = await Invoice.findById(id).session(session);
     if (!invoice) throw new Error('Invoice not found');
     const before = invoice.toObject();
@@ -767,14 +919,8 @@ const reverseInvoice = async (id, req) => {
       req,
       session
     });
-    await session.commitTransaction();
     return { invoice, reversal };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const markInvoiceOverdue = (id, req) => transitionDocument({
@@ -864,9 +1010,7 @@ const approveBill = async (id, req) => {
 };
 
 const postBill = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const bill = await Bill.findById(id).session(session);
     if (!bill) throw new Error('Bill not found');
     assertTransition('bill', bill.status, 'posted');
@@ -893,20 +1037,12 @@ const postBill = async (id, req) => {
     bill.postedBy = req.user?._id;
     bill.postedAt = new Date();
     await bill.save({ session });
-    await session.commitTransaction();
     return { bill, journalEntry: entry };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const payBill = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const bill = await Bill.findById(id).session(session);
     if (!bill) throw new Error('Bill not found');
     if (!['posted', 'partially_paid'].includes(bill.status)) {
@@ -946,20 +1082,12 @@ const payBill = async (id, req) => {
       req,
       session
     });
-    await session.commitTransaction();
     return { bill, payment, journalEntry: entry };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const reverseBill = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const bill = await Bill.findById(id).session(session);
     if (!bill) throw new Error('Bill not found');
     assertTransition('bill', bill.status, 'reversed');
@@ -984,14 +1112,8 @@ const reverseBill = async (id, req) => {
       req,
       session
     });
-    await session.commitTransaction();
     return { bill, reversal };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const closeBill = (id, req) => transitionDocument({
@@ -1042,9 +1164,7 @@ const approveExpense = async (id, req) => {
 };
 
 const payExpense = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const expense = await Expense.findById(id).session(session);
     if (!expense) throw new Error('Expense not found');
     assertTransition('expense', expense.status, 'paid');
@@ -1086,20 +1206,12 @@ const payExpense = async (id, req) => {
       req,
       session
     });
-    await session.commitTransaction();
     return { expense, payment, journalEntry: entry };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const postExpense = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const expense = await Expense.findById(id).session(session);
     if (!expense) throw new Error('Expense not found');
     assertTransition('expense', expense.status, 'posted');
@@ -1125,20 +1237,12 @@ const postExpense = async (id, req) => {
     expense.postedBy = req.user?._id;
     expense.postedAt = new Date();
     await expense.save({ session });
-    await session.commitTransaction();
     return { expense, journalEntry: entry };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const reverseExpense = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const expense = await Expense.findById(id).session(session);
     if (!expense) throw new Error('Expense not found');
     assertTransition('expense', expense.status, 'reversed');
@@ -1155,14 +1259,8 @@ const reverseExpense = async (id, req) => {
     expense.reversedBy = req.user?._id;
     expense.reversedAt = new Date();
     await expense.save({ session });
-    await session.commitTransaction();
     return { expense, reversal };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const postJournal = async (id, req) => {
@@ -1194,9 +1292,7 @@ const reverseJournal = async (id, req) => {
 };
 
 const postPayment = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const payment = await Payment.findById(id).session(session);
     if (!payment) throw new Error('Payment not found');
     assertTransition('payment', payment.status, 'posted');
@@ -1204,6 +1300,21 @@ const postPayment = async (id, req) => {
     if (amount <= 0) throw new Error('Payment amount must be greater than zero');
 
     const isInbound = payment.direction === 'inbound';
+    let linkedInvoice = null;
+    let linkedBill = null;
+    if (payment.invoice) {
+      linkedInvoice = await Invoice.findById(payment.invoice).session(session);
+      if (linkedInvoice && amount > Number(linkedInvoice.balance || 0) + 0.01) {
+        throw new Error('Payment amount cannot exceed invoice balance');
+      }
+    }
+    if (payment.bill) {
+      linkedBill = await Bill.findById(payment.bill).session(session);
+      if (linkedBill && amount > Number(linkedBill.balance || 0) + 0.01) {
+        throw new Error('Payment amount cannot exceed bill balance');
+      }
+    }
+
     const entry = await financePostingService.postFromTemplate({
       templateKey: isInbound ? 'customer_payment' : 'supplier_payment',
       context: {
@@ -1224,7 +1335,7 @@ const postPayment = async (id, req) => {
     await payment.save({ session });
 
     if (payment.invoice) {
-      const invoice = await Invoice.findById(payment.invoice).session(session);
+      const invoice = linkedInvoice;
       if (invoice) {
         invoice.paidAmount = Number((Number(invoice.paidAmount || 0) + amount).toFixed(2));
         invoice.status = invoice.paidAmount >= invoice.total ? 'paid' : 'partially_paid';
@@ -1233,7 +1344,7 @@ const postPayment = async (id, req) => {
     }
 
     if (payment.bill) {
-      const bill = await Bill.findById(payment.bill).session(session);
+      const bill = linkedBill;
       if (bill) {
         bill.paidAmount = Number((Number(bill.paidAmount || 0) + amount).toFixed(2));
         bill.status = bill.paidAmount >= bill.total ? 'paid' : 'partially_paid';
@@ -1259,20 +1370,12 @@ const postPayment = async (id, req) => {
       req,
       session
     });
-    await session.commitTransaction();
     return { payment, journalEntry: entry };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const reversePayment = async (id, req) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
+  return runTransaction(async (session) => {
     const payment = await Payment.findById(id).session(session);
     if (!payment) throw new Error('Payment not found');
     assertTransition('payment', payment.status, 'reversed');
@@ -1295,14 +1398,8 @@ const reversePayment = async (id, req) => {
       req,
       session
     });
-    await session.commitTransaction();
     return { payment, reversal };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const postPayroll = async (id, req) => {

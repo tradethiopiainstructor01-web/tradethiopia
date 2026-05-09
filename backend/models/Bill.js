@@ -29,6 +29,7 @@ const billSchema = new mongoose.Schema({
   paidAmount: { type: Number, default: 0 },
   balance: { type: Number, default: 0 },
   journalEntry: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry' },
+  idempotencyKey: { type: String, trim: true },
   reversedByEntry: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry' },
   submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   submittedAt: { type: Date },
@@ -60,5 +61,7 @@ billSchema.pre('validate', function calculateTotals(next) {
   this.balance = Number((this.total - Number(this.paidAmount || 0)).toFixed(2));
   next();
 });
+
+billSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Bill', billSchema);

@@ -77,6 +77,11 @@ const purple = '#6f42c1';
 const border = '#d8dde6';
 const pageBg = '#f4f5f7';
 
+const createWorkflowKey = () => {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
 const moduleGroups = [
   {
     key: 'dashboard',
@@ -311,6 +316,7 @@ const FinanceERPPage = () => {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({});
   const [workflow, setWorkflow] = useState('sales-order');
   const reportKeys = ['reports', 'ledger', 'trialBalance', 'profitLoss', 'balanceSheet', 'taxReports'];
@@ -395,7 +401,7 @@ const FinanceERPPage = () => {
   const chartData = dashboard?.charts || fallbackDashboard.charts;
 
   const openCreate = () => {
-    setForm({});
+    setForm({ _workflowKey: createWorkflowKey() });
     drawer.onOpen();
   };
 
@@ -541,22 +547,27 @@ const FinanceERPPage = () => {
   };
 
   const handleCreate = async () => {
+    if (saving) return;
+    setSaving(true);
     try {
       if (workflow) {
         const workflowPayloads = {
           'sales-order': {
+            idempotencyKey: form._workflowKey,
             customer: { name: form.customerName || 'New Customer', email: form.email },
             salesOrderNumber: form.reference,
             items: [{ description: form.description || 'Sales order item', quantity: 1, unitPrice: Number(form.amount || 0), taxRate: Number(form.taxRate || 0) }],
             payment: { amount: Number(form.paymentAmount || 0), method: form.method || 'bank' }
           },
           'purchase-order': {
+            idempotencyKey: form._workflowKey,
             vendor: { name: form.vendorName || 'New Vendor', email: form.email },
             purchaseOrderNumber: form.reference,
             items: [{ description: form.description || 'Purchase order item', quantity: 1, unitPrice: Number(form.amount || 0), taxRate: Number(form.taxRate || 0) }],
             payment: { amount: Number(form.paymentAmount || 0), method: form.method || 'bank' }
           },
           'expense-request': {
+            idempotencyKey: form._workflowKey,
             category: form.category || 'General',
             description: form.description,
             amount: Number(form.amount || 0),
@@ -572,6 +583,8 @@ const FinanceERPPage = () => {
       toast({ title: 'Finance record posted', status: 'success', duration: 2500 });
     } catch (error) {
       toast({ title: 'Unable to save finance record', description: error.response?.data?.message || error.message, status: 'error' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -764,7 +777,7 @@ const FinanceERPPage = () => {
           </DrawerBody>
           <DrawerFooter borderTop="1px solid" borderColor={border}>
             <Button size="sm" mr={2} onClick={drawer.onClose}>Cancel</Button>
-            <Button size="sm" leftIcon={<FaMoneyBillWave />} bg={purple} color="white" _hover={{ bg: '#5b35a0' }} onClick={handleCreate}>Post</Button>
+            <Button size="sm" leftIcon={<FaMoneyBillWave />} bg={purple} color="white" _hover={{ bg: '#5b35a0' }} onClick={handleCreate} isLoading={saving} isDisabled={saving}>Post</Button>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>

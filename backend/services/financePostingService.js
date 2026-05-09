@@ -1,9 +1,9 @@
-const mongoose = require('mongoose');
 const Account = require('../models/Account');
 const JournalEntry = require('../models/JournalEntry');
 const PostingTemplate = require('../models/PostingTemplate');
 const { defaultAccounts, defaultPostingTemplates } = require('./financeConstants');
 const { assertPeriodOpen } = require('./fiscalPeriodService');
+const { runTransaction } = require('./mongoTransaction');
 
 class FinancePostingError extends Error {
   constructor(message, statusCode = 400) {
@@ -14,6 +14,8 @@ class FinancePostingError extends Error {
 }
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
+let defaultAccountsReady = false;
+let defaultPostingTemplatesReady = false;
 
 const assertValidAmount = (value, label = 'amount') => {
   const amount = Number(value);
@@ -47,6 +49,7 @@ const validateJournalLines = (lines) => {
 };
 
 const ensureDefaultAccounts = async (session) => {
+  if (defaultAccountsReady) return;
   for (const account of defaultAccounts) {
     const { normalBalance, systemAccount, ...insertFields } = account;
     await Account.updateOne(
@@ -61,9 +64,11 @@ const ensureDefaultAccounts = async (session) => {
       { upsert: true, session }
     );
   }
+  if (!session) defaultAccountsReady = true;
 };
 
 const ensureDefaultPostingTemplates = async (session) => {
+  if (defaultPostingTemplatesReady) return;
   for (const template of defaultPostingTemplates) {
     await PostingTemplate.updateOne(
       { key: template.key },
@@ -71,6 +76,7 @@ const ensureDefaultPostingTemplates = async (session) => {
       { upsert: true, session }
     );
   }
+  if (!session) defaultPostingTemplatesReady = true;
 };
 
 const getAccountByCode = async (code, session) => {
@@ -119,18 +125,7 @@ const buildLinesFromTemplate = async (templateKey, context, session) => {
 
 const runWithOptionalTransaction = async (session, work) => {
   if (session) return work(session);
-  const ownedSession = await mongoose.startSession();
-  ownedSession.startTransaction();
-  try {
-    const result = await work(ownedSession);
-    await ownedSession.commitTransaction();
-    return result;
-  } catch (error) {
-    await ownedSession.abortTransaction();
-    throw error;
-  } finally {
-    ownedSession.endSession();
-  }
+  return runTransaction(work);
 };
 
 const postJournalEntry = async ({

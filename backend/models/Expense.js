@@ -18,6 +18,7 @@ const expenseSchema = new mongoose.Schema({
   account: { type: mongoose.Schema.Types.ObjectId, ref: 'Account' },
   payment: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment' },
   journalEntry: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry' },
+  idempotencyKey: { type: String, trim: true },
   reversedByEntry: { type: mongoose.Schema.Types.ObjectId, ref: 'JournalEntry' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -29,5 +30,7 @@ const expenseSchema = new mongoose.Schema({
   reversedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   reversedAt: { type: Date }
 }, { timestamps: true });
+
+expenseSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Expense', expenseSchema);

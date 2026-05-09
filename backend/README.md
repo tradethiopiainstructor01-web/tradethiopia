@@ -3,6 +3,38 @@
 ## Overview
 This is the backend API for the Portal application, built with Node.js, Express, and MongoDB.
 
+## Finance E2E Rollback Tests
+
+Finance rollback tests require MongoDB transaction support, so they must run against a replica set. CI starts a Docker MongoDB replica set automatically and runs:
+
+```bash
+npm test
+```
+
+`npm test` runs both finance unit tests and the finance E2E rollback suite. In CI, `FINANCE_E2E_MONGO_URI` is required; if it is missing, the E2E test fails instead of skipping.
+
+To run the same tests locally with Docker:
+
+```bash
+docker rm -f finance-mongo || true
+docker run -d --name finance-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+docker exec finance-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+export FINANCE_E2E_MONGO_URI='mongodb://localhost:27017/tradethiopia_finance_e2e?replicaSet=rs0'
+npm run test:finance:e2e
+```
+
+PowerShell:
+
+```powershell
+docker rm -f finance-mongo
+docker run -d --name finance-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+docker exec finance-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+$env:FINANCE_E2E_MONGO_URI = 'mongodb://localhost:27017/tradethiopia_finance_e2e?replicaSet=rs0'
+npm run test:finance:e2e
+```
+
+The E2E suite intentionally forces failures mid-workflow and verifies no partial invoices, bills, expenses, payments, journals, or ledger balance updates remain after rollback.
+
 ## Sales Manager Functionality
 
 ### Overview

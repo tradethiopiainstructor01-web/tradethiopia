@@ -18,6 +18,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name finance-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in {1..30}; do
+            if docker exec finance-mongo mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec finance-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+          for i in {1..30}; do
+            if docker exec finance-mongo mongosh --quiet --eval 'rs.status().myState' | grep -q 1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs finance-mongo
+          exit 1
       - name: Install backend deps
         working-directory: backend
         run: |
@@ -26,5 +44,6 @@ jobs:
         working-directory: backend
         env:
           CI: true
+          FINANCE_E2E_MONGO_URI: mongodb://localhost:27017/tradethiopia_finance_e2e?replicaSet=rs0
         run: |
           npm test --silent

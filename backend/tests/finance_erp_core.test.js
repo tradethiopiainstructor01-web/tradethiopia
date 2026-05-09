@@ -12,7 +12,10 @@ const {
   assertPeriodOpen
 } = require('../services/fiscalPeriodService');
 const AuditLog = require('../models/AuditLog');
+const Bill = require('../models/Bill');
+const Expense = require('../models/Expense');
 const FiscalPeriod = require('../models/FiscalPeriod');
+const Invoice = require('../models/Invoice');
 const JournalEntry = require('../models/JournalEntry');
 const financeErpRoutes = require('../routes/financeErpRoutes');
 
@@ -64,6 +67,18 @@ const test = async (name, fn) => {
     ));
 
     assert.ok(duplicateIndex, 'expected unique sourceType/sourceId partial index');
+  });
+
+  await test('workflow source documents enforce idempotency keys', () => {
+    for (const Model of [Invoice, Bill, Expense]) {
+      const idempotencyIndex = Model.schema.indexes().find(([fields, options]) => (
+        fields.idempotencyKey === 1
+        && options.unique === true
+        && options.sparse === true
+      ));
+
+      assert.ok(idempotencyIndex, `${Model.modelName} should have a unique sparse idempotencyKey index`);
+    }
   });
 
   await test('locked fiscal period blocks posting workflows', async () => {
