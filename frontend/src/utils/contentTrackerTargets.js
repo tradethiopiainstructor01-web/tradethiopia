@@ -3,6 +3,9 @@ const REQUIRED_COUNTS = {
   Graphics: 2,
   'Live Session': 1,
   Testimonial: 1,
+  'Bulk Email': 0,
+  Messages: 0,
+  Leads: 0,
 };
 
 const SHARE_TARGET = 250;

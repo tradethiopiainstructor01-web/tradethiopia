@@ -54,7 +54,7 @@ import {
   summarizeEntriesByAgent,
 } from '../../utils/contentTrackerTargets';
 
-const contentTypeOptions = ['Video', 'Graphics', 'Live Session', 'Testimonial'];
+const contentTypeOptions = ['Video', 'Graphics', 'Live Session', 'Testimonial', 'Bulk Email', 'Messages', 'Leads'];
 const getWeekDateRange = (weekValue) => {
   if (!weekValue) return null;
   const match = weekValue.match(/^(\d{4})-W(\d{2})$/);

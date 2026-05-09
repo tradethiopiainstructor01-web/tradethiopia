@@ -55,7 +55,7 @@ const salesCustomerSchema = new mongoose.Schema({
   },
   callStatus: {
     type: String,
-    enum: ['Called', 'Not Called', 'Busy', 'No Answer', 'Callback'],
+    enum: ['Called', 'Not Called', 'Busy', 'No Answer', 'Callback', '2x Called'],
     default: 'Not Called'
   },
   followupStatus: {
