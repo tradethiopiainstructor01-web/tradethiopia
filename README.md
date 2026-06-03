@@ -10,3 +10,9 @@ it team workspace
   - Appwrite credentials: `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `APPWRITE_BUCKET_ID`
   - Any SMTP or custom secrets that appear in `backend/.env` (e.g., `SMTP_USER`, `SMTP_PASS`, `SMTP_HOST`, `SMTP_PORT`).
 - API health-checks live under `/api/health` and `/api/test`, and static assets live at the root URL once the frontend build completes.
+
+
+
+
+
+Hello is this the right repo?
