@@ -17,6 +17,8 @@ import RequestPage from '../../pages/RequestPage';
 import ContentTrackerPage from './ContentTrackerPage.jsx';
 import { useUserStore } from '../../store/user';
 import { getUserDepartment } from '../../utils/department';
+import useIsMobile from '../../hooks/useIsMobile';
+import MobileSalesShell from '../../mobile/sales/MobileSalesShell';
 
 const Layout = ({ children, initialActiveItem }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
@@ -36,6 +38,7 @@ const Layout = ({ children, initialActiveItem }) => {
   
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeItem, setActiveItem] = useState(getInitialActiveItem);
+  const isMobile = useIsMobile();
 
   // Save activeItem to localStorage whenever it changes
   useEffect(() => {
@@ -84,6 +87,10 @@ const Layout = ({ children, initialActiveItem }) => {
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }
   };
+
+  if (isMobile) {
+    return <MobileSalesShell activeItem={activeItem} setActiveItem={setActiveItem} />;
+  }
 
   return (
     <Box display="flex" flexDirection="column" height="100vh">
