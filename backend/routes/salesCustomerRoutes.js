@@ -20,14 +20,14 @@ router.route('/')
 router.route('/stats')
   .get(protect, getSalesStats);
 
+// Alias for completed sales lookup. Keep static routes before dynamic /:id.
+router.get('/salescustomers', protect, getCustomers);
+
 router.route('/:id')
   .get(protect, getCustomerById)
   .put(protect, updateCustomer)
   .delete(protect, deleteCustomer);
 
 router.put('/:id/assign', protect, authorize('salesmanager', 'sales_manager', 'sales manager'), assignCustomer);
-
-// Alias for /api/sales-customers with followupStatus=Completed
-router.get('/salescustomers', protect, getCustomers);
 
 module.exports = router;

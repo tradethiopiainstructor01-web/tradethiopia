@@ -1,3 +1,6 @@
+const normalizeRole = (role = '') =>
+  role.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
@@ -7,33 +10,10 @@ const authorize = (...roles) => {
       });
     }
 
-    // Log for debugging
-    console.log('=== AUTHORIZATION DEBUG INFO ===');
-    console.log('User role from token:', req.user.role);
-    console.log('Required roles:', roles);
-    
-    // More explicit role matching
     const userRole = req.user.role || '';
-    const hasAccess = roles.some(requiredRole => {
-      // Direct match
-      if (userRole === requiredRole) {
-        console.log(`Direct match found: ${userRole} === ${requiredRole}`);
-        return true;
-      }
-      
-      // Case insensitive match
-      if (userRole.toLowerCase() === requiredRole.toLowerCase()) {
-        console.log(`Case insensitive match found: ${userRole} =~ ${requiredRole}`);
-        return true;
-      }
-      
-      return false;
-    });
-    
-    console.log('User role:', userRole);
-    console.log('Required roles:', roles);
-    console.log('Access granted:', hasAccess);
-    console.log('=================================');
+    const normalizedUserRole = normalizeRole(userRole);
+    const normalizedRoles = roles.map(normalizeRole);
+    const hasAccess = normalizedRoles.includes(normalizedUserRole);
     
     if (!hasAccess) {
       return res.status(403).json({ 

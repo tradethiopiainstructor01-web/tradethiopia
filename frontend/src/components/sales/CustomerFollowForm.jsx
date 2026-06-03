@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Box, Button, FormControl, FormLabel, Input, Textarea, Select, Heading, useToast, Grid, GridItem } from '@chakra-ui/react';
-import axios from 'axios';
+import axios from '../../services/axiosInstance';
 
 const CustomerFollowForm = () => {
   const [fullName, setFullName] = useState('');
@@ -23,7 +23,7 @@ const CustomerFollowForm = () => {
         notes,
       };
 
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/followup`, newFollowUp);
+      const response = await axios.post('/followup', newFollowUp);
       console.log(response.data); // Log the response if needed
 
       toast({

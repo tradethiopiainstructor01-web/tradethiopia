@@ -47,8 +47,10 @@ const calendarRoutes = require('./routes/calendarRoutes.js');
 const courseRoutes = require('./routes/courseRoutes.js');
 const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
 const itRoutes = require('./routes/itRoutes.js');
+const inventoryRoutes = require('./routes/inventoryRoutes.js');
 const demandRoutes = require('./routes/demandRoutes.js');
 const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
+const paymentRoutes = require('./routes/paymentRoutes.js');
 const awardRoutes = require('./routes/awardRoutes.js');
 const contentTrackerRoutes = require('./routes/contentTrackerRoutes');
 
@@ -318,11 +320,13 @@ app.use('/api/external-courses', require('./routes/externalCourseRoutes'));
 app.use('/api/internal-courses', require('./routes/internalCourseRoutes'));
 app.use('/api/product-followups', productFollowupRoutes);
 app.use('/api/it', itRoutes);
+app.use('/api/inventory', inventoryRoutes);
 app.use('/api/finance', require('./routes/financeRoutes'));
 app.use('/api/purchases', require('./routes/purchaseRoutes'));
 app.use('/api/costs', costRoutes);
 app.use('/api/demands', demandRoutes);
 app.use('/api/payroll', payrollRoutes); // Add this line
+app.use('/api/payments', paymentRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/social-requests', requestRoutes);
 app.use('/api/action-items', actionItemRoutes);
@@ -351,7 +355,7 @@ module.exports = app;
 
 // Connect to MongoDB and start the server only when running locally
 if (require.main === module) {
-    const PORT = process.env.PORT || 5000;
+    const PORT = Number(process.env.PORT) || 5000;
     const HOST = process.env.HOST || '0.0.0.0'; // Bind to all interfaces by default
     
     // Connect to database and start server
@@ -374,11 +378,15 @@ if (require.main === module) {
         // Handle EADDRINUSE error gracefully
         server.on('error', (e) => {
           if (e.code === 'EADDRINUSE') {
-            console.log(`Port ${PORT} is busy, trying ${PORT + 1}`);
+            const fallbackPort = PORT + 1;
+            console.log(`Port ${PORT} is busy, trying ${fallbackPort}`);
             setTimeout(() => {
               server.close();
-              app.listen(PORT + 1, HOST, () => {
-                console.log(`Server running on http://${HOST}:${PORT + 1}`);
+              const fallbackServer = app.listen(fallbackPort, HOST, () => {
+                console.log(`Server running on http://${HOST}:${fallbackPort}`);
+              });
+              fallbackServer.on('error', (fallbackError) => {
+                console.error(`Failed to start fallback server on ${fallbackPort}:`, fallbackError);
               });
             }, 1000);
           }

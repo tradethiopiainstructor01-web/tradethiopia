@@ -2,19 +2,24 @@ import { useState } from 'react';
 import { Box, Button, Input, FormLabel, FormControl, Text, useToast } from '@chakra-ui/react';
 import Particles from 'react-tsparticles';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { useUserStore, normalizeRole } from '../store/user'; // Update the path if necessary
+import axiosInstance from '../services/axiosInstance';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
     const navigate = useNavigate();
     const toast = useToast();
     const setCurrentUser = useUserStore((state) => state.setCurrentUser);
 
-const handleLogin = async () => {
+const handleLogin = async (event) => {
+    event?.preventDefault();
+    if (isLoggingIn) return;
+
     try {
-        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/users/login`, { email, password });
+        setIsLoggingIn(true);
+        const response = await axiosInstance.post('/users/login', { email, password });
 
         console.log('Login response:', response.data); // Debugging line
 
@@ -113,6 +118,8 @@ const handleLogin = async () => {
             duration: 3000,
             isClosable: true,
         });
+    } finally {
+        setIsLoggingIn(false);
     }
 };
 
@@ -145,6 +152,7 @@ const handleLogin = async () => {
                 <Box textAlign="center" mb={6}>
                     <h2 style={{ color: 'white', fontSize: '2rem', fontWeight: 'bold' }}>Welcome Back</h2>
                 </Box>
+                <form onSubmit={handleLogin}>
                 <FormControl mb={4}>
                     <FormLabel htmlFor="email" color="white">Email</FormLabel>
                     <Input
@@ -161,6 +169,7 @@ const handleLogin = async () => {
                         color="black"
                         px={4}
                         py={2}
+                        autoComplete="email"
                     />
                 </FormControl>
                 <FormControl mb={6}>
@@ -179,18 +188,22 @@ const handleLogin = async () => {
                         color="black"
                         px={4}
                         py={2}
+                        autoComplete="current-password"
                     />
                 </FormControl>
                 <Button
+                    type="submit"
                     w="full"
                     colorScheme="purple"
                     variant="solid"
                     size="lg"
                     _hover={{ transform: 'scale(1.05)', boxShadow: 'lg' }}
-                    onClick={handleLogin}
+                    isLoading={isLoggingIn}
+                    isDisabled={!email.trim() || !password}
                 >
                     Login
                 </Button>
+                </form>
 
 
             </Box>

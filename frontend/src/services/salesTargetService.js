@@ -28,14 +28,12 @@ export const getSalesTargets = async (agentId, params = {}) => {
 
 // Get current user's sales targets
 export const getMySalesTargets = async () => {
-  const token = localStorage.getItem('userToken');
-  
   try {
-    // First get the current user's info
-    const userResponse = await axiosInstance.get('/users/profile');
-    const userId = userResponse.data._id;
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      throw new Error('Current user id is missing. Please log in again.');
+    }
     
-    // Then get their targets
     const response = await axiosInstance.get(`/sales-targets/${userId}`);
     return response.data;
   } catch (error) {

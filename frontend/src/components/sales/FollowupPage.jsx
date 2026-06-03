@@ -49,7 +49,7 @@ import PackageSalesTable from './PackageSalesTable';
 import PackageSalesTab from './PackageSalesTab';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
 import { fetchExternalCourses as fetchCoursesApi } from '../../services/api';
-import axios from 'axios';
+import axios from '../../services/axiosInstance';
 
 const defaultCourses = [
   { _id: 'external-seed-0', name: 'International Trade Import Export', price: 0 },
@@ -158,11 +158,7 @@ const FollowupPage = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers/stats`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('userToken')}`
-        }
-      });
+      const response = await axios.get('/sales-customers/stats');
       // Merge server stats while keeping any client-derived values (like totalCommission)
       setStats(prev => ({ ...prev, ...response.data }));
       try {

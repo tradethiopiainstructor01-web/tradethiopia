@@ -1,5 +1,5 @@
 const express = require('express');
-const { createNote, getNotes, updateNote, deleteNote } = require('../controllers/noteController.js');
+const { createNote, getNotes, getNoteById, updateNote, deleteNote } = require('../controllers/noteController.js');
 
 const router = express.Router();
 
@@ -8,6 +8,9 @@ router.get('/', getNotes);
 
 // Route to create a new note
 router.post('/', createNote);
+
+// Route to get a specific note
+router.get('/:id', getNoteById);
 
 // Route to update a specific note
 router.put('/:id', updateNote);

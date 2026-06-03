@@ -49,6 +49,7 @@ import {
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { createPayment } from '../../services/paymentService';
+import axios from '../../services/axiosInstance';
 
 const ProductFollowupTable = ({ items, onDelete, onUpdate, onAdd }) => {
   const [editingCell, setEditingCell] = useState(null);
@@ -84,12 +85,9 @@ const ProductFollowupTable = ({ items, onDelete, onUpdate, onAdd }) => {
   const fetchProducts = async () => {
     // fetch inventory from finance (stock API), fall back to sample list
     try {
-      const token = localStorage.getItem('userToken');
-      const res = await fetch( `${import.meta.env.VITE_API_URL}/api/stock`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const res = await axios.get('/stock');
+      if (res.status >= 200 && res.status < 300) {
+        const data = res.data;
         setProductsList(
           (Array.isArray(data) ? data : []).map((i) => ({
             _id: i._id,

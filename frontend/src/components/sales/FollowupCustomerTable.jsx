@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Table,
@@ -20,9 +20,15 @@ import {
   SimpleGrid,
   VStack,
   HStack,
-  Divider
+  Divider,
+  Tooltip,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Checkbox
 } from '@chakra-ui/react';
-import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon } from '@chakra-ui/icons';
+import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon, SettingsIcon, DragHandleIcon } from '@chakra-ui/icons';
 import {
   Drawer,
   DrawerBody,
@@ -39,6 +45,56 @@ import {
   AlertDialogContent,
   AlertDialogOverlay
 } from '@chakra-ui/react';
+
+const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
+const TABLE_PREF_VERSION = 2;
+const VIEW_PREF_KEY = 'salesFollowupCustomerViewMode';
+const DEFAULT_COLUMNS = [
+  { key: 'customerName', label: 'Customer Name', width: 150, required: true },
+  { key: 'contactTitle', label: 'Training Title', width: 180 },
+  { key: 'phone', label: 'Phone', width: 130 },
+  { key: 'callStatus', label: 'Call Status', width: 112 },
+  { key: 'followupStatus', label: 'Follow-up Status', width: 138 },
+  { key: 'schedulePreference', label: 'Schedule', width: 108 },
+  { key: 'packageScope', label: 'Package Scope', width: 126 },
+  { key: 'date', label: 'Date', width: 120 },
+  { key: 'email', label: 'Email', width: 190 },
+  { key: 'note', label: 'Notes', width: 220 },
+  { key: 'actions', label: 'Actions', width: 110, required: true }
+];
+
+const getDefaultColumnPrefs = () => ({
+  version: TABLE_PREF_VERSION,
+  order: DEFAULT_COLUMNS.map(column => column.key),
+  hidden: [],
+  widths: DEFAULT_COLUMNS.reduce((acc, column) => ({ ...acc, [column.key]: column.width }), {})
+});
+
+const readColumnPrefs = () => {
+  const defaults = getDefaultColumnPrefs();
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(TABLE_PREF_KEY) || 'null');
+    if (!saved) return defaults;
+    if (saved.version !== TABLE_PREF_VERSION) return defaults;
+
+    const knownKeys = DEFAULT_COLUMNS.map(column => column.key);
+    const savedOrder = Array.isArray(saved.order) ? saved.order.filter(key => knownKeys.includes(key)) : [];
+    const order = [...savedOrder, ...knownKeys.filter(key => !savedOrder.includes(key))];
+    const hidden = Array.isArray(saved.hidden)
+      ? saved.hidden.filter(key => knownKeys.includes(key) && !DEFAULT_COLUMNS.find(column => column.key === key)?.required)
+      : [];
+
+    return {
+      order,
+      hidden,
+      version: TABLE_PREF_VERSION,
+      widths: { ...defaults.widths, ...(saved.widths || {}) }
+    };
+  } catch {
+    return defaults;
+  }
+};
 
 const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }) => {
   const [editingCell, setEditingCell] = useState(null);
@@ -59,12 +115,25 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   });
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const [drawerCustomer, setDrawerCustomer] = useState(null);
+  const [columnPrefs, setColumnPrefs] = useState(readColumnPrefs);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_PREF_KEY) || 'list');
+  const [draggedColumn, setDraggedColumn] = useState(null);
+  const [dragOverColumn, setDragOverColumn] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const warningCancelRef = useRef(null);
+  const resizeRef = useRef(null);
 
   const userToken = localStorage.getItem('userToken');
   const userRole = localStorage.getItem('userRole') || 'agent';
   const headerColor = useColorModeValue('teal.800', 'teal.200');
+
+  useEffect(() => {
+    localStorage.setItem(TABLE_PREF_KEY, JSON.stringify(columnPrefs));
+  }, [columnPrefs]);
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_PREF_KEY, viewMode);
+  }, [viewMode]);
 
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -116,6 +185,114 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     }
     return course ? { id: course._id, name: course.name, price: Number(course.price) || 0 } : null;
   };
+
+  const getCustomerCoursePrice = (customer) => {
+    const courseDetails = getCourseDetails(customer?.contactTitle, customer?.courseId);
+    const price = customer?.coursePrice ?? courseDetails?.price;
+    const numericPrice = Number(price);
+
+    return Number.isFinite(numericPrice) ? numericPrice : null;
+  };
+
+  const formatPrice = (price) => (
+    price === null || price === undefined
+      ? 'Price not set'
+      : `ETB ${Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  );
+
+  const compactBadgeProps = {
+    fontSize: '2xs',
+    lineHeight: '1',
+    px: 1.5,
+    py: 1,
+    borderRadius: 'sm',
+    maxW: '100%',
+    whiteSpace: 'nowrap'
+  };
+
+  const compactSelectProps = {
+    size: 'xs',
+    fontSize: 'xs',
+    h: '26px',
+    minH: '26px',
+    px: 1
+  };
+
+  const columns = DEFAULT_COLUMNS.map(column => ({
+    ...column,
+    width: columnPrefs.widths[column.key] || column.width,
+    isVisible: !columnPrefs.hidden.includes(column.key)
+  }));
+  const visibleColumns = columnPrefs.order
+    .map(key => columns.find(column => column.key === key))
+    .filter(column => column && column.isVisible);
+
+  const toggleColumnVisibility = (key) => {
+    const column = DEFAULT_COLUMNS.find(item => item.key === key);
+    if (column?.required) return;
+
+    setColumnPrefs(prev => {
+      const isHidden = prev.hidden.includes(key);
+      return {
+        ...prev,
+        hidden: isHidden ? prev.hidden.filter(item => item !== key) : [...prev.hidden, key]
+      };
+    });
+  };
+
+  const resetColumnLayout = () => {
+    setColumnPrefs(getDefaultColumnPrefs());
+  };
+
+  const moveColumn = (fromKey, toKey) => {
+    if (!fromKey || fromKey === toKey) return;
+
+    setColumnPrefs(prev => {
+      const order = [...prev.order];
+      const fromIndex = order.indexOf(fromKey);
+      const toIndex = order.indexOf(toKey);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      order.splice(fromIndex, 1);
+      order.splice(toIndex, 0, fromKey);
+      return { ...prev, order };
+    });
+  };
+
+  const startColumnResize = (event, key) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    resizeRef.current = {
+      key,
+      startX: event.clientX,
+      startWidth: columnPrefs.widths[key] || DEFAULT_COLUMNS.find(column => column.key === key)?.width || 140
+    };
+
+    const handleMouseMove = (moveEvent) => {
+      const activeResize = resizeRef.current;
+      if (!activeResize) return;
+      const nextWidth = Math.max(80, activeResize.startWidth + moveEvent.clientX - activeResize.startX);
+
+      setColumnPrefs(prev => ({
+        ...prev,
+        widths: { ...prev.widths, [activeResize.key]: nextWidth }
+      }));
+    };
+
+    const handleMouseUp = () => {
+      resizeRef.current = null;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  useEffect(() => () => {
+    resizeRef.current = null;
+  }, []);
 
   const handleCellClick = (customer, field) => {
     if (field === 'followupStatus' && (customer.followupStatus || '').toLowerCase() === 'completed') {
@@ -290,16 +467,14 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               value={editValue}
               onChange={handleInputChange}
               onKeyDown={(e) => handleKeyDown(e, customer)}
-              size="xs"
               autoFocus
               onBlur={handleBlur}
-              fontSize="sm"
-              p={1}
+              {...compactSelectProps}
             >
               <option value="">Select a course</option>
               {(Array.isArray(courses) ? courses : []).map(course => (
                 <option key={course._id} value={course.name}>
-                  {course.name}
+                  {course.name} - {formatPrice(Number(course.price) || 0)}
                 </option>
               ))}
             </Select>
@@ -308,11 +483,9 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               value={editValue}
               onChange={handleInputChange}
               onKeyDown={(e) => handleKeyDown(e, customer)}
-              size="xs"
               autoFocus
               onBlur={handleBlur}
-              fontSize="sm"
-              p={1}
+              {...compactSelectProps}
             >
               {field === 'callStatus' ? (
                 <>
@@ -396,14 +569,12 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               value={value}
               onChange={handleNewCustomerChange}
               onKeyDown={handleNewCustomerKeyDown}
-              size="xs"
-              fontSize="sm"
-              p={1}
+              {...compactSelectProps}
             >
               <option value="">Select a course</option>
               {(Array.isArray(courses) ? courses : []).map(course => (
                 <option key={course._id} value={course.name}>
-                  {course.name}
+                  {course.name} - {formatPrice(Number(course.price) || 0)}
                 </option>
               ))}
             </Select>
@@ -413,9 +584,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               value={value}
               onChange={handleNewCustomerChange}
               onKeyDown={handleNewCustomerKeyDown}
-              size="xs"
-              fontSize="sm"
-              p={1}
+              {...compactSelectProps}
             >
               {field === 'callStatus' ? (
                 <>
@@ -522,6 +691,300 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     }
   };
 
+  const getCellBaseProps = (key) => ({
+    p: 1.5,
+    fontSize: 'xs',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  });
+
+  const renderNewCustomerColumnCell = (column) => {
+    switch (column.key) {
+      case 'customerName':
+        return renderNewCustomerCell('customerName', newCustomer.customerName);
+      case 'contactTitle':
+        return renderNewCustomerCell('contactTitle', newCustomer.contactTitle, 'select');
+      case 'phone':
+        return renderNewCustomerCell('phone', newCustomer.phone);
+      case 'callStatus':
+        return renderNewCustomerCell('callStatus', newCustomer.callStatus, 'select');
+      case 'followupStatus':
+        return renderNewCustomerCell('followupStatus', newCustomer.followupStatus, 'select');
+      case 'schedulePreference':
+        return renderNewCustomerCell('schedulePreference', newCustomer.schedulePreference || 'Regular', 'select');
+      case 'packageScope':
+        return renderNewCustomerCell('packageScope', newCustomer.packageScope || 'Local', 'select');
+      case 'date':
+        return <Td key="date" {...getCellBaseProps('date')}>{formatDate(new Date().toISOString())}</Td>;
+      case 'email':
+        return renderNewCustomerCell('email', newCustomer.email);
+      case 'note':
+        return renderNewCustomerCell('note', newCustomer.note, 'textarea');
+      case 'actions':
+        return (
+          <Td key="actions" p={1.5}>
+            <IconButton
+              icon={<CheckIcon />}
+              colorScheme="green"
+              size="xs"
+              mr={1}
+              onClick={handleAddNewCustomer}
+              aria-label="Save customer"
+            />
+            <IconButton
+              icon={<CloseIcon />}
+              colorScheme="red"
+              size="xs"
+              onClick={() => setAddingRow(false)}
+              aria-label="Cancel"
+            />
+          </Td>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderDisplayCell = (customer, field, children, extraProps = {}) => (
+    <Td
+      key={field}
+      onClick={() => handleCellClick(customer, field)}
+      _hover={{ cursor: 'pointer', bg: 'teal.50' }}
+      {...getCellBaseProps(field)}
+      {...extraProps}
+    >
+      {children}
+    </Td>
+  );
+
+  const renderCustomerColumnCell = (customer, column) => {
+    const { key } = column;
+
+    if (editingCell && editingCell.id === customer._id && editingCell.field === key) {
+      if (key === 'contactTitle' || key === 'callStatus' || key === 'followupStatus' || key === 'schedulePreference' || key === 'packageScope') {
+        return renderEditableCell(customer, key, customer[key], 'select');
+      }
+      if (key === 'note') {
+        return renderEditableCell(customer, 'note', customer.note, 'textarea');
+      }
+      return renderEditableCell(customer, key, customer[key]);
+    }
+
+    switch (key) {
+      case 'customerName':
+        return renderDisplayCell(customer, 'customerName', customer.customerName);
+      case 'contactTitle':
+        return renderDisplayCell(
+          customer,
+          'contactTitle',
+          <Tooltip
+            label={`${customer.contactTitle || 'No course selected'} - ${formatPrice(getCustomerCoursePrice(customer))}`}
+            hasArrow
+            placement="top"
+            openDelay={250}
+          >
+            <Text as="span">{customer.contactTitle || 'Select course'}</Text>
+          </Tooltip>
+        );
+      case 'phone':
+        return renderDisplayCell(customer, 'phone', customer.phone);
+      case 'callStatus':
+        return renderDisplayCell(
+          customer,
+          'callStatus',
+          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} {...compactBadgeProps}>
+            {customer.callStatus}
+          </Badge>
+        );
+      case 'followupStatus':
+        return renderDisplayCell(
+          customer,
+          'followupStatus',
+          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} {...compactBadgeProps}>
+            {customer.followupStatus}
+          </Badge>
+        );
+      case 'schedulePreference':
+        return renderDisplayCell(customer, 'schedulePreference', customer.schedulePreference || 'Regular');
+      case 'packageScope':
+        return renderDisplayCell(
+          customer,
+          'packageScope',
+          <Badge variant="subtle" colorScheme={getScopeBadgeVariant(customer.packageScope || 'Local')} {...compactBadgeProps}>
+            {customer.packageScope || 'Local'}
+          </Badge>
+        );
+      case 'date':
+        return <Td key="date" {...getCellBaseProps('date')}>{customer.date ? formatDate(customer.date) : 'N/A'}</Td>;
+      case 'email':
+        return renderDisplayCell(customer, 'email', customer.email);
+      case 'note':
+        return renderDisplayCell(customer, 'note', customer.note);
+      case 'actions':
+        return (
+          <Td key="actions" p={1.5} position="relative">
+            {updatedCustomers.has(customer._id) && (
+              <Box
+                position="absolute"
+                top="-2px"
+                left="-2px"
+                w="8px"
+                h="8px"
+                bg="green.500"
+                borderRadius="50%"
+                zIndex="1"
+              />
+            )}
+            <HStack spacing={1} justify="flex-end">
+              <IconButton
+                icon={<DeleteIcon />}
+                colorScheme="red"
+                size="xs"
+                onClick={() => onDelete(customer._id)}
+                aria-label="Delete customer"
+                variant="outline"
+              />
+              <IconButton
+                icon={<InfoIcon />}
+                colorScheme="blue"
+                size="xs"
+                onClick={() => {
+                  setDrawerCustomer(customer);
+                  onOpen();
+                }}
+                aria-label="View details"
+                variant="outline"
+              />
+            </HStack>
+          </Td>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderGridValue = (customer, column) => {
+    switch (column.key) {
+      case 'customerName':
+        return customer.customerName || 'N/A';
+      case 'contactTitle':
+        return (
+          <Tooltip
+            label={`${customer.contactTitle || 'No course selected'} - ${formatPrice(getCustomerCoursePrice(customer))}`}
+            hasArrow
+            placement="top"
+            openDelay={250}
+          >
+            <Text as="span" noOfLines={1}>{customer.contactTitle || 'Select course'}</Text>
+          </Tooltip>
+        );
+      case 'phone':
+        return customer.phone || 'N/A';
+      case 'callStatus':
+        return (
+          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} {...compactBadgeProps}>
+            {customer.callStatus || 'N/A'}
+          </Badge>
+        );
+      case 'followupStatus':
+        return (
+          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} {...compactBadgeProps}>
+            {customer.followupStatus || 'N/A'}
+          </Badge>
+        );
+      case 'schedulePreference':
+        return customer.schedulePreference || 'Regular';
+      case 'packageScope':
+        return (
+          <Badge variant="subtle" colorScheme={getScopeBadgeVariant(customer.packageScope || 'Local')} {...compactBadgeProps}>
+            {customer.packageScope || 'Local'}
+          </Badge>
+        );
+      case 'date':
+        return customer.date ? formatDate(customer.date) : 'N/A';
+      case 'email':
+        return customer.email || 'N/A';
+      case 'note':
+        return customer.note || 'N/A';
+      default:
+        return null;
+    }
+  };
+
+  const renderGridCard = (customer) => {
+    const fields = visibleColumns.filter(column => column.key !== 'actions');
+
+    return (
+      <Box
+        key={customer._id}
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="md"
+        bg="white"
+        p={3}
+        boxShadow="xs"
+        transition="border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease"
+        _hover={{ borderColor: 'teal.300', boxShadow: 'sm', transform: 'translateY(-1px)' }}
+        position="relative"
+      >
+        {updatedCustomers.has(customer._id) && (
+          <Box position="absolute" top={2} right={2} w="8px" h="8px" bg="green.500" borderRadius="50%" />
+        )}
+        <Flex align="flex-start" gap={2} mb={2}>
+          <Box minW={0} flex="1">
+            <Text fontWeight="semibold" fontSize="sm" color={headerColor} noOfLines={1}>
+              {customer.customerName || 'Unnamed customer'}
+            </Text>
+            <Text fontSize="xs" color="gray.500" noOfLines={1}>
+              {customer.phone || customer.email || 'No contact info'}
+            </Text>
+          </Box>
+          <HStack spacing={1}>
+            <IconButton
+              icon={<InfoIcon />}
+              colorScheme="blue"
+              size="xs"
+              onClick={() => {
+                setDrawerCustomer(customer);
+                onOpen();
+              }}
+              aria-label="View details"
+              variant="outline"
+            />
+            <IconButton
+              icon={<DeleteIcon />}
+              colorScheme="red"
+              size="xs"
+              onClick={() => onDelete(customer._id)}
+              aria-label="Delete customer"
+              variant="outline"
+            />
+          </HStack>
+        </Flex>
+
+        <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={2}>
+          {fields.map(column => (
+            <Box
+              key={column.key}
+              minW={0}
+              p={2}
+              borderRadius="md"
+              bg="gray.50"
+            >
+              <Text fontSize="2xs" color="gray.500" textTransform="uppercase" fontWeight="bold" mb={0.5} noOfLines={1}>
+                {column.label}
+              </Text>
+              <Text fontSize="xs" color="gray.800" noOfLines={column.key === 'note' ? 2 : 1}>
+                {renderGridValue(customer, column)}
+              </Text>
+            </Box>
+          ))}
+        </SimpleGrid>
+      </Box>
+    );
+  };
+
   if ((!customers || customers.length === 0) && !addingRow) {
     return (
       <Box textAlign="center" py={10} px={6}>
@@ -547,174 +1010,159 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
   return (
     <Box w="100%">
-      <Box mb={4}>
+      <Flex
+        mb={3}
+        align={{ base: 'stretch', sm: 'center' }}
+        justify="space-between"
+        gap={2}
+        flexWrap="wrap"
+        bg="white"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="md"
+        px={{ base: 2, md: 3 }}
+        py={2}
+        boxShadow="xs"
+      >
         <Button 
           leftIcon={<AddIcon />}
           colorScheme="teal" 
           size="sm"
-          onClick={() => setAddingRow(true)}
+          minW={{ base: '100%', sm: 'auto' }}
+          onClick={() => {
+            setViewMode('list');
+            setAddingRow(true);
+          }}
           disabled={addingRow}
         >
           Add New Customer Row
         </Button>
-      </Box>
-      <Table variant="simple" size="sm" w="100%" boxShadow="sm" borderRadius="md" overflow="hidden">
+        <HStack spacing={2} justify={{ base: 'space-between', sm: 'flex-end' }} w={{ base: '100%', sm: 'auto' }}>
+          <HStack spacing={1} borderWidth="1px" borderColor="gray.200" borderRadius="md" p={0.5} bg="gray.50">
+            <Button
+              size="xs"
+              h="28px"
+              minW="52px"
+              colorScheme={viewMode === 'list' ? 'teal' : 'gray'}
+              variant={viewMode === 'list' ? 'solid' : 'ghost'}
+              onClick={() => setViewMode('list')}
+            >
+              List
+            </Button>
+            <Button
+              size="xs"
+              h="28px"
+              minW="52px"
+              colorScheme={viewMode === 'grid' ? 'teal' : 'gray'}
+              variant={viewMode === 'grid' ? 'solid' : 'ghost'}
+              onClick={() => setViewMode('grid')}
+              disabled={addingRow}
+            >
+              Grid
+            </Button>
+          </HStack>
+          <Menu closeOnSelect={false}>
+            <MenuButton as={Button} leftIcon={<SettingsIcon />} size="sm" variant="outline" minW="118px">
+              Columns
+            </MenuButton>
+            <MenuList minW="240px" maxH="340px" overflowY="auto" zIndex="popover">
+              {columns.map(column => (
+                <MenuItem key={column.key} as="div" closeOnSelect={false}>
+                  <Checkbox
+                    isChecked={!columnPrefs.hidden.includes(column.key)}
+                    isDisabled={column.required}
+                    onChange={() => toggleColumnVisibility(column.key)}
+                  >
+                    {column.label}
+                  </Checkbox>
+                </MenuItem>
+              ))}
+              <MenuItem onClick={resetColumnLayout} fontWeight="semibold">
+                Reset layout
+              </MenuItem>
+            </MenuList>
+          </Menu>
+        </HStack>
+      </Flex>
+      {viewMode === 'list' ? (
+      <Box overflowX="auto" borderRadius="md" boxShadow="sm">
+      <Table variant="simple" size="sm" minW={`${visibleColumns.reduce((sum, column) => sum + column.width, 0)}px`} sx={{ tableLayout: 'fixed' }}>
+        <colgroup>
+          {visibleColumns.map(column => (
+            <col key={column.key} style={{ width: `${column.width}px` }} />
+          ))}
+        </colgroup>
         <Thead>
           <Tr bg="teal.500">
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Customer Name
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Training Title
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Phone
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Call Status
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Follow-up Status
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Schedule
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Package Scope
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Date
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Email
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-            >
-              Notes
-            </Th>
-            <Th 
-              color="white" 
-              fontWeight="bold" 
-              textTransform="uppercase" 
-              fontSize="xs" 
-              letterSpacing="wider"
-              py={3}
-              px={2}
-              width="100px"
-            >
-              Actions
-            </Th>
+            {visibleColumns.map(column => (
+              <Th
+                key={column.key}
+                color="white"
+                fontWeight="bold"
+                textTransform="uppercase"
+                fontSize="xs"
+                letterSpacing="wider"
+                py={2}
+                px={1.5}
+                position="relative"
+                userSelect="none"
+                draggable
+                opacity={draggedColumn === column.key ? 0.75 : 1}
+                cursor={draggedColumn === column.key ? 'grabbing' : 'grab'}
+                bg={dragOverColumn === column.key && draggedColumn !== column.key ? 'teal.600' : undefined}
+                boxShadow={dragOverColumn === column.key && draggedColumn !== column.key ? 'inset 3px 0 0 rgba(255,255,255,0.95)' : 'none'}
+                transform={draggedColumn === column.key ? 'translateY(-2px)' : 'translateY(0)'}
+                transition="background 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease"
+                onDragStart={(event) => {
+                  setDraggedColumn(column.key);
+                  setDragOverColumn(column.key);
+                  event.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDragOverColumn(column.key);
+                }}
+                onDragEnter={() => setDragOverColumn(column.key)}
+                onDrop={() => {
+                  moveColumn(draggedColumn, column.key);
+                  setDraggedColumn(null);
+                  setDragOverColumn(null);
+                }}
+                onDragLeave={() => {
+                  if (dragOverColumn === column.key) {
+                    setDragOverColumn(null);
+                  }
+                }}
+                onDragEnd={() => {
+                  setDraggedColumn(null);
+                  setDragOverColumn(null);
+                }}
+              >
+                <HStack spacing={1.5} minW={0} pointerEvents="none">
+                  <DragHandleIcon boxSize={2.5} opacity={0.85} flexShrink={0} />
+                  <Text as="span" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    {column.label}
+                  </Text>
+                </HStack>
+                <Box
+                  position="absolute"
+                  top={0}
+                  right={0}
+                  w="8px"
+                  h="100%"
+                  cursor="col-resize"
+                  _hover={{ bg: 'whiteAlpha.400' }}
+                  onMouseDown={(event) => startColumnResize(event, column.key)}
+                />
+              </Th>
+            ))}
           </Tr>
         </Thead>
         <Tbody>
           {addingRow && (
             <Tr bg="gray.100">
-              {renderNewCustomerCell('customerName', newCustomer.customerName)}
-              {renderNewCustomerCell('contactTitle', newCustomer.contactTitle, 'select')}
-              {renderNewCustomerCell('phone', newCustomer.phone)}
-              {renderNewCustomerCell('callStatus', newCustomer.callStatus, 'select')}
-              {renderNewCustomerCell('followupStatus', newCustomer.followupStatus, 'select')}
-              {renderNewCustomerCell('schedulePreference', newCustomer.schedulePreference || 'Regular', 'select')}
-              {renderNewCustomerCell('packageScope', newCustomer.packageScope || 'Local', 'select')}
-              <Td fontSize="xs" p={2}>{formatDate(new Date().toISOString())}</Td>
-              {renderNewCustomerCell('email', newCustomer.email)}
-              {renderNewCustomerCell('note', newCustomer.note, 'textarea')}
-              <Td p={2}>
-                <IconButton
-                  icon={<CheckIcon />}
-                  colorScheme="green"
-                  size="xs"
-                  mr={1}
-                  onClick={handleAddNewCustomer}
-                  aria-label="Save customer"
-                />
-                <IconButton
-                  icon={<CloseIcon />}
-                  colorScheme="red"
-                  size="xs"
-                  onClick={() => setAddingRow(false)}
-                  aria-label="Cancel"
-                />
-              </Td>
+              {visibleColumns.map(renderNewCustomerColumnCell)}
             </Tr>
           )}
 
@@ -727,13 +1175,22 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               borderBottom="1px"
               borderColor="gray.200"
             >
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'customerName' 
-                ? renderEditableCell(customer, 'customerName', customer.customerName)
-                : <Td onClick={() => handleCellClick(customer, 'customerName')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="120px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">{customer.customerName}</Td>}
-              
+              {visibleColumns.map(column => renderCustomerColumnCell(customer, column))}
+              {false && <>
               {editingCell && editingCell.id === customer._id && editingCell.field === 'contactTitle' 
                 ? renderEditableCell(customer, 'contactTitle', customer.contactTitle, 'select')
-                : <Td onClick={() => handleCellClick(customer, 'contactTitle')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="120px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">{customer.contactTitle}</Td>}
+                : (
+                  <Td onClick={() => handleCellClick(customer, 'contactTitle')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="120px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    <Tooltip
+                      label={`${customer.contactTitle || 'No course selected'} • ${formatPrice(getCustomerCoursePrice(customer))}`}
+                      hasArrow
+                      placement="top"
+                      openDelay={250}
+                    >
+                      <Text as="span">{customer.contactTitle || 'Select course'}</Text>
+                    </Tooltip>
+                  </Td>
+                )}
               
               {editingCell && editingCell.id === customer._id && editingCell.field === 'phone' 
                 ? renderEditableCell(customer, 'phone', customer.phone)
@@ -821,10 +1278,17 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   />
                 </HStack>
               </Td>
+              </>}
             </Tr>
           ))}
         </Tbody>
       </Table>
+      </Box>
+      ) : (
+        <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={3}>
+          {customers && customers.map(renderGridCard)}
+        </SimpleGrid>
+      )}
 
       <AlertDialog
         isOpen={isStatusWarningOpen}

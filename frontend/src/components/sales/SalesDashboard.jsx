@@ -75,9 +75,8 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchNotes = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notes`);
-        const data = await response.json();
-        setNotes(data);
+        const response = await axiosInstance.get('/notes');
+        setNotes(response.data);
       } catch (error) {
         console.error('Error fetching notes:', error);
       }
@@ -88,9 +87,8 @@ const Dashboard = () => {
 
   const openNote = async (noteId) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notes/${noteId}`);
-      const noteData = await response.json();
-      setSelectedNote(noteData);
+      const response = await axiosInstance.get(`/notes/${noteId}`);
+      setSelectedNote(response.data);
       setIsModalOpen(true);
     } catch (error) {
       console.error('Error fetching note details:', error);

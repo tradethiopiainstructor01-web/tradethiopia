@@ -1,6 +1,7 @@
 // src/store/userStore.js
 import { create } from "zustand";
 import { getDepartmentFromRole, getUserDepartment } from "../utils/department";
+import axiosInstance from "../services/axiosInstance";
 
 export const normalizeRole = (value = "") => {
     const text = value ? value.toString() : "";
@@ -49,11 +50,7 @@ export const useUserStore = create((set) => ({
     fetchUsers: async () => {
         set({ loading: true, error: null });
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users`);
-            if (!res.ok) {
-                throw new Error('Network response was not ok');
-            }
-            const data = await res.json();
+            const { data } = await axiosInstance.get("/users");
             set({ users: data.data });
         } catch (error) {
             console.error("Failed to fetch users:", error);
@@ -122,10 +119,7 @@ export const useUserStore = create((set) => ({
 
     deleteUser: async (uid) => {
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${uid}`, {
-                method: "DELETE",
-            });
-            const data = await res.json();
+            const { data } = await axiosInstance.delete(`/users/${uid}`);
             if (!data.success) {
                 return { success: false, message: data.message };
             }
@@ -143,15 +137,7 @@ export const useUserStore = create((set) => ({
 
     updateUser: async (uid, updatedUser) => {
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${uid}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(updatedUser),
-            });
-
-            const data = await res.json();
+            const { data } = await axiosInstance.put(`/users/${uid}`, updatedUser);
             if (!data.success) return { success: false, message: data.message };
 
             set((state) => ({
@@ -167,15 +153,7 @@ export const useUserStore = create((set) => ({
     updateUserInfo: async (updatedInfo) => {
         const uid = updatedInfo._id; // Get user ID from updatedInfo
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users/info/${uid}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(updatedInfo),
-            });
-    
-            const data = await res.json();
+            const { data } = await axiosInstance.put(`/users/info/${uid}`, updatedInfo);
             if (!data.success) return { success: false, message: data.message };
     
             // Update currentUser in the store

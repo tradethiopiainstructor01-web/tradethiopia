@@ -5,18 +5,13 @@ const Notification = require('../models/Notification');
 const asyncHandler = require('express-async-handler');
 const { calculateCommission } = require('../utils/commission');
 
-const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase();
+const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 const PRIVILEGED_ROLES = new Set([
   'admin',
   'customerservice',
-  'customer service',
   'customersuccessmanager',
-  'customer success manager',
-  'customer_success_manager',
   'coo',
   'salesmanager',
-  'sales_manager',
-  'sales manager',
   'finance',
   'reception'
 ]);
@@ -294,7 +289,10 @@ const updateCustomer = asyncHandler(async (req, res) => {
     throw new Error('Reception cannot modify sales data');
   }
 
-  if (customer && customer.agentId && customer.agentId.toString() === req.user.id.toString()) {
+  const ownsRecord = customer?.agentId && customer.agentId.toString() === req.user.id.toString();
+  const isPrivileged = PRIVILEGED_ROLES.has(normalizedRole);
+
+  if (customer && (ownsRecord || isPrivileged)) {
     const previousStatus = customer.followupStatus;
     
     if (!customer.createdBy) {
@@ -376,7 +374,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
 // @access  Private (Sales Manager)
 const assignCustomer = asyncHandler(async (req, res) => {
   const normalizedRole = normalizeRoleValue(req.user.role);
-  const managerRoles = ['salesmanager', 'sales_manager', 'sales manager'];
+  const managerRoles = ['salesmanager'];
   if (!managerRoles.includes(normalizedRole)) {
     res.status(403);
     throw new Error('Only sales managers can assign customers');
@@ -430,8 +428,12 @@ const assignCustomer = asyncHandler(async (req, res) => {
 const deleteCustomer = asyncHandler(async (req, res) => {
   const customer = await SalesCustomer.findById(req.params.id);
 
-  if (customer && customer.agentId.toString() === req.user.id.toString()) {
-    await customer.remove();
+  const normalizedRole = normalizeRoleValue(req.user.role);
+  const ownsRecord = customer?.agentId && customer.agentId.toString() === req.user.id.toString();
+  const isPrivileged = PRIVILEGED_ROLES.has(normalizedRole);
+
+  if (customer && (ownsRecord || isPrivileged)) {
+    await customer.deleteOne();
     res.json({ message: 'Customer removed' });
   } else {
     res.status(404);

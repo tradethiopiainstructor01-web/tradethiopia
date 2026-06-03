@@ -55,8 +55,14 @@ const repairConversationIndexes = async () => {
     const indexNames = await collection.indexes().then((indexes) => indexes.map((index) => index.name));
     for (const legacyIndex of ['directKey_1', 'departmentKey_1', 'managedKey_1']) {
       if (indexNames.includes(legacyIndex)) {
-        await collection.dropIndex(legacyIndex);
-        console.log(`Dropped legacy conversations ${legacyIndex} index`);
+        try {
+          await collection.dropIndex(legacyIndex);
+          console.log(`Dropped legacy conversations ${legacyIndex} index`);
+        } catch (error) {
+          if (error.codeName !== 'IndexNotFound') {
+            throw error;
+          }
+        }
       }
     }
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getMyTasks, updateTask, getTaskStats } from '../../services/taskService';
 import { getSalesTargets, getAgentSalesStats } from '../../services/salesTargetService';
 import { useUserStore } from '../../store/user';
-import axios from 'axios';
+import axios from '../../services/axiosInstance';
 import {
   Box,
   Flex,
@@ -207,7 +207,7 @@ const TaskDashboard = () => {
         
         // Fetch notes
         try {
-          const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/notes`);
+          const response = await axios.get('/notes');
           setNotes(response.data);
         } catch (notesErr) {
           console.error('Error fetching notes:', notesErr);
@@ -376,7 +376,7 @@ const TaskDashboard = () => {
       
       if (selectedNoteId) {
         // Edit existing note
-        const response = await axios.put(`${import.meta.env.VITE_API_URL}/api/notes/${selectedNoteId}`, noteData);
+        const response = await axios.put(`/notes/${selectedNoteId}`, noteData);
         setNotes(notes.map(note => note._id === selectedNoteId ? response.data : note));
         toast({
           title: "Note updated.",
@@ -387,7 +387,7 @@ const TaskDashboard = () => {
         });
       } else {
         // Create new note
-        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/notes`, noteData);
+        const response = await axios.post('/notes', noteData);
         setNotes([...notes, response.data]);
         toast({
           title: "Note saved.",
@@ -426,7 +426,7 @@ const TaskDashboard = () => {
   // Handle delete note
   const handleDeleteNote = async (noteId) => {
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/notes/${noteId}`);
+      await axios.delete(`/notes/${noteId}`);
       setNotes(notes.filter(note => note._id !== noteId));
       toast({
         title: "Note deleted.",

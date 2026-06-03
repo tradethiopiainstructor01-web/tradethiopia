@@ -32,7 +32,9 @@ import {
   Textarea
 } from '@chakra-ui/react';
 import { FaTrash, FaEdit, FaDownload } from 'react-icons/fa';
-import axios from 'axios';
+import axios from '../../services/axiosInstance';
+
+const API_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
 const ResourceTable = () => {
   const [resources, setResources] = useState([]);
@@ -95,7 +97,7 @@ const ResourceTable = () => {
     formData.append('createdBy', '60c72b2f9b1d8e1f88a29c1e'); // Replace with actual user ID
 
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/resources`, formData, {
+      const response = await axios.post('/resources/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -123,7 +125,7 @@ const ResourceTable = () => {
   // Fetch resources from the backend API
   const fetchResources = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/resources`);
+      const response = await axios.get('/resources');
       setResources(response.data);
       setFilteredResources(response.data); // Initially show all resources
       setLoading(false);
@@ -284,7 +286,7 @@ const ResourceTable = () => {
               <Td>
                 <Button
                   as="a"
-                  href={`${import.meta.env.VITE_API_URL}/api/resources/${resource._id}/download`}
+                  href={resource.fileUrl || (resource.content?.startsWith('http') ? resource.content : `${API_ORIGIN}/api/resources`)}
                   target="_blank"
                   leftIcon={<FaDownload />}
                   colorScheme="teal"

@@ -1,51 +1,36 @@
-import axios from 'axios';
-
-const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const API = axios.create({ baseURL });
-
-const setAuthToken = (token) => {
-  if (token) API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  else delete API.defaults.headers.common['Authorization'];
-};
+import axiosInstance from './axiosInstance';
 
 export const getAllProductFollowups = async () => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.get('/api/product-followups');
+  const res = await axiosInstance.get('/product-followups');
   return res.data;
 };
 
 export const createProductFollowup = async (data) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.post('/api/product-followups', data);
+  const res = await axiosInstance.post('/product-followups', data);
   return res.data;
 };
 
 export const updateProductFollowup = async (id, data) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.put(`/api/product-followups/${id}`, data);
+  const res = await axiosInstance.put(`/product-followups/${id}`, data);
   return res.data;
 };
 
 export const deleteProductFollowup = async (id) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.delete(`/api/product-followups/${id}`);
+  const res = await axiosInstance.delete(`/product-followups/${id}`);
   return res.data;
 };
 
 export const processOrder = async (followupId, items) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.post(`/api/followups/${followupId}/process-order`, { items });
+  const res = await axiosInstance.post(`/followups/${followupId}/process-order`, { items });
   return res.data;
 };
 
 export const reserveOrder = async (followupId, items) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.post(`/api/followups/${followupId}/reserve`, { items });
+  const res = await axiosInstance.post(`/followups/${followupId}/reserve`, { items });
   return res.data;
 };
 
 export const previewReserve = async (followupId, items) => {
-  setAuthToken(localStorage.getItem('userToken'));
-  const res = await API.post(`/api/followups/${followupId}/reserve/preview`, { items });
+  const res = await axiosInstance.post(`/followups/${followupId}/reserve/preview`, { items });
   return res.data;
 };
