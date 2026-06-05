@@ -5,6 +5,7 @@ import MobileBottomNav from '../../components/mobile/navigation/MobileBottomNav'
 import MobileFollowups from './MobileFollowups';
 import MobileSalesHome from './MobileSalesHome';
 import MobileSalesPlaceholder from './MobileSalesPlaceholder';
+import MobileTasks from './MobileTasks';
 
 const titleByItem = {
   Home: 'Sales',
@@ -31,7 +32,7 @@ const MobileSalesShell = ({ activeItem, setActiveItem }) => {
       case 'Package Sales':
         return <MobileSalesPlaceholder title="Deals" description="Mobile deal and package sales views will live here." />;
       case 'Tasks':
-        return <MobileSalesPlaceholder title="Tasks" description="Mobile task lists, overdue work, and upcoming activities will live here." />;
+        return <MobileTasks />;
       case 'Search':
         return <MobileSalesPlaceholder title="Search" description="Mobile global search for contacts, tasks, deals, and resources will live here." />;
       case 'More':

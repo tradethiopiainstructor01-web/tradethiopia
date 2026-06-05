@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   List,
   ListItem,
@@ -22,14 +22,14 @@ import axios from 'axios';
 import * as XLSX from 'xlsx';
 import AssetDetailDrawer from './AssetDetailDrawer';
 
-const AssetList = () => {
+const AssetList = ({ readOnly = false }) => {
   const [assets, setAssets] = useState([]);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [filter, setFilter] = useState('');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [assignedTo, setAssignedTo] = useState('');
-  const [location, setLocation] = useState('');
+  const [location] = useState('');
   const [status, setStatus] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
   const toast = useToast();
@@ -65,6 +65,7 @@ const AssetList = () => {
   };
 
   const handleUpdateAsset = async () => {
+    if (readOnly) return;
     try {
       await axios.put(`${import.meta.env.VITE_API_URL}/api/assets/${selectedAsset._id}`, selectedAsset);
       fetchAssetsData();
@@ -75,6 +76,7 @@ const AssetList = () => {
   };
 
   const handleAssetClick = (asset) => {
+    if (readOnly) return;
     setSelectedAsset(asset);
     onOpen();
   };
@@ -158,59 +160,93 @@ const AssetList = () => {
   const uniqueCategories = Array.isArray(assets) ? [...new Set(assets.map(asset => asset?.category).filter(Boolean))] : [];
   const uniqueAssignedTo = Array.isArray(assets) ? [...new Set(assets.map(asset => asset?.assignedTo).filter(Boolean))] : [];
   const uniqueAssets = Array.isArray(assets) ? [...new Set(assets.map(asset => asset?.assets).filter(Boolean))] : [];
-  const uniqueLocation = Array.isArray(assets) ? [...new Set(assets.map(asset => asset?.location).filter(Boolean))] : [];
   const uniqueStatuses = Array.isArray(assets) ? [...new Set(assets.map(asset => asset?.status).filter(Boolean))] : [];
+  const filterPanelBg = useColorModeValue(
+    'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94))',
+    'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(30,41,59,0.88))'
+  );
+  const filterPanelBorder = useColorModeValue('rgba(226,232,240,0.95)', 'rgba(148,163,184,0.18)');
+  const filterPanelShadow = useColorModeValue('0 18px 46px rgba(15,23,42,0.08)', '0 20px 54px rgba(0,0,0,0.34)');
+  const fieldBorder = useColorModeValue('rgba(203,213,225,0.95)', 'rgba(148,163,184,0.28)');
+  const filterLabelColor = useColorModeValue('#0F172A', 'gray.100');
+  const filterMuted = useColorModeValue('#64748B', 'gray.400');
+  const filterAccentBg = useColorModeValue('rgba(37,99,235,0.08)', 'rgba(37,99,235,0.2)');
+  const categoryBg = useColorModeValue('rgba(248,250,252,0.9)', 'whiteAlpha.50');
+  const assetRowBg = useColorModeValue('white', 'gray.800');
+  const assetRowHoverBg = useColorModeValue('gray.100', 'gray.600');
+  const focusRing = '0 0 0 3px rgba(37,99,235,0.18)';
+  const fieldStyles = {
+    borderRadius: '16px',
+    borderColor: fieldBorder,
+    bg: useColorModeValue('white', 'whiteAlpha.50'),
+    _hover: { borderColor: '#2563EB' },
+    _focus: { borderColor: '#2563EB', boxShadow: focusRing },
+  };
+  const filterLabelProps = {
+    fontSize: 'xs',
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: filterLabelColor,
+    mb: 2,
+  };
 
   return (
-    <Flex direction={{ base: 'column', md: 'row' }} p={4} gap={4}>
+    <Flex direction={{ base: 'column', md: 'row' }} p={{ base: 2, md: 4 }} gap={5}>
       <Box 
         width={{ base: '100%', md: '30%' }} 
-        p={6} 
+        p={5} 
         borderWidth={1} 
-        borderRadius="lg" 
-        boxShadow="lg" 
-        bg={useColorModeValue("whiteAlpha.900", "gray.700")}
-        borderColor={useColorModeValue("gray.200", "gray.600")}
+        borderRadius="24px" 
+        boxShadow={filterPanelShadow}
+        bg={filterPanelBg}
+        borderColor={filterPanelBorder}
+        position={{ md: 'sticky' }}
+        top={{ md: 4 }}
+        alignSelf="flex-start"
       >
-        <Text fontSize="xl" mb={4} fontWeight="bold" color="teal.600" _dark={{ color: "teal.300" }}>Filters</Text>
-        <Divider mb={4} />
+        <HStack justify="space-between" align="start" mb={5}>
+          <Box>
+            <Text fontSize="xl" fontWeight="800" color={filterLabelColor}>Asset Filters</Text>
+            <Text fontSize="sm" color={filterMuted} mt={1}>
+              {filteredAssets.length} of {assets.length} visible
+            </Text>
+          </Box>
+          <Box px={3} py={1} borderRadius="full" bg={filterAccentBg} color="#2563EB" fontSize="xs" fontWeight="800">
+            Read only
+          </Box>
+        </HStack>
 
         <Input
-          placeholder="Search ..."
+          placeholder="Search assets, tags, owners..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          mb={4}
-          borderColor={useColorModeValue("gray.300", "gray.600")}
-          _hover={{ borderColor: 'teal.500' }}
-          _focus={{ borderColor: 'teal.500', boxShadow: '0 0 0 1px teal.500' }}
+          mb={5}
+          {...fieldStyles}
         />
 
-        <Divider />
+        <Divider borderColor={filterPanelBorder} />
 
-        <Text fontWeight="bold" mb={2} mt={4} color="teal.600" _dark={{ color: "teal.300" }}>Assigned To</Text>
+        <Text {...filterLabelProps} mt={5}>Assigned To</Text>
         <Select
           placeholder="Select Assigned To"
           value={assignedTo}
           onChange={(e) => setAssignedTo(e.target.value)}
           mb={4}
-          borderColor={useColorModeValue("gray.300", "gray.600")}
-          _hover={{ borderColor: 'teal.500' }}
-          _focus={{ borderColor: 'teal.500', boxShadow: '0 0 0 1px teal.500' }}
+          {...fieldStyles}
         >
           {uniqueAssignedTo.map((person) => (
             <option key={person} value={person}>{person}</option>
           ))}
         </Select>
 
-        <Text fontWeight="bold" mb={2} color="teal.600" _dark={{ color: "teal.300" }}>Group</Text>
+        <Text {...filterLabelProps}>Group</Text>
 <Select
   placeholder="Select Group"
   value={selectedGroup} // Use selectedGroup instead of assets
   onChange={(e) => setSelectedGroup(e.target.value)} // Update state on change
   mb={4}
-  borderColor={useColorModeValue("gray.300", "gray.600")}
-  _hover={{ borderColor: 'teal.500' }}
-  _focus={{ borderColor: 'teal.500', boxShadow: '0 0 0 1px teal.500' }}
+  {...fieldStyles}
 >
   {uniqueAssets.filter(group => group).map((group) => ( // Filter out empty values
     <option key={group} value={group}>{group}</option>
@@ -232,26 +268,23 @@ const AssetList = () => {
           ))}
         </Select> */}
 
-        <Text fontWeight="bold" mb={2} color="teal.600" _dark={{ color: "teal.300" }}>Status</Text>
+        <Text {...filterLabelProps}>Status</Text>
         <Select
           placeholder="Select Status"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           mb={4}
-          borderColor={useColorModeValue("gray.300", "gray.600")}
-          _hover={{ borderColor: 'teal.500' }}
-          _focus={{ borderColor: 'teal.500', boxShadow: '0 0 0 1px teal.500' }}
+          {...fieldStyles}
         >
           {uniqueStatuses.map((stat) => (
             <option key={stat} value={stat}>{stat}</option>
           ))}
         </Select>
 
-        <Divider my={4} />
+        <Divider my={5} borderColor={filterPanelBorder} />
 
-        <Text fontWeight="bold" mb={2} color="teal.600" _dark={{ color: "teal.300" }}>Categories</Text>
-        <Divider my={2} />
-        <VStack align="start" spacing={2}>
+        <Text {...filterLabelProps}>Categories</Text>
+        <VStack align="stretch" spacing={2}>
           <Checkbox 
             isChecked={selectedCategories.length === uniqueCategories.length && uniqueCategories.length > 0}
             onChange={() => {
@@ -261,7 +294,11 @@ const AssetList = () => {
                 setSelectedCategories(uniqueCategories);
               }
             }}
-            colorScheme="teal"
+            colorScheme="blue"
+            px={3}
+            py={2}
+            borderRadius="14px"
+            bg={categoryBg}
           >
             Select All
           </Checkbox>
@@ -270,7 +307,11 @@ const AssetList = () => {
               key={category}
               isChecked={selectedCategories.includes(category)}
               onChange={() => handleCategoryChange(category)}
-              colorScheme="teal"
+              colorScheme="blue"
+              px={3}
+              py={2}
+              borderRadius="14px"
+              bg={selectedCategories.includes(category) ? filterAccentBg : categoryBg}
             >
               {category}
             </Checkbox>
@@ -292,7 +333,7 @@ const AssetList = () => {
         </Flex>
         <List spacing={3}>
           {filteredAssets.map(asset => (
-            <ListItem key={asset?._id || asset?.nameTag} p={4} borderWidth={1} borderRadius="md" boxShadow="sm" bg={useColorModeValue("white", "gray.800")} _hover={{ bg: useColorModeValue('gray.100', 'gray.600') }} display="flex" alignItems="center">
+            <ListItem key={asset?._id || asset?.nameTag} p={4} borderWidth={1} borderRadius="md" boxShadow="sm" bg={assetRowBg} _hover={{ bg: assetRowHoverBg }} display="flex" alignItems="center">
               <Box
                 width="10px"
                 height="10px"
@@ -305,31 +346,35 @@ const AssetList = () => {
                   as="span"
                   onClick={() => handleAssetClick(asset)}
                   fontWeight="bold"
-                  cursor="pointer"
+                  cursor={readOnly ? "default" : "pointer"}
                   color="teal.500"
                 >
                   {asset?.nameTag} - {asset?.assignedTo}
                 </Box>
                 <Text fontSize="sm" color="gray.500">({asset?.category})</Text>
               </HStack>
-              <IconButton
-                icon={<DeleteIcon />}
-                onClick={() => handleDelete(asset?._id)}
-                aria-label="Delete Asset"
-                variant="outline"
-                colorScheme="red"
-              />
+              {!readOnly && (
+                <IconButton
+                  icon={<DeleteIcon />}
+                  onClick={() => handleDelete(asset?._id)}
+                  aria-label="Delete Asset"
+                  variant="outline"
+                  colorScheme="red"
+                />
+              )}
             </ListItem>
           ))}
         </List>
 
-        <AssetDetailDrawer 
-          isOpen={isOpen} 
-          onClose={onClose} 
-          selectedAsset={selectedAsset} 
-          setSelectedAsset={setSelectedAsset} 
-          handleUpdateAsset={handleUpdateAsset}
-        />
+        {!readOnly && (
+          <AssetDetailDrawer 
+            isOpen={isOpen} 
+            onClose={onClose} 
+            selectedAsset={selectedAsset} 
+            setSelectedAsset={setSelectedAsset} 
+            handleUpdateAsset={handleUpdateAsset}
+          />
+        )}
       </Box>
     </Flex>
 

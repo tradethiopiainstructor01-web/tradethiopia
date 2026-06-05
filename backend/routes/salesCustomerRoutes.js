@@ -7,6 +7,8 @@ const {
   getCustomerById,
   createCustomer,
   updateCustomer,
+  sendCustomerEmail,
+  sendCustomerSms,
   deleteCustomer,
   assignCustomer,
   getSalesStats
@@ -19,6 +21,9 @@ router.route('/')
 
 router.route('/stats')
   .get(protect, getSalesStats);
+
+router.post('/:id/email', protect, sendCustomerEmail);
+router.post('/:id/sms', protect, sendCustomerSms);
 
 router.route('/:id')
   .get(protect, getCustomerById)

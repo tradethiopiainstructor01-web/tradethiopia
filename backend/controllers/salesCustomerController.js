@@ -3,6 +3,7 @@ const User = require('../models/user.model');
 const Notification = require('../models/Notification');
 const asyncHandler = require('express-async-handler');
 const { calculateCommission } = require('../utils/commission');
+const nodemailer = require('nodemailer');
 
 const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase();
 const PRIVILEGED_ROLES = new Set([
@@ -45,6 +46,12 @@ const createNotifications = async ({ userIds = [], roles = [], text, type = 'gen
     type
   }));
   await Notification.insertMany(docs);
+};
+
+const canAccessCustomer = (customer, user) => {
+  const normalizedUserRole = normalizeRoleValue(user?.role);
+  if (PRIVILEGED_ROLES.has(normalizedUserRole)) return true;
+  return customer?.agentId && customer.agentId.toString() === user.id.toString();
 };
 
 // @desc    Get all customers for logged in agent
@@ -323,6 +330,131 @@ const updateCustomer = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Send email to a sales customer from inside the portal
+// @route   POST /api/sales-customers/:id/email
+// @access  Private
+const sendCustomerEmail = asyncHandler(async (req, res) => {
+  const { subject, body } = req.body || {};
+  const customer = await SalesCustomer.findById(req.params.id);
+
+  if (!customer || !canAccessCustomer(customer, req.user)) {
+    res.status(404);
+    throw new Error('Customer not found');
+  }
+
+  if (!customer.email) {
+    res.status(400);
+    throw new Error('Customer does not have an email address');
+  }
+
+  if (!subject || !subject.trim() || !body || !body.trim()) {
+    res.status(400);
+    throw new Error('Subject and message are required');
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.example.com',
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+    auth: {
+      user: process.env.SMTP_USER || 'user@example.com',
+      pass: process.env.SMTP_PASS || 'password'
+    }
+  });
+
+  const senderName = req.user.fullName || req.user.username || req.user.name || 'Trade Ethiopia Sales';
+  const senderEmail = req.user.email || process.env.SMTP_USER || 'no-reply@example.com';
+  const sentAt = new Date();
+  const info = await transporter.sendMail({
+    from: `"${senderName}" <${process.env.SMTP_FROM || senderEmail}>`,
+    replyTo: senderEmail,
+    to: customer.email,
+    subject: subject.trim(),
+    text: body.trim()
+  });
+
+  const emailLog = `Email sent on ${sentAt.toISOString()} by ${senderName}: ${subject.trim()}`;
+  customer.note = customer.note ? `${customer.note}\n\n${emailLog}` : emailLog;
+  await customer.save();
+
+  res.json({
+    success: true,
+    message: 'Email sent',
+    messageId: info.messageId,
+    sentAt,
+    to: customer.email,
+    subject: subject.trim()
+  });
+});
+
+// @desc    Send or log SMS to a sales customer from inside the portal
+// @route   POST /api/sales-customers/:id/sms
+// @access  Private
+const sendCustomerSms = asyncHandler(async (req, res) => {
+  const { body } = req.body || {};
+  const customer = await SalesCustomer.findById(req.params.id);
+
+  if (!customer || !canAccessCustomer(customer, req.user)) {
+    res.status(404);
+    throw new Error('Customer not found');
+  }
+
+  if (!customer.phone) {
+    res.status(400);
+    throw new Error('Customer does not have a phone number');
+  }
+
+  if (!body || !body.trim()) {
+    res.status(400);
+    throw new Error('SMS message is required');
+  }
+
+  const sentAt = new Date();
+  const senderName = req.user.fullName || req.user.username || req.user.name || 'Trade Ethiopia Sales';
+  let deliveryStatus = 'logged';
+  let providerMessageId = null;
+
+  if (process.env.SMS_API_URL) {
+    const smsResponse = await fetch(process.env.SMS_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.SMS_API_TOKEN ? { Authorization: `Bearer ${process.env.SMS_API_TOKEN}` } : {})
+      },
+      body: JSON.stringify({
+        to: customer.phone,
+        from: process.env.SMS_FROM || 'TradeEthiopia',
+        message: body.trim(),
+        customerId: customer._id.toString()
+      })
+    });
+
+    const payload = await smsResponse.json().catch(() => ({}));
+    if (!smsResponse.ok) {
+      res.status(502);
+      throw new Error(payload.message || 'SMS provider failed to send message');
+    }
+
+    deliveryStatus = payload.status || 'sent';
+    providerMessageId = payload.messageId || payload.id || null;
+  }
+
+  const smsLog = `SMS ${deliveryStatus} on ${sentAt.toISOString()} by ${senderName}: ${body.trim()}`;
+  customer.note = customer.note ? `${customer.note}\n\n${smsLog}` : smsLog;
+  await customer.save();
+
+  res.json({
+    success: true,
+    message: process.env.SMS_API_URL ? 'SMS sent' : 'SMS logged',
+    providerConfigured: Boolean(process.env.SMS_API_URL),
+    deliveryStatus,
+    messageId: providerMessageId,
+    sentAt,
+    to: customer.phone,
+    body: body.trim()
+  });
+});
+
 // @desc    Assign customer to agent (Sales Manager only)
 // @route   PUT /api/sales-customers/:id/assign
 // @access  Private (Sales Manager)
@@ -443,6 +575,8 @@ module.exports = {
   getCustomerById,
   createCustomer,
   updateCustomer,
+  sendCustomerEmail,
+  sendCustomerSms,
   assignCustomer,
   deleteCustomer,
   getSalesStats

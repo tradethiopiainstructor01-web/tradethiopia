@@ -43,3 +43,21 @@ export const deleteCustomer = async (id) => {
     throw error;
   }
 };
+
+export const sendCustomerEmail = async (id, emailData) => {
+  try {
+    const response = await axiosInstance.post(`/sales-customers/${id}/email`, emailData);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const sendCustomerSms = async (id, smsData) => {
+  try {
+    const response = await axiosInstance.post(`/sales-customers/${id}/sms`, smsData);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
