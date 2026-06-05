@@ -26,6 +26,12 @@ export const fetchPackageSalesFollowups = () => axiosInstance.get('/packages/sal
 export const createPackageSale = (sale) => 
   axiosInstance.post('/packages/sales', sale).then(response => response.data);
 
+export const fetchPackageSalesActivities = (params) =>
+  axiosInstance.get('/packages/sales/activities', { params }).then(response => response.data);
+
+export const logPackageSalesActivity = (activity) =>
+  axiosInstance.post('/packages/sales/activities', activity).then(response => response.data);
+
 export const fetchUserProfile = (userId) => axiosInstance.get(`/users/${userId}`).then(response => response.data);
 
 // Fetch pending commissions for approval

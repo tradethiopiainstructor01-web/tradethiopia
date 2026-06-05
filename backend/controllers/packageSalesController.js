@@ -2,6 +2,7 @@ const Buyer = require('../models/Buyer');
 const Seller = require('../models/Seller');
 const User = require('../models/user.model.js');
 const PackageSale = require('../models/PackageSale');
+const PackageSalesActivity = require('../models/PackageSalesActivity');
 
 const buildPackageRows = (customers, customerType, agentLookup = {}) => {
   const rows = [];
@@ -177,6 +178,73 @@ const createPackageSale = async (req, res) => {
   }
 };
 
+const logPackageSalesActivity = async (req, res) => {
+  try {
+    const {
+      activityType,
+      customerId,
+      packageId,
+      customerType,
+      customerName,
+      phone,
+      email,
+      packageName,
+      packageType,
+      subject,
+      body,
+      status
+    } = req.body || {};
+
+    if (!activityType) {
+      return res.status(400).json({ message: 'activityType is required' });
+    }
+
+    if (!body || !body.trim()) {
+      return res.status(400).json({ message: 'Activity message is required' });
+    }
+
+    const user = req.user || {};
+    const activity = await PackageSalesActivity.create({
+      activityType,
+      customerId,
+      packageId,
+      customerType,
+      customerName,
+      phone,
+      email,
+      packageName,
+      packageType,
+      subject,
+      body: body.trim(),
+      status: status || 'logged',
+      createdBy: user._id,
+      createdByName: user.fullName || user.username || user.name || ''
+    });
+
+    res.status(201).json(activity);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getPackageSalesActivities = async (req, res) => {
+  try {
+    const { customerId, packageId } = req.query || {};
+    const filter = {};
+    if (customerId) filter.customerId = customerId;
+    if (packageId) filter.packageId = packageId;
+
+    const activities = await PackageSalesActivity.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.json(activities);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const COMMISSION_RATE = 0.075;
 const toNumber = (value) => Number(value) || 0;
 
@@ -275,5 +343,7 @@ module.exports = {
   getPackageSales,
   createPackageSale,
   getPackageSalesCommissions,
-  getPackageSalesFollowups
+  getPackageSalesFollowups,
+  logPackageSalesActivity,
+  getPackageSalesActivities
 };
