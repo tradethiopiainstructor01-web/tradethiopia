@@ -340,7 +340,16 @@ return (
           </ProtectedRoute>
         }
       />
-      <Route path="/social-media" element={<LayoutWrapper><SocialMediaDashboardPage /></LayoutWrapper>} />
+      <Route
+        path="/social-media"
+        element={
+          <RoleProtectedRoute allowedRoles={["socialmediamanager", "socialmedia"]}>
+            <LayoutWrapper>
+              <SocialMediaDashboardPage />
+            </LayoutWrapper>
+          </RoleProtectedRoute>
+        }
+      />
       <Route path="/requests" element={<LayoutWrapper><RequestPage /></LayoutWrapper>} />
       <Route
         path="/chat"

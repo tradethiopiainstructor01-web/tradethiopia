@@ -76,6 +76,7 @@ const handleLogin = async (event) => {
                         navigate('/it');
                         break;
                     case 'socialmediamanager':
+                    case 'socialmedia':
                         navigate('/social-media'); // Add social media role navigation
                         break;
                     case 'supervisor':
