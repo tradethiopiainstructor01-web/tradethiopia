@@ -76,6 +76,7 @@ export default function RequestPage({
   departmentOverride,
   backRouteOverride,
   backLabelOverride,
+  hideBackButton = false,
 }) {
   const toast = useToast();
   const navigateUser = useUserStore((state) => state.currentUser);
@@ -264,16 +265,18 @@ export default function RequestPage({
     >
       <Flex justify="space-between" align="flex-start" mb={6} wrap="wrap" gap={3}>
         <Flex align="flex-start" gap={4} flex="1" minW={0}>
-          <Button
-            size="md"
-            colorScheme="teal"
-            leftIcon={<ArrowLeftIcon />}
-            borderRadius="2xl"
-            onClick={() => navigate(resolvedBackRoute)}
-            aria-label="Back to Department"
-          >
-            Back to {resolvedBackLabel}
-          </Button>
+          {!hideBackButton && (
+            <Button
+              size="md"
+              colorScheme="teal"
+              leftIcon={<ArrowLeftIcon />}
+              borderRadius="2xl"
+              onClick={() => navigate(resolvedBackRoute)}
+              aria-label="Back to Department"
+            >
+              Back to {resolvedBackLabel}
+            </Button>
+          )}
           <Box maxW={{ base: "100%", md: "70%" }}>
             <Heading size="2xl">Request Center</Heading>
             <Text fontSize="md" color={cardHelperColor}>
