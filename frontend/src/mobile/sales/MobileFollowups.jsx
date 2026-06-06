@@ -32,6 +32,7 @@ import {
 import {
   FiArrowLeft,
   FiCalendar,
+  FiCheckCircle,
   FiEdit3,
   FiFilter,
   FiMail,
@@ -40,7 +41,9 @@ import {
   FiPhone,
   FiPlus,
   FiSearch,
-  FiSliders
+  FiSliders,
+  FiTarget,
+  FiUser
 } from 'react-icons/fi';
 import { getAllCustomers, createCustomer, updateCustomer, sendCustomerEmail, sendCustomerSms } from '../../services/customerService';
 import { fetchExternalCourses } from '../../services/api';
@@ -1103,139 +1106,151 @@ const MobileFollowups = () => {
       <Modal isOpen={detailDisclosure.isOpen} onClose={handleDetailClose} size="full" motionPreset="slideInRight">
         <ModalOverlay />
         <ModalContent as="form" onSubmit={handleUpdateDetail} bg={theme.page} minH="100dvh" borderRadius={0}>
-          <Box bg={`linear-gradient(135deg, ${theme.navy} 0%, ${theme.navyLight} 100%)`} color="white" px={4} pt={4} pb={5} boxShadow="0 14px 32px rgba(0, 31, 77, 0.18)">
-            <Flex align="center" justify="space-between" gap={3}>
+          <Box bg={`linear-gradient(180deg, ${theme.navy} 0%, ${theme.navyLight} 100%)`} color="white" px={3} pt={3} pb={3} boxShadow="0 14px 32px rgba(0, 31, 77, 0.18)">
+            <Flex align="flex-start" justify="space-between" gap={2}>
               <IconButton
                 aria-label="Back to follow-ups"
                 icon={<FiArrowLeft />}
                 variant="ghost"
                 color="white"
-                fontSize="24px"
+                fontSize="20px"
+                size="sm"
+                minW="32px"
+                h="32px"
                 onClick={handleDetailClose}
                 isDisabled={savingDetail}
+                _hover={{ bg: 'whiteAlpha.200' }}
               />
-              <Center
-                w="52px"
-                h="52px"
-                borderRadius="16px"
-                bg="rgba(255, 255, 255, 0.16)"
-                color="white"
-                fontWeight="900"
-                fontSize="18px"
-                flexShrink={0}
-                borderWidth="1px"
-                borderColor="rgba(255, 255, 255, 0.3)"
-                boxShadow="0 8px 18px rgba(15, 23, 42, 0.18)"
-              >
-                {getInitials(selectedCustomer?.customerName)}
-              </Center>
-              <Box minW={0} flex="1">
-                <Text fontSize="12px" color="rgba(255,255,255,0.72)" fontWeight="900">Lead Details</Text>
-                <Text fontSize="22px" fontWeight="900" noOfLines={1}>
-                  {selectedCustomer?.customerName || 'Customer detail'}
-                </Text>
-                <Text fontSize="12px" color="rgba(255,255,255,0.78)" fontWeight="700" noOfLines={1}>
-                  {selectedCustomer?.contactTitle || selectedCustomer?.courseName || 'Training follow-up'}
-                </Text>
-              </Box>
+              <HStack flex="1" minW={0} spacing={2.5} align="flex-start">
+                <Center
+                  w="48px"
+                  h="48px"
+                  borderRadius="12px"
+                  bg="white"
+                  color={theme.navy}
+                  fontWeight="900"
+                  fontSize="15px"
+                  flexShrink={0}
+                  boxShadow="0 8px 18px rgba(0, 0, 0, 0.18)"
+                >
+                  {getInitials(selectedCustomer?.customerName)}
+                </Center>
+                <Box minW={0} flex="1" pt="1px">
+                  <Text fontSize="9px" color={theme.gold} fontWeight="900" lineHeight="1">Lead Details</Text>
+                  <Text fontSize="18px" fontWeight="900" lineHeight="1.15" noOfLines={1}>
+                    {selectedCustomer?.customerName || 'Customer detail'}
+                  </Text>
+                  <HStack spacing={1} mt="2px" color="rgba(255,255,255,0.82)">
+                    <Text fontSize="10px" fontWeight="700" noOfLines={1}>
+                      {selectedCustomer?.contactTitle || selectedCustomer?.courseName || 'Training follow-up'}
+                    </Text>
+                    <Icon as={FiCheckCircle} color="#2F80FF" boxSize={3} flexShrink={0} />
+                  </HStack>
+                </Box>
+              </HStack>
               <IconButton
                 aria-label="More customer actions"
                 icon={<FiMoreVertical />}
                 variant="ghost"
                 color="white"
-                fontSize="22px"
+                fontSize="20px"
+                size="sm"
+                minW="32px"
+                h="32px"
+                _hover={{ bg: 'whiteAlpha.200' }}
               />
             </Flex>
 
-            <SimpleGrid columns={4} spacing={3} mt={5}>
+            <SimpleGrid columns={4} spacing={4} mt={4} px={5}>
               <VStack spacing={2}>
                 <Center
                   as="a"
                   href={detailForm.phone ? `tel:${detailForm.phone}` : undefined}
-                  w="54px"
-                  h="54px"
+                  w="45px"
+                  h="45px"
                   borderRadius="full"
-                  borderWidth="1px"
-                  borderColor="rgba(255, 255, 255, 0.78)"
-                  bg="rgba(255, 255, 255, 0.96)"
-                  color={theme.navy}
+                  bg="white"
+                  color="#16A36F"
                   boxShadow="0 8px 18px rgba(15, 23, 42, 0.16)"
                 >
-                  <Icon as={FiPhone} boxSize={5} />
+                  <Icon as={FiPhone} boxSize={4.5} />
                 </Center>
-                <Text fontSize="12px" fontWeight="900">Call</Text>
+                <Text fontSize="10px" fontWeight="900">Call</Text>
               </VStack>
               <VStack spacing={2}>
                 <Center
                   as="button"
                   type="button"
-                  w="54px"
-                  h="54px"
+                  w="45px"
+                  h="45px"
                   borderRadius="full"
-                  borderWidth="1px"
-                  borderColor="rgba(255, 255, 255, 0.78)"
-                  bg="rgba(255, 255, 255, 0.96)"
-                  color={detailForm.email ? theme.navy : '#94a3b8'}
+                  bg="white"
+                  color={detailForm.email ? '#2F6FED' : '#94a3b8'}
                   boxShadow="0 8px 18px rgba(15, 23, 42, 0.16)"
                   onClick={handleOpenEmailComposer}
                   isDisabled={!detailForm.email}
                 >
-                  <Icon as={FiMail} boxSize={5} />
+                  <Icon as={FiMail} boxSize={4.5} />
                 </Center>
-                <Text fontSize="12px" fontWeight="900">Email</Text>
+                <Text fontSize="10px" fontWeight="900">Email</Text>
               </VStack>
               <VStack spacing={2}>
                 <Center
                   as="button"
                   type="button"
-                  w="54px"
-                  h="54px"
+                  w="45px"
+                  h="45px"
                   borderRadius="full"
-                  borderWidth="1px"
-                  borderColor="rgba(255, 255, 255, 0.78)"
-                  bg="rgba(255, 255, 255, 0.96)"
-                  color={detailForm.phone ? theme.navy : '#94a3b8'}
+                  bg="white"
+                  color={detailForm.phone ? '#7C3AED' : '#94a3b8'}
                   boxShadow="0 8px 18px rgba(15, 23, 42, 0.16)"
                   onClick={handleOpenSmsComposer}
                   isDisabled={!detailForm.phone}
                 >
-                  <Icon as={FiMessageCircle} boxSize={5} />
+                  <Icon as={FiMessageCircle} boxSize={4.5} />
                 </Center>
-                <Text fontSize="12px" fontWeight="900">SMS</Text>
+                <Text fontSize="10px" fontWeight="900">SMS</Text>
               </VStack>
               <VStack spacing={2}>
                 <Center
                   as="button"
                   type="button"
-                  w="54px"
-                  h="54px"
+                  w="45px"
+                  h="45px"
                   borderRadius="full"
-                  borderWidth="1px"
-                  borderColor={detailEditMode ? theme.gold : 'rgba(255, 255, 255, 0.78)'}
-                  bg="rgba(255, 255, 255, 0.96)"
+                  bg="white"
                   color={detailEditMode ? theme.gold : theme.navy}
                   boxShadow="0 8px 18px rgba(15, 23, 42, 0.16)"
                   onClick={() => setDetailEditMode((value) => !value)}
                 >
-                  <Icon as={FiEdit3} boxSize={5} />
+                  <Icon as={FiEdit3} boxSize={4.5} />
                 </Center>
-                <Text fontSize="12px" fontWeight="900">{detailEditMode ? 'Editing' : 'Edit'}</Text>
+                <Text fontSize="10px" fontWeight="900">{detailEditMode ? 'Editing' : 'Edit'}</Text>
               </VStack>
             </SimpleGrid>
 
-            <SimpleGrid columns={3} spacing={2} mt={5}>
-              <Box bg="rgba(255,255,255,0.08)" borderRadius="12px" p={3} minW={0}>
-                <Text fontSize="9px" color="rgba(255,255,255,0.72)" fontWeight="900" textTransform="uppercase">Call</Text>
-                <Text fontSize="12px" color="white" fontWeight="900" noOfLines={1}>{detailForm.callStatus}</Text>
-              </Box>
-              <Box bg="rgba(255,255,255,0.08)" borderRadius="12px" p={3} minW={0}>
-                <Text fontSize="9px" color="rgba(255,255,255,0.72)" fontWeight="900" textTransform="uppercase">Follow-up</Text>
-                <Text fontSize="12px" color="white" fontWeight="900" noOfLines={1}>{detailForm.followupStatus}</Text>
-              </Box>
-              <Box bg="rgba(255,255,255,0.08)" borderRadius="12px" p={3} minW={0}>
-                <Text fontSize="9px" color="rgba(255,255,255,0.72)" fontWeight="900" textTransform="uppercase">Scope</Text>
-                <Text fontSize="12px" color="white" fontWeight="900" noOfLines={1}>{detailForm.packageScope || 'Local'}</Text>
-              </Box>
+            <SimpleGrid columns={3} spacing={2} mt={4}>
+              <Flex bg="rgba(255,255,255,0.10)" borderRadius="8px" p={2.5} minW={0} align="center" gap={2}>
+                <Icon as={FiPhone} boxSize={4} color="rgba(255,255,255,0.82)" />
+                <Box minW={0}>
+                  <Text fontSize="8px" color="rgba(255,255,255,0.72)" fontWeight="900" textTransform="uppercase">Call</Text>
+                  <Text fontSize="11px" color="white" fontWeight="900" noOfLines={1}>{detailForm.callStatus}</Text>
+                </Box>
+              </Flex>
+              <Flex bg="rgba(255,255,255,0.10)" borderRadius="8px" p={2.5} minW={0} align="center" gap={2}>
+                <Icon as={FiUser} boxSize={4} color="rgba(255,255,255,0.82)" />
+                <Box minW={0}>
+                  <Text fontSize="8px" color="rgba(255,255,255,0.72)" fontWeight="900" textTransform="uppercase">Follow-up</Text>
+                  <Text fontSize="11px" color="white" fontWeight="900" noOfLines={1}>{detailForm.followupStatus}</Text>
+                </Box>
+              </Flex>
+              <Flex bg="rgba(255,255,255,0.10)" borderRadius="8px" p={2.5} minW={0} align="center" gap={2}>
+                <Icon as={FiTarget} boxSize={4} color="rgba(255,255,255,0.82)" />
+                <Box minW={0}>
+                  <Text fontSize="8px" color="rgba(255,255,255,0.72)" fontWeight="900" textTransform="uppercase">Scope</Text>
+                  <Text fontSize="11px" color="white" fontWeight="900" noOfLines={1}>{detailForm.packageScope || 'Local'}</Text>
+                </Box>
+              </Flex>
             </SimpleGrid>
           </Box>
 

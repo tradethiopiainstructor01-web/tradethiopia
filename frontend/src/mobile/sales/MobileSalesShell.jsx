@@ -3,6 +3,7 @@ import { Box } from '@chakra-ui/react';
 import MobileSalesTopBar from '../../components/mobile/navigation/MobileSalesTopBar';
 import MobileBottomNav from '../../components/mobile/navigation/MobileBottomNav';
 import MobileFollowups from './MobileFollowups';
+import MobileProfile from './MobileProfile';
 import MobileSalesHome from './MobileSalesHome';
 import MobileSalesPlaceholder from './MobileSalesPlaceholder';
 import MobileTasks from './MobileTasks';
@@ -12,7 +13,8 @@ const titleByItem = {
   Followup: 'Followup',
   'Package Sales': 'Deals',
   Tasks: 'My Tasks',
-  Search: 'Search'
+  Search: 'Search',
+  More: 'Profile'
 };
 
 const MobileSalesShell = ({ activeItem, setActiveItem }) => {
@@ -34,7 +36,7 @@ const MobileSalesShell = ({ activeItem, setActiveItem }) => {
       case 'Search':
         return <MobileSalesPlaceholder title="Search" description="Mobile global search for contacts, tasks, deals, and resources will live here." />;
       case 'More':
-        return <MobileSalesPlaceholder title="More" description="Profile, resources, settings, and logout actions will live here." />;
+        return <MobileProfile onNavigate={setMobileItem} />;
       default:
         return <MobileSalesHome onNavigate={setMobileItem} />;
     }
