@@ -3,16 +3,18 @@ import { Box } from '@chakra-ui/react';
 import MobileSalesTopBar from '../../components/mobile/navigation/MobileSalesTopBar';
 import MobileBottomNav from '../../components/mobile/navigation/MobileBottomNav';
 import MobileFollowups from './MobileFollowups';
+import MobileProfile from './MobileProfile';
 import MobileSalesHome from './MobileSalesHome';
 import MobileSalesPlaceholder from './MobileSalesPlaceholder';
 import MobileTasks from './MobileTasks';
 
 const titleByItem = {
   Home: 'Sales',
-  Followup: 'Contacts',
+  Followup: 'Followup',
   'Package Sales': 'Deals',
-  Tasks: 'Tasks',
-  Search: 'Search'
+  Tasks: 'My Tasks',
+  Search: 'Search',
+  More: 'Profile'
 };
 
 const MobileSalesShell = ({ activeItem, setActiveItem }) => {
@@ -25,8 +27,6 @@ const MobileSalesShell = ({ activeItem, setActiveItem }) => {
     switch (currentItem) {
       case 'Home':
         return <MobileSalesHome onNavigate={setMobileItem} />;
-      case 'Contacts':
-        return <MobileSalesPlaceholder title="Contacts" description="Mobile contact cards and contact detail views will live here." />;
       case 'Followup':
         return <MobileFollowups />;
       case 'Package Sales':
@@ -36,14 +36,14 @@ const MobileSalesShell = ({ activeItem, setActiveItem }) => {
       case 'Search':
         return <MobileSalesPlaceholder title="Search" description="Mobile global search for contacts, tasks, deals, and resources will live here." />;
       case 'More':
-        return <MobileSalesPlaceholder title="More" description="Profile, resources, settings, and logout actions will live here." />;
+        return <MobileProfile onNavigate={setMobileItem} />;
       default:
         return <MobileSalesHome onNavigate={setMobileItem} />;
     }
   };
 
   return (
-    <Box minH="100vh" bg="#f8fafc" color="#162033" pb="92px">
+    <Box minH="100vh" bg="#FAFBFD" color="#081A34" pb="92px">
       {currentItem !== 'Home' && (
         <Box position="sticky" top={0} zIndex={10}>
           <MobileSalesTopBar title={titleByItem[currentItem] || currentItem || 'Sales'} />

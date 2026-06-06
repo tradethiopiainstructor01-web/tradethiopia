@@ -3,9 +3,9 @@ import { Box, Flex, Heading, IconButton } from '@chakra-ui/react';
 import { FiBell, FiPlus } from 'react-icons/fi';
 
 const MobileSalesTopBar = ({ title = 'Sales', onMenu, onAdd }) => (
-  <Box bg="white" borderBottom="1px solid" borderColor="#edf2f7" px={4} py={3}>
+  <Box bg="#001f4d" borderBottom="1px solid" borderColor="#001a42" px={4} py={3}>
     <Flex align="center" justify="space-between">
-      <Heading color="#162033" fontSize="28px" lineHeight="1" fontWeight="900">
+      <Heading color="white" fontSize="22px" lineHeight="1" fontWeight="900">
         {title}
       </Heading>
       <Flex align="center" gap={2}>
@@ -13,16 +13,18 @@ const MobileSalesTopBar = ({ title = 'Sales', onMenu, onAdd }) => (
           aria-label="Notifications"
           icon={<FiBell />}
           variant="ghost"
-          color="#162033"
-          fontSize="22px"
+          color="white"
+          fontSize="20px"
+          _hover={{ bg: 'whiteAlpha.200' }}
         />
         <IconButton
           aria-label="Add"
           icon={<FiPlus />}
           variant="ghost"
-          color="#13a6a3"
-          fontSize="28px"
+          color="#D99A00"
+          fontSize="26px"
           onClick={onAdd}
+          _hover={{ bg: 'whiteAlpha.200' }}
         />
       </Flex>
     </Flex>
