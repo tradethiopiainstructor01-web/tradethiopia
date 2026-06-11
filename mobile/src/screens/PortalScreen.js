@@ -1,8 +1,7 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Pressable,
+  BackHandler,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -11,43 +10,45 @@ import {
 import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import BrandHeader from '../components/BrandHeader';
-import { appConfig } from '../config/appConfig';
 import { theme } from '../theme/theme';
 
-const buildSessionInjection = (session) => {
-  const user = session?.user || {};
-  const role = user.role || '';
+export default function PortalScreen({ sourceUrl, isOnline }) {
+  const webViewRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [errorDetails, setErrorDetails] = useState(null);
+  const [canGoBack, setCanGoBack] = useState(false);
 
-  return `
+  useEffect(() => {
+    console.log('PortalScreen sourceUrl:', sourceUrl);
+  }, [sourceUrl]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (canGoBack && webViewRef.current) {
+        webViewRef.current.goBack();
+        return true;
+      }
+
+      return false;
+    });
+
+    return () => subscription.remove();
+  }, [canGoBack]);
+
+  const injectedMobileViewport = `
     (function() {
-      try {
-        window.localStorage.setItem('userToken', ${JSON.stringify(session?.token || '')});
-        window.localStorage.setItem('userId', ${JSON.stringify(user._id || '')});
-        window.localStorage.setItem('userName', ${JSON.stringify(user.fullName || user.username || '')});
-        window.localStorage.setItem('userEmail', ${JSON.stringify(user.email || '')});
-        window.localStorage.setItem('userRole', ${JSON.stringify(role ? role.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '')});
-        window.localStorage.setItem('userRoleRaw', ${JSON.stringify(role)});
-        window.localStorage.setItem('userStatus', ${JSON.stringify(user.status || '')});
-        window.localStorage.setItem('infoStatus', ${JSON.stringify(user.infoStatus || '')});
-        window.localStorage.setItem('userDepartment', ${JSON.stringify(user.department || '')});
-        window.__TRADETHIOPIA_MOBILE_APP__ = true;
-      } catch (error) {}
+      var meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', 'viewport');
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
+      document.documentElement.classList.add('tradethiopia-native-mobile');
       true;
     })();
   `;
-};
-
-export default function PortalScreen({ session, isOnline, onLogout }) {
-  const webViewRef = useRef(null);
-  const [loading, setLoading] = useState(true);
-  const injectedJavaScriptBeforeContentLoaded = useMemo(() => buildSessionInjection(session), [session]);
-
-  const askLogout = () => {
-    Alert.alert('Log out', 'Do you want to sign out of the mobile app?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log Out', style: 'destructive', onPress: onLogout }
-    ]);
-  };
 
   if (!isOnline) {
     return (
@@ -57,84 +58,83 @@ export default function PortalScreen({ session, isOnline, onLogout }) {
           <View style={styles.offlineCard}>
             <Text style={styles.offlineTitle}>Portal needs internet</Text>
             <Text style={styles.offlineBody}>
-              Your login screen is available offline. The working portal opens when your device is connected.
+              Your web app requires an internet connection. Connect to the network and reopen the app.
             </Text>
-            <Pressable style={styles.outlineButton} onPress={onLogout}>
-              <Text style={styles.outlineText}>Back to Login</Text>
-            </Pressable>
           </View>
         </SafeAreaView>
       </LinearGradient>
     );
   }
 
+  if (!sourceUrl) {
+    return (
+      <SafeAreaView style={styles.root}>
+        <View style={styles.errorCard}>
+          <Text style={styles.errorTitle}>URL not available</Text>
+          <Text style={styles.errorBody}>The app could not determine the website address to load.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.root}>
-      <View style={styles.header}>
-        <BrandHeader compact />
-        <Pressable style={styles.logoutButton} onPress={askLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.webWrap}>
-        <WebView
-          ref={webViewRef}
-          source={{ uri: appConfig.portalUrl }}
-          startInLoadingState
-          sharedCookiesEnabled
-          domStorageEnabled
-          javaScriptEnabled
-          injectedJavaScriptBeforeContentLoaded={injectedJavaScriptBeforeContentLoaded}
-          injectedJavaScript={injectedJavaScriptBeforeContentLoaded}
-          onLoadStart={() => setLoading(true)}
-          onLoadEnd={() => setLoading(false)}
-          renderLoading={() => (
-            <View style={styles.loader}>
-              <ActivityIndicator color={theme.colors.gold} size="large" />
-              <Text style={styles.loaderText}>Opening sales portal...</Text>
-            </View>
-          )}
-          onError={() => setLoading(false)}
-          style={styles.webview}
-        />
-        {loading && (
-          <View pointerEvents="none" style={styles.loadingOverlay}>
+      <WebView
+        ref={webViewRef}
+        source={{ uri: sourceUrl }}
+        startInLoadingState
+        sharedCookiesEnabled
+        domStorageEnabled
+        javaScriptEnabled
+        setSupportMultipleWindows={false}
+        injectedJavaScript={injectedMobileViewport}
+        onNavigationStateChange={(navState) => setCanGoBack(Boolean(navState.canGoBack))}
+        onLoadStart={() => {
+          setLoading(true);
+          setLoadError(null);
+          setErrorDetails(null);
+        }}
+        onLoadEnd={() => setLoading(false)}
+        renderLoading={() => (
+          <View style={styles.loader}>
             <ActivityIndicator color={theme.colors.gold} size="large" />
+            <Text style={styles.loaderText}>Opening website...</Text>
           </View>
         )}
-      </View>
+        onError={({ nativeEvent }) => {
+          setLoading(false);
+          setLoadError(nativeEvent.description || 'WebView failed to load');
+          setErrorDetails(JSON.stringify(nativeEvent));
+          console.log('WebView onError:', nativeEvent);
+        }}
+        onHttpError={({ nativeEvent }) => {
+          setLoading(false);
+          setLoadError(`HTTP ${nativeEvent.statusCode}`);
+          setErrorDetails(JSON.stringify(nativeEvent));
+          console.log('WebView onHttpError:', nativeEvent);
+        }}
+        style={styles.webview}
+      />
+
+      {loading && (
+        <View pointerEvents="none" style={styles.loadingOverlay}>
+          <ActivityIndicator color={theme.colors.gold} size="large" />
+        </View>
+      )}
+
+      {loadError && (
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorTitle}>Could not load page</Text>
+          <Text style={styles.errorBody}>{loadError}</Text>
+          {errorDetails && <Text style={styles.errorDetails}>{errorDetails}</Text>}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
-    backgroundColor: theme.colors.page
-  },
-  header: {
-    minHeight: 74,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: theme.colors.navy
-  },
-  logoutButton: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7
-  },
-  logoutText: {
-    color: theme.colors.white,
-    fontSize: 11,
-    fontWeight: '900'
-  },
-  webWrap: {
     flex: 1,
     backgroundColor: theme.colors.page
   },
@@ -195,17 +195,40 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     fontWeight: '700'
   },
-  outlineButton: {
-    marginTop: 20,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
+  errorCard: {
+    flex: 1,
+    padding: 20,
     justifyContent: 'center',
-    backgroundColor: theme.colors.gold
+    alignItems: 'center',
+    backgroundColor: theme.colors.page
   },
-  outlineText: {
-    color: theme.colors.white,
+  errorOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    padding: 20,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)'
+  },
+  errorTitle: {
+    color: theme.colors.ink,
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 10,
+    textAlign: 'center'
+  },
+  errorBody: {
+    color: theme.colors.muted,
     fontSize: 14,
-    fontWeight: '900'
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 8
+  },
+  errorDetails: {
+    color: theme.colors.navy,
+    fontSize: 12,
+    textAlign: 'center'
   }
 });

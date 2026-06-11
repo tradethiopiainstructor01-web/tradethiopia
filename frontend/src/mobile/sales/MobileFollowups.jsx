@@ -71,16 +71,20 @@ const mobileColumns = [
 
 const filterOptions = [
   { label: 'All', value: '' },
-  { label: 'Callback', value: 'Callback' },
-  { label: 'Completed', value: 'Completed' },
-  { label: 'Pending', value: 'Pending' }
+  { label: 'Called', value: 'call:Called' },
+  { label: 'Not Called', value: 'call:Not Called' },
+  { label: 'Callback', value: 'call:Callback' },
+  { label: 'Completed', value: 'followup:Completed' },
+  { label: 'Pending', value: 'followup:Pending' }
 ];
 
 const packageFilterOptions = [
   { label: 'All', value: '' },
-  { label: 'Active', value: 'Active' },
-  { label: 'Pending', value: 'Pending' },
-  { label: 'Expired', value: 'Expired' }
+  { label: 'Called', value: 'call:Called' },
+  { label: 'Not Called', value: 'call:Not Called' },
+  { label: 'Active', value: 'status:Active' },
+  { label: 'Pending', value: 'status:Pending' },
+  { label: 'Expired', value: 'status:Expired' }
 ];
 
 const theme = {
@@ -123,6 +127,7 @@ const emptyPackageForm = {
   email: '',
   packageName: '',
   packageType: '',
+  callStatus: 'Not Called',
   status: 'Active',
   expiryDate: '',
   notes: ''
@@ -170,6 +175,18 @@ const buildPackageContact = (sale = {}) => ({
   customerType: sale.customerType || 'Package',
   status: sale.status || 'Active'
 });
+
+const normalizeStatus = (value = '') => String(value || '').trim().toLowerCase();
+
+const packageCallStatus = (sale = {}) => (
+  sale.callStatus
+  || sale.call_status
+  || sale.packageCallStatus
+  || sale.salesCallStatus
+  || sale.followupCallStatus
+  || sale.callResult
+  || 'Not Called'
+);
 
 const statusColor = (status) => {
   switch ((status || '').toLowerCase()) {
@@ -395,6 +412,9 @@ const MobilePackageCard = ({ sale, onOpenDetail }) => {
         <Badge colorScheme="orange" fontSize="9px" px={2} py={1} borderRadius="md">
           {sale.packageName || 'Package Sale'}
         </Badge>
+        <Badge colorScheme={statusColor(packageCallStatus(sale))} fontSize="9px" px={2} py={1} borderRadius="md">
+          {packageCallStatus(sale)}
+        </Badge>
         <Badge colorScheme={statusColor(sale.status)} fontSize="9px" px={2} py={1} borderRadius="md">
           {sale.status || 'Active'}
         </Badge>
@@ -564,9 +584,14 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
         customer.courseName
       ].some((value) => String(value || '').toLowerCase().includes(query));
 
+      const [filterType, filterValue] = statusFilter.includes(':') ? statusFilter.split(':') : ['', statusFilter];
       const matchesStatus = !statusFilter
-        || customer.callStatus === statusFilter
-        || customer.followupStatus === statusFilter;
+        || (filterType === 'call' && normalizeStatus(customer.callStatus) === normalizeStatus(filterValue))
+        || (filterType === 'followup' && normalizeStatus(customer.followupStatus) === normalizeStatus(filterValue))
+        || (!filterType && (
+          normalizeStatus(customer.callStatus) === normalizeStatus(filterValue)
+          || normalizeStatus(customer.followupStatus) === normalizeStatus(filterValue)
+        ));
 
       return matchesSearch && matchesStatus;
     });
@@ -586,7 +611,11 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
         sale.packageType
       ].some((value) => String(value || '').toLowerCase().includes(query));
 
-      const matchesStatus = !statusFilter || sale.status === statusFilter;
+      const [filterType, filterValue] = statusFilter.includes(':') ? statusFilter.split(':') : ['', statusFilter];
+      const matchesStatus = !statusFilter
+        || (filterType === 'call' && normalizeStatus(packageCallStatus(sale)) === normalizeStatus(filterValue))
+        || (filterType === 'status' && normalizeStatus(sale.status) === normalizeStatus(filterValue))
+        || (!filterType && normalizeStatus(sale.status) === normalizeStatus(filterValue));
 
       return matchesSearch && matchesStatus;
     });
@@ -796,6 +825,7 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
       email: packageForm.email.trim().toLowerCase(),
       packageName: packageForm.packageName.trim(),
       packageType: packageForm.packageType,
+      callStatus: packageForm.callStatus,
       status: packageForm.status,
       purchaseDate: new Date().toISOString(),
       expiryDate: packageForm.expiryDate || undefined,
@@ -2137,10 +2167,24 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
                     <FormLabel fontSize="12px" color="#334155" fontWeight="800">Status</FormLabel>
                     <Select name="status" value={packageForm.status} onChange={handlePackageChange} bg="white" h="44px" borderRadius="12px">
                       <option value="Active">Active</option>
+                      <option value="Pending">Pending</option>
                       <option value="Expired">Expired</option>
                       <option value="Cancelled">Cancelled</option>
                     </Select>
                   </FormControl>
+                  <FormControl>
+                    <FormLabel fontSize="12px" color="#334155" fontWeight="800">Call status</FormLabel>
+                    <Select name="callStatus" value={packageForm.callStatus} onChange={handlePackageChange} bg="white" h="44px" borderRadius="12px">
+                      <option value="Not Called">Not Called</option>
+                      <option value="Called">Called</option>
+                      <option value="Busy">Busy</option>
+                      <option value="No Answer">No Answer</option>
+                      <option value="Callback">Callback</option>
+                      <option value="2x Called">2x Called</option>
+                    </Select>
+                  </FormControl>
+                </SimpleGrid>
+                <SimpleGrid columns={2} spacing={3}>
                   <FormControl>
                     <FormLabel fontSize="12px" color="#334155" fontWeight="800">Expiry date</FormLabel>
                     <Input name="expiryDate" type="date" value={packageForm.expiryDate} onChange={handlePackageChange} bg="white" h="44px" borderRadius="12px" />

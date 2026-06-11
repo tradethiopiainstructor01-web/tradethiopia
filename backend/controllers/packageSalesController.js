@@ -31,6 +31,7 @@ const buildPackageRows = (customers, customerType, agentLookup = {}) => {
       purchaseDate: pkg?.purchaseDate || customer.createdAt,
       expiryDate: pkg?.expiryDate || null,
       status: pkg?.status || 'Active',
+      callStatus: pkg?.callStatus || customer.callStatus || 'Not Called',
     };
   };
 
@@ -71,6 +72,7 @@ const buildPackageSaleRows = (sales = [], agentLookup = {}) => sales.map((sale) 
     purchaseDate: sale.purchaseDate || sale.createdAt,
     expiryDate: sale.expiryDate || null,
     status: sale.status || 'Active',
+    callStatus: sale.callStatus || 'Not Called',
   };
 });
 
@@ -82,7 +84,7 @@ const loadPackageRows = async () => {
       Seller.find()
         .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId'),
       PackageSale.find()
-        .select('customerName contactPerson email phoneNumber packageName packageType purchaseDate expiryDate status agentId agentName customerType')
+        .select('customerName contactPerson email phoneNumber packageName packageType purchaseDate expiryDate status callStatus agentId agentName customerType')
     ]);
 
     const agentIds = [
@@ -141,6 +143,7 @@ const createPackageSale = async (req, res) => {
       purchaseDate,
       expiryDate,
       status,
+      callStatus,
       agentId,
       agentName,
       notes
@@ -164,6 +167,7 @@ const createPackageSale = async (req, res) => {
       purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
       expiryDate: expiryDate ? new Date(expiryDate) : undefined,
       status,
+      callStatus: callStatus || 'Not Called',
       agentId: resolvedAgentId,
       agentName: resolvedAgentName,
       notes
@@ -328,7 +332,7 @@ const getPackageSalesFollowups = async (_req, res) => {
         daysUntilNextFollowUp,
         lastInteractionDate: purchaseDate ? purchaseDate.toISOString() : null,
         urgency: followUpStatus === 'Overdue' ? 'High' : 'Normal',
-        callStatus: followUpStatus === 'Overdue' ? 'Called' : 'Not Called',
+        callStatus: row.callStatus || 'Not Called',
         followUpSource: 'Package Sales'
       };
     });
