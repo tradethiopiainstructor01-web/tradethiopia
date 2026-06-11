@@ -76,6 +76,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   const [contentRows, setContentRows] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [currentAction, setCurrentAction] = useState(null);
+  const [modalTitle, setModalTitle] = useState('');
   const [modalType, setModalType] = useState(contentTypeOptions[0]);
   const [modalPlatform, setModalPlatform] = useState('');
   const [modalShares, setModalShares] = useState(0);
@@ -103,11 +104,15 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   const [viewEntry, setViewEntry] = useState(null);
   const hasPlatformTracking = platformOptions.length > 0;
   const defaultPlatform = platformOptions[0] || '';
+  const platformRows = useMemo(() => {
+    if (!hasPlatformTracking) return contentRows;
+    return contentRows.filter((row) => platformOptions.includes(row.platform));
+  }, [contentRows, hasPlatformTracking, platformOptions]);
 
   const normalizeResponsePayload = (payload) => payload?.data ?? payload;
 
   const userKey = useMemo(() => normalizeAgentKey(currentUser), [currentUser]);
-  const agentSummaries = useMemo(() => summarizeEntriesByAgent(contentRows, selectedMonth), [contentRows, selectedMonth]);
+  const agentSummaries = useMemo(() => summarizeEntriesByAgent(platformRows, selectedMonth), [platformRows, selectedMonth]);
   const summaryMap = useMemo(() => mapSummariesByKey(agentSummaries), [agentSummaries]);
   const monthlyStats = useMemo(() => {
     const summary = userKey ? summaryMap[userKey] : null;
@@ -225,6 +230,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   const openActionModal = (action, row) => {
     setSelectedItem(row);
     setCurrentAction(action);
+    setModalTitle(row?.title || '');
     setModalType(row?.type ?? contentTypeOptions[0]);
     setModalPlatform(row?.platform || defaultPlatform);
     setModalShares(row?.shares ?? 0);
@@ -236,6 +242,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   const handleCloseModal = () => {
     setSelectedItem(null);
     setCurrentAction(null);
+    setModalTitle('');
     setModalDescription('');
     setModalLink('');
     setModalType(contentTypeOptions[0]);
@@ -250,19 +257,60 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   };
 
   const handleModalConfirm = async () => {
-    if (!selectedItem) {
+    if (currentAction !== 'Create' && !selectedItem) {
       handleCloseModal();
       return;
     }
 
-    const entryId = getEntryId(selectedItem);
-
     try {
       if (currentAction === 'Delete') {
+        const entryId = getEntryId(selectedItem);
         await deleteContentTrackerEntry(entryId);
         removeRowFromState(entryId);
-      } else if (currentAction === 'Edit') {
+      } else if (currentAction === 'Create') {
+        const trimmedTitle = modalTitle.trim();
+        if (!trimmedTitle) {
+          toast({
+            title: 'Title is required',
+            description: 'Add a post title before saving.',
+            status: 'warning',
+            duration: 3000,
+            isClosable: true,
+          });
+          return;
+        }
+
         const payload = {
+          title: trimmedTitle,
+          type: modalType,
+          link: modalLink,
+          description: modalDescription,
+          approved: false,
+          date: new Date().toISOString(),
+          shares: modalShares,
+        };
+        if (hasPlatformTracking) {
+          payload.platform = modalPlatform || defaultPlatform;
+        }
+        const response = await createContentTrackerEntry(payload);
+        const created = normalizeResponsePayload(response);
+        setContentRows((prev) => [created, ...prev]);
+      } else if (currentAction === 'Edit') {
+        const entryId = getEntryId(selectedItem);
+        const trimmedTitle = modalTitle.trim();
+        if (!trimmedTitle) {
+          toast({
+            title: 'Title is required',
+            description: 'Add a post title before saving.',
+            status: 'warning',
+            duration: 3000,
+            isClosable: true,
+          });
+          return;
+        }
+
+        const payload = {
+          title: trimmedTitle,
           type: modalType,
           link: modalLink,
           description: modalDescription,
@@ -290,36 +338,18 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   };
 
   const handleAddEntry = async () => {
-    try {
-      const payload = {
-        title: hasPlatformTracking ? 'New post entry' : 'New content entry',
-        type: contentTypeOptions[0],
-        link: '',
-        description: '',
-        approved: false,
-        date: new Date().toISOString(),
-        shares: 0,
-      };
-      if (hasPlatformTracking) {
-        payload.platform = filterPlatform !== 'All' ? filterPlatform : defaultPlatform;
-      }
-      const response = await createContentTrackerEntry(payload);
-      const created = normalizeResponsePayload(response);
-      setContentRows((prev) => [created, ...prev]);
-      openActionModal('Edit', created);
-    } catch (err) {
-      console.error('Unable to create entry', err);
-      toast({
-        title: 'Creation failed',
-        description: 'We could not add a new entry right now.',
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-    }
+    setSelectedItem(null);
+    setCurrentAction('Create');
+    setModalTitle('');
+    setModalType(contentTypeOptions[0]);
+    setModalPlatform(filterPlatform !== 'All' ? filterPlatform : defaultPlatform);
+    setModalShares(0);
+    setModalLink('');
+    setModalDescription('');
+    onOpen();
   };
 
-  const visibleRows = contentRows.filter((row) => {
+  const visibleRows = platformRows.filter((row) => {
     if (filterDate) {
       if (!row?.date) return false;
       const rowDateString = new Date(row.date).toISOString().split('T')[0];
@@ -334,6 +364,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   });
 
   const actionLabelMap = {
+    Create: hasPlatformTracking ? 'Add Post' : 'Add Content Entry',
     Edit: 'Edit Content Details',
     Delete: 'Delete Content Entry',
   };
@@ -372,8 +403,8 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
     }
 
     return (
-      <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200">
-        <Table variant="simple">
+      <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" overflowX="auto">
+        <Table variant="simple" minW={hasPlatformTracking ? "980px" : "860px"}>
           <Thead bg="gray.50">
             <Tr>
               <Th>Date</Th>
@@ -516,16 +547,16 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   };
 
   return (
-    <Box>
-      <Flex justify="space-between" align="center" mb={4}>
+    <Box w="100%" minW={0}>
+      <Flex justify="space-between" align={{ base: "stretch", sm: "center" }} mb={4} gap={3} direction={{ base: "column", sm: "row" }}>
         <Heading size="lg">{title}</Heading>
-        <Button size="sm" colorScheme="teal" onClick={handleAddEntry}>
+        <Button size="sm" colorScheme="teal" onClick={handleAddEntry} alignSelf={{ base: "stretch", sm: "center" }}>
           {addButtonLabel}
         </Button>
       </Flex>
 
-      <Flex mb={6} direction={{ base: 'column', md: 'row' }} gap={4}>
-        <Box>
+      <Flex mb={6} direction={{ base: 'column', md: 'row' }} gap={4} flexWrap="wrap">
+        <Box flex={{ base: '1 1 100%', md: '1 1 180px' }}>
           <Text fontSize="sm" color="gray.500" mb={1}>
             Filter by date
           </Text>
@@ -537,7 +568,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
           />
         </Box>
         {hasPlatformTracking && (
-          <Box>
+          <Box flex={{ base: '1 1 100%', md: '1 1 220px' }}>
             <Text fontSize="sm" color="gray.500" mb={1}>
               Filter by platform
             </Text>
@@ -551,7 +582,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
             </Select>
           </Box>
         )}
-        <Box>
+        <Box flex={{ base: '1 1 100%', md: '2 1 260px' }}>
           <Text fontSize="sm" color="gray.500" mb={1}>
             Content column description
           </Text>
@@ -632,8 +663,18 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
           <ModalHeader>{actionLabelMap[currentAction] ?? 'Action'}</ModalHeader>
           <ModalCloseButton onClick={handleCloseModal} />
           <ModalBody>
-            {selectedItem && currentAction === 'Edit' && (
+            {(currentAction === 'Create' || (selectedItem && currentAction === 'Edit')) && (
               <Stack spacing={4}>
+                <Box>
+                  <Text fontSize="sm" color="gray.600">
+                    Title
+                  </Text>
+                  <Input
+                    value={modalTitle}
+                    onChange={(event) => setModalTitle(event.target.value)}
+                    placeholder={hasPlatformTracking ? 'Post title' : 'Content title'}
+                  />
+                </Box>
                 <Box>
                   <Text fontSize="sm" color="gray.600">
                     Change type
