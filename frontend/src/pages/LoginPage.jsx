@@ -47,20 +47,21 @@ const handleLogin = async (event) => {
             // Extract user data and token correctly
             const { user, token } = response.data;
             const { _id, role, status, infoStatus, username, email } = user;
+            console.log('LoginPage - Login Success:', { _id, role, status, infoStatus, username, email });
 
             // Save token and user information in local storage
             setCurrentUser({ username, role, status, infoStatus, token, _id, email });
 
             // Check user and info statuses
             if (status === 'inactive' && infoStatus === 'active') {
-                // If user status is inactive, redirect to /secondpage
+                console.log('LoginPage - redirecting to /secondpage (inactive status, active infoStatus)');
                 redirectAfterLogin('/secondpage');
             } else if ((status === 'inactive' || status === 'active') && infoStatus !== 'active')  {
-                // If info status is inactive, redirect to /employee-info
+                console.log('LoginPage - redirecting to /employee-info (infoStatus is not active:', infoStatus, ')');
                 redirectAfterLogin('/employee-info');
             } else {
                 const normalizedRole = normalizeRole(role);
-                // If both are active, redirect based on user role
+                console.log('LoginPage - redirecting based on normalized role:', normalizedRole);
                 switch (normalizedRole) {
                    
                     case 'admin':

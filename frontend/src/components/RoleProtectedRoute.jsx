@@ -13,8 +13,18 @@ const RoleProtectedRoute = ({ allowedRoles = [], children }) => {
     currentUser?.role || currentUser?.normalizedRole
   );
 
+  console.log('RoleProtectedRoute - check:', {
+    hasCurrentUser: !!currentUser,
+    hasToken: !!currentUser?.token,
+    userRole: currentUser?.role,
+    normalizedUserRole,
+    normalizedAllowed,
+    isAllowed: normalizedAllowed.includes(normalizedUserRole)
+  });
+
   // If not logged in, redirect to login
   if (!currentUser || !currentUser.token) {
+    console.log('RoleProtectedRoute - Redirecting to /login (no user or token)');
     return <Navigate to="/login" replace />;
   }
 
