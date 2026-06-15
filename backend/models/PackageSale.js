@@ -34,8 +34,13 @@ const PackageSaleSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Active', 'Expired', 'Cancelled'],
+    enum: ['Active', 'Pending', 'Expired', 'Cancelled'],
     default: 'Active'
+  },
+  callStatus: {
+    type: String,
+    enum: ['Not Called', 'Called', 'Busy', 'No Answer', 'Callback', '2x Called'],
+    default: 'Not Called'
   },
   agentId: {
     type: mongoose.Schema.Types.ObjectId,

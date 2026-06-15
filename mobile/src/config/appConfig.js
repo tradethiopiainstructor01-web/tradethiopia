@@ -26,10 +26,14 @@ const resolveBaseUrl = (explicitValue, port, suffix = '') => {
 
 const apiUrl = resolveBaseUrl(process.env.EXPO_PUBLIC_API_URL, 5000);
 const portalUrl = resolveBaseUrl(process.env.EXPO_PUBLIC_PORTAL_URL, 3002, '/sdashboard');
+const websiteUrl = process.env.EXPO_PUBLIC_WEBSITE_URL?.trim();
+const invalidWebsiteUrl = !websiteUrl || ['undefined', 'null'].includes(websiteUrl.toLowerCase());
+const loginUrl = invalidWebsiteUrl ? 'https://tradeethiopian.com/login' : websiteUrl;
 
 export const appConfig = {
   apiUrl,
   portalUrl,
+  loginUrl,
   detectedDevHost,
   isUsingFallbackHost: !process.env.EXPO_PUBLIC_API_URL && Boolean(detectedDevHost),
   isUsingLocalhostFallback: !process.env.EXPO_PUBLIC_API_URL && !detectedDevHost

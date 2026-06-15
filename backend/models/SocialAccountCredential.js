@@ -11,6 +11,9 @@ const SocialAccountCredentialSchema = new mongoose.Schema(
     socialPlatforms: [{ type: String, trim: true }],
     notes: { type: String, trim: true, default: '' },
     active: { type: Boolean, default: true },
+    pageId: { type: String, trim: true, default: '' },
+    accessToken: { type: String, trim: true, default: '' },
+    isConnected: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

@@ -15,7 +15,15 @@ const SocialMediaDashboardPage = () => {
   const cardBg = useColorModeValue("white", "gray.800");
   const muted = useColorModeValue("gray.600", "gray.300");
 
+  console.log('SocialMediaDashboardPage - check:', {
+    hasCurrentUser: !!currentUser,
+    userRole: currentUser?.role,
+    normalizedRole,
+    isAllowed: allowedRoles.has(normalizedRole)
+  });
+
   if (!currentUser) {
+    console.log('SocialMediaDashboardPage - Redirecting/rendering login prompt (no user)');
     return (
       <Center minH="100vh" bg={pageBg} px={4}>
         <VStack spacing={4} bg={cardBg} p={6} borderRadius="xl" boxShadow="lg">

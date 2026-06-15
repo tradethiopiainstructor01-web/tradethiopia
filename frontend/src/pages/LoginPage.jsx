@@ -31,6 +31,7 @@ const LoginPage = () => {
     const navigate = useNavigate();
     const toast = useToast();
     const setCurrentUser = useUserStore((state) => state.setCurrentUser);
+    const redirectAfterLogin = (path) => navigate(path, { replace: true });
 
 const handleLogin = async (event) => {
     event?.preventDefault();
@@ -46,72 +47,73 @@ const handleLogin = async (event) => {
             // Extract user data and token correctly
             const { user, token } = response.data;
             const { _id, role, status, infoStatus, username, email } = user;
+            console.log('LoginPage - Login Success:', { _id, role, status, infoStatus, username, email });
 
             // Save token and user information in local storage
             setCurrentUser({ username, role, status, infoStatus, token, _id, email });
 
             // Check user and info statuses
             if (status === 'inactive' && infoStatus === 'active') {
-                // If user status is inactive, redirect to /secondpage
-                navigate('/secondpage');
+                console.log('LoginPage - redirecting to /secondpage (inactive status, active infoStatus)');
+                redirectAfterLogin('/secondpage');
             } else if ((status === 'inactive' || status === 'active') && infoStatus !== 'active')  {
-                // If info status is inactive, redirect to /employee-info
-                navigate('/employee-info');
+                console.log('LoginPage - redirecting to /employee-info (infoStatus is not active:', infoStatus, ')');
+                redirectAfterLogin('/employee-info');
             } else {
                 const normalizedRole = normalizeRole(role);
-                // If both are active, redirect based on user role
+                console.log('LoginPage - redirecting based on normalized role:', normalizedRole);
                 switch (normalizedRole) {
                    
                     case 'admin':
                     case 'hr':
-                        navigate('/dashboard');
+                        redirectAfterLogin('/dashboard');
                         break;
                     case 'finance':
-                        navigate('/finance-dashboard');
+                        redirectAfterLogin('/finance-dashboard');
                         break;
                     case 'sales':
-                        navigate('/sdashboard');
+                        redirectAfterLogin('/sdashboard');
                         break;
                     case 'salesmanager':
-                        navigate('/salesmanager');
+                        redirectAfterLogin('/salesmanager');
                         break;
                     case 'customerservice':
                     case 'customer_service':
                     case 'customersuccessmanager':
                     case 'customer_success_manager':
-                        navigate('/Cdashboard');
+                        redirectAfterLogin('/Cdashboard');
                         break;
                     case 'coo':
-                        navigate('/coo-dashboard');
+                        redirectAfterLogin('/coo-dashboard');
                         break;
                     case 'ceo':
                         navigate('/ceo-dashboard');
                         break;
                     case 'reception':
-                        navigate('/reception-dashboard');
+                        redirectAfterLogin('/reception-dashboard');
                         break;
                     case 'tradextv':
                     case 'tetv':
-                        navigate('/tradextv-dashboard');
+                        redirectAfterLogin('/tradextv-dashboard');
                         break;
                     case 'it':
-                        navigate('/it');
+                        redirectAfterLogin('/it');
                         break;
                     case 'socialmediamanager':
                     case 'socialmedia':
-                        navigate('/social-media'); // Add social media role navigation
+                        redirectAfterLogin('/social-media'); // Add social media role navigation
                         break;
                     case 'supervisor':
-                        navigate('/supervisor');
+                        redirectAfterLogin('/supervisor');
                         break;
                     case 'enisra':
-                        navigate('/enisra/dashboard');
+                        redirectAfterLogin('/enisra/dashboard');
                         break;
                     case 'instructor':
-                        navigate('/instructor');
+                        redirectAfterLogin('/instructor');
                         break;
                     default:
-                        navigate('/ComingSoonPage'); // Optional: handle unknown roles
+                        redirectAfterLogin('/ComingSoonPage'); // Optional: handle unknown roles
                         break;
                 }
             }

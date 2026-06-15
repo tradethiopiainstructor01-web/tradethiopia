@@ -696,6 +696,7 @@ export default function SocialMediaAccountsManager({ emailOnly = false, onSocial
           <ModalBody>
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
               <FormControl isRequired>
+<<<<<<< HEAD
                 <FormLabel>Platform</FormLabel>
                 <Select
                   placeholder={emailOnly ? undefined : "Select social platform"}
