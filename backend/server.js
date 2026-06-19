@@ -13,6 +13,10 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const { connectDB, disconnectDB } = require('./config/db.js');
 const userRoutes = require('./routes/user.route.js');
 const notificationRoutes = require('./routes/notificationRoutes.js');
+const facebookRoutes = require('./routes/facebookRoutes.js');
+const instagramRoutes = require('./routes/instagramRoutes.js');
+const whatsappRoutes = require('./routes/whatsappRoutes.js');
+const linkedinRoutes = require('./routes/linkedinRoutes.js');
 const messageRoutes = require('./routes/messageRoutes.js');
 const chatRoutes = require('./routes/chatRoutes.js');
 const quizRoutes = require('./routes/quiz.route.js');
@@ -179,6 +183,16 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(bodyParser.json({ limit: '10mb' }));
+// Temporary HTTP logger to debug redirects
+app.use((req, res, next) => {
+  const start = Date.now();
+  const oldSend = res.send;
+  res.send = function(...args) {
+    console.log(`[HTTP LOG] ${req.method} ${req.originalUrl || req.url} -> Status ${res.statusCode} (${Date.now() - start}ms)`);
+    return oldSend.apply(this, args);
+  };
+  next();
+});
 // Removed static uploads directory since we're using Appwrite for file storage
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -283,6 +297,10 @@ app.get('/api/test-completed-sales', async (req, res) => {
 app.use("/api/users", userRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/facebook", facebookRoutes);
+app.use("/api/instagram", instagramRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/linkedin", linkedinRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/chat", chatRoutes);
 app.use('/api/followup', customerFollowUpRoutes);

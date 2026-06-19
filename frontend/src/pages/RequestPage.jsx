@@ -49,6 +49,7 @@ const DEPARTMENT_ROUTE_MAP = {
   tradextv: "/tradextv-dashboard",
   tradex: "/tradextv-dashboard",
   socialmedia: "/social-media",
+  socialmediamanager: "/social-media",
   social: "/social-media",
   training: "/training",
 };

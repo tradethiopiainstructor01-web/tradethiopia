@@ -16,6 +16,13 @@ const syncEmailSocialAccounts = async (payload) => {
     password: payload.password,
     notes: payload.notes,
     active: payload.active,
+    pageId: payload.pageId,
+    accessToken: payload.accessToken,
+    isConnected: payload.isConnected,
+    instagramBusinessAccountId: payload.instagramBusinessAccountId,
+    whatsappPhoneNumberId: payload.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: payload.whatsappBusinessAccountId,
+    linkedinUrn: payload.linkedinUrn,
     socialPlatforms: [],
   };
 
@@ -58,6 +65,13 @@ exports.createSocialAccountCredential = async (req, res) => {
       socialPlatforms: normalizeSocialPlatforms(req.body.socialPlatforms),
       notes: (req.body.notes || '').trim(),
       active: req.body.active !== false,
+      pageId: (req.body.pageId || '').trim(),
+      accessToken: (req.body.accessToken || '').trim(),
+      isConnected: req.body.isConnected === true,
+      instagramBusinessAccountId: (req.body.instagramBusinessAccountId || '').trim(),
+      whatsappPhoneNumberId: (req.body.whatsappPhoneNumberId || '').trim(),
+      whatsappBusinessAccountId: (req.body.whatsappBusinessAccountId || '').trim(),
+      linkedinUrn: (req.body.linkedinUrn || '').trim(),
     };
 
     if (!payload.platform || !payload.accountName) {
@@ -84,6 +98,13 @@ exports.syncEmailSocialAccount = async (req, res) => {
       socialPlatforms: normalizeSocialPlatforms(req.body.socialPlatforms),
       notes: (req.body.notes || '').trim(),
       active: req.body.active !== false,
+      pageId: (req.body.pageId || '').trim(),
+      accessToken: (req.body.accessToken || '').trim(),
+      isConnected: req.body.isConnected === true,
+      instagramBusinessAccountId: (req.body.instagramBusinessAccountId || '').trim(),
+      whatsappPhoneNumberId: (req.body.whatsappPhoneNumberId || '').trim(),
+      whatsappBusinessAccountId: (req.body.whatsappBusinessAccountId || '').trim(),
+      linkedinUrn: (req.body.linkedinUrn || '').trim(),
     };
 
     if (!payload.accountName || !payload.socialPlatforms.length) {
@@ -109,6 +130,13 @@ exports.updateSocialAccountCredential = async (req, res) => {
       socialPlatforms: normalizeSocialPlatforms(req.body.socialPlatforms),
       notes: (req.body.notes || '').trim(),
       active: req.body.active !== false,
+      pageId: (req.body.pageId || '').trim(),
+      accessToken: (req.body.accessToken || '').trim(),
+      isConnected: req.body.isConnected === true,
+      instagramBusinessAccountId: (req.body.instagramBusinessAccountId || '').trim(),
+      whatsappPhoneNumberId: (req.body.whatsappPhoneNumberId || '').trim(),
+      whatsappBusinessAccountId: (req.body.whatsappBusinessAccountId || '').trim(),
+      linkedinUrn: (req.body.linkedinUrn || '').trim(),
     };
 
     if (!payload.platform || !payload.accountName) {

@@ -247,16 +247,23 @@ const UserCard = ({ user }) => {
                                 onChange={(e) => setUpdatedUser({ ...updatedUser, role: e.target.value })}
                             >
                                 <option value="admin">Admin</option>
-                                <option value="customerservice">Customer Service</option>
+                                <option value="HR">HR</option>
                                 <option value="sales">Sales</option>
+                                <option value="Enisra">Enisra</option>
+                                <option value="customerservice">Customer Service</option>
+                                <option value="CustomerSuccessManager">Customer Success Manager</option>
+                                <option value="SocialmediaManager">Socialmedia Manager</option>
+                                <option value="socialmedia">Social Media</option>
+                                <option value="supervisor">Supervisor</option>
+                                <option value="tradextv">tradextv</option>
+                                <option value="IT">IT</option>
+                                <option value="finance">Finance</option>
+                                <option value="Instructor">Instructor</option>
+                                <option value="EventManager">Event Manager</option>
                                 <option value="salesmanager">Sales Manager</option>
-                            <option value="tradextv">tradextv</option>
-                            <option value="CustomerSuccessManager">Customer Success Manager</option>
-                            <option value="IT">IT</option>
-                            <option value="Enisra">Enisra</option>
-                            <option value="HR">HR</option>
-                            <option value="COO">COO</option>
-                            <option value="reception">Reception</option>
+                                <option value="reception">Reception</option>
+                                <option value="COO">COO</option>
+                                <option value="CEO">CEO</option>
                             </Select>
                             <Input
                                 placeholder="Salary"

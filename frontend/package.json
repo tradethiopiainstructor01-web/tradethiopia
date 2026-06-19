@@ -11,6 +11,9 @@
     "postbuild": "node -e \"import { existsSync, readdirSync } from 'node:fs'; const dir='dist'; console.log('dist contents:', existsSync(dir)?readdirSync(dir):'missing');\""
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^7.6.6",
+    "@capacitor/core": "^8.4.0",
     "@chakra-ui/icons": "^2.2.4",
     "@chakra-ui/react": "^2.10.9",
     "@emotion/react": "^11.14.0",

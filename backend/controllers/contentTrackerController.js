@@ -117,7 +117,7 @@ const parsePositiveNumber = (value) => {
 
 exports.createEntry = async (req, res) => {
   try {
-    const { title, description = '', type = 'Video', link = '', platform = '', approved = false, date, shares = 0 } = req.body;
+    const { title, description = '', type = 'Video', link = '', imageUrl = '', platform = '', approved = false, date, shares = 0 } = req.body;
     if (!title) {
       return res.status(400).json({ success: false, message: 'Title is required' });
     }
@@ -133,6 +133,7 @@ exports.createEntry = async (req, res) => {
       description,
       type,
       link,
+      imageUrl,
       platform: platform.toString().trim(),
       approved: normalizedApproved,
       date: date ? new Date(date) : undefined,
@@ -163,7 +164,7 @@ exports.updateEntry = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to approve content entries' });
     }
 
-    const updatableFields = ['title', 'description', 'type', 'link', 'platform', 'approved', 'date', 'shares'];
+    const updatableFields = ['title', 'description', 'type', 'link', 'imageUrl', 'platform', 'approved', 'date', 'shares'];
     updatableFields.forEach((field) => {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         if (field === 'type' && req.body.type && !ALLOWED_TYPES.has(req.body.type)) {

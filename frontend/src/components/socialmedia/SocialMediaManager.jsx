@@ -23,7 +23,7 @@ import {
   useDisclosure,
   useToast,
 } from "@chakra-ui/react";
-import axios from "axios";
+import axiosInstance from "../../services/axiosInstance";
 import {
   FiActivity,
   FiBarChart2,
@@ -250,7 +250,7 @@ const buildTargetRow = (target) => {
    SocialMediaManager — data provider + section renderer
    ────────────────────────────────────────────── */
 
-const SocialMediaManager = ({ activeSection = "dashboard" }) => {
+const SocialMediaManager = ({ activeSection = "dashboard", setActiveSection }) => {
   const toast = useToast();
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isKpiEditOpen, onOpen: onKpiEditOpen, onClose: onKpiEditClose } = useDisclosure();
@@ -356,7 +356,7 @@ const SocialMediaManager = ({ activeSection = "dashboard" }) => {
     const fetchSocialActuals = async () => {
       try {
         setTargetsLoading(true);
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/social-actuals`);
+        const response = await axiosInstance.get('/social-actuals');
         setSocialActuals(Array.isArray(response.data) ? response.data : response.data?.data || []);
       } catch (error) { console.error("Failed to load social target data", error); }
       finally { setTargetsLoading(false); }
@@ -368,7 +368,7 @@ const SocialMediaManager = ({ activeSection = "dashboard" }) => {
     const fetchWeeklyKpis = async () => {
       try {
         setKpiLoading(true);
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/social-weekly-kpis`);
+        const response = await axiosInstance.get('/social-weekly-kpis');
         setWeeklyKpiRecords(Array.isArray(response.data) ? response.data : response.data?.data || []);
       } catch (error) { console.error("Failed to load weekly KPI data", error); }
       finally { setKpiLoading(false); }
@@ -398,7 +398,7 @@ const SocialMediaManager = ({ activeSection = "dashboard" }) => {
     const { month, year } = getMetricPeriod(selectedDate);
     setSavingPlatform(platform);
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/social-actuals`, { platform, target, actual, month, year });
+      const response = await axiosInstance.post('/social-actuals', { platform, target, actual, month, year });
       upsertSocialActual(response.data);
       return response.data;
     } catch (error) {
@@ -411,7 +411,7 @@ const SocialMediaManager = ({ activeSection = "dashboard" }) => {
     const { weekStart } = getWeekWindowForDate(selectedDate);
     setSavingKpiPlatform(platform);
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/social-weekly-kpis`, { platform, date: weekStart, videos, graphics, views, likes, shares });
+      const response = await axiosInstance.post('/social-weekly-kpis', { platform, date: weekStart, videos, graphics, views, likes, shares });
       upsertWeeklyKpi(response.data);
       return response.data;
     } catch (error) {
@@ -522,6 +522,7 @@ const SocialMediaManager = ({ activeSection = "dashboard" }) => {
             targetsLoading={targetsLoading}
             savingPlatform={savingPlatform}
             dashboardSummary={dashboardSummary}
+            setActiveSection={setActiveSection}
           />
         );
       case "kpis":
@@ -591,8 +592,8 @@ const SocialMediaManager = ({ activeSection = "dashboard" }) => {
         <ModalContent borderRadius="16px" boxShadow="0 12px 36px rgba(15,23,42,0.2)">
           <ModalHeader>
             <VStack align="start" spacing={0.5}>
-              <Text fontSize="md" fontWeight="800">Edit {editingPlatform || "Platform"} Points</Text>
-              <Text fontSize="xs" color={muted}>Update the weekly target and actual counts centrally.</Text>
+              <Text fontSize="md" fontWeight="800">Edit {editingPlatform || "Platform"} Target</Text>
+              <Text fontSize="xs" color={muted}>Update the weekly target count centrally. Actual posts are tracked automatically.</Text>
             </VStack>
           </ModalHeader>
           <ModalCloseButton />
@@ -605,12 +606,14 @@ const SocialMediaManager = ({ activeSection = "dashboard" }) => {
                   <NumberInputStepper><NumberIncrementStepper /><NumberDecrementStepper /></NumberInputStepper>
                 </NumberInput>
               </FormControl>
-              <FormControl size="sm">
-                <FormLabel fontSize="xs" mb={1}>Actual</FormLabel>
-                <NumberInput size="sm" min={0} value={editForm.actual} onChange={(_, v) => setEditForm((p) => ({ ...p, actual: Number.isNaN(v) ? 0 : v }))} clampValueOnBlur>
-                  <NumberInputField borderRadius="10px" borderColor={surfaceBorder} fontSize="xs" />
-                  <NumberInputStepper><NumberIncrementStepper /><NumberDecrementStepper /></NumberInputStepper>
+              <FormControl size="sm" isDisabled>
+                <FormLabel fontSize="xs" mb={1} color="gray.500">Actual Posts (Calculated Automatically)</FormLabel>
+                <NumberInput size="sm" isReadOnly value={editForm.actual}>
+                  <NumberInputField borderRadius="10px" borderColor={surfaceBorder} fontSize="xs" bg="gray.50" />
                 </NumberInput>
+                <Text fontSize="10px" color="gray.500" mt={1}>
+                  This count updates in real time based on approved posts in the Post Tracker.
+                </Text>
               </FormControl>
             </VStack>
           </ModalBody>

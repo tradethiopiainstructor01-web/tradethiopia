@@ -317,8 +317,8 @@ const ContentTrackerReport = () => {
 
     return (
       <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200">
-          <Table variant="simple">
-            <Thead bg="gray.50">
+        <Table variant="simple">
+          <Thead bg="gray.50">
             <Tr>
               <Th>Date</Th>
               <Th>Content</Th>
@@ -329,85 +329,85 @@ const ContentTrackerReport = () => {
               <Th>Approved</Th>
               <Th>Actions</Th>
             </Tr>
-            </Thead>
-            <Tbody>
-              {filteredEntries.map((entry) => {
-                const id = getEntryId(entry);
-                return (
-                  <Tr key={id}>
-                    <Td>{entry?.date ? new Date(entry.date).toISOString().split('T')[0] : '—'}</Td>
-                    <Td>
-                      <Text fontWeight="semibold">{entry.title}</Text>
-                      <Text fontSize="sm" color="gray.500">
-                        {entry.description || 'No description provided.'}
-                      </Text>
-                    </Td>
-                    <Td>
-                      <Text fontSize="sm" color="gray.600">
-                        {formatAgentName(entry)}
-                      </Text>
-                    </Td>
-                    <Td>{entry.type || '—'}</Td>
-                    <Td>{entry.shares ?? 0}</Td>
-                    <Td>
-                      <HStack spacing={2}>
-                        <FaLink />
-                        <Box
-                          as="a"
-                          href={entry.link || '#'}
-                          target="_blank"
-                          rel="noreferrer"
-                          color="teal.500"
-                        >
-                          {entry.link ? 'View post' : 'No link yet'}
-                        </Box>
-                      </HStack>
-                    </Td>
-                    <Td>
-                      <Badge colorScheme={entry.approved ? 'green' : 'yellow'}>
-                        {entry.approved ? 'Yes' : 'No'}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Stack direction="row" spacing={2}>
-                        <Button
-                          size="sm"
-                          colorScheme="teal"
-                          variant="outline"
-                          onClick={() => openApproveModal(entry)}
-                          isDisabled={entry.approved}
-                        >
-                          {entry.approved ? 'Approved' : 'Approve'}
-                        </Button>
-                        <IconButton
-                          aria-label="View entry"
-                          icon={<FaEye />}
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openViewModal(entry)}
-                        />
-                        <IconButton
-                          aria-label="Edit entry"
-                          icon={<FaEdit />}
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openEditModal(entry)}
-                        />
-                        <IconButton
-                          aria-label="Delete entry"
-                          icon={<FaTrash />}
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openDeleteModal(entry)}
-                        />
-                      </Stack>
-                    </Td>
-                  </Tr>
-                );
-              })}
-            </Tbody>
-          </Table>
-        </Box>
+          </Thead>
+          <Tbody>
+            {filteredEntries.map((entry) => {
+              const id = getEntryId(entry);
+              return (
+                <Tr key={id}>
+                  <Td>{entry?.date ? new Date(entry.date).toISOString().split('T')[0] : '—'}</Td>
+                  <Td>
+                    <Text fontWeight="semibold">{entry.title}</Text>
+                    <Text fontSize="sm" color="gray.500">
+                      {entry.description || 'No description provided.'}
+                    </Text>
+                  </Td>
+                  <Td>
+                    <Text fontSize="sm" color="gray.600">
+                      {formatAgentName(entry)}
+                    </Text>
+                  </Td>
+                  <Td>{entry.type || '—'}</Td>
+                  <Td>{entry.shares ?? 0}</Td>
+                  <Td>
+                    <HStack spacing={2}>
+                      <FaLink />
+                      <Box
+                        as="a"
+                        href={entry.link || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        color="teal.500"
+                      >
+                        {entry.link ? 'View post' : 'No link yet'}
+                      </Box>
+                    </HStack>
+                  </Td>
+                  <Td>
+                    <Badge colorScheme={entry.approved ? 'green' : 'yellow'}>
+                      {entry.approved ? 'Yes' : 'No'}
+                    </Badge>
+                  </Td>
+                  <Td>
+                    <Stack direction="row" spacing={2}>
+                      <Button
+                        size="sm"
+                        colorScheme="teal"
+                        variant="outline"
+                        onClick={() => openApproveModal(entry)}
+                        isDisabled={entry.approved}
+                      >
+                        {entry.approved ? 'Approved' : 'Approve'}
+                      </Button>
+                      <IconButton
+                        aria-label="View entry"
+                        icon={<FaEye />}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openViewModal(entry)}
+                      />
+                      <IconButton
+                        aria-label="Edit entry"
+                        icon={<FaEdit />}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openEditModal(entry)}
+                      />
+                      <IconButton
+                        aria-label="Delete entry"
+                        icon={<FaTrash />}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openDeleteModal(entry)}
+                      />
+                    </Stack>
+                  </Td>
+                </Tr>
+              );
+            })}
+          </Tbody>
+        </Table>
+      </Box>
     );
   };
 
@@ -442,7 +442,7 @@ const ContentTrackerReport = () => {
           <Text fontSize="lg" fontWeight="semibold">
             {formatMonthLabel(selectedMonth)} eligibility
           </Text>
-            <Badge colorScheme="teal" fontSize="0.85rem">
+          <Badge colorScheme="teal" fontSize="0.85rem">
             {BONUS_AMOUNT.toLocaleString()} birr bonus target
           </Badge>
         </Flex>
@@ -713,39 +713,39 @@ const ContentTrackerReport = () => {
               Cancel
             </Button>
             <Button colorScheme="teal" onClick={async () => {
-                if (!editEntry) return;
-                try {
+              if (!editEntry) return;
+              try {
                 const response = await updateContentTrackerEntry(getEntryId(editEntry), {
                   type: editType,
                   link: editLink,
                   description: editDescription,
                   shares: editShares,
                 });
-                  const updated = normalizePayload(response);
-                  setEntries((prev) =>
-                    prev.map((entry) =>
-                      getEntryId(entry) === getEntryId(updated) ? updated : entry,
-                    ),
-                  );
-                  toast({
-                    title: 'Updated',
-                    description: 'Entry saved successfully.',
-                    status: 'success',
-                    duration: 4000,
-                    isClosable: true,
-                  });
-                  closeEditModal();
-                } catch (err) {
-                  console.error('Edit failed', err);
-                  toast({
-                    title: 'Update failed',
-                    description: 'Unable to save changes.',
-                    status: 'error',
-                    duration: 4000,
-                    isClosable: true,
-                  });
-                }
-              }}>
+                const updated = normalizePayload(response);
+                setEntries((prev) =>
+                  prev.map((entry) =>
+                    getEntryId(entry) === getEntryId(updated) ? updated : entry,
+                  ),
+                );
+                toast({
+                  title: 'Updated',
+                  description: 'Entry saved successfully.',
+                  status: 'success',
+                  duration: 4000,
+                  isClosable: true,
+                });
+                closeEditModal();
+              } catch (err) {
+                console.error('Edit failed', err);
+                toast({
+                  title: 'Update failed',
+                  description: 'Unable to save changes.',
+                  status: 'error',
+                  duration: 4000,
+                  isClosable: true,
+                });
+              }
+            }}>
               Save
             </Button>
           </ModalFooter>
@@ -769,43 +769,43 @@ const ContentTrackerReport = () => {
             <Button variant="ghost" mr={3} onClick={closeDeleteModal}>
               Cancel
             </Button>
-                <Button
-                  colorScheme="red"
-                  onClick={async () => {
-                    if (!deleteEntry) return;
-                    try {
-                      await deleteContentTrackerEntry(getEntryId(deleteEntry));
-                      setEntries((prev) =>
-                        prev.filter((entry) => getEntryId(entry) !== getEntryId(deleteEntry)),
-                      );
-                      toast({
-                        title: 'Deleted',
-                        description: 'Entry removed successfully.',
-                        status: 'success',
-                        duration: 4000,
-                        isClosable: true,
-                      });
-                    } catch (err) {
-                      console.error('Delete failed', err);
-                      toast({
-                        title: 'Delete failed',
-                        description: 'Unable to remove entry.',
-                        status: 'error',
-                        duration: 4000,
-                        isClosable: true,
-                      });
-                    } finally {
-                      closeDeleteModal();
-                    }
-                  }}
-                >
-                  Delete
-                </Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
-        </Box>
-      );
-    };
+            <Button
+              colorScheme="red"
+              onClick={async () => {
+                if (!deleteEntry) return;
+                try {
+                  await deleteContentTrackerEntry(getEntryId(deleteEntry));
+                  setEntries((prev) =>
+                    prev.filter((entry) => getEntryId(entry) !== getEntryId(deleteEntry)),
+                  );
+                  toast({
+                    title: 'Deleted',
+                    description: 'Entry removed successfully.',
+                    status: 'success',
+                    duration: 4000,
+                    isClosable: true,
+                  });
+                } catch (err) {
+                  console.error('Delete failed', err);
+                  toast({
+                    title: 'Delete failed',
+                    description: 'Unable to remove entry.',
+                    status: 'error',
+                    duration: 4000,
+                    isClosable: true,
+                  });
+                } finally {
+                  closeDeleteModal();
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </Box>
+  );
+};
 
 export default ContentTrackerReport;
