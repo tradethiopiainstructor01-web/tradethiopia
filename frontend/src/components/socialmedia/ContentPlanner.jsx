@@ -624,7 +624,7 @@ const ContentPlanner = ({
                       }}
                       opacity={isPast ? 0.5 : 1}
                       filter={isPast ? "grayscale(70%) brightness(95%)" : "none"}
-                      height="125px"
+                      minH="90px"
                       p={1.5}
                       display="flex"
                       flexDirection="column"
