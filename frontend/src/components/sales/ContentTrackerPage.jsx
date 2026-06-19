@@ -42,7 +42,7 @@ import {
   FormControl,
   FormLabel,
 } from '@chakra-ui/react';
-import { FaLink, FaEdit, FaTrash, FaEye, FaFacebookF, FaInstagram, FaLinkedinIn, FaTiktok, FaYoutube, FaWhatsapp, FaTelegramPlane, FaTwitter, FaGoogle } from 'react-icons/fa';
+import { FaLink, FaEdit, FaTrash, FaEye, FaFacebookF, FaInstagram, FaLinkedinIn, FaTiktok, FaYoutube, FaWhatsapp, FaTelegramPlane, FaTwitter, FaGoogle, FaCheck } from 'react-icons/fa';
 import { FiGlobe, FiSearch, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import {
@@ -134,6 +134,12 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
     if (!currentUser) return false;
     const normalized = (currentUser.normalizedRole || currentUser.role || '').toString().toLowerCase();
     return normalized.includes('salesmanager');
+  }, [currentUser]);
+  const hasManagerAccess = useMemo(() => {
+    if (!currentUser) return false;
+    const normalized = (currentUser.normalizedRole || currentUser.role || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const managerRoles = new Set(['salesmanager', 'socialmediamanager', 'socialmedia', 'admin', 'finance', 'hr', 'coo']);
+    return managerRoles.has(normalized);
   }, [currentUser]);
   const toast = useToast();
   const {
@@ -438,6 +444,30 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
     }
   };
 
+  const handleApprove = async (entry) => {
+    try {
+      const response = await updateContentTrackerEntry(getEntryId(entry), { approved: true });
+      const updated = normalizeResponsePayload(response);
+      updateRowInState(updated);
+      toast({
+        title: 'Post Approved',
+        description: `"${updated.title}" has been successfully approved.`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      console.error('Failed to approve entry', err);
+      toast({
+        title: 'Approval failed',
+        description: 'Unable to approve this entry right now.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  };
+
   const openActionModal = (action, row) => {
     setSelectedItem(row);
     setCurrentAction(action);
@@ -499,7 +529,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
           link: modalLink,
           description: modalDescription,
           imageUrl: modalImageUrl,
-          approved: false,
+          approved: hasManagerAccess,
           date: new Date().toISOString(),
           shares: modalShares,
         };
@@ -964,6 +994,22 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
                             h="24px"
                             w="24px"
                             onClick={() => openPublishLinkedinPreview(row)}
+                          />
+                        </Tooltip>
+                      )}
+                      {hasManagerAccess && !row.approved && (
+                        <Tooltip label="Approve Post" placement="top">
+                          <IconButton
+                            aria-label="Approve"
+                            icon={<FaCheck />}
+                            size="xs"
+                            variant="ghost"
+                            color="green.500"
+                            borderRadius="md"
+                            h="24px"
+                            w="24px"
+                            _hover={{ bg: 'green.50', color: 'green.600' }}
+                            onClick={() => handleApprove(row)}
                           />
                         </Tooltip>
                       )}
