@@ -48,7 +48,7 @@ import {
 } from 'chart.js';
 import { Link } from 'react-router-dom';
 import CustomerMessagesPage from '../../pages/CustomerMessagesPage';
-import CompletedSalesTable from '../salesmanager/CompletedSalesTable';
+import CompletedSalesTable from '../../pages/sales/manager/components/CompletedSalesTable';
 
 // Register Chart.js components
 ChartJS.register(

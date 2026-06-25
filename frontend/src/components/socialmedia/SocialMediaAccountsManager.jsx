@@ -62,6 +62,7 @@ import { AddIcon, DeleteIcon, EditIcon } from "@chakra-ui/icons";
 import { FiGlobe, FiLock, FiMail, FiPhone, FiEye, FiEyeOff, FiCopy, FiCheck, FiSearch, FiInfo, FiShield, FiLayers } from "react-icons/fi";
 import { FaFacebookF, FaInstagram, FaLinkedinIn, FaTelegramPlane, FaTiktok, FaTwitter, FaWhatsapp, FaYoutube } from "react-icons/fa";
 import { EmptyStateBlock, SectionIntro, SurfaceCard, ResponsiveDataView, PlatformBadge } from "./SocialMediaPrimitives";
+import { useUserStore } from "../../store/user";
 
 const initialForm = {
   platform: "",
@@ -107,6 +108,9 @@ export default function SocialMediaAccountsManager({
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDrawerOpen, onOpen: onDrawerOpen, onClose: onDrawerClose } = useDisclosure();
   
+  const users = useUserStore((state) => state.users);
+  const fetchUsers = useUserStore((state) => state.fetchUsers);
+
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -201,6 +205,14 @@ export default function SocialMediaAccountsManager({
     [assetAssignees, form.employeeFullName],
   );
 
+  const employeesList = useMemo(() => {
+    if (!users || !users.length) return [];
+    const list = users
+      .map((u) => (u.fullName || u.username || "").trim())
+      .filter((name) => name && name !== ".." && name !== ".");
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+  }, [users]);
+
   const facebookIntegration = useMemo(() => {
     return accounts.find(a => a.platform === "Facebook" && a.isConnected && a.active !== false);
   }, [accounts]);
@@ -230,7 +242,8 @@ export default function SocialMediaAccountsManager({
 
   useEffect(() => {
     fetchAccounts();
-  }, []);
+    fetchUsers();
+  }, [fetchUsers]);
 
   useEffect(() => {
     const fetchHrAssets = async () => {
@@ -1933,28 +1946,23 @@ export default function SocialMediaAccountsManager({
                 </Select>
               </FormControl>
               <FormControl isRequired>
-                <FormLabel fontSize="xs">Assign HR Asset User</FormLabel>
+                <FormLabel fontSize="xs">Assign Employee</FormLabel>
                 <Select
-                  placeholder={assetsLoading ? "Loading HR asset users..." : "Select HR asset user"}
+                  placeholder={loading ? "Loading employees..." : "Select employee"}
                   value={form.employeeFullName}
                   onChange={(event) => handleChange("employeeFullName", event.target.value)}
                   borderRadius="10px"
                   size="sm"
                   borderColor={borderColor}
-                  isDisabled={assetsLoading || assetAssignees.length === 0}
+                  isDisabled={loading || employeesList.length === 0}
                 >
-                  {assetAssignees.map((assignee) => (
-                    <option key={assignee.name} value={assignee.name}>
-                      {assignee.count ? `${assignee.name} (${assignee.count} asset${assignee.count === 1 ? "" : "s"})` : assignee.name}
+                  {employeesList.map((empName) => (
+                    <option key={empName} value={empName}>
+                      {empName}
                     </option>
                   ))}
                 </Select>
-                {selectedAssignee?.assets?.length ? (
-                  <Text mt={1} fontSize="10px" color={muted} noOfLines={1}>
-                    Assets: {selectedAssignee.assets.slice(0, 3).join(", ")}
-                    {selectedAssignee.assets.length > 3 ? ` +${selectedAssignee.assets.length - 3} more` : ""}
-                  </Text>
-                ) : null}
+
               </FormControl>
               <FormControl isRequired>
                 <FormLabel fontSize="xs">Username</FormLabel>
@@ -2061,9 +2069,9 @@ export default function SocialMediaAccountsManager({
                   size="sm"
                   borderColor={borderColor}
                 >
-                  {assetAssignees.map((assignee) => (
-                    <option key={assignee.name} value={assignee.name}>
-                      {assignee.name}
+                  {employeesList.map((empName) => (
+                    <option key={empName} value={empName}>
+                      {empName}
                     </option>
                   ))}
                 </Select>
@@ -2120,9 +2128,9 @@ export default function SocialMediaAccountsManager({
                   size="sm"
                   borderColor={borderColor}
                 >
-                  {assetAssignees.map((assignee) => (
-                    <option key={assignee.name} value={assignee.name}>
-                      {assignee.name}
+                  {employeesList.map((empName) => (
+                    <option key={empName} value={empName}>
+                      {empName}
                     </option>
                   ))}
                 </Select>
@@ -2196,9 +2204,9 @@ export default function SocialMediaAccountsManager({
                   size="sm"
                   borderColor={borderColor}
                 >
-                  {assetAssignees.map((assignee) => (
-                    <option key={assignee.name} value={assignee.name}>
-                      {assignee.name}
+                  {employeesList.map((empName) => (
+                    <option key={empName} value={empName}>
+                      {empName}
                     </option>
                   ))}
                 </Select>
@@ -2283,9 +2291,9 @@ export default function SocialMediaAccountsManager({
                   size="sm"
                   borderColor={borderColor}
                 >
-                  {assetAssignees.map((assignee) => (
-                    <option key={assignee.name} value={assignee.name}>
-                      {assignee.name}
+                  {employeesList.map((empName) => (
+                    <option key={empName} value={empName}>
+                      {empName}
                     </option>
                   ))}
                 </Select>

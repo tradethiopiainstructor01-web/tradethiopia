@@ -65,7 +65,7 @@ import { useUserStore } from "../../store/user";
 import AssetList from "../AssetList";
 import NotesLauncher from "../notes/NotesLauncher";
 import RequestPage from "../../pages/RequestPage";
-import ContentTrackerPage from "../sales/ContentTrackerPage";
+import ContentTrackerPage from "../../pages/sales/agent/components/ContentTrackerPage";
 import SocialMediaManager from "./SocialMediaManager";
 import SocialMediaAccountsManager from "./SocialMediaAccountsManager";
 import SocialMediaActivationsManager from "./SocialMediaActivationsManager";

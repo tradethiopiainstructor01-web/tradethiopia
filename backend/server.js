@@ -35,22 +35,22 @@ const b2bMatchingRoutes = require('./routes/b2bMatchingRoutes.js');
 const savedMatchRoutes = require('./routes/savedMatchRoutes.js');
 const trainingFollowupRoutes = require('./routes/trainingFollowupRoutes.js');
 const ensraFollowupRoutes = require('./routes/ensraFollowupRoutes.js');
-const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
+const salesCustomerRoutes = require('./sales/routes/salesCustomerRoutes.js');
 const packageRoutes = require('./routes/packageRoutes.js');
-const packageSalesRoutes = require('./routes/packageSalesRoutes.js');
+const packageSalesRoutes = require('./sales/routes/packageSalesRoutes.js');
 const serviceTypeRoutes = require('./tradextv/routes/serviceTypeRoutes.js');
 const metricRoutes = require('./routes/metricRoutes.js');
 const tradexFollowupRoutes = require('./tradextv/routes/tradexFollowupRoutes.js');
 const stockRoutes = require('./routes/stockRoutes.js');
 const orderRoutes = require('./routes/orderRoutes.js');
 const orderCustomerRoutes = require('./routes/orderCustomerRoutes.js');
-const salesManagerRoutes = require('./routes/salesManagerRoutes.js');
-const salesTargetRoutes = require('./routes/salesTargetRoutes.js');
+const salesManagerRoutes = require('./sales/routes/salesManagerRoutes.js');
+const salesTargetRoutes = require('./sales/routes/salesTargetRoutes.js');
 const taskRoutes = require('./routes/taskRoutes.js');
 const calendarRoutes = require('./routes/calendarRoutes.js');
 const courseRoutes = require('./routes/courseRoutes.js');
 const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
-const itRoutes = require('./routes/itRoutes.js');
+const itRoutes = require('./it/routes/itRoutes.js');
 const inventoryRoutes = require('./routes/inventoryRoutes.js');
 const demandRoutes = require('./routes/demandRoutes.js');
 const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
@@ -64,8 +64,8 @@ const consultancyRoutes = require('./routes/consultancyRoutes.js');
 const costRoutes = require('./routes/costRoutes.js');
 const requestRoutes = require('./routes/requestRoutes.js');
 const actionItemRoutes = require('./routes/actionItemRoutes.js');
-const commissionApprovalRoutes = require('./routes/commissionApprovalRoutes.js');
-const salesOnboardingCourseRoutes = require('./routes/salesOnboardingCourseRoutes.js');
+const commissionApprovalRoutes = require('./sales/routes/commissionApprovalRoutes.js');
+const salesOnboardingCourseRoutes = require('./sales/routes/salesOnboardingCourseRoutes.js');
 const socialAccountCredentialRoutes = require('./routes/socialAccountCredentialRoutes.js');
 // Load environment variables
 
@@ -274,7 +274,7 @@ app.get('/api/test', (req, res) => {
 
 app.get('/api/test-completed-sales', async (req, res) => {
   try {
-    const SalesCustomer = require('./models/SalesCustomer');
+    const SalesCustomer = require('./sales/models/SalesCustomer');
     const completedCount = await SalesCustomer.countDocuments({ followupStatus: 'Completed' });
     const totalCount = await SalesCustomer.countDocuments();
     
