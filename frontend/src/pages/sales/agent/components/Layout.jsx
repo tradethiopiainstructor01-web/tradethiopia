@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useColorMode } from "@chakra-ui/react";
 import SSidebar from "./Ssidebar";
 import SNavbar from "./Snavbar";
@@ -42,10 +43,31 @@ const Layout = ({ children, initialActiveItem }) => {
   // Mobile drawer state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Load initial state from localStorage or default to 'Home'
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Load initial state from URL query parameter, localStorage or default to 'Home'
   const getInitialActiveItem = () => {
     if (initialActiveItem) {
       return initialActiveItem;
+    }
+    const tabParam = searchParams.get("tab");
+    if (tabParam) {
+      const tabMap = {
+        'home': 'Home',
+        'followup': 'Followup',
+        'packagesales': 'Package Sales',
+        'resources': 'Resources',
+        'orders': 'Orders',
+        'tutorials': 'Tutorials',
+        'targets': 'Targets',
+        'tasks': 'Tasks',
+        'monthlyreport': 'Monthly Report',
+        'noticeboard': 'Notice Board',
+        'requests': 'Requests',
+        'contenttracker': 'Content Tracker'
+      };
+      const mapped = tabMap[tabParam.toLowerCase()];
+      if (mapped) return mapped;
     }
     const savedItem = localStorage.getItem('salesActiveItem');
     if (savedItem === 'Requests') {
@@ -59,10 +81,28 @@ const Layout = ({ children, initialActiveItem }) => {
   const [activeItem, setActiveItem] = useState(getInitialActiveItem);
   const isMobile = useIsMobile();
 
-  // Save activeItem to localStorage whenever it changes
+  // Save activeItem to localStorage and sync to browser URL search param
   useEffect(() => {
+    const tabMap = {
+      'Home': 'home',
+      'Followup': 'followup',
+      'Package Sales': 'packagesales',
+      'Resources': 'resources',
+      'Orders': 'orders',
+      'Tutorials': 'tutorials',
+      'Targets': 'targets',
+      'Tasks': 'tasks',
+      'Monthly Report': 'monthlyreport',
+      'Notice Board': 'noticeboard',
+      'Requests': 'requests',
+      'Content Tracker': 'contenttracker'
+    };
+    const tabValue = tabMap[activeItem];
+    if (tabValue) {
+      setSearchParams({ tab: tabValue }, { replace: true });
+    }
     localStorage.setItem('salesActiveItem', activeItem);
-  }, [activeItem]);
+  }, [activeItem, setSearchParams]);
 
   const currentUser = useUserStore((state) => state.currentUser);
   const userDepartment = getUserDepartment(currentUser) || 'sales';

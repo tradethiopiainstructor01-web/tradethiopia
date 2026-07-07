@@ -128,7 +128,7 @@ const getCustomers = asyncHandler(async (req, res) => {
     filter.followupStatus = { $regex: new RegExp(`^${req.query.followupStatus}$`, 'i') };
   }
   
-  const customers = await SalesCustomer.find(filter).lean();
+  const customers = await SalesCustomer.find(filter).select('-note').lean();
 
   // Attach agentName by looking up user records
   const agentIds = [...new Set(customers.map((c) => c.agentId).filter(Boolean))];

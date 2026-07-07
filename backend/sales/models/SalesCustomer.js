@@ -45,13 +45,15 @@ const salesCustomerSchema = new mongoose.Schema({
   },
   customerName: {
     type: String,
-    required: true
+    required: true,
+    index: true
   },
   contactTitle: {
     type: String
   },
   phone: {
-    type: String
+    type: String,
+    index: true
   },
   callStatus: {
     type: String,
@@ -91,7 +93,8 @@ const salesCustomerSchema = new mongoose.Schema({
     index: true
   },
   email: {
-    type: String
+    type: String,
+    index: true
   },
   note: {
     type: String

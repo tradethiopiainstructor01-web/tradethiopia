@@ -15,9 +15,16 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiSun,
-  FiMoon
+  FiMoon,
+  FiMail,
+  FiMessageSquare,
+  FiClock,
+  FiSend,
+  FiActivity
 } from 'react-icons/fi';
 import { calculateCommission } from '../../../../utils/commission';
+import { sendCustomerEmail, sendCustomerSms } from '../../../../services/customerService';
+import { useToast } from '@chakra-ui/react';
 
 const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
 const TABLE_PREF_VERSION = 4;
@@ -68,7 +75,13 @@ const readColumnPrefs = () => {
   }
 };
 
+const capitalizeName = (str) => {
+  if (!str) return 'No Name';
+  return str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+};
+
 const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }) => {
+  const toast = useToast();
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [isStatusWarningOpen, setIsStatusWarningOpen] = useState(false);
@@ -96,6 +109,140 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const [drawerCustomer, setDrawerCustomer] = useState(null);
+  const [activeDrawerTab, setActiveDrawerTab] = useState('overview');
+  
+  // Interactive Drawer Form States
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [smsBody, setSmsBody] = useState('');
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [schedDate, setSchedDate] = useState('');
+  const [schedTime, setSchedTime] = useState('');
+  const [schedAgenda, setSchedAgenda] = useState('');
+  const [schedPref, setSchedPref] = useState('Regular');
+  const [schedCallStatus, setSchedCallStatus] = useState('Not Called');
+  const [schedFollowupStatus, setSchedFollowupStatus] = useState('Pending');
+  const [newGeneralNote, setNewGeneralNote] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
+  useEffect(() => {
+    if (drawerCustomer) {
+      setSchedDate(drawerCustomer.scheduledDate ? new Date(drawerCustomer.scheduledDate).toISOString().slice(0, 10) : '');
+      setSchedTime(drawerCustomer.scheduledDate ? new Date(drawerCustomer.scheduledDate).toTimeString().slice(0, 5) : '');
+      setSchedAgenda('');
+      setSchedPref(drawerCustomer.schedulePreference || 'Regular');
+      setSchedCallStatus(drawerCustomer.callStatus || 'Not Called');
+      setSchedFollowupStatus(drawerCustomer.followupStatus || 'Pending');
+      setEmailSubject(`Follow-up: ${drawerCustomer.contactTitle || 'Training Course'}`);
+      setEmailBody('');
+      setSmsBody('');
+      setNewGeneralNote('');
+    }
+  }, [drawerCustomer]);
+
+  const handleSendEmail = async () => {
+    if (!emailSubject.trim() || !emailBody.trim()) {
+      toast({ title: 'Validation Error', description: 'Subject and Body are required.', status: 'warning', duration: 3000, isClosable: true });
+      return;
+    }
+    try {
+      setIsSendingEmail(true);
+      const res = await sendCustomerEmail(drawerCustomer._id, { subject: emailSubject, body: emailBody });
+      if (res.success || res.message) {
+        toast({ title: 'Email Sent', description: 'Your email has been sent successfully.', status: 'success', duration: 3000, isClosable: true });
+        
+        // Update local note
+        const timestamp = new Date().toISOString();
+        const emailLog = `Email sent on ${timestamp}: ${emailSubject} - ${emailBody}`;
+        const newNote = drawerCustomer.note ? `${drawerCustomer.note}\n\n${emailLog}` : emailLog;
+        const updated = { ...drawerCustomer, note: newNote };
+        
+        setDrawerCustomer(updated);
+        onUpdate(drawerCustomer._id, updated);
+        setEmailBody('');
+      }
+    } catch (err) {
+      toast({ title: 'Email Failed', description: err.response?.data?.message || err.message || 'Failed to send email.', status: 'error', duration: 4000, isClosable: true });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const handleSendSms = async () => {
+    if (!smsBody.trim()) {
+      toast({ title: 'Validation Error', description: 'SMS message is required.', status: 'warning', duration: 3000, isClosable: true });
+      return;
+    }
+    try {
+      setIsSendingSms(true);
+      const res = await sendCustomerSms(drawerCustomer._id, { body: smsBody });
+      if (res.success || res.message) {
+        toast({ title: 'SMS Sent', description: 'Your SMS has been sent/logged successfully.', status: 'success', duration: 3000, isClosable: true });
+        
+        // Update local note
+        const timestamp = new Date().toISOString();
+        const smsLog = `SMS logged on ${timestamp}: ${smsBody}`;
+        const newNote = drawerCustomer.note ? `${drawerCustomer.note}\n\n${smsLog}` : smsLog;
+        const updated = { ...drawerCustomer, note: newNote };
+        
+        setDrawerCustomer(updated);
+        onUpdate(drawerCustomer._id, updated);
+        setSmsBody('');
+      }
+    } catch (err) {
+      toast({ title: 'SMS Failed', description: err.response?.data?.message || err.message || 'Failed to send SMS.', status: 'error', duration: 4000, isClosable: true });
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  const handleSaveSchedule = () => {
+    let finalScheduledDate = null;
+    if (schedDate) {
+      const timeStr = schedTime ? schedTime : '12:00';
+      const combinedDateTime = new Date(`${schedDate}T${timeStr}`);
+      finalScheduledDate = isNaN(combinedDateTime.getTime()) ? new Date(schedDate).toISOString() : combinedDateTime.toISOString();
+    }
+    
+    let updatedNote = drawerCustomer.note || '';
+    if (schedAgenda.trim()) {
+      const agendaTimestamp = new Date().toLocaleString();
+      const formattedMeetTime = finalScheduledDate ? new Date(finalScheduledDate).toLocaleString() : 'N/A';
+      const meetingLog = `Interaction Note (${agendaTimestamp}): Scheduled a Meeting/Call [Preference: ${schedPref}] for ${formattedMeetTime}. Agenda/Goal: ${schedAgenda.trim()}`;
+      updatedNote = updatedNote ? `${updatedNote}\n\n${meetingLog}` : meetingLog;
+    }
+
+    const updated = {
+      ...drawerCustomer,
+      scheduledDate: finalScheduledDate,
+      schedulePreference: schedPref,
+      callStatus: schedCallStatus,
+      followupStatus: schedFollowupStatus,
+      note: updatedNote
+    };
+    onUpdate(drawerCustomer._id, updated);
+    setDrawerCustomer(updated);
+    setSchedAgenda('');
+    toast({ title: 'Schedule Saved', description: 'Meeting appointment and followup configurations saved successfully.', status: 'success', duration: 3000, isClosable: true });
+  };
+
+  const handleSaveGeneralNote = () => {
+    if (!newGeneralNote.trim()) {
+      toast({ title: 'Validation Error', description: 'Note content cannot be empty.', status: 'warning', duration: 3000, isClosable: true });
+      return;
+    }
+    const timestamp = new Date().toLocaleString();
+    const noteLog = `Interaction Note (${timestamp}): ${newGeneralNote.trim()}`;
+    const newNote = drawerCustomer.note ? `${drawerCustomer.note}\n\n${noteLog}` : noteLog;
+    
+    const updated = { ...drawerCustomer, note: newNote };
+    onUpdate(drawerCustomer._id, updated);
+    setDrawerCustomer(updated);
+    setNewGeneralNote('');
+    toast({ title: 'Note Added', description: 'Your follow-up note has been appended to logs.', status: 'success', duration: 2500, isClosable: true });
+  };
+
   const [columnPrefs, setColumnPrefs] = useState(readColumnPrefs);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_PREF_KEY) || 'list');
   const [draggedColumn, setDraggedColumn] = useState(null);
@@ -789,7 +936,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                           <td 
                             key="customerName" 
                             onDoubleClick={() => handleDoubleClick(customer, 'customerName')}
-                            className="p-3 font-extrabold text-slate-850 dark:text-slate-100 truncate cursor-pointer"
+                            className="p-3 font-extrabold text-slate-850 dark:text-slate-100 truncate"
                           >
                             {isEditing ? (
                               <input
@@ -801,7 +948,13 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                                 className="border border-teal-500 rounded px-1.5 py-0.5 text-xs bg-white outline-none w-full"
                               />
                             ) : (
-                              <span>{customer.customerName || 'No Name'}</span>
+                              <span 
+                                onClick={() => setDrawerCustomer(customer)}
+                                className="hover:text-teal-500 hover:underline transition-all cursor-pointer"
+                                title="Click to view Customer Dossier"
+                              >
+                                {customer.customerName || 'No Name'}
+                              </span>
                             )}
                           </td>
                         );
@@ -1196,131 +1349,622 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
         </div>
       )}
-
       {/* Slide-out Drawer Panel */}
-      {drawerCustomer && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop overlay */}
-          <div 
-            onClick={() => setDrawerCustomer(null)}
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
-          />
-          {/* Slide-out Panel */}
-          <div className="relative w-full sm:w-[500px] bg-white dark:bg-slate-800 shadow-2xl flex flex-col h-full overflow-hidden animate-in slide-in-from-right duration-300 text-slate-700 dark:text-slate-200">
-            {/* Header */}
-            <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
-              <div>
-                <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">Customer Dossier</h3>
+      {drawerCustomer && (() => {
+        const notesText = drawerCustomer.note || '';
+        const segments = notesText.split('\n\n').filter(Boolean);
+        
+        // Parse timeline activities
+        const timeline = segments.map((seg, idx) => {
+          const text = seg.trim();
+          let type = 'general';
+          let dateStr = '';
+          let sender = '';
+          let displayBody = text;
+          
+          const emailRegex = /^Email sent on ([^\s]+)\s+by\s+([^:]+):\s*([\s\S]*)$/;
+          const emailMatch = text.match(emailRegex);
+          if (emailMatch) {
+            type = 'email';
+            dateStr = emailMatch[1];
+            sender = emailMatch[2];
+            displayBody = emailMatch[3];
+          } else {
+            const emailRegex2 = /^Email sent on\s+([^\s:]+(?::[^\s:]+)*)(?:\s+by\s+([^:]+))?:\s*([\s\S]*)$/;
+            const emailMatch2 = text.match(emailRegex2);
+            if (emailMatch2) {
+              type = 'email';
+              dateStr = emailMatch2[1];
+              sender = emailMatch2[2] || '';
+              displayBody = emailMatch2[3];
+            }
+          }
+          
+          if (type === 'general') {
+            const smsRegex = /^SMS ([^\s]+) on ([^\s]+)\s+by\s+([^:]+):\s*([\s\S]*)$/;
+            const smsMatch = text.match(smsRegex);
+            if (smsMatch) {
+              type = 'sms';
+              dateStr = smsMatch[2];
+              sender = smsMatch[3];
+              displayBody = `[${smsMatch[1].toUpperCase()}] ${smsMatch[4]}`;
+            } else {
+              const smsRegex2 = /^SMS logged on\s+([^\s:]+(?::[^\s:]+)*):\s*([\s\S]*)$/;
+              const smsMatch2 = text.match(smsRegex2);
+              if (smsMatch2) {
+                type = 'sms';
+                dateStr = smsMatch2[1];
+                displayBody = smsMatch2[2];
+              }
+            }
+          }
+
+          if (type === 'general') {
+            const noteRegex = /^Interaction Note \(([^)]+)\):\s*([\s\S]*)$/;
+            const noteMatch = text.match(noteRegex);
+            if (noteMatch) {
+              dateStr = noteMatch[1];
+              displayBody = noteMatch[2];
+            }
+          }
+          
+          return {
+            id: idx,
+            type,
+            date: dateStr ? new Date(dateStr) : null,
+            dateLabel: dateStr ? new Date(dateStr).toLocaleString() : 'N/A',
+            sender,
+            body: displayBody
+          };
+        }).sort((a, b) => {
+          if (!a.date) return 1;
+          if (!b.date) return -1;
+          return b.date - a.date;
+        });
+
+        const totalTimelineCount = timeline.length;
+        const emailSentCount = timeline.filter(l => l.type === 'email').length;
+        const smsSentCount = timeline.filter(l => l.type === 'sms').length;
+        const notesCount = timeline.filter(l => l.type === 'general').length;
+        
+        // Urgency helper
+        let urgency = null;
+        if (drawerCustomer.scheduledDate) {
+          const scheduledDate = new Date(drawerCustomer.scheduledDate);
+          const now = new Date();
+          const scheduledDay = new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate());
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const diffTime = scheduledDay - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays < 0) {
+            urgency = { level: 'overdue', label: 'OVERDUE APPOINTMENT', color: 'border-red-200 bg-red-50/75 dark:bg-red-950/20 text-red-700 dark:text-red-400 font-bold' };
+          } else if (diffDays === 0) {
+            urgency = { level: 'today', label: 'APPOINTMENT TODAY', color: 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-bold animate-pulse' };
+          } else if (diffDays <= 2) {
+            urgency = { level: 'soon', label: 'APPOINTMENT SOON', color: 'border-blue-200 bg-blue-50/70 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 font-bold' };
+          } else {
+            urgency = { level: 'future', label: 'UPCOMING SCHEDULE', color: 'border-slate-200 bg-slate-50/70 dark:bg-slate-800/20 text-slate-700 dark:text-slate-350 font-bold' };
+          }
+        }
+
+        return (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            <div 
+              onClick={() => setDrawerCustomer(null)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
+            />
+            {/* Slide-out Panel */}
+            <div className="relative w-full sm:w-[500px] bg-white dark:bg-slate-800 shadow-2xl flex flex-col h-full overflow-hidden animate-in slide-in-from-right duration-300 text-slate-700 dark:text-slate-200">
+              {/* Header */}
+              <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
+                <div className="min-w-0 pr-4 flex-1">
+                <h3 className="font-black text-sm text-slate-800 dark:text-slate-100 uppercase tracking-wide truncate" title={capitalizeName(drawerCustomer.customerName)}>
+                  Dossier: {capitalizeName(drawerCustomer.customerName)}
+                </h3>
                 <span className="text-[10px] text-slate-400 mt-0.5 block truncate">ID: {drawerCustomer._id}</span>
               </div>
               <button 
                 onClick={() => setDrawerCustomer(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all flex-shrink-0"
               >
                 <FiX className="text-lg" />
               </button>
             </div>
 
             {/* Scrollable details Body */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              
-              {/* Profile details */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-teal-500 text-white flex items-center justify-center font-black text-lg uppercase shadow-sm">
-                    {drawerCustomer.customerName?.charAt(0) || 'C'}
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-sm text-slate-855 dark:text-slate-150">{drawerCustomer.customerName || 'No Name'}</h4>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">{drawerCustomer.email || 'No email registered'}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
-                    <span className="text-[10px] text-slate-400 block mb-0.5">Phone Contact</span>
-                    <span className="font-semibold">{drawerCustomer.phone || 'N/A'}</span>
-                  </div>
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
-                    <span className="text-[10px] text-slate-400 block mb-0.5">Registered Date</span>
-                    <span className="font-semibold">{drawerCustomer.date ? formatDate(drawerCustomer.date) : 'N/A'}</span>
-                  </div>
-                </div>
+            <div className="flex-1 overflow-y-auto flex flex-col h-full">
+              {/* Tab Selector Buttons */}
+              <div 
+                className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar bg-slate-50 dark:bg-slate-900/40 p-2 gap-1.5"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                <style>{`
+                  .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                  }
+                `}</style>
+                 {[
+                  { key: 'overview', label: 'Overview', icon: FiEye },
+                  { key: 'timeline', label: 'Activity Logs', icon: FiActivity, count: totalTimelineCount },
+                  { key: 'email', label: 'Send Email', icon: FiMail, count: emailSentCount },
+                  { key: 'sms', label: 'Send SMS', icon: FiMessageSquare, count: smsSentCount },
+                  { key: 'schedule', label: 'Schedule', icon: FiClock, badge: drawerCustomer.scheduledDate ? true : false },
+                  { key: 'addNote', label: 'Add Note', icon: FiEdit3, count: notesCount },
+                ].map(tab => {
+                  const Icon = tab.icon;
+                  const isActive = activeDrawerTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveDrawerTab(tab.key)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all duration-200 whitespace-nowrap ${
+                        isActive
+                          ? 'bg-teal-600 border-teal-600 text-white shadow-xs scale-[1.02]'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-105/60 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <Icon className="text-xs" />
+                      <span>{tab.label}</span>
+                      {tab.count !== undefined && tab.count > 0 && (
+                        <span className={`text-[8px] px-1.5 py-0.2 rounded-full font-black ml-1 ${isActive ? 'bg-teal-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
+                          {tab.count}
+                        </span>
+                      )}
+                      {tab.badge && (
+                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse ml-1" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Course Catalog & Commission Breakdown */}
-              <div className="space-y-3.5">
-                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                  Course Catalog & Commissions
-                </span>
-                
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
-                    <span>Assigned Training:</span>
-                    <span className="font-extrabold text-slate-805 dark:text-slate-202 truncate max-w-[240px]">
-                      {drawerCustomer.contactTitle || 'Standard catalog'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
-                    <span>Catalog Cost:</span>
-                    <span className="font-bold text-teal-600">{formatPrice(resolvedCoursePrice)}</span>
-                  </div>
-                </div>
+              {/* Tab Contents */}
+              <div className="flex-1 p-5 overflow-y-auto space-y-6">
+                {activeDrawerTab === 'overview' && (
+                  <div className="space-y-6 animate-in fade-in duration-200">
+                    {/* Profile details */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-teal-500 text-white flex items-center justify-center font-black text-lg uppercase shadow-sm">
+                          {drawerCustomer.customerName?.charAt(0) || 'C'}
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-sm text-slate-855 dark:text-slate-150">{drawerCustomer.customerName || 'No Name'}</h4>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">{drawerCustomer.email || 'No email registered'}</span>
+                        </div>
+                      </div>
 
-                {resolvedCommission ? (
-                  <div className="p-4 border border-teal-205 dark:border-teal-900/50 bg-teal-50/20 dark:bg-teal-950/10 rounded-2xl space-y-3">
-                    <div className="flex justify-between text-xs font-bold border-b border-teal-100 dark:border-teal-900 pb-1.5">
-                      <span>Ledger Commission Earnings</span>
-                      <span className="text-teal-600">{formatPrice(resolvedCommission.netCommission)}</span>
-                    </div>
-                    <div className="space-y-1.5 text-[10px] text-slate-400">
-                      <div className="flex justify-between">
-                        <span>Rate / Percentage:</span>
-                        <span>7.50% of Catalog Cost</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Gross Commission:</span>
-                        <span>{formatPrice(resolvedCommission.grossCommission)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Withheld Social Tax:</span>
-                        <span>{formatPrice(resolvedCommission.commissionTax)}</span>
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
+                          <span className="text-[10px] text-slate-400 block mb-0.5">Phone Contact</span>
+                          <span className="font-semibold">{drawerCustomer.phone || 'N/A'}</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
+                          <span className="text-[10px] text-slate-400 block mb-0.5">Registered Date</span>
+                          <span className="font-semibold">{drawerCustomer.date ? formatDate(drawerCustomer.date) : 'N/A'}</span>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="p-4 text-center border border-dashed border-slate-205 dark:border-slate-800 rounded-2xl text-xs text-slate-400">
-                    No commission breakdown available (deals incomplete).
+                    {/* Upcoming Scheduled Follow-up */}
+                    {drawerCustomer.scheduledDate && urgency && (
+                      <div className={`p-4 border rounded-2xl space-y-2.5 animate-in slide-in-from-top-2 duration-200 ${urgency.color}`}>
+                        <div className="flex items-center justify-between text-xs font-bold">
+                          <div className="flex items-center gap-1.5">
+                            <FiClock className="text-sm" />
+                            <span>{urgency.label}</span>
+                          </div>
+                          {urgency.level === 'overdue' && (
+                            <span className="px-1.5 py-0.5 rounded bg-red-600 text-white text-[8px] font-black animate-pulse">URGENT</span>
+                          )}
+                          {urgency.level === 'today' && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-600 text-white text-[8px] font-black animate-bounce">TODAY</span>
+                          )}
+                        </div>
+                        <div className="text-xs space-y-1 opacity-90 leading-normal">
+                          <div>
+                            <span className="font-semibold text-slate-500">Date & Time: </span> 
+                            {new Date(drawerCustomer.scheduledDate).toLocaleString()}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Type / Medium: </span> 
+                            {drawerCustomer.schedulePreference || 'Regular'} Follow-up
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Pipeline Stage: </span> 
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold border ${getStatusBadgeVariant(drawerCustomer.followupStatus, 'followup')}`}>
+                              {drawerCustomer.followupStatus}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Course Catalog & Commission Breakdown */}
+                    <div className="space-y-3.5">
+                      <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        Course Catalog & Commissions
+                      </span>
+                      
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
+                          <span>Assigned Training:</span>
+                          <span className="font-extrabold text-slate-805 dark:text-slate-202 truncate max-w-[240px]">
+                            {drawerCustomer.contactTitle || 'Standard catalog'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
+                          <span>Catalog Cost:</span>
+                          <span className="font-bold text-teal-600">{formatPrice(resolvedCoursePrice)}</span>
+                        </div>
+                      </div>
+
+                      {resolvedCommission ? (
+                        <div className="p-4 border border-teal-205 dark:border-teal-900/50 bg-teal-50/20 dark:bg-teal-950/10 rounded-2xl space-y-3">
+                          <div className="flex justify-between text-xs font-bold border-b border-teal-100 dark:border-teal-900 pb-1.5">
+                            <span>Ledger Commission Earnings</span>
+                            <span className="text-teal-600">{formatPrice(resolvedCommission.netCommission)}</span>
+                          </div>
+                          <div className="space-y-1.5 text-[10px] text-slate-400">
+                            <div className="flex justify-between">
+                              <span>Rate / Percentage:</span>
+                              <span>7.50% of Catalog Cost</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Gross Commission:</span>
+                              <span>{formatPrice(resolvedCommission.grossCommission)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Withheld Social Tax:</span>
+                              <span>{formatPrice(resolvedCommission.commissionTax)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-4 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-400">
+                          No commission breakdown available (deals incomplete).
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Interactions Mini panel */}
+                    <div className="space-y-2.5">
+                      <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        Quick Actions
+                      </span>
+                      <div className="grid grid-cols-5 gap-1.5">
+                         {[
+                          { key: 'email', label: 'Email', icon: FiMail, color: 'text-teal-600 bg-teal-50 dark:bg-teal-950/40 border-teal-100 dark:border-teal-900/50 hover:bg-teal-100/60' },
+                          { key: 'sms', label: 'SMS', icon: FiMessageSquare, color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/50 hover:bg-blue-100/60' },
+                          { key: 'schedule', label: 'Meeting', icon: FiClock, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/50 hover:bg-amber-100/60' },
+                          { key: 'addNote', label: 'Note', icon: FiEdit3, color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/40 border-purple-100 dark:border-purple-900/50 hover:bg-purple-100/60' },
+                          { key: 'timeline', label: 'Logs', icon: FiActivity, color: 'text-slate-600 bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:bg-slate-100/60' },
+                        ].map(act => {
+                          const Icon = act.icon;
+                          return (
+                            <button
+                              key={act.key}
+                              onClick={() => setActiveDrawerTab(act.key)}
+                              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border hover:scale-[1.03] active:scale-[0.98] transition-all text-center gap-1 cursor-pointer ${act.color}`}
+                            >
+                              <Icon className="text-sm" />
+                              <span className="text-[8px] font-black">{act.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Supervisor comments */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        Supervisor Comments
+                      </span>
+                      <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl text-xs min-h-[50px]">
+                        {drawerCustomer.supervisorComment || 'No comments registered.'}
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
 
-              {/* Notes & Comments */}
-              <div className="space-y-4">
-                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                  Followup Interactions & Comments
-                </span>
-                
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block mb-1">Agent Followup Note:</span>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl min-h-[60px] text-slate-600 dark:text-slate-350">
-                      {drawerCustomer.note || 'No followup logs recorded.'}
+                {activeDrawerTab === 'timeline' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                      Interaction Timeline ({timeline.length} activities)
+                    </span>
+                    
+                    {timeline.length > 0 ? (
+                      <div className="relative border-l border-slate-200 dark:border-slate-700 ml-2.5 pl-5 space-y-5">
+                        {timeline.map((log) => {
+                          let iconColor = 'bg-slate-100 dark:bg-slate-800 text-slate-500';
+                          let Icon = FiEdit3;
+                          if (log.type === 'email') {
+                            Icon = FiMail;
+                            iconColor = 'bg-teal-500/10 text-teal-600 dark:text-teal-400';
+                          } else if (log.type === 'sms') {
+                            Icon = FiMessageSquare;
+                            iconColor = 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
+                          }
+                          return (
+                            <div key={log.id} className="relative">
+                              {/* Bullet indicator */}
+                              <span className={`absolute -left-[30px] top-0 w-5 h-5 rounded-full flex items-center justify-center border border-white dark:border-slate-800 text-[10px] ${iconColor}`}>
+                                <Icon />
+                              </span>
+                              
+                              <div className="space-y-1">
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="font-extrabold text-slate-750 dark:text-slate-200">
+                                    {log.type === 'email' ? '📧 Email Sent' : log.type === 'sms' ? '💬 SMS Sent/Logged' : '📝 Note'}
+                                    {log.sender && <span className="text-slate-400 font-bold ml-1">by {log.sender}</span>}
+                                  </span>
+                                  <span className="text-slate-400 font-bold">{log.dateLabel}</span>
+                                </div>
+                                <div className="p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl text-xs text-slate-650 dark:text-slate-300 leading-normal whitespace-pre-wrap border border-slate-100/50 dark:border-slate-700/30">
+                                  {log.body}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-400">
+                        No history timeline recorded for this prospect.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeDrawerTab === 'email' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                      Send Email Follow-up
+                    </span>
+                    
+                    <div className="space-y-3.5 text-xs">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">To Email Address</label>
+                        <input
+                          type="text"
+                          disabled
+                          value={drawerCustomer.email || 'No email registered'}
+                          className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-slate-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Email Subject</label>
+                        <input
+                          type="text"
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Message Body</label>
+                        <textarea
+                          rows={6}
+                          placeholder="Write your email body copy..."
+                          value={emailBody}
+                          onChange={(e) => setEmailBody(e.target.value)}
+                          className="w-full p-3 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSendEmail}
+                        disabled={isSendingEmail || !drawerCustomer.email}
+                        className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50 transition-all text-xs"
+                      >
+                        {isSendingEmail ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                            <span>Sending Email...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiSend className="text-xs" />
+                            <span>Send Email Message</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block mb-1">Supervisor Audit Comments:</span>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl min-h-[60px] text-slate-600 dark:text-slate-350">
-                      {drawerCustomer.supervisorComment || 'No comments registered.'}
+                )}
+
+                {activeDrawerTab === 'sms' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                      Send SMS Follow-up
+                    </span>
+                    
+                    <div className="space-y-3.5 text-xs">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Phone Number</label>
+                        <input
+                          type="text"
+                          disabled
+                          value={drawerCustomer.phone || 'No phone registered'}
+                          className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-slate-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">SMS Content Message</label>
+                        <textarea
+                          rows={5}
+                          placeholder="Write your SMS message body..."
+                          value={smsBody}
+                          onChange={(e) => setSmsBody(e.target.value)}
+                          className="w-full p-3 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSendSms}
+                        disabled={isSendingSms || !drawerCustomer.phone}
+                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50 transition-all text-xs"
+                      >
+                        {isSendingSms ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                            <span>Sending SMS...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiSend className="text-xs" />
+                            <span>Send SMS Message</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
-                </div>
+                )}
+                {activeDrawerTab === 'schedule' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                      Schedule & Pipeline Status Update
+                    </span>
+                    <div className="space-y-3.5 text-xs">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Appointment Date</label>
+                          <input
+                            type="date"
+                            value={schedDate}
+                            onChange={(e) => setSchedDate(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Appointment Time</label>
+                          <input
+                            type="time"
+                            value={schedTime}
+                            onChange={(e) => setSchedTime(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Meeting Type / Medium</label>
+                        <select
+                          value={schedPref}
+                          onChange={(e) => setSchedPref(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                        >
+                          <option value="Regular">🌅 Phone Call (Regular Day)</option>
+                          <option value="Weekend">📅 Phone Call (Weekend)</option>
+                          <option value="Night">🌙 Night Session Call</option>
+                          <option value="Online">💻 Zoom / Google Meet (Online)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Meeting Agenda & Goals (Optional)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Discuss course syllabus and fee structures"
+                          value={schedAgenda}
+                          onChange={(e) => setSchedAgenda(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Call Interaction Status</label>
+                          <select
+                            value={schedCallStatus}
+                            onChange={(e) => setSchedCallStatus(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                          >
+                            {['Not Called', 'Called', 'Busy', 'No Answer', 'Callback', '2x Called'].map(st => (
+                              <option key={st} value={st}>{st}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Follow-up Pipeline Status</label>
+                          <select
+                            value={schedFollowupStatus}
+                            onChange={(e) => setSchedFollowupStatus(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                          >
+                            {['Prospect', 'Pending', 'Completed', 'Scheduled', 'Cancelled'].map(st => (
+                              <option key={st} value={st}>{st}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleSaveSchedule}
+                        className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all text-xs"
+                      >
+                        <FiCheck className="text-xs" />
+                        <span>Schedule Meeting & Save Settings</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeDrawerTab === 'addNote' && (
+                  <div className="space-y-5 animate-in fade-in duration-200">
+                    <div className="space-y-4">
+                      <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        Add General Follow-up Note
+                      </span>
+                      
+                      <div className="space-y-3.5 text-xs">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Interaction Summary</label>
+                          <textarea
+                            rows={4}
+                            placeholder="Type details of your customer call or comments to record in notes history..."
+                            value={newGeneralNote}
+                            onChange={(e) => setNewGeneralNote(e.target.value)}
+                            className="w-full p-3 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-teal-500"
+                          />
+                        </div>
+                        <button
+                          onClick={handleSaveGeneralNote}
+                          className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all text-xs"
+                        >
+                          <FiEdit3 className="text-xs" />
+                          <span>Save Follow-up Note</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Previously Saved Notes List */}
+                    <div className="space-y-3 pt-2">
+                      <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        Saved Notes History ({timeline.filter(l => l.type === 'general').length})
+                      </span>
+                      
+                      {timeline.filter(l => l.type === 'general').length > 0 ? (
+                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                          {timeline.filter(l => l.type === 'general').map((log) => (
+                            <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100/50 dark:border-slate-700/30 space-y-1.5">
+                              <div className="flex justify-between items-center text-[9px] text-slate-400 font-extrabold">
+                                <span>📝 INTERACTION NOTE</span>
+                                <span>{log.dateLabel}</span>
+                              </div>
+                              <p className="text-xs text-slate-700 dark:text-slate-350 whitespace-pre-wrap leading-normal">
+                                {log.body}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-400">
+                          No general notes logged for this customer yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex justify-end">
+            <div className="p-4 border-t border-slate-150 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex justify-end">
               <button 
                 onClick={() => setDrawerCustomer(null)}
                 className="px-4 py-2 border border-slate-202 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-900 text-xs font-bold rounded-lg transition-all"
@@ -1330,7 +1974,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             </div>
           </div>
         </div>
-      )}
+      );
+    })()}
 
       {/* Warning Confirmation Dialogue */}
       {isStatusWarningOpen && (
