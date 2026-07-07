@@ -1,65 +1,38 @@
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Box,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  Button,
-  Input,
-  Select,
-  Textarea,
-  Badge,
-  IconButton,
-  Flex,
-  Text,
-  Heading,
-  useColorModeValue,
-  SimpleGrid,
-  VStack,
-  HStack,
-  Divider,
-  Tooltip,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  Checkbox
-} from '@chakra-ui/react';
-import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon, SettingsIcon, DragHandleIcon } from '@chakra-ui/icons';
-import {
-  Drawer,
-  DrawerBody,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerOverlay,
-  DrawerContent,
-  DrawerCloseButton,
-  useDisclosure,
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogContent,
-  AlertDialogOverlay
-} from '@chakra-ui/react';
+import { 
+  FiTrash2, 
+  FiEye, 
+  FiSettings, 
+  FiChevronDown, 
+  FiPlus, 
+  FiCheck, 
+  FiX, 
+  FiGrid, 
+  FiList,
+  FiPhone,
+  FiCalendar,
+  FiEdit3,
+  FiChevronLeft,
+  FiChevronRight,
+  FiSun,
+  FiMoon
+} from 'react-icons/fi';
+import { calculateCommission } from '../../../../utils/commission';
 
 const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
-const TABLE_PREF_VERSION = 2;
+const TABLE_PREF_VERSION = 3;
 const VIEW_PREF_KEY = 'salesFollowupCustomerViewMode';
 const DEFAULT_COLUMNS = [
-  { key: 'customerName', label: 'Customer Name', width: 150, required: true },
-  { key: 'contactTitle', label: 'Training Title', width: 180 },
+  { key: 'customerName', label: 'Customer Name', width: 140, required: true },
+  { key: 'contactTitle', label: 'Training Title', width: 160 },
+  { key: 'leadSource', label: 'Lead Source', width: 110 },
   { key: 'phone', label: 'Phone', width: 130 },
-  { key: 'callStatus', label: 'Call Status', width: 112 },
-  { key: 'followupStatus', label: 'Follow-up Status', width: 138 },
-  { key: 'schedulePreference', label: 'Schedule', width: 108 },
-  { key: 'packageScope', label: 'Package Scope', width: 126 },
-  { key: 'date', label: 'Date', width: 120 },
-  { key: 'email', label: 'Email', width: 190 },
-  { key: 'note', label: 'Notes', width: 220 },
+  { key: 'callStatus', label: 'Call Status', width: 115 },
+  { key: 'followupStatus', label: 'Follow-up Status', width: 130 },
+  { key: 'scheduledDate', label: 'Scheduled Date', width: 120 },
+  { key: 'schedulePreference', label: 'Schedule Type', width: 115 },
+  { key: 'date', label: 'Date Added', width: 110 },
+  { key: 'email', label: 'Email', width: 180 },
   { key: 'actions', label: 'Actions', width: 110, required: true }
 ];
 
@@ -72,7 +45,6 @@ const getDefaultColumnPrefs = () => ({
 
 const readColumnPrefs = () => {
   const defaults = getDefaultColumnPrefs();
-
   try {
     const saved = JSON.parse(localStorage.getItem(TABLE_PREF_KEY) || 'null');
     if (!saved) return defaults;
@@ -102,30 +74,42 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const [isStatusWarningOpen, setIsStatusWarningOpen] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState(null);
   const [addingRow, setAddingRow] = useState(false);
+  
+  // Pagination & Rows per page states matching screenshot
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  
+  // Roster quick edit values
   const [newCustomer, setNewCustomer] = useState({
     customerName: '',
     contactTitle: '',
+    leadSource: 'Cold Call',
     phone: '',
     callStatus: 'Not Called',
     followupStatus: 'Pending',
+    scheduledDate: '',
     email: '',
     note: '',
     supervisorComment: '',
     packageScope: 'Local'
   });
+  
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const [drawerCustomer, setDrawerCustomer] = useState(null);
   const [columnPrefs, setColumnPrefs] = useState(readColumnPrefs);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_PREF_KEY) || 'list');
   const [draggedColumn, setDraggedColumn] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const warningCancelRef = useRef(null);
-  const resizeRef = useRef(null);
+  const [isPrefsOpen, setIsPrefsOpen] = useState(false);
 
-  const userToken = localStorage.getItem('userToken');
+  // States to toggle absolute custom menus for callStatus / followupStatus inside cells
+  const [activeCallStatusMenu, setActiveCallStatusMenu] = useState(null);
+  const [activeFollowupStatusMenu, setActiveFollowupStatusMenu] = useState(null);
+
+  const resizeRef = useRef(null);
+  const prefsDropdownRef = useRef(null);
+
   const userRole = localStorage.getItem('userRole') || 'agent';
-  const headerColor = useColorModeValue('teal.800', 'teal.200');
 
   useEffect(() => {
     localStorage.setItem(TABLE_PREF_KEY, JSON.stringify(columnPrefs));
@@ -135,45 +119,34 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     localStorage.setItem(VIEW_PREF_KEY, viewMode);
   }, [viewMode]);
 
+  // Click outside to close custom popups
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (prefsDropdownRef.current && !prefsDropdownRef.current.contains(e.target)) {
+        setIsPrefsOpen(false);
+      }
+      if (activeCallStatusMenu || activeFollowupStatusMenu) {
+        setTimeout(() => {
+          setActiveCallStatusMenu(null);
+          setActiveFollowupStatusMenu(null);
+        }, 150);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [activeCallStatusMenu, activeFollowupStatusMenu]);
+
   const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'short', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return new Date(dateString).toLocaleDateString('en-US', options);
   };
 
   const canUserEditField = (field, role) => {
-    // Agents/Sales can edit all fields except supervisorComment
     if (role === 'agent' || role === 'sales') return field !== 'supervisorComment';
-    
-    // Supervisors and admins can edit all fields
     if (role === 'supervisor' || role === 'admin') return true;
-    
-    // Default: no editing permissions
     return false;
   };
 
-  // Commission calculation function
-  const calculateCommission = (courseName, coursePrice) => {
-    // Commission rate: 7%
-    const commissionRate = 0.07;
-    // Commission tax: 0.075% of commission
-    const commissionTaxRate = 0.00075;
-    
-    // Calculate gross commission
-    const price = Number(coursePrice) || 0;
-    const grossCommission = price * commissionRate;
-    // Calculate commission tax
-    const commissionTax = grossCommission * commissionTaxRate;
-    // Calculate net commission
-    const netCommission = grossCommission - commissionTax;
-    
-    return {
-      grossCommission: parseFloat(grossCommission.toFixed(2)),
-      commissionTax: parseFloat(commissionTax.toFixed(2)),
-      netCommission: parseFloat(netCommission.toFixed(2))
-    };
-  };
-
-  // Find course by name and get its price
   const getCourseDetails = (courseName, courseId) => {
     if (!Array.isArray(courses)) return null;
     let course = null;
@@ -190,7 +163,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     const courseDetails = getCourseDetails(customer?.contactTitle, customer?.courseId);
     const price = customer?.coursePrice ?? courseDetails?.price;
     const numericPrice = Number(price);
-
     return Number.isFinite(numericPrice) ? numericPrice : null;
   };
 
@@ -200,140 +172,112 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       : `ETB ${Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   );
 
-  const compactBadgeProps = {
-    fontSize: '2xs',
-    lineHeight: '1',
-    px: 1.5,
-    py: 1,
-    borderRadius: 'sm',
-    maxW: '100%',
-    whiteSpace: 'nowrap'
-  };
-
-  const compactSelectProps = {
-    size: 'xs',
-    fontSize: 'xs',
-    h: '26px',
-    minH: '26px',
-    px: 1
-  };
-
-  const columns = DEFAULT_COLUMNS.map(column => ({
-    ...column,
-    width: columnPrefs.widths[column.key] || column.width,
-    isVisible: !columnPrefs.hidden.includes(column.key)
-  }));
-  const visibleColumns = columnPrefs.order
-    .map(key => columns.find(column => column.key === key))
-    .filter(column => column && column.isVisible);
-
-  const toggleColumnVisibility = (key) => {
-    const column = DEFAULT_COLUMNS.find(item => item.key === key);
-    if (column?.required) return;
-
-    setColumnPrefs(prev => {
-      const isHidden = prev.hidden.includes(key);
-      return {
-        ...prev,
-        hidden: isHidden ? prev.hidden.filter(item => item !== key) : [...prev.hidden, key]
-      };
-    });
-  };
-
-  const resetColumnLayout = () => {
-    setColumnPrefs(getDefaultColumnPrefs());
-  };
-
-  const moveColumn = (fromKey, toKey) => {
-    if (!fromKey || fromKey === toKey) return;
-
-    setColumnPrefs(prev => {
-      const order = [...prev.order];
-      const fromIndex = order.indexOf(fromKey);
-      const toIndex = order.indexOf(toKey);
-      if (fromIndex === -1 || toIndex === -1) return prev;
-
-      order.splice(fromIndex, 1);
-      order.splice(toIndex, 0, fromKey);
-      return { ...prev, order };
-    });
-  };
-
-  const startColumnResize = (event, key) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    resizeRef.current = {
-      key,
-      startX: event.clientX,
-      startWidth: columnPrefs.widths[key] || DEFAULT_COLUMNS.find(column => column.key === key)?.width || 140
-    };
-
-    const handleMouseMove = (moveEvent) => {
-      const activeResize = resizeRef.current;
-      if (!activeResize) return;
-      const nextWidth = Math.max(80, activeResize.startWidth + moveEvent.clientX - activeResize.startX);
-
-      setColumnPrefs(prev => ({
-        ...prev,
-        widths: { ...prev.widths, [activeResize.key]: nextWidth }
-      }));
-    };
-
-    const handleMouseUp = () => {
-      resizeRef.current = null;
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  };
-
-  useEffect(() => () => {
-    resizeRef.current = null;
-  }, []);
-
-  const handleCellClick = (customer, field) => {
-    if (field === 'followupStatus' && (customer.followupStatus || '').toLowerCase() === 'completed') {
-      return;
+  const getStatusBadgeVariant = (status, type) => {
+    if (type === 'call') {
+      switch (status) {
+        case 'Called': return 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20';
+        case 'Not Called': return 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/40';
+        case 'Busy': return 'bg-red-50 text-red-700 border-red-100 dark:bg-red-950/20';
+        case 'No Answer': return 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20';
+        case 'Callback': return 'bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/20';
+        case '2x Called': return 'bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-950/20';
+        default: return 'bg-slate-50 text-slate-600 border-slate-200';
+      }
+    } else {
+      switch (status) {
+        case 'Prospect': return 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/20';
+        case 'Completed': return 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20';
+        case 'Pending': return 'bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-950/20';
+        case 'Scheduled': return 'bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/20';
+        case 'Cancelled': return 'bg-red-50 text-red-700 border-red-100 dark:bg-red-950/20';
+        default: return 'bg-slate-50 text-slate-600 border-slate-200';
+      }
     }
-    const canEdit = canUserEditField(field, userRole);
-    if (!canEdit) return;
+  };
+
+  const getScopeBadgeVariant = (scope) => {
+    return scope === 'International'
+      ? 'bg-purple-100 text-purple-700 border-purple-200/50 dark:bg-purple-950/30'
+      : 'bg-teal-50 text-teal-700 border-teal-200/50 dark:bg-teal-950/30';
+  };
+
+  const getLeadSourceBadge = (source) => {
+    switch (source) {
+      case 'Cold Call':  return { cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20', dot: 'bg-orange-400', label: 'Cold Call' };
+      case 'Warm Lead':  return { cls: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/20',   dot: 'bg-green-400',  label: 'Warm Lead' };
+      case 'Referral':   return { cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20',       dot: 'bg-blue-400',   label: 'Referral' };
+      case 'Walk-in':    return { cls: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20', dot: 'bg-violet-400', label: 'Walk-in' };
+      default:           return { cls: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/30',   dot: 'bg-slate-400',  label: source || 'Other' };
+    }
+  };
+
+  const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+
+  const isScheduledToday = (scheduledDate) => {
+    if (!scheduledDate) return false;
+    return scheduledDate.slice(0, 10) === todayStr();
+  };
+
+  const isScheduledOverdue = (scheduledDate, followupStatus) => {
+    if (!scheduledDate) return false;
+    if (followupStatus === 'Completed') return false;
+    return scheduledDate.slice(0, 10) < todayStr();
+  };
+
+  const formatScheduledDate = (scheduledDate) => {
+    if (!scheduledDate) return null;
+    const dateStr = scheduledDate.slice(0, 10);
+    const today = todayStr();
+    const d = new Date(dateStr + 'T00:00:00');
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+    const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (dateStr === today) return { text: `Today · ${formatted}`, urgent: true };
+    const nextDay = new Date(); nextDay.setDate(nextDay.getDate() + 1);
+    const nextStr = `${nextDay.getFullYear()}-${String(nextDay.getMonth()+1).padStart(2,'0')}-${String(nextDay.getDate()).padStart(2,'0')}`;
+    if (dateStr === nextStr) return { text: `Tomorrow · ${formatted}`, soon: true };
+    if (dateStr < today) return { text: `${weekday}, ${formatted}`, overdue: true };
+    return { text: `${weekday}, ${formatted}` };
+  };
+
+
+  const handleDoubleClick = (customer, field) => {
+    if (!canUserEditField(field, userRole)) return;
     setEditingCell({ id: customer._id, field });
     setEditValue(customer[field] || '');
   };
 
-  const handleSave = (customer, forcedValue = null) => {
+  const handleCellBlur = (customer) => {
     if (editingCell) {
-      const value = forcedValue !== null ? forcedValue : editValue;
+      let value = editValue;
+      if (editingCell.field === 'phone') {
+        value = String(editValue).replace(/[^\d+]/g, '');
+      }
 
-      if (editingCell.field === 'followupStatus' && value === 'Completed' && forcedValue === null) {
-        setPendingStatusChange({ customer, value });
-        setIsStatusWarningOpen(true);
+      if (customer[editingCell.field] === value) {
+        setEditingCell(null);
         return;
       }
 
       const updated = { ...customer, [editingCell.field]: value };
 
-      // If course selection changed, sync courseId/price
       if (editingCell.field === 'contactTitle') {
         const courseDetails = getCourseDetails(editValue);
         if (courseDetails) {
           updated.courseId = courseDetails.id;
           updated.coursePrice = courseDetails.price;
-          // If already completed, refresh commission using current price
           if (updated.followupStatus === 'Completed') {
-            updated.commission = calculateCommission(courseDetails.name, courseDetails.price);
+            updated.commission = calculateCommission(courseDetails.price);
           }
         }
       }
 
-      // If we're updating the followupStatus to "Completed", calculate commission
       if (editingCell.field === 'followupStatus' && value === 'Completed') {
         const courseDetails = getCourseDetails(customer.contactTitle, customer.courseId);
         if (courseDetails) {
-          const commission = calculateCommission(courseDetails.name, courseDetails.price);
+          const commission = calculateCommission(courseDetails.price);
           updated.commission = commission;
           updated.coursePrice = courseDetails.price;
           updated.courseId = courseDetails.id;
@@ -341,9 +285,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       }
 
       onUpdate(customer._id, updated);
-      // Track updated customer
       setUpdatedCustomers(prev => new Set(prev).add(customer._id));
-      // Clear the indicator after 2 seconds
       setTimeout(() => {
         setUpdatedCustomers(prev => {
           const newSet = new Set(prev);
@@ -356,78 +298,19 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     }
   };
 
-  const handleCancel = () => {
-    setEditingCell(null);
-    setEditValue('');
-  };
-
-  const cancelStatusWarning = () => {
-    setIsStatusWarningOpen(false);
-    setPendingStatusChange(null);
-    setEditingCell(null);
-    setEditValue('');
-  };
-
-  const confirmStatusChange = () => {
-    if (pendingStatusChange) {
-      handleSave(pendingStatusChange.customer, pendingStatusChange.value);
-    }
-    setPendingStatusChange(null);
-    setIsStatusWarningOpen(false);
-  };
-
-  const handleInputChange = (e) => setEditValue(e.target.value);
-
-  const handleNewCustomerChange = (e) => {
-    const { name, value } = e.target;
-    setNewCustomer(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleKeyDown = (e, customer) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSave(customer);
-    } else if (e.key === 'Escape') {
-      handleCancel();
-    }
-  };
-
-  const handleNewCustomerKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddNewCustomer();
-    } else if (e.key === 'Escape') {
-      setAddingRow(false);
-      setNewCustomer({
-        customerName: '',
-        contactTitle: '',
-        phone: '',
-        callStatus: 'Not Called',
-        followupStatus: 'Pending',
-        email: '',
-        note: '',
-        supervisorComment: '',
-        packageScope: 'Local'
-      });
-    }
-  };
-
   const handleAddNewCustomer = () => {
-    // If the new customer has a "Completed" status, calculate commission
     let customerToAdd = { ...newCustomer };
-    
     if (newCustomer.contactTitle) {
       const courseDetails = getCourseDetails(newCustomer.contactTitle);
       if (courseDetails) {
         customerToAdd.coursePrice = courseDetails.price;
         customerToAdd.courseId = courseDetails.id;
         if (newCustomer.followupStatus === 'Completed') {
-          const commission = calculateCommission(courseDetails.name, courseDetails.price);
+          const commission = calculateCommission(courseDetails.price);
           customerToAdd.commission = commission;
         }
       }
     }
-    
     onAdd(customerToAdd);
     setAddingRow(false);
     setNewCustomer({
@@ -439,1039 +322,1017 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       email: '',
       note: '',
       supervisorComment: '',
-      packageScope: 'Local'
+      packageScope: 'Local',
+      leadSource: 'Cold Call',
+      scheduledDate: ''
     });
   };
 
-  const renderEditableCell = (customer, field, value, type = 'text') => {
-    // Check if user can edit this field
-    const canEdit = canUserEditField(field, userRole);
-    if (!canEdit) {
-      // If user cannot edit, just display the value
-      return (
-        <Td key={field}>
-          {value}
-        </Td>
-      );
+  const handleConfirmStatusChange = () => {
+    if (pendingStatusChange) {
+      const { customer, status } = pendingStatusChange;
+      const courseDetails = getCourseDetails(customer.contactTitle, customer.courseId);
+      const updated = { ...customer, followupStatus: status };
+      if (courseDetails) {
+        updated.commission = calculateCommission(courseDetails.price);
+        updated.coursePrice = courseDetails.price;
+        updated.courseId = courseDetails.id;
+      }
+      onUpdate(customer._id, updated);
+      setPendingStatusChange(null);
     }
+    setIsStatusWarningOpen(false);
+  };
 
-    const handleBlur = () => {
-      handleSave(customer);
+  // Drag and drop sorting headers
+  const handleDragStart = (e, key) => {
+    setDraggedColumn(key);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, key) => {
+    e.preventDefault();
+    if (key !== draggedColumn) {
+      setDragOverColumn(key);
+    }
+  };
+
+  const handleDrop = (e, key) => {
+    e.preventDefault();
+    if (draggedColumn && draggedColumn !== key) {
+      const order = [...columnPrefs.order];
+      const draggedIdx = order.indexOf(draggedColumn);
+      const targetIdx = order.indexOf(key);
+      order.splice(draggedIdx, 1);
+      order.splice(targetIdx, 0, draggedColumn);
+      setColumnPrefs(prev => ({ ...prev, order }));
+    }
+    setDraggedColumn(null);
+    setDragOverColumn(null);
+  };
+
+  const handleResizeStart = (e, key) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = columnPrefs.widths[key] || 100;
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const width = Math.max(60, startWidth + deltaX);
+      setColumnPrefs(prev => ({
+        ...prev,
+        widths: { ...prev.widths, [key]: width }
+      }));
     };
 
-    if (type === 'select') {
-      return (
-        <Td key={field} p={1}>
-          {field === 'contactTitle' ? (
-            <Select
-              value={editValue}
-              onChange={handleInputChange}
-              onKeyDown={(e) => handleKeyDown(e, customer)}
-              autoFocus
-              onBlur={handleBlur}
-              {...compactSelectProps}
-            >
-              <option value="">Select a course</option>
-              {(Array.isArray(courses) ? courses : []).map(course => (
-                <option key={course._id} value={course.name}>
-                  {course.name} - {formatPrice(Number(course.price) || 0)}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <Select
-              value={editValue}
-              onChange={handleInputChange}
-              onKeyDown={(e) => handleKeyDown(e, customer)}
-              autoFocus
-              onBlur={handleBlur}
-              {...compactSelectProps}
-            >
-              {field === 'callStatus' ? (
-                <>
-                  <option value="Called">Called</option>
-                  <option value="Not Called">Not Called</option>
-                  <option value="Busy">Busy</option>
-                  <option value="No Answer">No Answer</option>
-                  <option value="Callback">Callback</option>
-                  <option value="2x Called">2x Called</option>
-                </>
-              ) : field === 'schedulePreference' ? (
-                <>
-                  <option value="Regular">Regular</option>
-                  <option value="Weekend">Weekend</option>
-                  <option value="Night">Night</option>
-                  <option value="Online">Online</option>
-                </>
-              ) : field === 'packageScope' ? (
-                <>
-                  <option value="Local">Local</option>
-                  <option value="International">International</option>
-                </>
-              ) : (
-                <>
-                  <option value="Prospect">Prospect</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="Cancelled">Cancelled</option>
-                  {/* <option value="Imported">Imported</option> */}
-                </>
-              )}
-            </Select>
-          )}
-        </Td>
-      );
-    }
-    
-    if (type === 'textarea') {
-      return (
-        <Td key={field} p={1}>
-          <Textarea
-            value={editValue}
-            onChange={handleInputChange}
-            onKeyDown={(e) => handleKeyDown(e, customer)}
-            size="xs"
-            rows={2}
-            autoFocus
-            onBlur={handleBlur}
-            fontSize="sm"
-            p={1}
-          />
-        </Td>
-      );
-    }
-    
-    return (
-      <Td key={field} p={1}>
-        <Input
-          type={type}
-          value={editValue}
-          onChange={handleInputChange}
-          onKeyDown={(e) => handleKeyDown(e, customer)}
-          size="xs"
-          autoFocus
-          onBlur={handleBlur}
-          fontSize="sm"
-          p={1}
-        />
-      </Td>
-    );
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
-  const renderNewCustomerCell = (field, value, type = 'text') => {
-    if (type === 'select') {
-      return (
-        <Td key={field} p={1}>
-          {field === 'contactTitle' ? (
-            <Select
-              name={field}
-              value={value}
-              onChange={handleNewCustomerChange}
-              onKeyDown={handleNewCustomerKeyDown}
-              {...compactSelectProps}
-            >
-              <option value="">Select a course</option>
-              {(Array.isArray(courses) ? courses : []).map(course => (
-                <option key={course._id} value={course.name}>
-                  {course.name} - {formatPrice(Number(course.price) || 0)}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <Select
-              name={field}
-              value={value}
-              onChange={handleNewCustomerChange}
-              onKeyDown={handleNewCustomerKeyDown}
-              {...compactSelectProps}
-            >
-              {field === 'callStatus' ? (
-                <>
-                  <option value="Called">Called</option>
-                  <option value="Not Called">Not Called</option>
-                  <option value="Busy">Busy</option>
-                  <option value="No Answer">No Answer</option>
-                  <option value="Callback">Callback</option>
-                  <option value="2x Called">2x Called</option>
-                </>
-              ) : field === 'schedulePreference' ? (
-                <>
-                  <option value="Regular">Regular</option>
-                  <option value="Weekend">Weekend</option>
-                  <option value="Night">Night</option>
-                  <option value="Online">Online</option>
-                </>
-              ) : field === 'packageScope' ? (
-                <>
-                  <option value="Local">Local</option>
-                  <option value="International">International</option>
-                </>
-              ) : (
-                <>
-                  <option value="Prospect">Prospect</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="Cancelled">Cancelled</option>
-                  <option value="Imported">Imported</option>
-                </>
-              )}
-            </Select>
-          )}
-        </Td>
-      );
-    }
-    
-    if (type === 'textarea') {
-      return (
-        <Td key={field} p={1}>
-          <Textarea
-            name={field}
-            value={value}
-            onChange={handleNewCustomerChange}
-            onKeyDown={handleNewCustomerKeyDown}
-            size="xs"
-            rows={2}
-            fontSize="sm"
-            p={1}
-          />
-        </Td>
-      );
-    }
-    
-    return (
-      <Td key={field} p={1}>
-        <Input
-          type={type}
-          name={field}
-          value={value}
-          onChange={handleNewCustomerChange}
-          onKeyDown={handleNewCustomerKeyDown}
-          size="xs"
-          fontSize="sm"
-          p={1}
-        />
-      </Td>
-    );
-  };
-
-  const getStatusBadgeVariant = (status, type) => {
-    if (type === 'call') {
-      switch (status) {
-        case 'Called': return 'green';
-        case 'Not Called': return 'gray';
-        case 'Busy': return 'red';
-        case 'No Answer': return 'orange';
-        case 'Callback': return 'purple';
-        case '2x Called': return 'teal';
-        default: return 'gray';
-      }
+  const toggleColumnVisibility = (key) => {
+    const hidden = [...columnPrefs.hidden];
+    const idx = hidden.indexOf(key);
+    if (idx > -1) {
+      hidden.splice(idx, 1);
     } else {
-      switch (status) {
-        case 'Prospect': return 'blue';
-        case 'Completed': return 'green';
-        case 'Pending': return 'yellow';
-        case 'Scheduled': return 'purple';
-        case 'Cancelled': return 'red';
-        case 'Imported': return 'cyan';
-        default: return 'gray';
-      }
+      hidden.push(key);
     }
+    setColumnPrefs(prev => ({ ...prev, hidden }));
   };
 
-  const getScopeBadgeVariant = (scope) => {
-    switch (scope) {
-      case 'Local':
-        return 'green';
-      case 'International':
-        return 'purple';
-      default:
-        return 'gray';
-    }
-  };
+  const visibleColumns = columnPrefs.order.filter(key => !columnPrefs.hidden.includes(key));
+  const mappedColumns = visibleColumns.map(key => DEFAULT_COLUMNS.find(c => c.key === key)).filter(Boolean);
 
-  const getCellBaseProps = (key) => ({
-    p: 1.5,
-    fontSize: 'xs',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap'
-  });
+  // Pagination bounds
+  const totalResultsCount = customers.length;
+  const indexOfLastRow = currentPage * rowsPerPage;
+  const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+  const currentRows = customers.slice(indexOfFirstRow, indexOfLastRow);
+  const totalPagesCount = Math.ceil(totalResultsCount / rowsPerPage) || 1;
 
-  const renderNewCustomerColumnCell = (column) => {
-    switch (column.key) {
-      case 'customerName':
-        return renderNewCustomerCell('customerName', newCustomer.customerName);
-      case 'contactTitle':
-        return renderNewCustomerCell('contactTitle', newCustomer.contactTitle, 'select');
-      case 'phone':
-        return renderNewCustomerCell('phone', newCustomer.phone);
-      case 'callStatus':
-        return renderNewCustomerCell('callStatus', newCustomer.callStatus, 'select');
-      case 'followupStatus':
-        return renderNewCustomerCell('followupStatus', newCustomer.followupStatus, 'select');
-      case 'schedulePreference':
-        return renderNewCustomerCell('schedulePreference', newCustomer.schedulePreference || 'Regular', 'select');
-      case 'packageScope':
-        return renderNewCustomerCell('packageScope', newCustomer.packageScope || 'Local', 'select');
-      case 'date':
-        return <Td key="date" {...getCellBaseProps('date')}>{formatDate(new Date().toISOString())}</Td>;
-      case 'email':
-        return renderNewCustomerCell('email', newCustomer.email);
-      case 'note':
-        return renderNewCustomerCell('note', newCustomer.note, 'textarea');
-      case 'actions':
-        return (
-          <Td key="actions" p={1.5}>
-            <IconButton
-              icon={<CheckIcon />}
-              colorScheme="green"
-              size="xs"
-              mr={1}
-              onClick={handleAddNewCustomer}
-              aria-label="Save customer"
-            />
-            <IconButton
-              icon={<CloseIcon />}
-              colorScheme="red"
-              size="xs"
-              onClick={() => setAddingRow(false)}
-              aria-label="Cancel"
-            />
-          </Td>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const renderDisplayCell = (customer, field, children, extraProps = {}) => (
-    <Td
-      key={field}
-      onClick={() => handleCellClick(customer, field)}
-      _hover={{ cursor: 'pointer', bg: 'teal.50' }}
-      {...getCellBaseProps(field)}
-      {...extraProps}
-    >
-      {children}
-    </Td>
-  );
-
-  const renderCustomerColumnCell = (customer, column) => {
-    const { key } = column;
-
-    if (editingCell && editingCell.id === customer._id && editingCell.field === key) {
-      if (key === 'contactTitle' || key === 'callStatus' || key === 'followupStatus' || key === 'schedulePreference' || key === 'packageScope') {
-        return renderEditableCell(customer, key, customer[key], 'select');
-      }
-      if (key === 'note') {
-        return renderEditableCell(customer, 'note', customer.note, 'textarea');
-      }
-      return renderEditableCell(customer, key, customer[key]);
-    }
-
-    switch (key) {
-      case 'customerName':
-        return renderDisplayCell(customer, 'customerName', customer.customerName);
-      case 'contactTitle':
-        return renderDisplayCell(
-          customer,
-          'contactTitle',
-          <Tooltip
-            label={`${customer.contactTitle || 'No course selected'} - ${formatPrice(getCustomerCoursePrice(customer))}`}
-            hasArrow
-            placement="top"
-            openDelay={250}
-          >
-            <Text as="span">{customer.contactTitle || 'Select course'}</Text>
-          </Tooltip>
-        );
-      case 'phone':
-        return renderDisplayCell(customer, 'phone', customer.phone);
-      case 'callStatus':
-        return renderDisplayCell(
-          customer,
-          'callStatus',
-          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} {...compactBadgeProps}>
-            {customer.callStatus}
-          </Badge>
-        );
-      case 'followupStatus':
-        return renderDisplayCell(
-          customer,
-          'followupStatus',
-          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} {...compactBadgeProps}>
-            {customer.followupStatus}
-          </Badge>
-        );
-      case 'schedulePreference':
-        return renderDisplayCell(customer, 'schedulePreference', customer.schedulePreference || 'Regular');
-      case 'packageScope':
-        return renderDisplayCell(
-          customer,
-          'packageScope',
-          <Badge variant="subtle" colorScheme={getScopeBadgeVariant(customer.packageScope || 'Local')} {...compactBadgeProps}>
-            {customer.packageScope || 'Local'}
-          </Badge>
-        );
-      case 'date':
-        return <Td key="date" {...getCellBaseProps('date')}>{customer.date ? formatDate(customer.date) : 'N/A'}</Td>;
-      case 'email':
-        return renderDisplayCell(customer, 'email', customer.email);
-      case 'note':
-        return renderDisplayCell(customer, 'note', customer.note);
-      case 'actions':
-        return (
-          <Td key="actions" p={1.5} position="relative">
-            {updatedCustomers.has(customer._id) && (
-              <Box
-                position="absolute"
-                top="-2px"
-                left="-2px"
-                w="8px"
-                h="8px"
-                bg="green.500"
-                borderRadius="50%"
-                zIndex="1"
-              />
-            )}
-            <HStack spacing={1} justify="flex-end">
-              <IconButton
-                icon={<DeleteIcon />}
-                colorScheme="red"
-                size="xs"
-                onClick={() => onDelete(customer._id)}
-                aria-label="Delete customer"
-                variant="outline"
-              />
-              <IconButton
-                icon={<InfoIcon />}
-                colorScheme="blue"
-                size="xs"
-                onClick={() => {
-                  setDrawerCustomer(customer);
-                  onOpen();
-                }}
-                aria-label="View details"
-                variant="outline"
-              />
-            </HStack>
-          </Td>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const renderGridValue = (customer, column) => {
-    switch (column.key) {
-      case 'customerName':
-        return customer.customerName || 'N/A';
-      case 'contactTitle':
-        return (
-          <Tooltip
-            label={`${customer.contactTitle || 'No course selected'} - ${formatPrice(getCustomerCoursePrice(customer))}`}
-            hasArrow
-            placement="top"
-            openDelay={250}
-          >
-            <Text as="span" noOfLines={1}>{customer.contactTitle || 'Select course'}</Text>
-          </Tooltip>
-        );
-      case 'phone':
-        return customer.phone || 'N/A';
-      case 'callStatus':
-        return (
-          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} {...compactBadgeProps}>
-            {customer.callStatus || 'N/A'}
-          </Badge>
-        );
-      case 'followupStatus':
-        return (
-          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} {...compactBadgeProps}>
-            {customer.followupStatus || 'N/A'}
-          </Badge>
-        );
-      case 'schedulePreference':
-        return customer.schedulePreference || 'Regular';
-      case 'packageScope':
-        return (
-          <Badge variant="subtle" colorScheme={getScopeBadgeVariant(customer.packageScope || 'Local')} {...compactBadgeProps}>
-            {customer.packageScope || 'Local'}
-          </Badge>
-        );
-      case 'date':
-        return customer.date ? formatDate(customer.date) : 'N/A';
-      case 'email':
-        return customer.email || 'N/A';
-      case 'note':
-        return customer.note || 'N/A';
-      default:
-        return null;
-    }
-  };
-
-  const renderGridCard = (customer) => {
-    const fields = visibleColumns.filter(column => column.key !== 'actions');
-
-    return (
-      <Box
-        key={customer._id}
-        borderWidth="1px"
-        borderColor="gray.200"
-        borderRadius="md"
-        bg="white"
-        p={3}
-        boxShadow="xs"
-        transition="border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease"
-        _hover={{ borderColor: 'teal.300', boxShadow: 'sm', transform: 'translateY(-1px)' }}
-        position="relative"
-      >
-        {updatedCustomers.has(customer._id) && (
-          <Box position="absolute" top={2} right={2} w="8px" h="8px" bg="green.500" borderRadius="50%" />
-        )}
-        <Flex align="flex-start" gap={2} mb={2}>
-          <Box minW={0} flex="1">
-            <Text fontWeight="semibold" fontSize="sm" color={headerColor} noOfLines={1}>
-              {customer.customerName || 'Unnamed customer'}
-            </Text>
-            <Text fontSize="xs" color="gray.500" noOfLines={1}>
-              {customer.phone || customer.email || 'No contact info'}
-            </Text>
-          </Box>
-          <HStack spacing={1}>
-            <IconButton
-              icon={<InfoIcon />}
-              colorScheme="blue"
-              size="xs"
-              onClick={() => {
-                setDrawerCustomer(customer);
-                onOpen();
-              }}
-              aria-label="View details"
-              variant="outline"
-            />
-            <IconButton
-              icon={<DeleteIcon />}
-              colorScheme="red"
-              size="xs"
-              onClick={() => onDelete(customer._id)}
-              aria-label="Delete customer"
-              variant="outline"
-            />
-          </HStack>
-        </Flex>
-
-        <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={2}>
-          {fields.map(column => (
-            <Box
-              key={column.key}
-              minW={0}
-              p={2}
-              borderRadius="md"
-              bg="gray.50"
-            >
-              <Text fontSize="2xs" color="gray.500" textTransform="uppercase" fontWeight="bold" mb={0.5} noOfLines={1}>
-                {column.label}
-              </Text>
-              <Text fontSize="xs" color="gray.800" noOfLines={column.key === 'note' ? 2 : 1}>
-                {renderGridValue(customer, column)}
-              </Text>
-            </Box>
-          ))}
-        </SimpleGrid>
-      </Box>
-    );
-  };
-
-  if ((!customers || customers.length === 0) && !addingRow) {
-    return (
-      <Box textAlign="center" py={10} px={6}>
-        <Text fontSize="xl" fontWeight="bold" mb={2}>No customers found</Text>
-        <Text mb={6}>Get started by adding a new customer.</Text>
-        <Button leftIcon={<AddIcon />} colorScheme="teal" onClick={() => setAddingRow(true)}>
-          Add New Customer
-        </Button>
-      </Box>
-    );
-  }
-
-  // Resolved course/commission values for drawer (display) fall back to catalog price
+  // Drawer Commission Variables
   const resolvedCourseDetails = drawerCustomer ? getCourseDetails(drawerCustomer.contactTitle, drawerCustomer.courseId) : null;
   const resolvedCoursePrice = drawerCustomer
     ? (drawerCustomer.coursePrice ?? resolvedCourseDetails?.price ?? null)
     : null;
   const resolvedCommission = drawerCustomer
     ? drawerCustomer.commission || (resolvedCoursePrice != null
-        ? calculateCommission(drawerCustomer.contactTitle, resolvedCoursePrice)
+        ? calculateCommission(resolvedCoursePrice)
         : null)
     : null;
 
   return (
-    <Box w="100%">
-      <Flex
-        mb={3}
-        align={{ base: 'stretch', sm: 'center' }}
-        justify="space-between"
-        gap={2}
-        flexWrap="wrap"
-        bg="white"
-        borderWidth="1px"
-        borderColor="gray.200"
-        borderRadius="md"
-        px={{ base: 2, md: 3 }}
-        py={2}
-        boxShadow="xs"
-      >
-        <Button 
-          leftIcon={<AddIcon />}
-          colorScheme="teal" 
-          size="sm"
-          minW={{ base: '100%', sm: 'auto' }}
-          onClick={() => {
-            setViewMode('list');
-            setAddingRow(true);
-          }}
-          disabled={addingRow}
-        >
-          Add New Customer Row
-        </Button>
-        <HStack spacing={2} justify={{ base: 'space-between', sm: 'flex-end' }} w={{ base: '100%', sm: 'auto' }}>
-          <HStack spacing={1} borderWidth="1px" borderColor="gray.200" borderRadius="md" p={0.5} bg="gray.50">
-            <Button
-              size="xs"
-              h="28px"
-              minW="52px"
-              colorScheme={viewMode === 'list' ? 'teal' : 'gray'}
-              variant={viewMode === 'list' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('list')}
+    <div className="w-full">
+      
+      {/* Controls row matching screenshot */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 p-4 bg-white dark:bg-slate-800 border-b border-slate-200/60 dark:border-slate-700/50">
+        
+        {/* Table/Grid view switches */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode('list')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+              viewMode === 'list' 
+                ? 'bg-teal-600 text-white shadow-sm' 
+                : 'bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+            }`}
+          >
+            <FiList className="text-sm" />
+            <span>List Table</span>
+          </button>
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+              viewMode === 'grid' 
+                ? 'bg-teal-600 text-white shadow-sm' 
+                : 'bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+            }`}
+          >
+            <FiGrid className="text-sm" />
+            <span>Grid Cards</span>
+          </button>
+        </div>
+
+        {/* Column config and addition controls */}
+        <div className="flex items-center gap-2.5">
+          {/* Table Config Dropdown */}
+          <div className="relative" ref={prefsDropdownRef}>
+            <button
+              onClick={() => setIsPrefsOpen(!isPrefsOpen)}
+              className="px-4 py-2 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl text-slate-650 dark:text-slate-350 transition-all flex items-center gap-1.5 text-xs font-bold bg-white dark:bg-slate-800 shadow-2xs"
             >
-              List
-            </Button>
-            <Button
-              size="xs"
-              h="28px"
-              minW="52px"
-              colorScheme={viewMode === 'grid' ? 'teal' : 'gray'}
-              variant={viewMode === 'grid' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('grid')}
-              disabled={addingRow}
-            >
-              Grid
-            </Button>
-          </HStack>
-          <Menu closeOnSelect={false}>
-            <MenuButton as={Button} leftIcon={<SettingsIcon />} size="sm" variant="outline" minW="118px">
-              Columns
-            </MenuButton>
-            <MenuList minW="240px" maxH="340px" overflowY="auto" zIndex="popover">
-              {columns.map(column => (
-                <MenuItem key={column.key} as="div" closeOnSelect={false}>
-                  <Checkbox
-                    isChecked={!columnPrefs.hidden.includes(column.key)}
-                    isDisabled={column.required}
-                    onChange={() => toggleColumnVisibility(column.key)}
-                  >
-                    {column.label}
-                  </Checkbox>
-                </MenuItem>
-              ))}
-              <MenuItem onClick={resetColumnLayout} fontWeight="semibold">
-                Reset layout
-              </MenuItem>
-            </MenuList>
-          </Menu>
-        </HStack>
-      </Flex>
-      {viewMode === 'list' ? (
-      <Box overflowX="auto" borderRadius="md" boxShadow="sm">
-      <Table variant="simple" size="sm" minW={`${visibleColumns.reduce((sum, column) => sum + column.width, 0)}px`} sx={{ tableLayout: 'fixed' }}>
-        <colgroup>
-          {visibleColumns.map(column => (
-            <col key={column.key} style={{ width: `${column.width}px` }} />
-          ))}
-        </colgroup>
-        <Thead>
-          <Tr bg="teal.500">
-            {visibleColumns.map(column => (
-              <Th
-                key={column.key}
-                color="white"
-                fontWeight="bold"
-                textTransform="uppercase"
-                fontSize="xs"
-                letterSpacing="wider"
-                py={2}
-                px={1.5}
-                position="relative"
-                userSelect="none"
-                draggable
-                opacity={draggedColumn === column.key ? 0.75 : 1}
-                cursor={draggedColumn === column.key ? 'grabbing' : 'grab'}
-                bg={dragOverColumn === column.key && draggedColumn !== column.key ? 'teal.600' : undefined}
-                boxShadow={dragOverColumn === column.key && draggedColumn !== column.key ? 'inset 3px 0 0 rgba(255,255,255,0.95)' : 'none'}
-                transform={draggedColumn === column.key ? 'translateY(-2px)' : 'translateY(0)'}
-                transition="background 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease"
-                onDragStart={(event) => {
-                  setDraggedColumn(column.key);
-                  setDragOverColumn(column.key);
-                  event.dataTransfer.effectAllowed = 'move';
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = 'move';
-                  setDragOverColumn(column.key);
-                }}
-                onDragEnter={() => setDragOverColumn(column.key)}
-                onDrop={() => {
-                  moveColumn(draggedColumn, column.key);
-                  setDraggedColumn(null);
-                  setDragOverColumn(null);
-                }}
-                onDragLeave={() => {
-                  if (dragOverColumn === column.key) {
-                    setDragOverColumn(null);
-                  }
-                }}
-                onDragEnd={() => {
-                  setDraggedColumn(null);
-                  setDragOverColumn(null);
-                }}
+              <FiSettings className="text-sm" />
+              <span>Config Columns</span>
+            </button>
+
+            {isPrefsOpen && (
+              <div className="absolute right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl w-56 p-3.5 z-50 text-slate-700 dark:text-slate-200">
+                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">
+                  Configure Table Headers
+                </span>
+                <div className="max-h-56 overflow-y-auto space-y-1.5">
+                  {DEFAULT_COLUMNS.map(col => {
+                    const isHidden = columnPrefs.hidden.includes(col.key);
+                    return (
+                      <label key={col.key} className="flex items-center gap-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-950 p-1.5 rounded-md cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={!isHidden} 
+                          disabled={col.required}
+                          onChange={() => toggleColumnVisibility(col.key)}
+                          className="rounded border-slate-350 text-teal-600 focus:ring-teal-500 h-3.5 w-3.5 disabled:opacity-50"
+                        />
+                        <span>{col.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => setAddingRow(true)}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <FiPlus className="text-sm" />
+            <span>Add Customer</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Grid Mode Viewport */}
+      {viewMode === 'grid' ? (
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {customers.length > 0 ? (
+            customers.map((c) => (
+              <div 
+                key={c._id}
+                className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-2xl p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 space-y-3 relative overflow-hidden"
               >
-                <HStack spacing={1.5} minW={0} pointerEvents="none">
-                  <DragHandleIcon boxSize={2.5} opacity={0.85} flexShrink={0} />
-                  <Text as="span" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                    {column.label}
-                  </Text>
-                </HStack>
-                <Box
-                  position="absolute"
-                  top={0}
-                  right={0}
-                  w="8px"
-                  h="100%"
-                  cursor="col-resize"
-                  _hover={{ bg: 'whiteAlpha.400' }}
-                  onMouseDown={(event) => startColumnResize(event, column.key)}
-                />
-              </Th>
-            ))}
-          </Tr>
-        </Thead>
-        <Tbody>
-          {addingRow && (
-            <Tr bg="gray.100">
-              {visibleColumns.map(renderNewCustomerColumnCell)}
-            </Tr>
+                {updatedCustomers.has(c._id) && (
+                  <span className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full m-3 animate-ping" />
+                )}
+                
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0">
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 truncate block">
+                      {c.customerName || 'No Name'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+                      {c.contactTitle || 'No training catalog assigned'}
+                    </span>
+                  </div>
+                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${getStatusBadgeVariant(c.followupStatus, 'followup')}`}>
+                    {c.followupStatus}
+                  </span>
+                </div>
+
+                <div className="h-px bg-slate-150 dark:bg-slate-700"></div>
+
+                <div className="space-y-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                  <div className="flex justify-between">
+                    <span>Phone Number:</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{c.phone || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Call Status:</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold border ${getStatusBadgeVariant(c.callStatus, 'call')}`}>{c.callStatus}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Schedule Type:</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{c.schedulePreference || 'Regular'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Catalog Cost:</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{formatPrice(getCustomerCoursePrice(c))}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end pt-2">
+                  <button
+                    onClick={() => setDrawerCustomer(c)}
+                    className="p-1.5 border border-slate-150 hover:border-teal-400 text-slate-500 hover:text-teal-600 rounded-lg text-xs transition-all"
+                    title="View details & commissions"
+                  >
+                    <FiEye />
+                  </button>
+                  <button
+                    onClick={() => onDelete(c._id)}
+                    className="p-1.5 border border-slate-150 hover:border-red-400 text-slate-500 hover:text-red-600 rounded-lg text-xs transition-all"
+                    title="Delete lead"
+                  >
+                    <FiTrash2 />
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full py-16 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+              No customers found. Click Add Customer to get started.
+            </div>
           )}
-
-          {customers && customers.map(customer => (
-            <Tr 
-              key={customer._id} 
-              _hover={{ bg: 'gray.50' }}
-              transition="background 0.2s"
-              fontSize="sm"
-              borderBottom="1px"
-              borderColor="gray.200"
-            >
-              {visibleColumns.map(column => renderCustomerColumnCell(customer, column))}
-              {false && <>
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'contactTitle' 
-                ? renderEditableCell(customer, 'contactTitle', customer.contactTitle, 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'contactTitle')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="120px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                    <Tooltip
-                      label={`${customer.contactTitle || 'No course selected'} • ${formatPrice(getCustomerCoursePrice(customer))}`}
-                      hasArrow
-                      placement="top"
-                      openDelay={250}
-                    >
-                      <Text as="span">{customer.contactTitle || 'Select course'}</Text>
-                    </Tooltip>
-                  </Td>
-                )}
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'phone' 
-                ? renderEditableCell(customer, 'phone', customer.phone)
-                : <Td onClick={() => handleCellClick(customer, 'phone')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">{customer.phone}</Td>}
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'callStatus' 
-                ? renderEditableCell(customer, 'callStatus', customer.callStatus, 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'callStatus')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} fontSize="xs" px={2} py={1}>
-                      {customer.callStatus}
-                    </Badge>
-                  </Td>
-                )}
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'followupStatus' 
-                ? renderEditableCell(customer, 'followupStatus', customer.followupStatus, 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'followupStatus')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} fontSize="xs" px={2} py={1}>
-                      {customer.followupStatus}
-                    </Badge>
-                  </Td>
-                )}
-
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'schedulePreference' 
-                ? renderEditableCell(customer, 'schedulePreference', customer.schedulePreference || 'Regular', 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'schedulePreference')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    {customer.schedulePreference || 'Regular'}
-                  </Td>
-                )}
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'packageScope'
-                ? renderEditableCell(customer, 'packageScope', customer.packageScope || 'Local', 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'packageScope')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    <Badge variant="subtle" colorScheme={getScopeBadgeVariant(customer.packageScope || 'Local')} fontSize="xs" px={2} py={1}>
-                      {customer.packageScope || 'Local'}
-                    </Badge>
-                  </Td>
-                )}
-              
-              <Td p={2} fontSize="xs">{customer.date ? formatDate(customer.date) : 'N/A'}</Td>
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'email' 
-                ? renderEditableCell(customer, 'email', customer.email)
-                : <Td onClick={() => handleCellClick(customer, 'email')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="150px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">{customer.email}</Td>}
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'note' 
-                ? renderEditableCell(customer, 'note', customer.note, 'textarea')
-                : <Td onClick={() => handleCellClick(customer, 'note')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="150px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">{customer.note}</Td>}
-              
-              <Td p={2} position="relative">
-                {updatedCustomers.has(customer._id) && (
-                  <Box 
-                    position="absolute" 
-                    top="-2px" 
-                    left="-2px" 
-                    w="8px" 
-                    h="8px" 
-                    bg="green.500" 
-                    borderRadius="50%" 
-                    zIndex="1"
-                  />
-                )}
-                <HStack spacing={1} justify="flex-end">
-                  <IconButton
-                    icon={<DeleteIcon />}
-                    colorScheme="red"
-                    size="xs"
-                    onClick={() => onDelete(customer._id)}
-                    aria-label="Delete customer"
-                    variant="outline"
-                  />
-                  <IconButton
-                    icon={<InfoIcon />}
-                    colorScheme="blue"
-                    size="xs"
-                    onClick={() => {
-                      setDrawerCustomer(customer);
-                      onOpen();
-                    }}
-                    aria-label="View details"
-                    variant="outline"
-                  />
-                </HStack>
-              </Td>
-              </>}
-            </Tr>
-          ))}
-        </Tbody>
-      </Table>
-      </Box>
+        </div>
       ) : (
-        <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={3}>
-          {customers && customers.map(renderGridCard)}
-        </SimpleGrid>
+        /* List Mode Table Viewport matching screenshot precisely */
+        <div className="overflow-x-auto w-full max-w-full">
+          <table className="w-full text-left border-collapse table-fixed text-xs text-slate-600 dark:text-slate-350 min-w-[1000px] bg-white dark:bg-slate-800">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-700 select-none text-[10px] text-slate-500 font-extrabold">
+                {mappedColumns.map((col) => (
+                  <th
+                    key={col.key}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, col.key)}
+                    onDragOver={(e) => handleDragOver(e, col.key)}
+                    onDrop={(e) => handleDrop(e, col.key)}
+                    style={{ width: `${columnPrefs.widths[col.key] || col.width}px` }}
+                    className={`p-3 uppercase tracking-wider relative cursor-move hover:bg-slate-100/50 dark:hover:bg-slate-850/80 transition-all ${
+                      dragOverColumn === col.key ? 'bg-teal-50/50 border-r border-teal-500' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 truncate select-none">
+                      <span className="truncate">{col.label}</span>
+                      {col.key !== 'actions' && (
+                        <span className="flex flex-col text-[8px] text-slate-400 leading-none">
+                          <span>▲</span>
+                          <span>▼</span>
+                        </span>
+                      )}
+                    </div>
+                    <div 
+                      onMouseDown={(e) => handleResizeStart(e, col.key)}
+                      className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-teal-500/50"
+                    />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+              
+              {/* Quick Inline Row Addition */}
+              {addingRow && (
+                <tr className="bg-teal-50/20 dark:bg-teal-950/10">
+                  {visibleColumns.map((key) => {
+                    if (key === 'actions') {
+                      return (
+                        <td key="actions" className="p-2 flex gap-1.5 justify-end">
+                          <button 
+                            onClick={handleAddNewCustomer}
+                            className="p-1 bg-teal-500 hover:bg-teal-600 text-white rounded text-xs"
+                            title="Confirm"
+                          >
+                            <FiCheck />
+                          </button>
+                          <button 
+                            onClick={() => setAddingRow(false)}
+                            className="p-1 bg-slate-350 hover:bg-slate-400 text-slate-700 rounded text-xs"
+                            title="Cancel"
+                          >
+                            <FiX />
+                          </button>
+                        </td>
+                      );
+                    }
+                    if (key === 'callStatus') {
+                      return (
+                        <td key="callStatus" className="p-2">
+                          <select 
+                            value={newCustomer.callStatus} 
+                            onChange={(e) => setNewCustomer(prev => ({ ...prev, callStatus: e.target.value }))}
+                            className="w-full border rounded p-1 text-xs bg-white text-slate-800 outline-none"
+                          >
+                            <option value="Not Called">Not Called</option>
+                            <option value="Called">Called</option>
+                            <option value="Busy">Busy</option>
+                            <option value="No Answer">No Answer</option>
+                            <option value="Callback">Callback</option>
+                            <option value="2x Called">2x Called</option>
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (key === 'followupStatus') {
+                      return (
+                        <td key="followupStatus" className="p-2">
+                          <select 
+                            value={newCustomer.followupStatus} 
+                            onChange={(e) => setNewCustomer(prev => ({ ...prev, followupStatus: e.target.value }))}
+                            className="w-full border rounded p-1 text-xs bg-white text-slate-800 outline-none"
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Scheduled">Scheduled</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (key === 'schedulePreference') {
+                      return (
+                        <td key="schedulePreference" className="p-2">
+                          <select 
+                            value={newCustomer.schedulePreference} 
+                            onChange={(e) => setNewCustomer(prev => ({ ...prev, schedulePreference: e.target.value }))}
+                            className="w-full border rounded p-1 text-xs bg-white text-slate-800 outline-none"
+                          >
+                            <option value="Regular">Regular</option>
+                            <option value="Weekend">Weekend</option>
+                            <option value="Night">Night</option>
+                            <option value="Online">Online</option>
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (key === 'packageScope') {
+                      return (
+                        <td key="packageScope" className="p-2">
+                          <select 
+                            value={newCustomer.packageScope} 
+                            onChange={(e) => setNewCustomer(prev => ({ ...prev, packageScope: e.target.value }))}
+                            className="w-full border rounded p-1 text-xs bg-white text-slate-800 outline-none"
+                          >
+                            <option value="Local">Local</option>
+                            <option value="International">International</option>
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (key === 'contactTitle') {
+                      return (
+                        <td key="contactTitle" className="p-2">
+                          <select 
+                            value={newCustomer.contactTitle} 
+                            onChange={(e) => setNewCustomer(prev => ({ ...prev, contactTitle: e.target.value }))}
+                            className="w-full border rounded p-1 text-xs bg-white text-slate-800 outline-none"
+                          >
+                            <option value="">Select course</option>
+                            {courses.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (key === 'leadSource') {
+                      return (
+                        <td key="leadSource" className="p-2">
+                          <select
+                            value={newCustomer.leadSource || 'Cold Call'}
+                            onChange={(e) => setNewCustomer(prev => ({ ...prev, leadSource: e.target.value }))}
+                            className="w-full border rounded p-1 text-xs bg-white text-slate-800 outline-none"
+                          >
+                            <option value="Cold Call">Cold Call</option>
+                            <option value="Warm Lead">Warm Lead</option>
+                            <option value="Referral">Referral</option>
+                            <option value="Walk-in">Walk-in</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (key === 'scheduledDate') {
+                      return (
+                        <td key="scheduledDate" className="p-2">
+                          <input
+                            type="date"
+                            value={newCustomer.scheduledDate || ''}
+                            onChange={(e) => setNewCustomer(prev => ({ ...prev, scheduledDate: e.target.value }))}
+                            className="w-full border rounded p-1 text-xs bg-white text-slate-800 outline-none"
+                          />
+                        </td>
+                      );
+                    }
+                    if (key === 'date') {
+                      return <td key="date" className="p-2 text-slate-405">Auto</td>;
+                    }
+                    return (
+                      <td key={key} className="p-2">
+                        <input 
+                          type="text" 
+                          placeholder={DEFAULT_COLUMNS.find(c => c.key === key)?.label}
+                          value={newCustomer[key] || ''}
+                          onChange={(e) => setNewCustomer(prev => ({ ...prev, [key]: e.target.value }))}
+                          className="w-full border rounded p-1 text-xs bg-white text-slate-850 outline-none focus:border-teal-500"
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
+
+              {/* Data Rows */}
+              {currentRows.length > 0 ? (
+                currentRows.map((customer) => {
+                  const scheduledToday = isScheduledToday(customer.scheduledDate);
+                  const scheduledOverdue = isScheduledOverdue(customer.scheduledDate, customer.followupStatus);
+                  const rowHighlight = scheduledToday
+                    ? 'bg-amber-50/60 dark:bg-amber-950/10 border-l-2 border-amber-400'
+                    : scheduledOverdue
+                    ? 'bg-red-50/40 dark:bg-red-950/10 border-l-2 border-red-400'
+                    : '';
+                  return (
+                  <tr
+                    key={customer._id}
+                    className={`hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all duration-150 text-slate-750 dark:text-slate-300 font-medium ${rowHighlight}`}
+                  >
+                    {visibleColumns.map((key) => {
+                      const value = customer[key];
+                      const isEditing = editingCell?.id === customer._id && editingCell?.field === key;
+                      
+                      if (key === 'customerName') {
+                        return (
+                          <td 
+                            key="customerName" 
+                            onDoubleClick={() => handleDoubleClick(customer, 'customerName')}
+                            className="p-3 font-extrabold text-slate-850 dark:text-slate-100 truncate cursor-pointer"
+                          >
+                            {isEditing ? (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => handleCellBlur(customer)}
+                                className="border border-teal-500 rounded px-1.5 py-0.5 text-xs bg-white outline-none w-full"
+                              />
+                            ) : (
+                              <span>{customer.customerName || 'No Name'}</span>
+                            )}
+                          </td>
+                        );
+                      }
+
+                      if (key === 'actions') {
+                        return (
+                          <td key="actions" className="p-3 text-right">
+                            <div className="flex gap-1.5 justify-end">
+                              <button
+                                onClick={() => setDrawerCustomer(customer)}
+                                className="w-6.5 h-6.5 rounded-full border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-teal-600 hover:border-teal-500 flex items-center justify-center transition-all bg-white dark:bg-slate-800"
+                                title="View details"
+                              >
+                                <FiEye className="text-[10px]" />
+                              </button>
+                              <button
+                                onClick={() => handleDoubleClick(customer, 'customerName')}
+                                className="w-6.5 h-6.5 rounded-full border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-blue-600 hover:border-blue-500 flex items-center justify-center transition-all bg-white dark:bg-slate-800"
+                                title="Edit prospect"
+                              >
+                                <FiEdit3 className="text-[10px]" />
+                              </button>
+                              <button
+                                onClick={() => onDelete(customer._id)}
+                                className="w-6.5 h-6.5 rounded-full border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-655 hover:border-red-500 flex items-center justify-center transition-all bg-white dark:bg-slate-800"
+                                title="Delete prospect"
+                              >
+                                <FiTrash2 className="text-[10px]" />
+                              </button>
+                            </div>
+                          </td>
+                        );
+                      }
+
+                      if (key === 'leadSource') {
+                        const badge = getLeadSourceBadge(customer.leadSource);
+                        const isLSMenuOpen = activeCallStatusMenu === `ls_${customer._id}`;
+                        return (
+                          <td key="leadSource" className="p-2 relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCallStatusMenu(isLSMenuOpen ? null : `ls_${customer._id}`);
+                              }}
+                              className={`w-fit inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-extrabold border select-none transition-all ${badge.cls}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${badge.dot}`} />
+                              <span>{badge.label}</span>
+                              <FiChevronDown className="text-[9px]" />
+                            </button>
+                            {isLSMenuOpen && (
+                              <div className="absolute left-2 mt-1 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700">
+                                {['Cold Call','Warm Lead','Referral','Walk-in','Other'].map((src) => {
+                                  const srcBadge = getLeadSourceBadge(src);
+                                  return (
+                                    <button
+                                      key={src}
+                                      onClick={() => {
+                                        onUpdate(customer._id, { ...customer, leadSource: src });
+                                        setActiveCallStatusMenu(null);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-[10px] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all font-semibold"
+                                    >
+                                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${srcBadge.dot}`} />
+                                      {src}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      }
+
+                      if (key === 'scheduledDate') {
+                        const sdFormatted = formatScheduledDate(customer.scheduledDate);
+                        const isSDEditing = editingCell?.id === customer._id && editingCell?.field === 'scheduledDate';
+                        return (
+                          <td key="scheduledDate" className="p-3 cursor-pointer" onDoubleClick={() => handleDoubleClick(customer, 'scheduledDate')}>
+                            {isSDEditing ? (
+                              <input
+                                autoFocus
+                                type="date"
+                                value={editValue || ''}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => handleCellBlur(customer)}
+                                className="border border-teal-500 rounded px-1.5 py-0.5 text-xs bg-white outline-none w-full"
+                              />
+                            ) : sdFormatted ? (
+                              <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                sdFormatted.urgent ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/20' :
+                                sdFormatted.soon ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20' :
+                                sdFormatted.overdue ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20' :
+                                'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/30'
+                              }`}>
+                                <FiCalendar className="text-[9px] flex-shrink-0" />
+                                {sdFormatted.text}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300 dark:text-slate-600 text-[10px] italic">Not scheduled</span>
+                            )}
+                          </td>
+                        );
+                      }
+
+                      if (key === 'phone') {
+                        return (
+                          <td key="phone" className="p-3 cursor-pointer" onDoubleClick={() => handleDoubleClick(customer, 'phone')}>
+                            {isEditing ? (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => handleCellBlur(customer)}
+                                className="border border-teal-500 rounded px-1.5 py-0.5 text-xs bg-white outline-none w-full"
+                              />
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                                <FiPhone className="text-slate-400 flex-shrink-0" />
+                                <span>{customer.phone || 'N/A'}</span>
+                              </span>
+                            )}
+                          </td>
+                        );
+                      }
+
+                      if (key === 'callStatus') {
+                        const canEdit = canUserEditField('callStatus', userRole);
+                        if (!canEdit) {
+                          return (
+                            <td key="callStatus" className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${getStatusBadgeVariant(customer.callStatus, 'call')}`}>
+                                {customer.callStatus}
+                              </span>
+                            </td>
+                          );
+                        }
+                        const isMenuOpen = activeCallStatusMenu === customer._id;
+                        return (
+                          <td key="callStatus" className="p-2 relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCallStatusMenu(isMenuOpen ? null : customer._id);
+                              }}
+                              className={`w-fit inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold border select-none transition-all ${getStatusBadgeVariant(customer.callStatus, 'call')}`}
+                            >
+                              <span>{customer.callStatus}</span>
+                              <FiChevronDown className="text-[9px]" />
+                            </button>
+                            {isMenuOpen && (
+                              <div className="absolute left-2 mt-1 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700">
+                                {['Not Called', 'Called', 'Busy', 'No Answer', 'Callback', '2x Called'].map((st) => (
+                                  <button
+                                    key={st}
+                                    onClick={() => {
+                                      const updated = { ...customer, callStatus: st };
+                                      onUpdate(customer._id, updated);
+                                      setActiveCallStatusMenu(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-[10px] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all font-semibold"
+                                  >
+                                    {st}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      }
+
+                      if (key === 'followupStatus') {
+                        const canEdit = canUserEditField('followupStatus', userRole);
+                        if (!canEdit) {
+                          return (
+                            <td key="followupStatus" className="p-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${getStatusBadgeVariant(customer.followupStatus, 'followup')}`}>
+                                {customer.followupStatus}
+                              </span>
+                            </td>
+                          );
+                        }
+                        const isMenuOpen = activeFollowupStatusMenu === customer._id;
+                        const isCompleted = customer.followupStatus === 'Completed';
+                        return (
+                          <td key="followupStatus" className="p-2 relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveFollowupStatusMenu(isMenuOpen ? null : customer._id);
+                              }}
+                              className={`w-fit inline-flex items-center justify-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold border select-none transition-all ${getStatusBadgeVariant(customer.followupStatus, 'followup')}`}
+                            >
+                              {isCompleted ? <span className="text-[8px]">✓</span> : <span className="text-[8px]">🕒</span>}
+                              <span>{customer.followupStatus}</span>
+                              <FiChevronDown className="text-[9px]" />
+                            </button>
+                            {isMenuOpen && (
+                              <div className="absolute left-2 mt-1 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700">
+                                {['Prospect', 'Pending', 'Completed', 'Scheduled', 'Cancelled'].map((st) => (
+                                  <button
+                                    key={st}
+                                    onClick={() => {
+                                      if (st === 'Completed') {
+                                        setPendingStatusChange({ customer, status: st });
+                                        setIsStatusWarningOpen(true);
+                                      } else {
+                                        const updated = { ...customer, followupStatus: st };
+                                        onUpdate(customer._id, updated);
+                                      }
+                                      setActiveFollowupStatusMenu(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-[10px] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all font-semibold"
+                                  >
+                                    {st}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      }
+
+                      if (key === 'schedulePreference') {
+                        const isNight = customer.schedulePreference === 'Night';
+                        return (
+                          <td key="schedulePreference" className="p-3">
+                            <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                              {isNight ? <FiMoon className="text-slate-400" /> : <FiSun className="text-slate-400" />}
+                              <span>{customer.schedulePreference || 'Regular'}</span>
+                            </span>
+                          </td>
+                        );
+                      }
+
+                      if (key === 'date') {
+                        return (
+                          <td key="date" className="p-3">
+                            <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                              <FiCalendar className="text-slate-400" />
+                              <span>{customer.date ? formatDate(customer.date) : 'N/A'}</span>
+                            </span>
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <td 
+                          key={key}
+                          onDoubleClick={() => handleDoubleClick(customer, key)}
+                          className={`p-3 truncate cursor-pointer transition-all ${
+                            isEditing ? 'bg-teal-50/10' : 'hover:bg-slate-100/50'
+                          }`}
+                        >
+                          {isEditing ? (
+                            key === 'contactTitle' ? (
+                              <select
+                                autoFocus
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => handleCellBlur(customer)}
+                                className="w-full border border-teal-500 rounded p-0.5 text-xs bg-white text-slate-800 outline-none"
+                              >
+                                <option value="">Select course</option>
+                                {courses.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+                              </select>
+                            ) : (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => handleCellBlur(customer)}
+                                className="w-full border border-teal-500 rounded px-1.5 py-0.5 text-xs bg-white text-slate-850 outline-none focus:ring-1 focus:ring-teal-500/20"
+                              />
+                            )
+                          ) : (
+                            <span className="truncate block select-none">
+                              {value || (key === 'contactTitle' ? 'Select course' : '')}
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={visibleColumns.length} className="py-16 text-center text-slate-400 text-sm">
+                    No customers found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <AlertDialog
-        isOpen={isStatusWarningOpen}
-        leastDestructiveRef={warningCancelRef}
-        onClose={cancelStatusWarning}
-        isCentered
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Confirm Status Change
-            </AlertDialogHeader>
-            <AlertDialogBody>
-              Marking this follow-up as <strong>Completed</strong> will finalize the sale.
-              Please ensure all notes and payments are recorded before proceeding.
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button ref={warningCancelRef} onClick={cancelStatusWarning}>
-                Cancel
-              </Button>
-              <Button colorScheme="red" onClick={confirmStatusChange} ml={3}>
-                Confirm Completed
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+      {/* Pagination control footer matching screenshot */}
+      {viewMode === 'list' && (
+        <div className="flex flex-wrap items-center justify-between gap-4 p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 text-slate-500">
+          
+          {/* Showing metrics info */}
+          <span className="text-[11px] font-bold text-slate-450">
+            Showing <span className="text-slate-700 dark:text-slate-300">{indexOfFirstRow + 1}</span> to <span className="text-slate-700 dark:text-slate-300">{Math.min(indexOfLastRow, totalResultsCount)}</span> of <span className="text-slate-700 dark:text-slate-300">{totalResultsCount}</span> results
+          </span>
 
-      {/* Customer Details Drawer */}
-      <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="lg">
-        <DrawerOverlay />
-        <DrawerContent>
-          <DrawerCloseButton />
-          <DrawerHeader bg="teal.500" color="white">
-            Customer Details
-          </DrawerHeader>
-          <DrawerBody p={0}>
-            {drawerCustomer && (
-              <VStack align="stretch" spacing={0} divider={<Divider />}>
-                {/* Basic Information Section */}
-                <Box p={6}>
-                  <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.200">
-                    Basic Information
-                  </Heading>
-                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Customer Name</Text>
-                      <Text fontSize="md">{drawerCustomer.customerName || 'N/A'}</Text>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Training Title</Text>
-                      <Text fontSize="md">{drawerCustomer.contactTitle || 'N/A'}</Text>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Course Price</Text>
-                      <Text fontSize="md">
-                        {resolvedCoursePrice != null ? `ETB ${Number(resolvedCoursePrice).toLocaleString()}` : 'Add price in catalog'}
-                      </Text>
-                      {resolvedCoursePrice == null && (
-                        <Text fontSize="xs" color="orange.600">Set a course price in Finance to enable commission.</Text>
-                      )}
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Phone</Text>
-                      <Text fontSize="md">{drawerCustomer.phone || 'N/A'}</Text>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Email</Text>
-                      <Text fontSize="md">{drawerCustomer.email || 'N/A'}</Text>
-                    </Box>
-                  </SimpleGrid>
-                </Box>
+          {/* Page Selector numbers */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-40 transition-all text-xs"
+            >
+              <FiChevronLeft />
+            </button>
+            {Array.from({ length: totalPagesCount }).map((_, idx) => {
+              const pageNum = idx + 1;
+              const isActive = currentPage === pageNum;
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-6.5 h-6.5 rounded-lg text-xs font-black transition-all flex items-center justify-center ${
+                    isActive 
+                      ? 'bg-teal-600 text-white' 
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-500 border border-transparent hover:border-slate-200'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPagesCount, prev + 1))}
+              disabled={currentPage === totalPagesCount}
+              className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-40 transition-all text-xs"
+            >
+              <FiChevronRight />
+            </button>
+          </div>
 
-                {/* Status Information Section */}
-                <Box p={6} bg="gray.50">
-                  <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.300">
-                    Status Information
-                  </Heading>
-                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Call Status</Text>
-                      <Badge variant="solid" colorScheme={getStatusBadgeVariant(drawerCustomer.callStatus, 'call')} fontSize="md">
-                        {drawerCustomer.callStatus || 'N/A'}
-                      </Badge>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Follow-up Status</Text>
-                      <Badge variant="solid" colorScheme={getStatusBadgeVariant(drawerCustomer.followupStatus, 'followup')} fontSize="md">
-                        {drawerCustomer.followupStatus || 'N/A'}
-                      </Badge>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Schedule Preference</Text>
-                      <Text fontSize="md">{drawerCustomer.schedulePreference || 'N/A'}</Text>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Date</Text>
-                      <Text fontSize="md">{drawerCustomer.date ? formatDate(drawerCustomer.date) : 'N/A'}</Text>
-                    </Box>
-                  </SimpleGrid>
-                </Box>
+          {/* Rows per page dropdown picker */}
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-450">
+            <span>Rows per page</span>
+            <select
+              value={rowsPerPage}
+              onChange={(e) => {
+                setRowsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs font-bold focus:outline-none text-slate-700 dark:text-slate-300"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
 
-                {/* Commission Information Section - Only show if customer has completed status */}
-                {drawerCustomer.followupStatus === 'Completed' && (
-                  <Box p={6}>
-                    <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.200">
-                      Commission Details
-                    </Heading>
-                    <VStack align="stretch" spacing={4}>
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <Box p={4} bg="blue.50" borderRadius="md" border="1px" borderColor="blue.100">
-                          <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Course Price</Text>
-                          <Text fontSize="xl" fontWeight="bold" color="blue.600">
-                            {resolvedCoursePrice != null ? `ETB ${Number(resolvedCoursePrice).toFixed(2)}` : 'Add price in catalog'}
-                          </Text>
-                        </Box>
-                        <Box p={4} bg="green.50" borderRadius="md" border="1px" borderColor="green.100">
-                          <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Gross Commission (7%)</Text>
-                          <Text fontSize="xl" fontWeight="bold" color="green.600">
-                            ETB {resolvedCommission?.grossCommission ? resolvedCommission.grossCommission.toFixed(2) : '0.00'}
-                          </Text>
-                        </Box>
-                      </SimpleGrid>
-                      
-                      {resolvedCommission ? (
-                        <>
-                          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                            <Box p={4} bg="orange.50" borderRadius="md" border="1px" borderColor="orange.100">
-                              <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Commission Tax (0.075%)</Text>
-                              <Text fontSize="xl" fontWeight="bold" color="orange.600">
-                                ETB {resolvedCommission?.commissionTax ? resolvedCommission.commissionTax.toFixed(2) : '0.00'}
-                              </Text>
-                            </Box>
-                            <Box p={4} bg="teal.50" borderRadius="md" border="1px" borderColor="teal.100">
-                              <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Net Commission</Text>
-                              <Text fontSize="2xl" fontWeight="bold" color="teal.600">
-                                ETB {resolvedCommission?.netCommission ? resolvedCommission.netCommission.toFixed(2) : '0.00'}
-                              </Text>
-                            </Box>
-                          </SimpleGrid>
-                        </>
-                      ) : (
-                        <Text fontSize="sm" color="gray.500">Commission data not available</Text>
-                      )}
-                    </VStack>
-                  </Box>
+        </div>
+      )}
+
+      {/* Slide-out Drawer Panel */}
+      {drawerCustomer && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop overlay */}
+          <div 
+            onClick={() => setDrawerCustomer(null)}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
+          />
+          {/* Slide-out Panel */}
+          <div className="relative w-full sm:w-[500px] bg-white dark:bg-slate-800 shadow-2xl flex flex-col h-full overflow-hidden animate-in slide-in-from-right duration-300 text-slate-700 dark:text-slate-200">
+            {/* Header */}
+            <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
+              <div>
+                <h3 className="font-black text-sm text-slate-800 dark:text-slate-100">Customer Dossier</h3>
+                <span className="text-[10px] text-slate-400 mt-0.5 block truncate">ID: {drawerCustomer._id}</span>
+              </div>
+              <button 
+                onClick={() => setDrawerCustomer(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+              >
+                <FiX className="text-lg" />
+              </button>
+            </div>
+
+            {/* Scrollable details Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              
+              {/* Profile details */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-teal-500 text-white flex items-center justify-center font-black text-lg uppercase shadow-sm">
+                    {drawerCustomer.customerName?.charAt(0) || 'C'}
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-slate-855 dark:text-slate-150">{drawerCustomer.customerName || 'No Name'}</h4>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">{drawerCustomer.email || 'No email registered'}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Phone Contact</span>
+                    <span className="font-semibold">{drawerCustomer.phone || 'N/A'}</span>
+                  </div>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Registered Date</span>
+                    <span className="font-semibold">{drawerCustomer.date ? formatDate(drawerCustomer.date) : 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Course Catalog & Commission Breakdown */}
+              <div className="space-y-3.5">
+                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                  Course Catalog & Commissions
+                </span>
+                
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
+                    <span>Assigned Training:</span>
+                    <span className="font-extrabold text-slate-805 dark:text-slate-202 truncate max-w-[240px]">
+                      {drawerCustomer.contactTitle || 'Standard catalog'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
+                    <span>Catalog Cost:</span>
+                    <span className="font-bold text-teal-600">{formatPrice(resolvedCoursePrice)}</span>
+                  </div>
+                </div>
+
+                {resolvedCommission ? (
+                  <div className="p-4 border border-teal-205 dark:border-teal-900/50 bg-teal-50/20 dark:bg-teal-950/10 rounded-2xl space-y-3">
+                    <div className="flex justify-between text-xs font-bold border-b border-teal-100 dark:border-teal-900 pb-1.5">
+                      <span>Ledger Commission Earnings</span>
+                      <span className="text-teal-600">{formatPrice(resolvedCommission.netCommission)}</span>
+                    </div>
+                    <div className="space-y-1.5 text-[10px] text-slate-400">
+                      <div className="flex justify-between">
+                        <span>Rate / Percentage:</span>
+                        <span>7.50% of Catalog Cost</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Gross Commission:</span>
+                        <span>{formatPrice(resolvedCommission.grossCommission)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Withheld Social Tax:</span>
+                        <span>{formatPrice(resolvedCommission.commissionTax)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center border border-dashed border-slate-205 dark:border-slate-800 rounded-2xl text-xs text-slate-400">
+                    No commission breakdown available (deals incomplete).
+                  </div>
                 )}
+              </div>
 
-                {/* Notes Section */}
-                <Box p={6}>
-                  <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.200">
-                    Notes
-                  </Heading>
-                  <VStack align="stretch" spacing={4}>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={2}>Customer Notes</Text>
-                      <Box p={3} bg="gray.50" borderRadius="md" minH="60px">
-                        <Text whiteSpace="pre-wrap" fontSize="sm">
-                          {drawerCustomer.note || 'No notes available'}
-                        </Text>
-                      </Box>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={2}>Supervisor Comment</Text>
-                      <Box p={3} bg="gray.50" borderRadius="md" minH="60px">
-                        <Text whiteSpace="pre-wrap" fontSize="sm">
-                          {drawerCustomer.supervisorComment || 'No comments available'}
-                        </Text>
-                      </Box>
-                    </Box>
-                  </VStack>
-                </Box>
-              </VStack>
-            )}
-          </DrawerBody>
-          <DrawerFooter bg="gray.50">
-            <Button variant="outline" mr={3} onClick={onClose}>
-              Close
-            </Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-    </Box>
+              {/* Notes & Comments */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                  Followup Interactions & Comments
+                </span>
+                
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Agent Followup Note:</span>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl min-h-[60px] text-slate-600 dark:text-slate-350">
+                      {drawerCustomer.note || 'No followup logs recorded.'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Supervisor Audit Comments:</span>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl min-h-[60px] text-slate-600 dark:text-slate-350">
+                      {drawerCustomer.supervisorComment || 'No comments registered.'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex justify-end">
+              <button 
+                onClick={() => setDrawerCustomer(null)}
+                className="px-4 py-2 border border-slate-202 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-900 text-xs font-bold rounded-lg transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warning Confirmation Dialogue */}
+      {isStatusWarningOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl p-5 overflow-hidden animate-in zoom-in-95 duration-200 text-slate-700 dark:text-slate-200">
+            <h3 className="text-sm font-black text-red-600 mb-2">Mark Lead Completed?</h3>
+            <p className="text-xs text-slate-400 leading-normal mb-4">
+              Marking this deal complete calculates final progressive sales commissions and syncs them to monthly payroll reports. Make sure price catalog and phone listings are correct.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button 
+                onClick={() => {
+                  setPendingStatusChange(null);
+                  setIsStatusWarningOpen(false);
+                }}
+                className="px-3.5 py-1.5 border border-slate-202 dark:border-slate-700 hover:bg-slate-100 text-xs font-bold rounded-lg transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmStatusChange}
+                className="px-3.5 py-1.5 bg-teal-500 hover:bg-teal-650 text-white text-xs font-bold rounded-lg transition-all shadow-sm"
+              >
+                Confirm Complete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
   );
 };
 

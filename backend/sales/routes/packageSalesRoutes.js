@@ -5,17 +5,21 @@ const {
   getPackageSalesCommissions,
   getPackageSalesFollowups,
   logPackageSalesActivity,
-  getPackageSalesActivities
+  getPackageSalesActivities,
+  updatePackageSale,
+  deletePackageSale
 } = require('../controllers/packageSalesController');
 const { protect } = require('../../middleware/auth');
 
 const router = express.Router();
 
-router.get('/', getPackageSales);
+router.get('/', protect, getPackageSales);
 router.post('/', protect, createPackageSale);
 router.get('/activities', protect, getPackageSalesActivities);
 router.post('/activities', protect, logPackageSalesActivity);
-router.get('/commissions', getPackageSalesCommissions);
-router.get('/followups', getPackageSalesFollowups);
+router.get('/commissions', protect, getPackageSalesCommissions);
+router.get('/followups', protect, getPackageSalesFollowups);
+router.put('/:id', protect, updatePackageSale);
+router.delete('/:id', protect, deletePackageSale);
 
 module.exports = router;

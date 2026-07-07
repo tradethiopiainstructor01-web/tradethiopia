@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure, Text } from "@chakra-ui/react";
+import { useColorMode } from "@chakra-ui/react";
 import SSidebar from "./Ssidebar";
 import SNavbar from "./Snavbar";
 import FollowupPage from "./FollowupPage";
@@ -7,7 +7,6 @@ import PackageSalesPage from "./PackageSalesPage";
 import Training from "./Training.jsx";
 import PDFList from '../../../../components/PDFList';
 import Dashboard from './HomeView.jsx';
-// import FinanceDashboard from './FinanceDashboard.jsx'; // Replaced with dedicated page
 import OrderFollowup from './OrderFollowup.jsx';
 import SalesTargetsPage from './SalesTargetsPage.jsx';
 import TaskDashboard from './TaskDashboard.jsx';
@@ -19,9 +18,29 @@ import { useUserStore } from '../../../../store/user';
 import { getUserDepartment } from '../../../../utils/department';
 import useIsMobile from '../../../../hooks/useIsMobile';
 import MobileSalesShell from '../../../../mobile/sales/MobileSalesShell';
+import { initPushNotifications } from '../../../../services/notificationService';
 
 const Layout = ({ children, initialActiveItem }) => {
-  const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
+  const { colorMode } = useColorMode();
+  
+  // Sync theme mode state and initialize web push notifications
+  useEffect(() => {
+    if (colorMode === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
+  }, [colorMode]);
+
+  useEffect(() => {
+    // Register sw and request subscription if permission is granted
+    initPushNotifications().catch(err => console.error('[Push] Init error:', err));
+  }, []);
+
+  // Mobile drawer state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Load initial state from localStorage or default to 'Home'
   const getInitialActiveItem = () => {
@@ -59,7 +78,6 @@ const Layout = ({ children, initialActiveItem }) => {
       case 'Resources':
         return <PDFList />;
       case 'Finance':
-        // Navigate to the dedicated finance dashboard page
         window.location.href = '/finance-dashboard';
         return null;
       case 'Financial Reports':
@@ -68,7 +86,7 @@ const Layout = ({ children, initialActiveItem }) => {
       case 'Orders':
         return <OrderFollowup />;
       case 'Users':
-        return <Box p={6}><Text fontSize="xl">Users section</Text></Box>;
+        return <div className="p-6"><h2 className="text-xl font-bold">Users section</h2></div>;
       case 'Tutorials':
         return <Training />;
       case 'Targets':
@@ -84,7 +102,7 @@ const Layout = ({ children, initialActiveItem }) => {
       case 'Content Tracker':
         return <ContentTrackerPage />;
       default:
-        return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
+        return <div className="p-6"><h2 className="text-xl font-bold">Select an option from the Sidebar.</h2></div>;
     }
   };
 
@@ -93,62 +111,58 @@ const Layout = ({ children, initialActiveItem }) => {
   }
 
   return (
-    <Box display="flex" flexDirection="column" height="100vh">
-      {/* Navbar */}
-      <Box position="fixed" top={0} left={0} width="100%" zIndex="1000">
-        <SNavbar onToggleSidebar={onOpen} /> {/* Pass `onOpen` to toggle the drawer */}
-      </Box>
+    <div className="flex h-screen overflow-hidden !bg-slate-50 dark:!bg-slate-900 text-slate-700 dark:text-slate-200">
+      
+      {/* Left Sidebar for Desktop Viewports */}
+      <aside 
+        className={`h-screen hidden md:block overflow-hidden transition-all duration-300 flex-shrink-0 ${
+          isSidebarCollapsed ? "w-[70px]" : "w-[200px]"
+        }`}
+      >
+        <SSidebar
+          isCollapsed={isSidebarCollapsed}
+          toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
+          activeItem={activeItem}
+          setActiveItem={setActiveItem}
+        />
+      </aside>
 
-      {/* Main Container */}
-      <Box display="flex" flex="1" pt="60px">
-        {/* Sidebar for Larger Screens */}
-        <Box
-          position="fixed"
-          top="60px"
-          left={0}
-          width={isSidebarCollapsed ? "70px" : "200px"}
-          height="calc(100vh - 60px)" // Adjust height to account for the navbar
-          transition="width 0.3s"
-          display={{ base: "none", md: "block" }} // Hide on mobile
-          zIndex="900" // Ensure it's below the navbar but above other content
-        >
-          <SSidebar
-            isCollapsed={isSidebarCollapsed}
-            toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
-            activeItem={activeItem}
-            setActiveItem={setActiveItem}
+      {/* Right side container */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        
+        {/* Navbar */}
+        <SNavbar onToggleSidebar={() => setIsMobileMenuOpen(!isMobileMenuOpen)} />
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 !bg-slate-50 dark:!bg-slate-950/20">
+          {renderContent()}
+        </main>
+      </div>
+
+      {/* Mobile Drawer Slide-out Layout */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop Overlay */}
+          <div 
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
           />
-        </Box>
-
-        {/* Drawer for Mobile Screens */}
-        <Drawer isOpen={isOpen} onClose={onClose} placement="left">
-          <DrawerOverlay />
-          <DrawerContent>
+          {/* Slide-out Sidebar Panel */}
+          <div className="relative w-64 max-w-xs bg-[#0b1329] shadow-xl flex flex-col h-full z-50">
             <SSidebar
               isCollapsed={false}
-              toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
+              toggleCollapse={() => setIsMobileMenuOpen(false)}
               activeItem={activeItem}
-              setActiveItem={setActiveItem}
+              setActiveItem={(item) => {
+                setActiveItem(item);
+                setIsMobileMenuOpen(false);
+              }}
             />
-          </DrawerContent>
-        </Drawer>
+          </div>
+        </div>
+      )}
 
-        {/* Main Content */}
-        <Box
-          ml={{
-            base: 0, // No margin on mobile
-            md: isSidebarCollapsed ? "70px" : "200px", // Adjust for collapsed or expanded sidebar on larger screens
-          }}
-          transition="margin-left 0.3s"
-          p={4}
-          bg="#f8f9fa"
-          flex="1"
-          width="100%" // Ensure it takes up the remaining space
-        >
-          {renderContent()}
-        </Box>
-      </Box>
-    </Box>
+    </div>
   );
 };
 

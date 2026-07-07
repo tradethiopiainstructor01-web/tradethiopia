@@ -1,47 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Box, 
-  Heading, 
-  Button, 
-  useToast, 
-  Spinner, 
-  Flex, 
-  useColorModeValue,
-  SimpleGrid,
-  Card,
-  CardBody,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
-  StatArrow,
-  Select,
-  Checkbox,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  Input,
-  InputGroup,
-  InputLeftElement,
-  Icon,
-  Text,
-  HStack,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel
-} from '@chakra-ui/react';
-import { AddIcon, SearchIcon } from '@chakra-ui/icons';
-import { 
   FiUser, 
-  FiPhone, 
-  FiCheckCircle, 
   FiTrendingUp, 
   FiDollarSign,
-  FiClock,
-  FiDownload
+  FiFileText
 } from 'react-icons/fi';
 import PackageSalesTable from './PackageSalesTable';
 import { fetchPackages } from '../../../../services/packageService';
@@ -50,14 +12,7 @@ const PackageSalesPage = () => {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const toast = useToast();
 
-  const headerColor = useColorModeValue('gray.700', 'white');
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const secondaryTextColor = useColorModeValue('gray.600', 'gray.400');
-
-  // Load packages
   useEffect(() => {
     const loadPackages = async () => {
       try {
@@ -76,142 +31,81 @@ const PackageSalesPage = () => {
     loadPackages();
   }, []);
 
+  const totalPackages = packages.length;
+  const avgPrice = totalPackages > 0 
+    ? packages.reduce((sum, pkg) => sum + (pkg.price || 0), 0) / totalPackages
+    : 0;
+  const maxPrice = totalPackages > 0 
+    ? Math.max(...packages.map(pkg => pkg.price || 0))
+    : 0;
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[300px] py-10">
+        <div className="animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 m-4 bg-red-50 border-l-4 border-red-500 text-red-700 dark:bg-red-950/20 dark:text-red-300 rounded-r-lg">
+        <span className="font-bold">Error:</span> {error}
+      </div>
+    );
+  }
+
   return (
-    <Box pt={4}>
-      <SimpleGrid 
-        columns={{ base: 1, sm: 2, md: 2, lg: 3 }} 
-        spacing={{ base: 4, md: 6 }} 
-        mb={{ base: 6, md: 8 }}
-      >
-        <Card 
-          bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
-          borderWidth="1px" 
-          borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
-        >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="blue.100"
-                  color="blue.500"
-                  mr={3}
-                >
-                  <Icon as={FiUser} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Total Packages
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="blue.500" mt={0}>
-                    {packages.length}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+    <div className="space-y-6 max-w-6xl mx-auto">
+      
+      {/* Header title */}
+      <div className="flex justify-between items-center pb-4 border-b border-slate-200/60 dark:border-slate-800">
+        <div>
+          <h1 className="text-xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <FiFileText className="text-teal-500" />
+            <span>Package Catalog</span>
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">Review active and custom subscription packages for clients.</p>
+        </div>
+      </div>
 
-        <Card 
-          bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
-          borderWidth="1px" 
-          borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
-        >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="green.100"
-                  color="green.500"
-                  mr={3}
-                >
-                  <Icon as={FiDollarSign} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Avg. Package Price
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="green.500" mt={0}>
-                    ETB {packages.length > 0 
-                      ? (packages.reduce((sum, pkg) => sum + (pkg.price || 0), 0) / packages.length).toFixed(2)
-                      : '0.00'}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'Total Packages', value: totalPackages, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20', icon: FiUser },
+          { label: 'Avg. Package Price', value: `ETB ${avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20', icon: FiDollarSign },
+          { label: 'Highest Package Price', value: `ETB ${maxPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-950/20', icon: FiTrendingUp }
+        ].map((card, i) => (
+          <div 
+            key={i}
+            className="p-4 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-xs flex items-center gap-3.5 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300"
+          >
+            <div className={`p-2.5 rounded-xl ${card.bg} ${card.color} flex-shrink-0`}>
+              <card.icon className="text-xl" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                {card.label}
+              </span>
+              <span className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight block mt-0.5">
+                {card.value}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
 
-        <Card 
-          bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
-          borderWidth="1px" 
-          borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
-        >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="purple.100"
-                  color="purple.500"
-                  mr={3}
-                >
-                  <Icon as={FiTrendingUp} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Highest Package
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="purple.500" mt={0}>
-                    ETB {packages.length > 0 
-                      ? Math.max(...packages.map(pkg => pkg.price || 0)).toFixed(2)
-                      : '0.00'}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
-      </SimpleGrid>
+      {/* Package Sales Table component container */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-xs overflow-hidden">
+        <PackageSalesTable
+          packages={packages}
+          onDelete={(id) => console.log('Delete package', id)}
+          onUpdate={(id, data) => console.log('Update package', id, data)}
+          onAdd={(data) => console.log('Add package', data)}
+        />
+      </div>
 
-      <Box bg="white" p={0} borderRadius="lg" boxShadow="md" w="100%" maxW="100%">
-        {loading ? (
-          <Flex justify="center" align="center" minH="300px">
-            <Spinner size="xl" color="teal.500" thickness="4px" />
-          </Flex>
-        ) : error ? (
-          <Box bg="red.50" p={4} borderRadius="lg" mb={4}>
-            <Text color="red.500" fontWeight="medium">{error}</Text>
-          </Box>
-        ) : (
-          <PackageSalesTable
-            packages={packages}
-            onDelete={(id) => console.log('Delete package', id)}
-            onUpdate={(id, data) => console.log('Update package', id, data)}
-            onAdd={(data) => console.log('Add package', data)}
-          />
-        )}
-      </Box>
-    </Box>
+    </div>
   );
 };
 

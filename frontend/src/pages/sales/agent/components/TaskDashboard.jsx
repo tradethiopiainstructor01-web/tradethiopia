@@ -98,6 +98,7 @@ import {
   FiFilter,
   FiChevronDown,
   FiBell,
+  FiBellOff,
   FiTrendingUp,
   FiBarChart2,
   FiBook,
@@ -111,9 +112,11 @@ import {
 } from 'react-icons/fi';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { useNotifications } from '../../../../hooks/useNotifications';
 
 const TaskDashboard = () => {
   const [tasks, setTasks] = useState([]);
+  const pushNotification = useNotifications([], tasks);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [taskStats, setTaskStats] = useState({
@@ -549,14 +552,6 @@ const TaskDashboard = () => {
             onClick={onNotesOpen}
           >
             My Notes
-          </Button>
-          <Button
-            leftIcon={<FiBell />}
-            colorScheme="teal"
-            variant="solid"
-            size="md"
-          >
-            Alerts
           </Button>
         </HStack>
       </Flex>

@@ -1,40 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Box, 
-  Heading, 
-  Button, 
-  useToast, 
-  Spinner, 
-  Flex, 
-  useColorModeValue,
-  SimpleGrid,
-  Card,
-  CardBody,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
-  StatArrow,
-  Select,
-  Checkbox,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  Input,
-  InputGroup,
-  InputLeftElement,
-  Icon,
-  Text,
-  HStack,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel
-} from '@chakra-ui/react';
-import { AddIcon, SearchIcon } from '@chakra-ui/icons';
-import { 
   FiUser, 
   FiPhone, 
   FiCheckCircle, 
@@ -42,14 +7,24 @@ import {
   FiDollarSign,
   FiClock,
   FiDownload,
-  FiUpload
+  FiUpload,
+  FiSearch,
+  FiFilter,
+  FiChevronDown,
+  FiRotateCcw,
+  FiUsers,
+  FiBriefcase,
+  FiBell,
+  FiBellOff
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
-import PackageSalesTable from './PackageSalesTable';
 import PackageSalesTab from './PackageSalesTab';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../../../services/customerService';
 import { fetchExternalCourses as fetchCoursesApi } from '../../../../services/api';
 import axios from '../../../../services/axiosInstance';
+import { useUserStore } from '../../../../store/user';
+import { useNotifications } from '../../../../hooks/useNotifications';
+import { useSearchStore } from '../../../../store/search';
 
 const defaultCourses = [
   { _id: 'external-seed-0', name: 'International Trade Import Export', price: 0 },
@@ -61,8 +36,17 @@ const defaultCourses = [
   { _id: 'external-seed-6', name: 'International Trade Brokerage', price: 0 },
 ];
 
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return 'ETB 0.00';
+  return `ETB ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 const FollowupPage = () => {
+  const currentUser = useUserStore(state => state.currentUser);
   const [customers, setCustomers] = useState([]);
+  const pushNotification = useNotifications(customers);
+  const searchQuery = useSearchStore(state => state.searchQuery);
+  const setSearchQuery = useSearchStore(state => state.setSearchQuery);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
@@ -74,12 +58,16 @@ const FollowupPage = () => {
     totalCommission: 0
   });
   const [filters, setFilters] = useState({
-    search: '',
     callStatus: '',
     followupStatus: '',
     sortBy: 'date'
   });
   const [scheduleFilter, setScheduleFilter] = useState('');
+  
+  // Custom states for Tailwind select column dropdown
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const exportDropdownRef = useRef(null);
+
   const [exportColumns, setExportColumns] = useState({
     'Customer Name': true,
     'Contact Title': true,
@@ -92,26 +80,42 @@ const FollowupPage = () => {
     'Note': true,
     'Supervisor Comment': true
   });
-  const toast = useToast();
 
   // Date filter states
-  const [dateFilterType, setDateFilterType] = useState('All'); // All | DateRange | Week | Year
+  const [dateFilterType, setDateFilterType] = useState('All'); 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [weekValue, setWeekValue] = useState(''); // yyyy-Www
+  const [weekValue, setWeekValue] = useState(''); 
   const [yearValue, setYearValue] = useState('');
   const [courses, setCourses] = useState(defaultCourses);
   const [isImportingCustomers, setIsImportingCustomers] = useState(false);
   const customerImportRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('customers'); // customers | packageSales
 
-  const headerColor = useColorModeValue('gray.700', 'white');
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const secondaryTextColor = useColorModeValue('gray.600', 'gray.400');
+  // Smart pipeline tab within the Customers panel
+  const [pipelineTab, setPipelineTab] = useState('all'); // all | today | week | coldcall | warm | completed
+  const [leadSourceFilter, setLeadSourceFilter] = useState('');
+  // Custom Toast notification states
+  const [toasts, setToasts] = useState([]);
+  const showNotification = (title, description, status = "info") => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, title, description, status }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
 
   useEffect(() => {
-    // Load customers first so client-side prospect count is computed correctly,
-    // then fetch server stats to merge, avoiding overwriting with stale local state.
+    const clickOutsideExport = (e) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target)) {
+        setIsExportDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", clickOutsideExport);
+    return () => document.removeEventListener("mousedown", clickOutsideExport);
+  }, []);
+
+  useEffect(() => {
     const init = async () => {
       await Promise.all([fetchCustomers(), fetchStats(), loadCourses()]);
     };
@@ -122,9 +126,6 @@ const FollowupPage = () => {
     const total = computeTotalCommission(customers);
     setStats(prev => ({ ...prev, totalCommission: total }));
   }, [customers]);
-
-  // active tab: customers only (product followups removed)
-  const [activeTab, setActiveTab] = useState('customers');
 
   const loadCourses = async () => {
     try {
@@ -159,14 +160,11 @@ const FollowupPage = () => {
   const fetchStats = async () => {
     try {
       const response = await axios.get('/sales-customers/stats');
-      // Merge server stats while keeping any client-derived values (like totalCommission)
       setStats(prev => ({ ...prev, ...response.data }));
       try {
           const prospectCount = (customers || []).filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
           setStats(prev => ({ ...prev, new: prospectCount }));
-      } catch (err) {
-        // ignore
-      }
+      } catch (err) {}
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
@@ -176,7 +174,6 @@ const FollowupPage = () => {
     try {
       setLoading(true);
       const data = await getAllCustomers();
-      // Map the data to match the expected structure in the table
       const mappedData = data.map(customer => ({
         ...customer,
         contactTitle: customer.contactTitle || customer.courseName || '',
@@ -186,13 +183,10 @@ const FollowupPage = () => {
         schedulePreference: customer.schedulePreference || customer.schedule || 'Regular'
       }));
       setCustomers(mappedData);
-      // compute active prospects locally (followupStatus === 'Prospect')
       try {
             const prospectCount = mappedData.filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
             setStats(prev => ({ ...prev, new: prospectCount }));
-      } catch (err) {
-        // ignore
-      }
+      } catch (err) {}
       setError(null);
     } catch (err) {
       setError('Failed to fetch customers: ' + err.message);
@@ -210,14 +204,12 @@ const FollowupPage = () => {
     payload.callStatus = payload.callStatus || 'Not Called';
     payload.followupStatus = payload.followupStatus || 'Pending';
     payload.schedulePreference = payload.schedulePreference || 'Regular';
-    // Backend expects commission to be an ObjectId; drop client-calculated object to avoid cast errors
     if (payload.commission && typeof payload.commission !== 'string') {
       delete payload.commission;
     }
 
     try {
       const newCustomer = await createCustomer(payload);
-      // Map the new customer to match the expected structure
       const mappedCustomer = {
         ...newCustomer,
         _id: newCustomer._id,
@@ -227,39 +219,19 @@ const FollowupPage = () => {
       };
       setCustomers(prev => {
         const next = [...prev, mappedCustomer];
-        // update active prospects count
         try {
               const prospectCount = next.filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
               setStats(prevS => ({ ...prevS, new: prospectCount }));
         } catch (err) {}
         return next;
       });
-      // Refresh stats
       fetchStats();
-      // No success toast - handled with visual indicator in table
     } catch (err) {
-      toast({
-        title: "Error adding customer",
-        description: err.message || "Failed to add customer",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const handleAddProduct = async (data) => {
-    try {
-      const newItem = await createProductFollowup(data);
-      const mapped = { ...newItem, _id: newItem._id, id: newItem._id, date: newItem.date || newItem.createdAt || new Date().toISOString(), schedulePreference: newItem.schedulePreference || 'Regular' };
-      setProductFollowups(prev => [...prev, mapped]);
-    } catch (err) {
-      toast({ title: 'Error adding product followup', description: err.message || 'Failed to add', status: 'error', duration: 3000, isClosable: true });
+      showNotification("Error adding customer", err.message || "Failed to add customer", "error");
     }
   };
 
   const handleUpdate = async (id, customerData) => {
-    // Optimistic update: apply change locally immediately
     let previousCustomers;
     try {
       setCustomers(prev => {
@@ -272,9 +244,7 @@ const FollowupPage = () => {
         return next;
       });
 
-      // Fire the API update in background
       const updatedCustomer = await updateCustomer(id, customerData);
-      // Reconcile with server response (ensure ids and dates are normalized)
       const mappedCustomer = {
         ...updatedCustomer,
         _id: updatedCustomer._id,
@@ -283,25 +253,18 @@ const FollowupPage = () => {
         schedulePreference: updatedCustomer.schedulePreference || updatedCustomer.schedule || 'Regular'
       };
       setCustomers(prev => prev.map(cust => cust.id === id ? mappedCustomer : cust));
-      // Refresh stats after successful save
       fetchStats();
     } catch (err) {
-      // Revert optimistic update on error
       if (previousCustomers) setCustomers(previousCustomers);
-      toast({
-        title: "Error updating customer",
-        description: err.message || "Failed to update customer",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      showNotification("Error updating customer", err.message || "Failed to update customer", "error");
     }
   };
 
   const handleDelete = async (id) => {
+    let previousCustomers;
     try {
-      await deleteCustomer(id);
       setCustomers(prev => {
+        previousCustomers = prev;
         const next = prev.filter(cust => cust.id !== id);
         try {
               const prospectCount = next.filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
@@ -309,92 +272,26 @@ const FollowupPage = () => {
         } catch (err) {}
         return next;
       });
-      // Refresh stats
+      await deleteCustomer(id);
       fetchStats();
-      // No success toast - handled with visual indicator in table
     } catch (err) {
-      toast({
-        title: "Error deleting customer",
-        description: err.message || "Failed to delete customer",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      if (previousCustomers) setCustomers(previousCustomers);
+      showNotification("Error deleting customer", err.message || "Failed to delete customer", "error");
     }
   };
 
-  const handleDeleteProduct = async (id) => {
-    try {
-      await deleteProductFollowup(id);
-      setProductFollowups(prev => prev.filter(p => p._id !== id));
-    } catch (err) {
-      toast({ title: 'Error deleting product followup', description: err.message || 'Failed to delete', status: 'error', duration: 3000, isClosable: true });
-    }
+  const handleFilterChange = (filterName, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterName]: value
+    }));
   };
 
-  const handleUpdateProduct = async (id, data) => {
-    let previous;
-    try {
-      setProductFollowups(prev => {
-        previous = prev;
-        return prev.map(p => p._id === id ? { ...p, ...data } : p);
-      });
-      const updated = await updateProductFollowup(id, data);
-      const mapped = { ...updated, _id: updated._id, id: updated._id, date: updated.date || updated.createdAt || new Date().toISOString(), schedulePreference: updated.schedulePreference || 'Regular' };
-      setProductFollowups(prev => prev.map(p => p._id === id ? mapped : p));
-    } catch (err) {
-      if (previous) setProductFollowups(previous);
-      toast({ title: 'Error updating product followup', description: err.message || 'Failed to update', status: 'error', duration: 3000, isClosable: true });
-    }
-  };
-
-  // Filter customers based on filters
   const normalizeStatus = (value) => {
     if (value == null) return '';
     return value.toString().trim().toLowerCase();
   };
 
-  const filteredCustomers = customers.filter(customer => {
-    // Search filter
-    if (filters.search) {
-      const searchTerm = filters.search.toLowerCase();
-      const matchesSearch = 
-        (customer.customerName && customer.customerName.toLowerCase().includes(searchTerm)) ||
-        (customer.contactTitle && customer.contactTitle.toLowerCase().includes(searchTerm)) ||
-        (customer.phone && customer.phone.toLowerCase().includes(searchTerm)) ||
-        (customer.email && customer.email.toLowerCase().includes(searchTerm));
-      if (!matchesSearch) return false;
-    }
-    const followupStatusNormalized = normalizeStatus(customer.followupStatus);
-    if (followupStatusNormalized === 'imported') {
-      return false;
-    }
-
-    // Call status filter
-    if (filters.callStatus && customer.callStatus !== filters.callStatus) {
-      return false;
-    }
-    
-    // Follow-up status filter
-    if (filters.followupStatus) {
-      const filterStatusNormalized = normalizeStatus(filters.followupStatus);
-      if (filterStatusNormalized === 'not imported') {
-        if (followupStatusNormalized === 'imported') {
-          return false;
-        }
-      } else if (followupStatusNormalized !== filterStatusNormalized) {
-        return false;
-      }
-    }
-    // Schedule filter
-    if (scheduleFilter && (customer.schedulePreference || '') !== scheduleFilter) {
-      return false;
-    }
-    
-    return true;
-  });
-
-  // Apply optional date-based filtering on top of the current filters
   const normalizeDate = (d) => {
     if (!d) return null;
     const dt = new Date(d);
@@ -404,13 +301,11 @@ const FollowupPage = () => {
 
   const weekToRange = (weekStr) => {
     if (!weekStr) return [null, null];
-    // weekStr is like 2025-W48 or 2025-W48
     const parts = weekStr.split('-W');
     if (parts.length !== 2) return [null, null];
     const year = parseInt(parts[0], 10);
     const week = parseInt(parts[1], 10);
     if (!year || !week) return [null, null];
-    // Calculate ISO week start (Monday)
     const simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
     const dow = simple.getUTCDay();
     const diff = (dow <= 4 ? dow - 1 : dow - 8);
@@ -422,8 +317,52 @@ const FollowupPage = () => {
     return [start, end];
   };
 
-  const applyDateFilter = (items) => {
-    if (!items) return [];
+  // Filter prospects
+  const dateFilteredCustomers = React.useMemo(() => {
+    const userRoleNormalized = (currentUser?.role || '').toString().trim().toLowerCase();
+    const isPrivileged = [
+      'admin', 'customerservice', 'customer service', 'customersuccessmanager', 
+      'customer success manager', 'customer_success_manager', 'coo', 'salesmanager', 
+      'sales_manager', 'sales manager', 'finance', 'reception'
+    ].includes(userRoleNormalized);
+
+    const baseCustomers = isPrivileged || !currentUser?._id
+      ? customers 
+      : customers.filter(c => c.agentId === currentUser._id || c.agentId?.toString() === currentUser._id.toString());
+
+    const items = baseCustomers.filter(customer => {
+      if (searchQuery) {
+        const searchTerm = searchQuery.toLowerCase();
+        const matchesSearch = 
+          (customer.customerName && customer.customerName.toLowerCase().includes(searchTerm)) ||
+          (customer.contactTitle && customer.contactTitle.toLowerCase().includes(searchTerm)) ||
+          (customer.phone && customer.phone.toLowerCase().includes(searchTerm)) ||
+          (customer.email && customer.email.toLowerCase().includes(searchTerm));
+        if (!matchesSearch) return false;
+      }
+      const followupStatusNormalized = normalizeStatus(customer.followupStatus);
+      if (followupStatusNormalized === 'imported') {
+        return false;
+      }
+      if (filters.callStatus && customer.callStatus !== filters.callStatus) {
+        return false;
+      }
+      if (filters.followupStatus) {
+        const filterStatusNormalized = normalizeStatus(filters.followupStatus);
+        if (filterStatusNormalized === 'not imported') {
+          if (followupStatusNormalized === 'imported') {
+            return false;
+          }
+        } else if (followupStatusNormalized !== filterStatusNormalized) {
+          return false;
+        }
+      }
+      if (scheduleFilter && (customer.schedulePreference || '') !== scheduleFilter) {
+        return false;
+      }
+      return true;
+    });
+
     if (dateFilterType === 'All') return items;
     return items.filter(item => {
       const itemDate = normalizeDate(item.date || item.createdAt || item.updatedAt);
@@ -431,7 +370,7 @@ const FollowupPage = () => {
       if (dateFilterType === 'DateRange') {
         const s = normalizeDate(startDate);
         const e = normalizeDate(endDate);
-        if (!s || !e) return true; // if incomplete inputs, don't block
+        if (!s || !e) return true;
         return itemDate >= s && itemDate <= e;
       }
       if (dateFilterType === 'Day') {
@@ -451,32 +390,85 @@ const FollowupPage = () => {
       }
       return true;
     });
+  }, [customers, filters, scheduleFilter, searchQuery, dateFilterType, startDate, endDate, weekValue, yearValue]);
+
+  // Sort prospects
+  const sortedCustomers = React.useMemo(() => {
+    return [...dateFilteredCustomers].sort((a, b) => {
+      if (filters.sortBy === 'name') {
+        return (a.customerName || '').localeCompare(b.customerName || '');
+      } else if (filters.sortBy === 'callStatus') {
+        return (a.callStatus || '').localeCompare(b.callStatus || '');
+      } else if (filters.sortBy === 'followupStatus') {
+        return (a.followupStatus || '').localeCompare(b.followupStatus || '');
+      } else {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB - dateA;
+      }
+    });
+  }, [dateFilteredCustomers, filters.sortBy]);
+
+  // ── Smart pipeline date helpers ──
+  const getTodayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const getWeekRange = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun
+    const diffToMon = (day === 0 ? -6 : 1 - day);
+    const mon = new Date(now); mon.setDate(now.getDate() + diffToMon); mon.setHours(0,0,0,0);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23,59,59,999);
+    return [mon, sun];
   };
 
-  const dateFilteredCustomers = applyDateFilter(filteredCustomers);
-
-  // Sort customers
-  const sortedCustomers = [...dateFilteredCustomers].sort((a, b) => {
-    if (filters.sortBy === 'name') {
-      return a.customerName.localeCompare(b.customerName);
-    } else if (filters.sortBy === 'callStatus') {
-      return a.callStatus.localeCompare(b.callStatus);
-    } else if (filters.sortBy === 'followupStatus') {
-      return a.followupStatus.localeCompare(b.followupStatus);
-    } else {
-      // Default sort by date (newest first)
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      return dateB - dateA;
+  // Pipeline-filtered customers for smart tabs
+  const pipelineFilteredCustomers = React.useMemo(() => {
+    let base = sortedCustomers;
+    // Apply leadSource filter if set
+    if (leadSourceFilter) {
+      base = base.filter(c => (c.leadSource || 'Cold Call') === leadSourceFilter);
     }
-  });
+    const todayStr = getTodayStr();
+    const [weekStart, weekEnd] = getWeekRange();
+    switch (pipelineTab) {
+      case 'completed':
+        return base.filter(c => (c.followupStatus || '').toLowerCase() === 'completed');
+      case 'today':
+        return base.filter(c => {
+          if (!c.scheduledDate) return false;
+          return c.scheduledDate.slice(0, 10) === todayStr && (c.followupStatus || '').toLowerCase() !== 'completed';
+        });
+      case 'week':
+        return base.filter(c => {
+          if (!c.scheduledDate) return false;
+          const sd = new Date(c.scheduledDate);
+          return sd >= weekStart && sd <= weekEnd && (c.followupStatus || '').toLowerCase() !== 'completed';
+        });
+      case 'coldcall':
+        return base.filter(c => (c.leadSource || 'Cold Call') === 'Cold Call' && (c.followupStatus || '').toLowerCase() !== 'completed');
+      case 'warm':
+        return base.filter(c => (c.leadSource || 'Cold Call') !== 'Cold Call' && (c.followupStatus || '').toLowerCase() !== 'completed');
+      default: // 'all'
+        return base.filter(c => (c.followupStatus || '').toLowerCase() !== 'completed');
+    }
+  }, [sortedCustomers, pipelineTab, leadSourceFilter]);
 
-  const handleFilterChange = (filterName, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterName]: value
-    }));
-  };
+  // Pipeline tab counts
+  const pipelineCounts = React.useMemo(() => {
+    const todayStr = getTodayStr();
+    const [weekStart, weekEnd] = getWeekRange();
+    const active = sortedCustomers.filter(c => (c.followupStatus || '').toLowerCase() !== 'completed');
+    return {
+      all: active.length,
+      today: active.filter(c => c.scheduledDate && c.scheduledDate.slice(0, 10) === todayStr).length,
+      week: active.filter(c => { if (!c.scheduledDate) return false; const sd = new Date(c.scheduledDate); return sd >= weekStart && sd <= weekEnd; }).length,
+      coldcall: active.filter(c => (c.leadSource || 'Cold Call') === 'Cold Call').length,
+      warm: active.filter(c => (c.leadSource || 'Cold Call') !== 'Cold Call').length,
+      completed: sortedCustomers.filter(c => (c.followupStatus || '').toLowerCase() === 'completed').length,
+    };
+  }, [sortedCustomers]);
 
   const normalizeEnumValue = (value, allowed) => {
     if (value === null || value === undefined || value === '') return undefined;
@@ -570,25 +562,13 @@ const FollowupPage = () => {
       }
       const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
       if (!rows.length) {
-        toast({
-          title: 'No rows found',
-          description: 'The selected file does not contain any rows to import.',
-          status: 'warning',
-          duration: 3000,
-          isClosable: true
-        });
+        showNotification('No rows found', 'The selected file does not contain any rows to import.', 'warning');
         return;
       }
 
       const payloads = rows.map(buildImportedCustomer).filter(Boolean);
       if (!payloads.length) {
-        toast({
-          title: 'Nothing to import',
-          description: 'No valid customer rows were found. Please check your column headers.',
-          status: 'warning',
-          duration: 3500,
-          isClosable: true
-        });
+        showNotification('Nothing to import', 'No valid customer rows were found. Please check your column headers.', 'warning');
         return;
       }
 
@@ -599,29 +579,20 @@ const FollowupPage = () => {
 
       await Promise.all([fetchCustomers(), fetchStats()]);
 
-      toast({
-        title: 'Import complete',
-        description: `Imported ${successCount} row(s). ${skippedCount ? `Skipped ${skippedCount}. ` : ''}${failureCount ? `Failed ${failureCount}.` : ''}`.trim(),
-        status: failureCount ? 'warning' : 'success',
-        duration: 4000,
-        isClosable: true
-      });
+      showNotification(
+        'Import complete', 
+        `Imported ${successCount} row(s). ${skippedCount ? `Skipped ${skippedCount}. ` : ''}${failureCount ? `Failed ${failureCount}.` : ''}`.trim(), 
+        failureCount ? 'warning' : 'success'
+      );
     } catch (err) {
       console.error('Customer import failed', err);
-      toast({
-        title: 'Import failed',
-        description: err.message || 'Unable to import the selected file.',
-        status: 'error',
-        duration: 4000,
-        isClosable: true
-      });
+      showNotification('Import failed', err.message || 'Unable to import the selected file.', 'error');
     } finally {
       setIsImportingCustomers(false);
       event.target.value = '';
     }
   };
 
-  // Export currently visible rows to XLSX (try sheetjs, fallback to CSV)
   const exportVisible = async () => {
     const allRows = sortedCustomers.map(c => ({
       'Customer Name': c.customerName || '',
@@ -644,7 +615,6 @@ const FollowupPage = () => {
       return filtered;
     });
 
-    // Try to use xlsx if it's installed
     try {
       const XLSX = await import('xlsx');
       const ws = XLSX.utils.json_to_sheet(rows);
@@ -660,10 +630,9 @@ const FollowupPage = () => {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast({ title: 'Export ready', description: 'Downloaded Excel file.', status: 'success', duration: 3000, isClosable: true });
+      showNotification('Export complete', 'Downloaded visible prospects table.', 'success');
       return;
     } catch (err) {
-      // fall back to CSV
       try {
         const csvRows = [];
         const headers = Object.keys(rows[0] || {});
@@ -685,389 +654,417 @@ const FollowupPage = () => {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        toast({ title: 'Export ready', description: 'Downloaded CSV file (Excel-compatible).', status: 'info', duration: 3000, isClosable: true });
-        return;
+        showNotification('Export complete', 'Downloaded visible CSV export.', 'success');
       } catch (err2) {
         console.error('Export failed', err2);
-        toast({ title: 'Export failed', description: 'Could not export data.', status: 'error', duration: 4000, isClosable: true });
+        showNotification('Export failed', 'Could not export Visible leads table.', 'error');
       }
     }
   };
 
   return (
-    <Box pt={4}>
-      {/* <Heading 
-        as="h1" 
-        size={{ base: "lg", md: "xl" }} 
-        color={headerColor}
-        textAlign={{ base: "center", md: "left" }}
-        fontWeight="bold"
-        mb={6}
-      >
-        Sales Dashboard
-      </Heading> */}
+    <div className="space-y-6">
       
-      {/* Stats Overview */}
-      <SimpleGrid 
-        columns={{ base: 1, sm: 2, md: 2, lg: 5 }} 
-        spacing={{ base: 4, md: 6 }} 
-        mb={{ base: 6, md: 8 }}
-      >
-        <Card 
-          bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
-          borderWidth="1px" 
-          borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
+      {/* Stats Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {[
+          { label: 'Total Customers', value: stats.total, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-950/20', icon: FiUser, sub: 'All time' },
+          { label: 'Completed Deals', value: stats.completedDeals, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/20', icon: FiCheckCircle, sub: '+18% this month', subColor: 'text-emerald-500' },
+          { label: 'Total Commission', value: formatCurrency(stats.totalCommission), color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-950/20', icon: FiDollarSign, sub: '+12% this month', subColor: 'text-emerald-500' },
+          { label: 'Called Prospects', value: stats.calledCustomers, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-950/20', icon: FiPhone, sub: '+8% this month', subColor: 'text-emerald-500' },
+          { label: 'New Prospects', value: stats.new, color: 'text-teal-500', bg: 'bg-teal-50 dark:bg-teal-950/20', icon: FiTrendingUp, sub: '+0% this month', subColor: 'text-slate-400' }
+        ].map((card, i) => (
+          <div 
+            key={i}
+            className="py-2.5 px-3 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-xl shadow-2xs flex items-center gap-3 hover:-translate-y-0.5 hover:shadow-xs transition-all duration-300"
+          >
+            <div className={`w-9 h-9 rounded-full ${card.bg} ${card.color} flex items-center justify-center flex-shrink-0`}>
+              <card.icon className="text-base" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[9px] font-black text-slate-800 dark:text-slate-400 uppercase tracking-wide block leading-tight">
+                {card.label}
+              </span>
+              <span className="text-base font-black text-slate-900 dark:text-slate-100 tracking-tight block mt-0.5 leading-none">
+                {card.value}
+              </span>
+              <span className={`text-[8px] font-bold mt-1 block ${card.subColor || 'text-slate-400'} leading-none`}>
+                {card.sub}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>      {/* Filter and Control Bar */}
+      <div className="p-3 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-2xs flex flex-wrap items-center gap-2 text-xs">
+        
+        {/* Reset button */}
+        <button 
+          onClick={() => {
+            setFilters({ callStatus: '', followupStatus: '', sortBy: 'date' });
+            setScheduleFilter('');
+            setLeadSourceFilter('');
+            setPipelineTab('all');
+            setDateFilterType('All');
+            setStartDate('');
+            setEndDate('');
+            setWeekValue('');
+            setYearValue('');
+            setSearchQuery('');
+          }}
+          className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold transition-all flex items-center gap-1.5 h-8.5"
+          title="Reset all filters"
         >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="blue.100"
-                  color="blue.500"
-                  mr={3}
-                >
-                  <Icon as={FiUser} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Total Customers
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="blue.500" mt={0}>
-                    {stats.total}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+          <FiRotateCcw className="text-[10px]" />
+          <span>Reset</span>
+        </button>
 
-        <Card 
-          bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
-          borderWidth="1px" 
-          borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
+        {/* Date Filter Dropdown */}
+        <select
+          value={dateFilterType}
+          onChange={(e) => setDateFilterType(e.target.value)}
+          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-xs font-bold focus:ring-2 focus:ring-teal-500/25 focus:border-teal-500 outline-none text-slate-700 dark:text-slate-200 cursor-pointer h-8.5"
         >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="green.100"
-                  color="green.500"
-                  mr={3}
-                >
-                  <Icon as={FiCheckCircle} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Completed Deals
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="green.500" mt={0}>
-                    {stats.completedDeals}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+          <option value="All">📅 All Dates</option>
+          <option value="DateRange">📅 Date Range</option>
+          <option value="Day">📅 Specific Day</option>
+          <option value="Week">📅 Week Range</option>
+          <option value="Year">📅 Year Range</option>
+        </select>
 
-        <Card 
-          bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
-          borderWidth="1px" 
-          borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
-        >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="yellow.100"
-                  color="yellow.600"
-                  mr={3}
-                >
-                  <Icon as={FiDollarSign} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Total Commission
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="yellow.600" mt={0}>
-                    ETB {typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}
-                  </StatNumber>
-                  <StatHelpText fontSize="xs" color={secondaryTextColor}>from all sales</StatHelpText>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
-
-        <Card 
-          bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
-          borderWidth="1px" 
-          borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
-        >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="purple.100"
-                  color="purple.500"
-                  mr={3}
-                >
-                  <Icon as={FiPhone} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Called Customers
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="purple.500" mt={0}>
-                    {stats.calledCustomers}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
-
-        <Card 
-          bg={cardBg} 
-          boxShadow="lg" 
-          borderRadius="xl" 
-          borderWidth="1px" 
-          borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
-        >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="teal.100"
-                  color="teal.500"
-                  mr={3}
-                >
-                  <Icon as={FiTrendingUp} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    New Prospects
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="teal.500" mt={0}>
-                    {stats.new}
-                  </StatNumber>
-                  <StatHelpText mt={1} fontSize="xs">
-                    <StatArrow type='increase' />
-                    {stats.total > 0 ? Math.round((stats.new / stats.total) * 100) : 0}% this month
-                  </StatHelpText>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
-      </SimpleGrid>
-
-      {/* Filters and Search */}
-      <Box bg={cardBg} p={4} borderRadius="lg" boxShadow="md" mb={6}>
-        <Flex 
-          direction={{ base: 'column', md: 'row' }} 
-          wrap="wrap" 
-          gap={4} 
-          align="center"
-        >
-          <InputGroup width={{ base: '100%', md: '250px' }}>
-            <InputLeftElement pointerEvents="none">
-              <SearchIcon color="gray.300" />
-            </InputLeftElement>
-            <Input
-              placeholder="Search prospects..."
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
+        {/* Date Sub-options */}
+        {dateFilterType === 'DateRange' && (
+          <div className="flex gap-1 items-center">
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-2 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs h-8.5"
             />
-          </InputGroup>
-          
-          <Select 
-            width={{ base: '100%', md: '150px' }} 
-            placeholder="Call Status"
-            value={filters.callStatus}
-            onChange={(e) => handleFilterChange('callStatus', e.target.value)}
-          >
-            <option value="Called">Called</option>
-            <option value="Not Called">Not Called</option>
-            <option value="Busy">Busy</option>
-            <option value="No Answer">No Answer</option>
-            <option value="Callback">Callback</option>
-            <option value="2x Called">2x Called</option>
-          </Select>
-          
-          <Select 
-            width={{ base: '100%', md: '150px' }} 
-            placeholder="Follow-up Status"
-            value={filters.followupStatus}
-            onChange={(e) => handleFilterChange('followupStatus', e.target.value)}
-          >
-            <option value="">All</option>
-            <option value="Pending">Pending</option>
-            <option value="Completed">Completed</option>
-            <option value="Scheduled">Scheduled</option>
-            <option value="Cancelled">Cancelled</option>
-            <option value="Not Imported">Not Imported</option>
-          </Select>
-          
-          <Select 
-            width={{ base: '100%', md: '150px' }} 
-            placeholder="Sort By"
-            value={filters.sortBy}
-            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-          >
-            <option value="date">Date</option>
-            <option value="name">Name</option>
-            <option value="callStatus">Call Status</option>
-            <option value="followupStatus">Follow-up Status</option>
-          </Select>
+            <span className="text-slate-400 text-xs">to</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-2 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs h-8.5"
+            />
+          </div>
+        )}
 
-          <Select width={{ base: '100%', md: '150px' }} placeholder="Schedule" value={scheduleFilter} onChange={(e) => setScheduleFilter(e.target.value)}>
-            <option value="">All Schedules</option>
-            <option value="Regular">Regular</option>
-            <option value="Weekend">Weekend</option>
-            <option value="Night">Night</option>
-            <option value="Online">Online</option>
-          </Select>
-
-          {/* Date filters: All, Date Range, Week, Year */}
-          <Select width={{ base: '100%', md: '150px' }} value={dateFilterType} onChange={(e) => setDateFilterType(e.target.value)}>
-            <option value="All">All Dates</option>
-            <option value="DateRange">Date Range</option>
-            <option value="Day">Day</option>
-            <option value="Week">Week</option>
-            <option value="Year">Year</option>
-          </Select>
-
-          {dateFilterType === 'DateRange' && (
-            <>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} width={{ base: '100%', md: '150px' }} />
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} width={{ base: '100%', md: '150px' }} />
-            </>
-          )}
-
-          {dateFilterType === 'Day' && (
-            <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setEndDate(e.target.value); }} width={{ base: '100%', md: '150px' }} />
-          )}
-
-          {dateFilterType === 'Week' && (
-            <Input type="week" value={weekValue} onChange={(e) => setWeekValue(e.target.value)} width={{ base: '100%', md: '150px' }} />
-          )}
-
-          {dateFilterType === 'Year' && (
-            <Input type="number" placeholder="Year" value={yearValue} onChange={(e) => setYearValue(e.target.value)} width={{ base: '100%', md: '120px' }} />
-          )}
-
-          <Menu>
-            <MenuButton as={Button} colorScheme="teal" leftIcon={<Icon as={FiDownload} />} type="button">
-              Export
-            </MenuButton>
-            <MenuList minW="220px">
-              {Object.keys(exportColumns).map(col => (
-                <MenuItem key={col} minH="40px" closeOnSelect={false}>
-                  <Checkbox isChecked={exportColumns[col]} onChange={(e) => setExportColumns(prev => ({ ...prev, [col]: e.target.checked }))}>
-                    {col}
-                  </Checkbox>
-                </MenuItem>
-              ))}
-              <MenuItem closeOnSelect={false}>
-                <Box display="flex" gap={2}>
-                  <Button variant="ghost" size="sm" type="button" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=true, acc), {}))}>Select All</Button>
-                  <Button variant="ghost" size="sm" type="button" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=false, acc), {}))}>Clear</Button>
-                </Box>
-              </MenuItem>
-              <MenuItem closeOnSelect={false}>
-                <Button colorScheme="teal" size="sm" type="button" onClick={exportVisible}>Download</Button>
-              </MenuItem>
-            </MenuList>
-          </Menu>
-
-          <Button
-            leftIcon={<Icon as={FiUpload} />}
-            colorScheme="blue"
-            variant="outline"
-            type="button"
-            onClick={() => customerImportRef.current?.click()}
-            isLoading={isImportingCustomers}
-            isDisabled={isImportingCustomers}
-          >
-            Import Excel
-          </Button>
-          <input
-            ref={customerImportRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleImportCustomers}
-            style={{ display: 'none' }}
+        {dateFilterType === 'Day' && (
+          <input 
+            type="date" 
+            value={startDate} 
+            onChange={(e) => { setStartDate(e.target.value); setEndDate(e.target.value); }}
+            className="px-2 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs h-8.5"
           />
+        )}
 
-          <Button onClick={() => { setDateFilterType('All'); setStartDate(''); setEndDate(''); setWeekValue(''); setYearValue(''); }} variant="ghost">Clear Date</Button>
-        </Flex>
-      </Box>
+        {dateFilterType === 'Week' && (
+          <input 
+            type="week" 
+            value={weekValue} 
+            onChange={(e) => setWeekValue(e.target.value)}
+            className="px-2 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs h-8.5"
+          />
+        )}
 
-      <Box bg="white" p={0} borderRadius="lg" boxShadow="md" w="100%" maxW="100%">
-        <Tabs isFitted variant="enclosed">
-          <TabList mb="1em">
-            <Tab>Customer Followups</Tab>
-            <Tab>Package Sales</Tab>
-          </TabList>
-          <TabPanels>
-            <TabPanel p={0}>
+        {dateFilterType === 'Year' && (
+          <input 
+            type="number" 
+            placeholder="Year" 
+            value={yearValue} 
+            onChange={(e) => setYearValue(e.target.value)}
+            className="px-2 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs w-16 h-8.5"
+          />
+        )}
+
+        <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden lg:block" />
+
+        {/* Call Status select */}
+        <select
+          value={filters.callStatus}
+          onChange={(e) => handleFilterChange('callStatus', e.target.value)}
+          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-teal-500/25 focus:border-teal-500 outline-none text-slate-700 dark:text-slate-200 h-8.5 cursor-pointer"
+        >
+          <option value="">📞 Call Status: All</option>
+          <option value="Called">Called</option>
+          <option value="Not Called">Not Called</option>
+          <option value="Busy">Busy</option>
+          <option value="No Answer">No Answer</option>
+          <option value="Callback">Callback</option>
+          <option value="2x Called">2x Called</option>
+        </select>
+
+        {/* Followup Status select */}
+        <select
+          value={filters.followupStatus}
+          onChange={(e) => handleFilterChange('followupStatus', e.target.value)}
+          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-teal-500/25 focus:border-teal-500 outline-none text-slate-700 dark:text-slate-200 h-8.5 cursor-pointer"
+        >
+          <option value="">🕒 Follow-up: All</option>
+          <option value="Pending">Pending</option>
+          <option value="Completed">Completed</option>
+          <option value="Scheduled">Scheduled</option>
+          <option value="Cancelled">Cancelled</option>
+          <option value="Not Imported">Not Imported</option>
+        </select>
+
+        {/* Sort By select */}
+        <select
+          value={filters.sortBy}
+          onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-teal-500/25 focus:border-teal-500 outline-none text-slate-700 dark:text-slate-200 h-8.5 cursor-pointer"
+        >
+          <option value="date">↕ Sort by: Date</option>
+          <option value="name">↕ Sort by: Name</option>
+          <option value="callStatus">↕ Sort by: Call Status</option>
+          <option value="followupStatus">↕ Sort by: Follow-up Status</option>
+        </select>
+
+        {/* Schedule Preference select */}
+        <select
+          value={scheduleFilter}
+          onChange={(e) => setScheduleFilter(e.target.value)}
+          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-teal-500/25 focus:border-teal-500 outline-none text-slate-700 dark:text-slate-200 h-8.5 cursor-pointer"
+        >
+          <option value="">🌅 Schedule Type: All</option>
+          <option value="Regular">Regular</option>
+          <option value="Weekend">Weekend</option>
+          <option value="Night">Night</option>
+          <option value="Online">Online</option>
+        </select>
+
+        {/* Lead Source select */}
+        <select
+          value={leadSourceFilter}
+          onChange={(e) => setLeadSourceFilter(e.target.value)}
+          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-teal-500/25 focus:border-teal-500 outline-none text-slate-700 dark:text-slate-200 h-8.5 cursor-pointer"
+        >
+          <option value="">🟠 Lead Source: All</option>
+          <option value="Cold Call">Cold Call</option>
+          <option value="Warm Lead">Warm Lead</option>
+          <option value="Referral">Referral</option>
+          <option value="Walk-in">Walk-in</option>
+          <option value="Other">Other</option>
+        </select>
+
+        <div className="h-5 w-px bg-slate-250 dark:bg-slate-700 mx-1 hidden md:block" />
+
+        {/* Export Dropdown Popover */}
+        <div className="relative" ref={exportDropdownRef}>
+          <button
+            onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+            className="w-8.5 h-8.5 bg-teal-650 hover:bg-teal-700 text-white rounded-xl transition-all flex items-center justify-center shadow-sm"
+            title="Export prospects to Excel"
+          >
+            <FiDownload className="text-sm" />
+          </button>
+
+          {isExportDropdownOpen && (
+            <div className="absolute right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl w-56 p-3.5 z-50 text-slate-700 dark:text-slate-200">
+              <span className="text-[10px] font-extrabold text-slate-450 dark:text-slate-500 uppercase tracking-wider block mb-2">
+                Select columns to export
+              </span>
+              <div className="max-h-48 overflow-y-auto space-y-1.5 mb-3">
+                {Object.keys(exportColumns).map(col => (
+                  <label key={col} className="flex items-center gap-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-900 p-1 rounded-md cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={exportColumns[col]} 
+                      onChange={(e) => setExportColumns(prev => ({ ...prev, [col]: e.target.checked }))}
+                      className="rounded border-slate-350 text-teal-600 focus:ring-teal-500 h-3.5 w-3.5"
+                    />
+                    <span>{col}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-2 justify-between border-t border-slate-100 dark:border-slate-800 pt-2 mb-2">
+                <button 
+                  onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=true, acc), {}))}
+                  className="text-[10px] text-teal-650 dark:text-teal-400 font-extrabold hover:underline"
+                >
+                  Select All
+                </button>
+                <button 
+                  onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=false, acc), {}))}
+                  className="text-[10px] text-slate-400 font-extrabold hover:underline"
+                >
+                  Clear All
+                </button>
+              </div>
+              <button
+                onClick={() => {
+                  setIsExportDropdownOpen(false);
+                  exportVisible();
+                }}
+                className="w-full py-1.5 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold text-center block"
+              >
+                Download Excel
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Import Excel Trigger */}
+        <button
+          onClick={() => customerImportRef.current?.click()}
+          disabled={isImportingCustomers}
+          className="w-8.5 h-8.5 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl transition-all flex items-center justify-center shadow-sm disabled:opacity-50"
+          title={isImportingCustomers ? "Importing prospects..." : "Import prospects from Excel"}
+        >
+          {isImportingCustomers ? (
+            <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-teal-500 border-t-transparent" />
+          ) : (
+            <FiUpload className="text-sm" />
+          )}
+        </button>
+        <input
+          ref={customerImportRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          onChange={handleImportCustomers}
+          className="hidden"
+        />
+
+      </div>
+
+      {/* Tabs Container */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-2xl shadow-xs overflow-hidden">
+        
+        {/* Tabs switcher header */}
+        <div className="flex border-b border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-800">
+          <button
+            onClick={() => setActiveTab('customers')}
+            className={`flex-1 py-4 text-center text-xs font-black tracking-wide transition-all flex items-center justify-center gap-2 border-r border-slate-100 dark:border-slate-800 ${
+              activeTab === 'customers'
+                ? 'border-b-2 border-teal-550 text-teal-600 dark:text-teal-400 bg-slate-50/50 dark:bg-slate-900/30'
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <FiUsers className="text-sm" />
+            <span>Customer Followups</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('packageSales')}
+            className={`flex-1 py-4 text-center text-xs font-black tracking-wide transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'packageSales'
+                ? 'border-b-2 border-teal-550 text-teal-600 dark:text-teal-400 bg-slate-50/50 dark:bg-slate-900/30'
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <FiBriefcase className="text-sm" />
+            <span>Package Sales</span>
+          </button>
+        </div>
+
+        {/* Tabs Panels */}
+        <div className="p-0">
+          {activeTab === 'customers' ? (
+            <div>
               {loading ? (
-                <Flex justify="center" align="center" minH="300px">
-                  <Spinner size="xl" color="teal.500" thickness="4px" />
-                </Flex>
+                <div className="flex justify-center items-center min-h-[300px] py-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
+                </div>
               ) : error ? (
-                <Box bg="red.50" p={4} borderRadius="lg" mb={4}>
-                  <Text color="red.500" fontWeight="medium">{error}</Text>
-                </Box>
+                <div className="p-4 m-4 bg-red-50 border-l-4 border-red-500 text-red-700 dark:bg-red-950/20 dark:text-red-300 rounded-r-lg">
+                  <span className="font-bold">Error:</span> {error}
+                </div>
               ) : (
-                <FollowupCustomerTable
-                  customers={sortedCustomers}
-                  courses={courses}
-                  onDelete={handleDelete}
-                  onUpdate={handleUpdate}
-                  onAdd={handleAdd}
-                />
+                <div>
+                  {/* ── Smart Pipeline Tabs ── */}
+                  <div className="px-4 pt-4 pb-0 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-px">
+                      {[
+                        { key: 'all',      label: 'All Active',  count: pipelineCounts.all,       icon: '📋', color: 'teal'   },
+                        { key: 'today',    label: 'Today',       count: pipelineCounts.today,     icon: '⚡', color: 'amber'  },
+                        { key: 'week',     label: 'This Week',   count: pipelineCounts.week,      icon: '📅', color: 'blue'   },
+                        { key: 'coldcall', label: 'Cold Calls',  count: pipelineCounts.coldcall,  icon: '📞', color: 'orange' },
+                        { key: 'warm',     label: 'Warm Leads',  count: pipelineCounts.warm,      icon: '🌱', color: 'green'  },
+                        { key: 'completed',label: 'Completed',   count: pipelineCounts.completed, icon: '✅', color: 'emerald'},
+                      ].map((tab) => {
+                        const isActive = pipelineTab === tab.key;
+                        const colorMap = {
+                          teal:    { active: 'border-teal-500 text-teal-700 dark:text-teal-400',    badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+                          amber:   { active: 'border-amber-500 text-amber-700 dark:text-amber-400', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+                          blue:    { active: 'border-blue-500 text-blue-700 dark:text-blue-400',    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+                          orange:  { active: 'border-orange-500 text-orange-700 dark:text-orange-400', badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+                          green:   { active: 'border-green-500 text-green-700 dark:text-green-400', badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+                          emerald: { active: 'border-emerald-500 text-emerald-700 dark:text-emerald-400', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+                        };
+                        const cm = colorMap[tab.color];
+                        return (
+                          <button
+                            key={tab.key}
+                            onClick={() => setPipelineTab(tab.key)}
+                            className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-extrabold whitespace-nowrap border-b-2 transition-all flex-shrink-0 ${
+                              isActive
+                                ? `${cm.active} bg-transparent`
+                                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            }`}
+                          >
+                            <span>{tab.icon}</span>
+                            <span>{tab.label}</span>
+                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${isActive ? cm.badge : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                              {tab.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Completed tab notice */}
+                  {pipelineTab === 'completed' && (
+                    <div className="mx-4 mt-3 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-2">
+                      <span>✅</span>
+                      <span>Showing archived completed deals only. These customers have been marked as paid/closed.</span>
+                    </div>
+                  )}
+                  {pipelineTab === 'today' && pipelineCounts.today === 0 && (
+                    <div className="mx-4 mt-3 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl text-[10px] text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-2">
+                      <span>⚡</span>
+                      <span>No customers scheduled for today. Double-click the Scheduled Date cell on any prospect to pin them to today.</span>
+                    </div>
+                  )}
+
+                  <FollowupCustomerTable
+                    customers={pipelineFilteredCustomers}
+                    courses={courses}
+                    onDelete={handleDelete}
+                    onUpdate={handleUpdate}
+                    onAdd={handleAdd}
+                  />
+                </div>
               )}
-            </TabPanel>
-            <TabPanel p={4}>
+            </div>
+
+          ) : (
+            <div className="p-0">
               <PackageSalesTab />
-            </TabPanel>
-          </TabPanels>        </Tabs>
-      </Box>
-    </Box>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Floating custom Tailwind Toasts container */}
+      <div className="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none">
+        {toasts.map(toast => (
+          <div 
+            key={toast.id}
+            className={`p-3.5 rounded-xl border shadow-xl flex flex-col pointer-events-auto min-w-[280px] max-w-sm animate-in slide-in-from-bottom-5 duration-200 ${
+              toast.status === 'error' 
+                ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-900 dark:text-red-300' 
+                : 'bg-teal-50 border-teal-200 text-teal-800 dark:bg-slate-800 dark:border-teal-900 dark:text-teal-350'
+            }`}
+          >
+            <span className="text-xs font-black">{toast.title}</span>
+            <span className="text-[10px] mt-1">{toast.description}</span>
+          </div>
+        ))}
+      </div>
+
+    </div>
   );
 };
 

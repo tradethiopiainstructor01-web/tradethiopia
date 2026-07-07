@@ -67,6 +67,8 @@ const actionItemRoutes = require('./routes/actionItemRoutes.js');
 const commissionApprovalRoutes = require('./sales/routes/commissionApprovalRoutes.js');
 const salesOnboardingCourseRoutes = require('./sales/routes/salesOnboardingCourseRoutes.js');
 const socialAccountCredentialRoutes = require('./routes/socialAccountCredentialRoutes.js');
+const pushRoutes = require('./routes/pushRoutes.js');
+const { scheduleDailyReminders } = require('./services/pushScheduler.js');
 // Load environment variables
 
 // Initialize Express app
@@ -361,6 +363,9 @@ app.use('/api/awards', awardRoutes);
 app.use('/api/commissions', commissionApprovalRoutes);
 app.use('/api/sales-onboarding-course', salesOnboardingCourseRoutes);
 
+// Web Push Notifications
+app.use('/api/push', pushRoutes);
+
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -386,6 +391,8 @@ if (require.main === module) {
       .then(() => {
         const server = app.listen(PORT, HOST, () => {
           console.log(`Server running on http://${HOST}:${PORT}`);
+          // Start push notification cron jobs
+          scheduleDailyReminders();
         });
         
         // Initialize Socket.IO with the HTTP server

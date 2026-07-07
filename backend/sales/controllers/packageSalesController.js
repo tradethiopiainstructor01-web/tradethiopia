@@ -4,6 +4,21 @@ const User = require('../../models/user.model.js');
 const PackageSale = require('../models/PackageSale');
 const PackageSalesActivity = require('../models/PackageSalesActivity');
 
+const PRIVILEGED_ROLES = new Set([
+  'admin',
+  'customerservice',
+  'customer service',
+  'customersuccessmanager',
+  'customer success manager',
+  'customer_success_manager',
+  'coo',
+  'salesmanager',
+  'sales_manager',
+  'sales manager',
+  'finance',
+  'reception'
+]);
+
 const buildPackageRows = (customers, customerType, agentLookup = {}) => {
   const rows = [];
 
@@ -121,10 +136,16 @@ const loadPackageRows = async () => {
   }
 };
 
-const getPackageSales = async (_req, res) => {
+const getPackageSales = async (req, res) => {
   try {
     const rows = await loadPackageRows();
-    res.json(rows);
+    const user = req.user || {};
+    const normalizedUserRole = (user.role || '').toString().trim().toLowerCase();
+    const canViewAll = PRIVILEGED_ROLES.has(normalizedUserRole);
+    const filteredRows = canViewAll 
+      ? rows 
+      : rows.filter(row => row.agentId && (row.agentId.toString() === (user._id || user.id)?.toString()));
+    res.json(filteredRows);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -269,10 +290,17 @@ const calculateCommissions = (packageValue) => {
   };
 };
 
-const getPackageSalesCommissions = async (_req, res) => {
+const getPackageSalesCommissions = async (req, res) => {
   try {
     const rows = await loadPackageRows();
-    const commissionEntries = rows.map((row) => {
+    const user = req.user || {};
+    const normalizedUserRole = (user.role || '').toString().trim().toLowerCase();
+    const canViewAll = PRIVILEGED_ROLES.has(normalizedUserRole);
+    const filteredRows = canViewAll 
+      ? rows 
+      : rows.filter(row => row.agentId && (row.agentId.toString() === (user._id || user.id)?.toString()));
+
+    const commissionEntries = filteredRows.map((row) => {
       const packageValue = row.packageValue ? toNumber(row.packageValue) : toNumber(row.packageType) * 1000;
       const commission = calculateCommissions(packageValue);
       return {
@@ -311,11 +339,18 @@ const resolveNextFollowupDate = (expiryDate, now) => {
   return new Date(now.getTime() + 7 * MS_PER_DAY);
 };
 
-const getPackageSalesFollowups = async (_req, res) => {
+const getPackageSalesFollowups = async (req, res) => {
   try {
     const rows = await loadPackageRows();
+    const user = req.user || {};
+    const normalizedUserRole = (user.role || '').toString().trim().toLowerCase();
+    const canViewAll = PRIVILEGED_ROLES.has(normalizedUserRole);
+    const filteredRows = canViewAll 
+      ? rows 
+      : rows.filter(row => row.agentId && (row.agentId.toString() === (user._id || user.id)?.toString()));
+
     const now = new Date();
-    const followupEntries = rows.map((row) => {
+    const followupEntries = filteredRows.map((row) => {
       const expiryDate = row.expiryDate ? new Date(row.expiryDate) : null;
       const purchaseDate = row.purchaseDate ? new Date(row.purchaseDate) : null;
       const followUpStatus = deriveFollowupStatus(row.status, expiryDate, now);
@@ -343,11 +378,82 @@ const getPackageSalesFollowups = async (_req, res) => {
   }
 };
 
+const updatePackageSale = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    let resolvedId = id;
+    if (id.startsWith('manual-')) {
+      resolvedId = id.replace('manual-', '');
+    } else if (id.includes('-')) {
+      const [custId, pkgId] = id.split('-');
+      
+      const buyer = await Buyer.findById(custId);
+      if (buyer) {
+        if (updateData.callStatus) buyer.callStatus = updateData.callStatus;
+        if (updateData.status && pkgId && pkgId !== 'default' && Array.isArray(buyer.packages)) {
+          const pkg = buyer.packages.id(pkgId);
+          if (pkg) pkg.status = updateData.status;
+        }
+        await buyer.save();
+        return res.json({ success: true, message: 'Buyer package updated' });
+      }
+      
+      const seller = await Seller.findById(custId);
+      if (seller) {
+        if (updateData.callStatus) seller.callStatus = updateData.callStatus;
+        if (updateData.status && pkgId && pkgId !== 'default' && Array.isArray(seller.packages)) {
+          const pkg = seller.packages.id(pkgId);
+          if (pkg) pkg.status = updateData.status;
+        }
+        await seller.save();
+        return res.json({ success: true, message: 'Seller package updated' });
+      }
+      
+      return res.status(404).json({ message: 'Associated Buyer or Seller not found' });
+    }
+
+    const updated = await PackageSale.findByIdAndUpdate(
+      resolvedId,
+      { $set: updateData },
+      { new: true }
+    );
+    
+    if (!updated) {
+      return res.status(404).json({ message: 'Package sale not found' });
+    }
+    
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const deletePackageSale = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let resolvedId = id;
+    if (id.startsWith('manual-')) {
+      resolvedId = id.replace('manual-', '');
+    }
+    const deleted = await PackageSale.findByIdAndDelete(resolvedId);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Package sale not found' });
+    }
+    res.json({ message: 'Package sale deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getPackageSales,
   createPackageSale,
   getPackageSalesCommissions,
   getPackageSalesFollowups,
   logPackageSalesActivity,
-  getPackageSalesActivities
+  getPackageSalesActivities,
+  updatePackageSale,
+  deletePackageSale
 };

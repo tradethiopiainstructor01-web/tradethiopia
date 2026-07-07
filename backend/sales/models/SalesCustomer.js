@@ -77,6 +77,19 @@ const salesCustomerSchema = new mongoose.Schema({
     enum: ['Regular', 'Weekend', 'Night', 'Online'],
     default: 'Regular'
   },
+  // Lead source: how this customer was acquired (for sales pipeline classification)
+  leadSource: {
+    type: String,
+    enum: ['Cold Call', 'Warm Lead', 'Referral', 'Walk-in', 'Other'],
+    default: 'Cold Call',
+    index: true
+  },
+  // Scheduled follow-up date: agent pins a date to contact this customer
+  scheduledDate: {
+    type: Date,
+    default: null,
+    index: true
+  },
   email: {
     type: String
   },
