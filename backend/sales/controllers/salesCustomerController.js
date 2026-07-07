@@ -289,7 +289,8 @@ const updateCustomer = asyncHandler(async (req, res) => {
     courseName,
     courseId,
     coursePrice,
-    packageScope
+    packageScope,
+    leadSource
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -321,6 +322,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
     customer.coursePrice = finalCoursePrice || 0;
     customer.commission = calculateCommission(customer.coursePrice);
     customer.packageScope = packageScope || customer.packageScope || '';
+    customer.leadSource = leadSource || customer.leadSource;
 
     const updatedCustomer = await customer.save();
     res.json(updatedCustomer);

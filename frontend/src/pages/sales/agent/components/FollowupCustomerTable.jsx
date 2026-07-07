@@ -20,7 +20,7 @@ import {
 import { calculateCommission } from '../../../../utils/commission';
 
 const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
-const TABLE_PREF_VERSION = 3;
+const TABLE_PREF_VERSION = 4;
 const VIEW_PREF_KEY = 'salesFollowupCustomerViewMode';
 const DEFAULT_COLUMNS = [
   { key: 'customerName', label: 'Customer Name', width: 140, required: true },
@@ -33,7 +33,7 @@ const DEFAULT_COLUMNS = [
   { key: 'schedulePreference', label: 'Schedule Type', width: 115 },
   { key: 'date', label: 'Date Added', width: 110 },
   { key: 'email', label: 'Email', width: 180 },
-  { key: 'actions', label: 'Actions', width: 110, required: true }
+  { key: 'actions', label: 'Actions', width: 95, required: true }
 ];
 
 const getDefaultColumnPrefs = () => ({
@@ -125,16 +125,15 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       if (prefsDropdownRef.current && !prefsDropdownRef.current.contains(e.target)) {
         setIsPrefsOpen(false);
       }
-      if (activeCallStatusMenu || activeFollowupStatusMenu) {
-        setTimeout(() => {
-          setActiveCallStatusMenu(null);
-          setActiveFollowupStatusMenu(null);
-        }, 150);
+      if (e.target.closest('.relative')) {
+        return; // Clicked inside a dropdown trigger or menu, let component event handlers process it
       }
+      setActiveCallStatusMenu(null);
+      setActiveFollowupStatusMenu(null);
     };
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [activeCallStatusMenu, activeFollowupStatusMenu]);
+  }, []);
 
   const formatDate = (dateString) => {
     const options = { month: 'short', day: 'numeric', year: 'numeric' };
@@ -581,7 +580,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         </div>
       ) : (
         /* List Mode Table Viewport matching screenshot precisely */
-        <div className="overflow-x-auto w-full max-w-full">
+        <div className="overflow-x-auto w-full max-w-full min-h-[350px]">
           <table className="w-full text-left border-collapse table-fixed text-xs text-slate-600 dark:text-slate-350 min-w-[1000px] bg-white dark:bg-slate-800">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-700 select-none text-[10px] text-slate-500 font-extrabold">
@@ -767,14 +766,15 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
               {/* Data Rows */}
               {currentRows.length > 0 ? (
-                currentRows.map((customer) => {
+                currentRows.map((customer, idx) => {
                   const scheduledToday = isScheduledToday(customer.scheduledDate);
                   const scheduledOverdue = isScheduledOverdue(customer.scheduledDate, customer.followupStatus);
                   const rowHighlight = scheduledToday
-                    ? 'bg-amber-50/60 dark:bg-amber-950/10 border-l-2 border-amber-400'
+                    ? 'bg-amber-50/60 dark:bg-amber-955/10 border-l-2 border-amber-400'
                     : scheduledOverdue
-                    ? 'bg-red-50/40 dark:bg-red-950/10 border-l-2 border-red-400'
+                    ? 'bg-red-50/40 dark:bg-red-955/10 border-l-2 border-red-400'
                     : '';
+                  const isNearBottom = currentRows.length > 3 && idx >= currentRows.length - 3;
                   return (
                   <tr
                     key={customer._id}
@@ -854,7 +854,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                               <FiChevronDown className="text-[9px]" />
                             </button>
                             {isLSMenuOpen && (
-                              <div className="absolute left-2 mt-1 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700">
+                              <div className={`absolute left-2 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700 ${isNearBottom ? 'bottom-full mb-1.5' : 'mt-1'}`}>
                                 {['Cold Call','Warm Lead','Referral','Walk-in','Other'].map((src) => {
                                   const srcBadge = getLeadSourceBadge(src);
                                   return (
@@ -955,7 +955,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                               <FiChevronDown className="text-[9px]" />
                             </button>
                             {isMenuOpen && (
-                              <div className="absolute left-2 mt-1 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700">
+                              <div className={`absolute left-2 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700 ${isNearBottom ? 'bottom-full mb-1.5' : 'mt-1'}`}>
                                 {['Not Called', 'Called', 'Busy', 'No Answer', 'Callback', '2x Called'].map((st) => (
                                   <button
                                     key={st}
@@ -1002,7 +1002,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                               <FiChevronDown className="text-[9px]" />
                             </button>
                             {isMenuOpen && (
-                              <div className="absolute left-2 mt-1 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700">
+                              <div className={`absolute left-2 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700 ${isNearBottom ? 'bottom-full mb-1.5' : 'mt-1'}`}>
                                 {['Prospect', 'Pending', 'Completed', 'Scheduled', 'Cancelled'].map((st) => (
                                   <button
                                     key={st}
@@ -1029,12 +1029,41 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
                       if (key === 'schedulePreference') {
                         const isNight = customer.schedulePreference === 'Night';
+                        const isSPMenuOpen = activeCallStatusMenu === `sp_${customer._id}`;
                         return (
-                          <td key="schedulePreference" className="p-3">
-                            <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                              {isNight ? <FiMoon className="text-slate-400" /> : <FiSun className="text-slate-400" />}
+                          <td key="schedulePreference" className="p-2 relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCallStatusMenu(isSPMenuOpen ? null : `sp_${customer._id}`);
+                                setActiveFollowupStatusMenu(null);
+                              }}
+                              className="w-fit inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold border select-none transition-all border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-750 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-805/50"
+                            >
+                              {isNight ? <FiMoon className="text-[9px] text-indigo-500" /> : <FiSun className="text-[9px] text-amber-500" />}
                               <span>{customer.schedulePreference || 'Regular'}</span>
-                            </span>
+                              <FiChevronDown className="text-[9px]" />
+                            </button>
+                            {isSPMenuOpen && (
+                              <div className={`absolute left-2 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl py-1 z-50 divide-y divide-slate-100 dark:divide-slate-700 ${isNearBottom ? 'bottom-full mb-1.5' : 'mt-1'}`}>
+                                {['Regular', 'Weekend', 'Night', 'Online'].map((pref) => {
+                                  const prefNight = pref === 'Night';
+                                  return (
+                                    <button
+                                      key={pref}
+                                      onClick={() => {
+                                        onUpdate(customer._id, { ...customer, schedulePreference: pref });
+                                        setActiveCallStatusMenu(null);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-[10px] text-slate-750 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all font-semibold"
+                                    >
+                                      {prefNight ? <FiMoon className="text-[9px] text-indigo-500" /> : <FiSun className="text-[9px] text-amber-500" />}
+                                      <span>{pref}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </td>
                         );
                       }
