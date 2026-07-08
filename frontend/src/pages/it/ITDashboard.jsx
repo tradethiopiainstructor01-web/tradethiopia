@@ -39,6 +39,7 @@ import ITRemindersPanel from './components/ITRemindersPanel';
 import NoticeBoardPanel from '../../components/NoticeBoardPanel';
 import NotesLauncher from '../../components/notes/NotesLauncher';
 import ChatLauncher from '../../components/chat/ChatLauncher';
+import NotificationBall from '../../components/notifications/NotificationBall';
 import { useUserStore } from '../../store/user';
 import { filterTasksForPersona, getItPersona } from './utils/itRbac';
 import { buildTaskReminders } from './utils/itWorkflow';
@@ -75,15 +76,27 @@ export default function ITDashboard() {
     return WEEKLY_TARGET_POINTS;
   });
 
-  const pageBg = useColorModeValue('#f4f7fb', 'gray.950');
-  const heroBg = useColorModeValue('white', 'gray.900');
-  const heroBorder = useColorModeValue('rgba(15, 23, 42, 0.08)', 'whiteAlpha.200');
-  const heroShadow = useColorModeValue('0 20px 60px rgba(15, 23, 42, 0.08)', '0 20px 60px rgba(0, 0, 0, 0.32)');
-  const statBg = useColorModeValue('gray.50', 'whiteAlpha.50');
-  const statBorder = useColorModeValue('gray.100', 'whiteAlpha.200');
-  const controlBg = useColorModeValue('gray.50', 'gray.800');
+  const pageBg = useColorModeValue('#eef4fb', '#07111f');
+  const pagePattern = useColorModeValue(
+    'linear-gradient(135deg, rgba(14,165,233,0.10), transparent 28%), linear-gradient(225deg, rgba(16,185,129,0.10), transparent 30%), linear-gradient(180deg, #f8fafc, #eef4fb)',
+    'linear-gradient(135deg, rgba(14,165,233,0.14), transparent 28%), linear-gradient(225deg, rgba(16,185,129,0.10), transparent 30%), linear-gradient(180deg, #07111f, #0f172a)'
+  );
+  const heroBg = useColorModeValue(
+    'linear-gradient(135deg, rgba(255,255,255,0.96), rgba(239,246,255,0.92) 54%, rgba(240,253,250,0.94))',
+    'linear-gradient(135deg, rgba(15,23,42,0.98), rgba(15,23,42,0.92) 54%, rgba(12,74,110,0.30))'
+  );
+  const heroBorder = useColorModeValue('rgba(37, 99, 235, 0.16)', 'whiteAlpha.200');
+  const heroShadow = useColorModeValue('0 24px 70px rgba(15, 23, 42, 0.13)', '0 24px 70px rgba(0, 0, 0, 0.42)');
+  const statBg = useColorModeValue('rgba(255,255,255,0.82)', 'whiteAlpha.100');
+  const statBorder = useColorModeValue('rgba(37, 99, 235, 0.12)', 'whiteAlpha.200');
+  const statShadow = useColorModeValue('0 18px 36px rgba(15, 23, 42, 0.09)', '0 18px 36px rgba(0, 0, 0, 0.28)');
+  const controlBg = useColorModeValue('whiteAlpha.900', 'whiteAlpha.100');
+  const toolbarBg = useColorModeValue('rgba(255,255,255,0.72)', 'rgba(15,23,42,0.62)');
+  const toolbarShadow = useColorModeValue('0 14px 34px rgba(15,23,42,0.08)', '0 14px 34px rgba(0,0,0,0.24)');
+  const gridOpacity = useColorModeValue(0.46, 0.22);
   const contentBg = useColorModeValue('transparent', 'transparent');
   const softText = useColorModeValue('gray.600', 'gray.400');
+  const toolbarIconColor = useColorModeValue('#1e293b', '#e2e8f0');
   const visibleTasks = filterTasksForPersona(tasks, persona, currentUser || {});
   const visibleTaskIds = new Set(visibleTasks.map((task) => String(task._id || task.id)));
   const visibleReports = persona.canViewAllTasks
@@ -283,7 +296,7 @@ export default function ITDashboard() {
   };
 
   return (
-    <Flex minH="100vh" bg={pageBg} w="100%" overflowX="hidden">
+    <Flex minH="100vh" bg={pageBg} bgImage={pagePattern} w="100%" overflowX="hidden">
       <ITSidebar
         activeSection={activeSection}
         setActiveSection={handleTabChange}
@@ -302,36 +315,60 @@ export default function ITDashboard() {
               bg={heroBg}
               border="1px solid"
               borderColor={heroBorder}
-              borderRadius="16px"
+              borderRadius="24px"
               boxShadow={heroShadow}
+              backdropFilter="blur(18px)"
               p={{ base: 4, md: 6 }}
               mb={6}
+              position="relative"
+              overflow="hidden"
             >
+              <Box
+                position="absolute"
+                inset={0}
+                opacity={gridOpacity}
+                pointerEvents="none"
+                bgImage="linear-gradient(rgba(59,130,246,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.08) 1px, transparent 1px)"
+                bgSize="38px 38px"
+              />
+              <Box position="relative">
               <Flex justify="space-between" align={{ base: 'stretch', lg: 'flex-start' }} direction={{ base: 'column', lg: 'row' }} gap={5}>
                 <Box maxW="760px">
                   <HStack spacing={3} wrap="wrap" mb={2}>
-                    <Badge colorScheme="cyan" borderRadius="full" px={3} py={1}>
+                    <Badge colorScheme="cyan" borderRadius="full" px={3} py={1} boxShadow="0 8px 18px rgba(14, 165, 233, 0.18)">
                       IT Operations Command
                     </Badge>
-                    <Badge colorScheme="purple" borderRadius="full" px={3} py={1}>
+                    <Badge colorScheme="purple" borderRadius="full" px={3} py={1} boxShadow="0 8px 18px rgba(124, 58, 237, 0.14)">
                       {persona.label}
                     </Badge>
                   </HStack>
-                  <Heading size={{ base: 'lg', md: 'xl' }} letterSpacing="0">
+                  <Heading size={{ base: 'lg', md: 'xl' }} letterSpacing="0" lineHeight="1.05">
                     IT Department Dashboard
                   </Heading>
                   <Text color={softText} mt={2} fontSize={{ base: 'sm', md: 'md' }}>
                     {persona.description}
                   </Text>
                 </Box>
-                <HStack spacing={2} flexWrap="wrap" justify={{ base: 'flex-start', lg: 'flex-end' }}>
+                <HStack
+                  spacing={2}
+                  flexWrap="wrap"
+                  justify={{ base: 'flex-start', lg: 'flex-end' }}
+                  bg={toolbarBg}
+                  border="1px solid"
+                  borderColor={heroBorder}
+                  borderRadius="18px"
+                  p={2}
+                  boxShadow={toolbarShadow}
+                  backdropFilter="blur(14px)"
+                >
                   <Select
                     size="sm"
                     value={activeSection}
                     onChange={(event) => handleTabChange(event.target.value)}
                     maxW="190px"
-                    borderRadius="10px"
+                    borderRadius="12px"
                     bg={controlBg}
+                    borderColor={heroBorder}
                   >
                     <option value="dashboard">Overview</option>
                     <option value="projects">Projects</option>
@@ -344,15 +381,17 @@ export default function ITDashboard() {
                     {persona.canManageUsers && <option value="admin">Admin</option>}
                     {persona.canManageUsers && <option value="admin-users">User Management</option>}
                   </Select>
-                  <Button colorScheme="blue" leftIcon={<FiPlus />} onClick={() => setModalOpen(true)} isDisabled={!persona.canCreateTasks} borderRadius="10px">
+                  <Button colorScheme="blue" leftIcon={<FiPlus />} onClick={() => setModalOpen(true)} isDisabled={!persona.canCreateTasks} borderRadius="12px" boxShadow="0 12px 24px rgba(37, 99, 235, 0.20)">
                     New Task
                   </Button>
-                  <Button colorScheme="teal" variant="outline" onClick={() => navigate("/requests")} borderRadius="10px">
+                  <Button colorScheme="teal" variant="outline" onClick={() => navigate("/requests")} borderRadius="12px" bg={controlBg}>
                     Requests
                   </Button>
+                  <NotificationBall iconColor={toolbarIconColor} />
                   <ChatLauncher
                     icon={<FiMessageSquare />}
                     ariaLabel="Open IT workspace chat"
+                    preferredView="it"
                     iconButtonProps={{
                       size: 'sm',
                       variant: 'ghost',
@@ -386,22 +425,27 @@ export default function ITDashboard() {
                         border="1px solid"
                         borderColor={statBorder}
                         bg={statBg}
-                        borderRadius="12px"
+                        borderRadius="18px"
                         p={4}
+                        boxShadow={statShadow}
+                        backdropFilter="blur(14px)"
+                        transition="transform 0.18s ease, box-shadow 0.18s ease"
+                        _hover={{ transform: 'translateY(-2px)', boxShadow: heroShadow }}
                       >
                         <HStack justify="space-between" align="flex-start">
                           <Stat>
-                            <StatLabel color={softText}>{stat.label}</StatLabel>
-                            <StatNumber fontSize="2xl">{stat.value}</StatNumber>
+                            <StatLabel color={softText} fontWeight="700">{stat.label}</StatLabel>
+                            <StatNumber fontSize="3xl" lineHeight="1.1">{stat.value}</StatNumber>
                             <Text fontSize="xs" color={softText}>{stat.helper}</Text>
                           </Stat>
                           <Flex
-                            boxSize="38px"
-                            borderRadius="12px"
+                            boxSize="44px"
+                            borderRadius="16px"
                             align="center"
                             justify="center"
                             bg={`${stat.color}.50`}
                             color={`${stat.color}.500`}
+                            boxShadow="inset 0 0 0 1px rgba(255,255,255,0.72)"
                           >
                             <Icon as={stat.icon} boxSize={5} />
                           </Flex>
@@ -411,9 +455,10 @@ export default function ITDashboard() {
                   </SimpleGrid>
                 </ITCollapsibleSection>
               </Box>
+              </Box>
             </Box>
             {dueSoonCount > 0 && (
-              <Alert status="info" borderRadius="12px" mb={6}>
+              <Alert status="info" borderRadius="16px" mb={6} boxShadow={statShadow}>
                 <AlertIcon />
                 {dueSoonCount} assigned IT task{dueSoonCount === 1 ? '' : 's'} due within the next 3 days.
               </Alert>

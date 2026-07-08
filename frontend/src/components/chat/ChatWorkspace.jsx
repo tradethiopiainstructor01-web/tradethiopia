@@ -113,7 +113,7 @@ const getConversationKindLabel = (conversation) => {
 };
 
 const getConversationStatusGlyph = (conversation) => {
-  if (Number(conversation.unreadCount || 0) > 0) return '●';
+  if (Number(conversation.unreadCount || 0) > 0) return '•';
   return '✓✓';
 };
 
@@ -121,6 +121,18 @@ const isPinnedConversation = (conversation) =>
   ['sales-team', 'sales-leadership'].includes(conversation.managedKey) || conversation.kind === 'department';
 const MESSAGE_PAGE_SIZE = 30;
 
+const isMessageReadByOthers = (message, currentUserId) =>
+  (message.readBy || []).some((item) => String(item.user?._id || item.user) !== String(currentUserId));
+
+
+const getMessageReadText = (message, currentUserId) =>
+  isMessageReadByOthers(message, currentUserId) ? '✓✓ Read' : '✓ Unread';
+
+const getMessageChangeText = (message) => {
+  if (message.deletedAt) return 'deleted message';
+  if (message.editedAt) return 'edited message';
+  return '';
+};
 const mergeConversation = (current, incoming) => {
   const next = incoming?.conversation || incoming;
   if (!next?._id) return current;
@@ -177,15 +189,23 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
   const searchBg = useColorModeValue('white', 'whiteAlpha.100');
   const composerBg = useColorModeValue('white', 'gray.900');
   const ownMetaColor = useColorModeValue('teal.700', 'teal.100');
+  const railHeaderBg = useColorModeValue('linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)', 'linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,41,59,0.94))');
+  const railItemBg = useColorModeValue('white', 'whiteAlpha.50');
+  const railItemSelectedBg = useColorModeValue('linear-gradient(135deg, #ecfeff 0%, #eff6ff 100%)', 'linear-gradient(135deg, rgba(20,184,166,0.22), rgba(37,99,235,0.14))');
+  const railItemShadow = useColorModeValue('0 10px 24px rgba(15, 23, 42, 0.07)', '0 10px 24px rgba(0, 0, 0, 0.24)');
+  const chatHeaderBg = useColorModeValue('linear-gradient(135deg, #ffffff 0%, #eff6ff 58%, #f0fdfa 100%)', 'linear-gradient(135deg, rgba(15,23,42,0.98), rgba(12,74,110,0.34))');
+  const bubbleShadow = useColorModeValue('0 12px 30px rgba(15, 23, 42, 0.09)', '0 12px 30px rgba(0, 0, 0, 0.28)');
+  const messageMetaBg = useColorModeValue('whiteAlpha.700', 'blackAlpha.200');
   const messageAreaBg = useColorModeValue(
-    'radial-gradient(circle at 18% 14%, rgba(34,197,94,0.07), transparent 22%), radial-gradient(circle at 82% 8%, rgba(59,130,246,0.08), transparent 18%), linear-gradient(180deg, #eef8f0, #e8f3eb)',
-    'radial-gradient(circle at 18% 14%, rgba(34,197,94,0.08), transparent 22%), radial-gradient(circle at 82% 8%, rgba(59,130,246,0.07), transparent 18%), linear-gradient(180deg, #10231d, #0b1720)'
+    'linear-gradient(135deg, rgba(240, 253, 250, 0.92), rgba(239, 246, 255, 0.96) 48%, rgba(248, 250, 252, 0.98))',
+    'linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.96) 48%, rgba(12, 74, 110, 0.24))'
   );
   const simpleMessageBg = useColorModeValue('#eaf1f8', '#1f2937');
   const canCreateGroups = groupCreatorRoles.has(currentUser?.normalizedRole || currentUser?.role);
   const shellMinHeight = embedded ? 'calc(100vh - 120px)' : 'calc(100vh - 82px)';
   const leftRailHeight = preferredView === 'sales' ? (embedded ? 'calc(100vh - 150px)' : '72vh') : (embedded ? 'calc(100vh - 220px)' : '60vh');
   const isSalesLayout = preferredView === 'sales';
+  const usesContactRail = isSalesLayout || preferredView === 'it';
 
   const selectedConversation = useMemo(
     () => conversations.find((item) => item._id === selectedConversationId) || null,
@@ -253,12 +273,15 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
   }, [directory, preferredView]);
 
   const salesListUsers = useMemo(() => {
-    return salesDirectory.filter((user) => {
-      const existingDirect = conversations.find(
+    const findDirectConversation = (userId) =>
+      conversations.find(
         (conversation) =>
           conversation.kind === 'direct' &&
-          conversation.participants?.some((participant) => participant.user?._id === user._id)
+          conversation.participants?.some((participant) => participant.user?._id === userId)
       );
+
+    return salesDirectory.filter((user) => {
+      const existingDirect = findDirectConversation(user._id);
 
       if (showUnreadOnly && Number(existingDirect?.unreadCount || 0) <= 0) {
         return false;
@@ -269,6 +292,13 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
       return [getDisplayName(user), user.department, user.role, user.email]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(search));
+    }).sort((left, right) => {
+      const leftConversation = findDirectConversation(left._id);
+      const rightConversation = findDirectConversation(right._id);
+      const leftTime = new Date(leftConversation?.lastActivityAt || 0).getTime();
+      const rightTime = new Date(rightConversation?.lastActivityAt || 0).getTime();
+      if (leftTime !== rightTime) return rightTime - leftTime;
+      return salesDirectory.findIndex((user) => user._id === left._id) - salesDirectory.findIndex((user) => user._id === right._id);
     });
   }, [salesDirectory, userSearch, conversations, showUnreadOnly]);
 
@@ -462,9 +492,15 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
       if (conversationId !== selectedConversationId || !message?._id) return;
       setMessages((current) => current.map((item) => (item._id === message._id ? message : item)));
     },
-    onMessageDeleted: ({ conversationId, messageId }) => {
+    onMessageDeleted: ({ conversationId, messageId, message }) => {
       if (conversationId !== selectedConversationId || !messageId) return;
-      setMessages((current) => current.filter((item) => item._id !== messageId));
+      setMessages((current) =>
+        current.map((item) =>
+          item._id === messageId
+            ? (message || { ...item, body: 'deleted message', attachments: [], deletedAt: new Date().toISOString() })
+            : item
+        )
+      );
     },
     onTyping: ({ conversationId, userId, isTyping }) => {
       if (conversationId !== selectedConversationId || !userId || userId === currentUser?._id) return;
@@ -540,8 +576,10 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
   const removeMessageForSelf = async (message) => {
     if (!selectedConversationId || !message?._id) return;
     try {
-      await deleteConversationMessage(selectedConversationId, message._id);
-      setMessages((current) => current.filter((item) => item._id !== message._id));
+      const response = await deleteConversationMessage(selectedConversationId, message._id);
+      setMessages((current) =>
+        current.map((item) => (item._id === message._id ? (response.data || item) : item))
+      );
       if (editingMessageId === message._id) {
         setEditingMessageId('');
         setComposer('');
@@ -601,6 +639,26 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
           replyTo: replyTarget?._id || '',
         });
         setMessages((current) => [...current, response.data]);
+        if (selectedConversation) {
+          const sentMessage = response.data;
+          const attachmentCount = sentMessage?.attachments?.length || pendingAttachments.length;
+          const fallbackBody = attachmentCount
+            ? `${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'}`
+            : composer.trim();
+          setConversations((current) =>
+            mergeConversation(current, {
+              conversation: {
+                ...selectedConversation,
+                lastMessage: {
+                  body: sentMessage?.body || fallbackBody,
+                  sender: sentMessage?.sender?._id || currentUser?._id,
+                  createdAt: sentMessage?.createdAt || new Date().toISOString(),
+                },
+                lastActivityAt: sentMessage?.createdAt || new Date().toISOString(),
+              },
+            })
+          );
+        }
       }
       setComposer('');
       setPendingAttachments([]);
@@ -714,8 +772,8 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
   return (
     <Box bg={embedded ? 'transparent' : bg} minH={shellMinHeight}>
       <Grid
-        templateColumns={{ base: '1fr', lg: embedded ? '320px minmax(0, 1fr)' : '320px minmax(0, 1fr) 280px' }}
-        gap={isSalesLayout ? 2 : 4}
+        templateColumns={{ base: '1fr', lg: embedded ? '350px minmax(0, 1fr)' : '340px minmax(0, 1fr) 280px' }}
+        gap={isSalesLayout ? 2 : 5}
         h="100%"
       >
         <GridItem>
@@ -726,11 +784,11 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
             borderRadius={isSalesLayout ? '14px' : '28px'}
             overflow="hidden"
             h="100%"
-            boxShadow="sm"
+            boxShadow={railItemShadow}
           >
             {!isSalesLayout && (
-              <Flex align="center" justify="space-between" px={4} pt={4} pb={2}>
-                <Box>
+              <Flex align="center" justify="space-between" px={4} pt={4} pb={3} bg={railHeaderBg}>
+                <Box minW={0}>
                   <Text fontSize="lg" fontWeight="bold">
                     Workspace Chat
                   </Text>
@@ -752,7 +810,7 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                 )}
               </Flex>
             )}
-            <Box px={isSalesLayout ? 2 : 4} pb={isSalesLayout ? 1 : 3} pt={isSalesLayout ? 2 : 0}>
+            <Box px={isSalesLayout ? 2 : 4} pb={isSalesLayout ? 1 : 3} pt={isSalesLayout ? 2 : 3} bg={isSalesLayout ? 'transparent' : railHeaderBg}>
               <InputGroup size="md">
                 <Input
                   value={userSearch}
@@ -766,7 +824,7 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                 <InputRightElement><SearchIcon color={mutedText} /></InputRightElement>
               </InputGroup>
             </Box>
-            <Box px={isSalesLayout ? 2 : 4} pb={isSalesLayout ? 1 : 2}>
+            <Box px={isSalesLayout ? 2 : 4} pb={isSalesLayout ? 1 : 3} bg={isSalesLayout ? 'transparent' : railHeaderBg}>
               <HStack spacing={2}>
                 <Button
                   size="xs"
@@ -803,7 +861,7 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
               </HStack>
             </Box>
             {!isSalesLayout && (
-              <Box px={4} pb={3}>
+              <Box px={4} pb={3} bg={railHeaderBg}>
                 <Tabs
                   variant="unstyled"
                   index={Math.max(CHAT_TABS.findIndex((item) => item.key === activeTab), 0)}
@@ -841,13 +899,13 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
               </Box>
             )}
             <Divider borderColor={isSalesLayout ? salesDividerColor : borderColor} />
-            <Box maxH={leftRailHeight} overflowY="auto" px={0} pb={0}>
+            <Box maxH={leftRailHeight} overflowY="auto" px={isSalesLayout ? 0 : 3} py={isSalesLayout ? 0 : 3}>
               {(loadingConversations && !isSalesLayout) ? (
                 <Flex align="center" justify="center" py={10}><Spinner color="teal.400" /></Flex>
               ) : (
                 <VStack align="stretch" spacing={0} pt={0}>
-                  {(isSalesLayout ? salesListUsers : visibleConversations).map((entry) => {
-                    if (isSalesLayout) {
+                  {(usesContactRail ? salesListUsers : visibleConversations).map((entry) => {
+                    if (usesContactRail) {
                       const user = entry;
                       const existingDirect = conversations.find(
                         (conversation) =>
@@ -862,31 +920,47 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                         <Box
                           key={user._id}
                           position="relative"
-                          px={isSalesLayout ? 2 : 3}
-                          py={isSalesLayout ? 1.5 : 2.5}
-                          bg={isSelected ? salesListBg : 'transparent'}
-                          borderBottom="1px solid"
-                          borderColor={isSalesLayout ? salesDividerColor : borderColor}
+                          px={3}
+                          py={2.5}
+                          mb={isSalesLayout ? 0 : 2}
+                          bg={isSelected ? railItemSelectedBg : railItemBg}
+                          border="1px solid"
+                          borderColor={isSelected ? 'blue.200' : isSalesLayout ? salesDividerColor : borderColor}
+                          borderRadius={isSalesLayout ? '0' : '16px'}
+                          boxShadow={isSelected && !isSalesLayout ? railItemShadow : 'none'}
                           cursor="pointer"
                           onClick={() => openUserChat(user)}
-                          _hover={{ bg: isSelected ? salesListBg : hoverConversationBg }}
+                          _hover={{ bg: isSelected ? railItemSelectedBg : hoverConversationBg, transform: 'translateY(-1px)' }}
                         >
                           <HStack align="start" spacing={2.5}>
-                            <Avatar size="sm" bg="teal.500" name={getDisplayName(user)} src={user.photo || undefined} />
+                            <Box position="relative" flexShrink={0}>
+                              <Avatar size="sm" bg="teal.500" name={getDisplayName(user)} src={user.photo || undefined} />
+                              <Box
+                                position="absolute"
+                                right="0"
+                                bottom="0"
+                                w="10px"
+                                h="10px"
+                                borderRadius="full"
+                                bg={onlineUsers[user._id] ? 'green.400' : 'gray.400'}
+                                border="2px solid"
+                                borderColor={sidebarBg}
+                              />
+                            </Box>
                             <Box flex="1" minW={0}>
-                              <Flex justify="space-between" gap={2}>
-                                <Text fontWeight="semibold" fontSize="sm" noOfLines={1}>
+                              <Flex justify="space-between" gap={3} align="center" minW={0}>
+                                <Text fontWeight="semibold" fontSize="sm" noOfLines={1} flex="1" minW={0}>
                                   {getDisplayName(user)}
                                 </Text>
-                                <Text fontSize="xs" color={mutedText} whiteSpace="nowrap">
+                                <Text fontSize="xs" color={mutedText} whiteSpace="nowrap" flexShrink={0}>
                                   {existingDirect ? formatConversationDay(existingDirect.lastActivityAt) : ''}
                                 </Text>
                               </Flex>
                               <Text fontSize="sm" fontWeight="medium" color={isSelected ? 'gray.800' : mutedText} noOfLines={1}>
                                 {preview}
                               </Text>
-                              <Flex align="center" justify="space-between" mt={0.25}>
-                                <Text fontSize="xs" color={mutedText} noOfLines={1}>
+                              <Flex align="center" justify="space-between" mt={0.25} gap={2} minW={0}>
+                                <Text fontSize="xs" color={mutedText} noOfLines={1} flex="1" minW={0}>
                                   {user.department || user.role || 'User'}
                                 </Text>
                                 {!!unreadCount && (
@@ -907,13 +981,17 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                       <Box
                         key={conversation._id}
                         position="relative"
-                          px={2}
-                          py={2}
-                          bg={selectedConversationId === conversation._id ? selectedBg : 'transparent'}
-                          borderRadius={isSalesLayout ? '0' : '18px'}
-                          cursor="pointer"
-                          onClick={() => setSelectedConversationId(conversation._id)}
-                          _hover={{ bg: selectedConversationId === conversation._id ? selectedBg : hoverConversationBg }}
+                        px={3}
+                        py={2.5}
+                        mb={isSalesLayout ? 0 : 2}
+                        bg={selectedConversationId === conversation._id ? railItemSelectedBg : railItemBg}
+                        border="1px solid"
+                        borderColor={selectedConversationId === conversation._id ? 'blue.200' : borderColor}
+                        borderRadius={isSalesLayout ? '0' : '16px'}
+                        boxShadow={selectedConversationId === conversation._id && !isSalesLayout ? railItemShadow : 'none'}
+                        cursor="pointer"
+                        onClick={() => setSelectedConversationId(conversation._id)}
+                        _hover={{ bg: selectedConversationId === conversation._id ? railItemSelectedBg : hoverConversationBg, transform: 'translateY(-1px)' }}
                       >
                         {selectedConversationId === conversation._id && (
                           <Box
@@ -926,14 +1004,29 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                             bg="blue.400"
                           />
                         )}
-                          <HStack align="start" spacing={3} pl={selectedConversationId === conversation._id ? 2 : 0}>
-                          <Avatar size="md" bg={conversation.avatarColor || 'teal.500'} name={conversation.title} />
+                        <HStack align="start" spacing={3} pl={selectedConversationId === conversation._id ? 2 : 0}>
+                          <Box position="relative" flexShrink={0}>
+                            <Avatar size="md" bg={conversation.avatarColor || 'teal.500'} name={conversation.title} />
+                            {conversation.kind === 'direct' && (
+                              <Box
+                                position="absolute"
+                                right="1px"
+                                bottom="1px"
+                                w="11px"
+                                h="11px"
+                                borderRadius="full"
+                                bg={onlineUsers[conversation.participants?.find((item) => item.user?._id !== currentUser?._id)?.user?._id] ? 'green.400' : 'gray.400'}
+                                border="2px solid"
+                                borderColor={sidebarBg}
+                              />
+                            )}
+                          </Box>
                           <Box flex="1" minW={0}>
-                            <Flex justify="space-between" gap={2}>
-                              <Text fontWeight="semibold" fontSize="md" noOfLines={1}>
+                            <Flex justify="space-between" gap={3} minW={0}>
+                              <Text fontWeight="semibold" fontSize="md" noOfLines={1} flex="1" minW={0}>
                                 {conversation.title}
                               </Text>
-                              <Text fontSize="xs" color={mutedText} whiteSpace="nowrap">
+                              <Text fontSize="xs" color={mutedText} whiteSpace="nowrap" flexShrink={0}>
                                 {formatConversationDay(conversation.lastActivityAt)}
                               </Text>
                             </Flex>
@@ -976,13 +1069,13 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                       </Box>
                     );
                   })}
-                  {!(isSalesLayout ? salesListUsers.length : visibleConversations.length) && (
+                  {!(usesContactRail ? salesListUsers.length : visibleConversations.length) && (
                     <Flex align="center" justify="center" py={10} direction="column" gap={2}>
-                      <Text fontWeight="semibold">{isSalesLayout ? 'No users found' : 'No conversations'}</Text>
+                      <Text fontWeight="semibold">{usesContactRail ? 'No users found' : 'No conversations'}</Text>
                       <Text fontSize="sm" color={mutedText}>
                         {showUnreadOnly
                           ? 'No unread conversations right now.'
-                          : isSalesLayout
+                          : usesContactRail
                           ? 'Search for a user account to start chatting.'
                           : activeTab === 'channels'
                           ? 'Your department channel will appear here when available.'
@@ -1007,6 +1100,7 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
             display="flex"
             flexDirection="column"
             overflow="hidden"
+            boxShadow={railItemShadow}
           >
             {selectedConversation ? (
               <>
@@ -1017,26 +1111,42 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                   borderColor={isSalesLayout ? salesDividerColor : borderColor}
                   align="center"
                   justify="space-between"
-                  bg={useColorModeValue('#ffffff', 'linear-gradient(135deg, rgba(20,184,166,0.12), rgba(15,23,42,0.95))')}
+                  bg={chatHeaderBg}
                 >
-                  <HStack spacing={3}>
-                    <Avatar
-                      size={isSalesLayout ? 'sm' : 'md'}
-                      name={isSalesLayout ? getDisplayName(selectedPeer) || selectedConversation.title : selectedConversation.title}
-                      bg={selectedConversation.avatarColor || 'teal.500'}
-                      src={isSalesLayout ? selectedPeer?.photo || undefined : undefined}
-                    />
-                    <Box>
-                      <Text fontWeight="bold" fontSize={isSalesLayout ? 'md' : 'inherit'}>
+                  <HStack spacing={3} minW={0} flex="1">
+                    <Box position="relative" flexShrink={0}>
+                      <Avatar
+                        size={isSalesLayout ? 'sm' : 'md'}
+                        name={isSalesLayout ? getDisplayName(selectedPeer) || selectedConversation.title : selectedConversation.title}
+                        bg={selectedConversation.avatarColor || 'teal.500'}
+                        src={isSalesLayout ? selectedPeer?.photo || undefined : undefined}
+                        boxShadow="0 0 0 4px rgba(255,255,255,0.72)"
+                      />
+                      {selectedConversation.kind === 'direct' && (
+                        <Box
+                          position="absolute"
+                          right="0"
+                          bottom="0"
+                          w="12px"
+                          h="12px"
+                          borderRadius="full"
+                          bg={selectedPeerIsOnline ? 'green.400' : 'gray.400'}
+                          border="2px solid"
+                          borderColor={panelBg}
+                        />
+                      )}
+                    </Box>
+                    <Box minW={0}>
+                      <Text fontWeight="bold" fontSize={isSalesLayout ? 'md' : 'lg'} noOfLines={1}>
                         {isSalesLayout ? getDisplayName(selectedPeer) || selectedConversation.title : selectedConversation.title}
                       </Text>
-                      <Text fontSize={isSalesLayout ? 'xs' : 'sm'} color={mutedText}>
-                        {isSalesLayout
+                      <Text fontSize={isSalesLayout ? 'xs' : 'sm'} color={mutedText} noOfLines={1}>
+                        {selectedConversation.kind === 'direct'
                           ? selectedPeerIsTyping
                             ? 'typing...'
                             : selectedPeerIsOnline
                               ? 'Online'
-                              : selectedPeer?.department || selectedPeer?.role || 'Direct message'
+                              : `Offline - ${selectedPeer?.department || selectedPeer?.role || 'Direct message'}`
                           : `${selectedConversation.participants.length} participants`}
                       </Text>
                     </Box>
@@ -1094,8 +1204,8 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                 <Box
                   flex="1"
                   overflowY="auto"
-                  px={isSalesLayout ? 1.5 : 5}
-                  py={isSalesLayout ? 2 : 4}
+                  px={isSalesLayout ? 1.5 : { base: 3, md: 6 }}
+                  py={isSalesLayout ? 2 : 5}
                   bg={isSalesLayout ? simpleMessageBg : undefined}
                   bgImage={isSalesLayout ? 'none' : messageAreaBg}
                 >
@@ -1122,6 +1232,8 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                         const showDate = !previous || formatDateLabel(previous.createdAt) !== formatDateLabel(message.createdAt);
                         const isMatchedMessage = matchedMessageIds.includes(message._id);
                         const isActiveMatchedMessage = matchedMessageIds[activeMessageMatchIndex] === message._id;
+                        const isDeletedMessage = !!message.deletedAt;
+                        const messageChangeText = getMessageChangeText(message);
                         return (
                           <Box
                             key={message._id}
@@ -1138,11 +1250,14 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                               </Flex>
                             )}
                             <Flex justify={isOwn ? 'flex-end' : 'flex-start'}>
-                              <Box maxW={{ base: '90%', md: isSalesLayout ? '72%' : '76%' }}>
+                              <Box maxW={{ base: '94%', md: isSalesLayout ? '76%' : '78%' }} minW={0}>
                                 {!isOwn && (
-                                  <Text fontSize="xs" color={mutedText} mb={0.5} px={1}>
-                                    {getDisplayName(message.sender)}
-                                  </Text>
+                                  <Flex align="center" gap={2} mb={1} px={1} maxW="100%" minW={0}>
+                                    <Avatar size="2xs" name={getDisplayName(message.sender)} bg="blue.500" flexShrink={0} />
+                                    <Text fontSize="xs" color={mutedText} fontWeight="700" noOfLines={1} flex="1" minW={0}>
+                                      {getDisplayName(message.sender)}
+                                    </Text>
+                                  </Flex>
                                 )}
                                 <Box
                                   px={isSalesLayout ? 3 : 4}
@@ -1150,7 +1265,7 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                                   bg={isOwn ? ownBubbleBg : otherBubbleBg}
                                   color={isOwn ? ownMetaColor : undefined}
                                   borderRadius={isSalesLayout ? (isOwn ? '14px 14px 4px 14px' : '14px 14px 14px 4px') : (isOwn ? '18px 18px 6px 18px' : '18px 18px 18px 6px')}
-                                  boxShadow={isSalesLayout ? 'none' : 'sm'}
+                                  boxShadow={isSalesLayout ? 'none' : bubbleShadow}
                                   border="1px solid"
                                   borderColor={
                                     isActiveMatchedMessage
@@ -1180,13 +1295,14 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                                   )}
                                   <Text
                                     whiteSpace="pre-wrap"
-                                    color={isOwn ? 'green.900' : undefined}
+                                    color={isDeletedMessage ? mutedText : isOwn ? 'green.900' : undefined}
                                     fontSize={isSalesLayout ? 'sm' : 'md'}
                                     fontWeight={isMatchedMessage ? 'medium' : 'normal'}
+                                    fontStyle={isDeletedMessage ? 'italic' : 'normal'}
                                   >
-                                    {message.body}
+                                    {isDeletedMessage ? 'deleted message' : message.body}
                                   </Text>
-                                  {!!message.attachments?.length && (
+                                  {!!message.attachments?.length && !isDeletedMessage && (
                                     <VStack align="stretch" spacing={1.5} mt={message.body ? 2 : 0}>
                                       {message.attachments.map((attachment, attachmentIndex) => (
                                         <Button
@@ -1211,7 +1327,15 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                                     </VStack>
                                   )}
                                 </Box>
-                                <HStack justify={isOwn ? 'flex-end' : 'flex-start'} mt={0.5} px={1} spacing={1.5}>
+                                <Flex
+                                  justify={isOwn ? 'flex-end' : 'flex-start'}
+                                  mt={1}
+                                  px={1}
+                                  gap={1.5}
+                                  align="center"
+                                  wrap="wrap"
+                                  maxW="100%"
+                                >
                                   <Button
                                     size="xs"
                                     variant="ghost"
@@ -1219,10 +1343,11 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                                     h="20px"
                                     px={1}
                                     onClick={() => startReplyToMessage(message)}
+                                    isDisabled={isDeletedMessage}
                                   >
                                     Reply
                                   </Button>
-                                  {isOwn && (
+                                  {isOwn && !isDeletedMessage && (
                                     <>
                                       <Button
                                         size="xs"
@@ -1247,13 +1372,20 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                                       </Button>
                                     </>
                                   )}
-                                  <Text fontSize="xs" color={mutedText}>{formatTime(message.createdAt)}</Text>
-                                  {isOwn && (
-                                    <Text fontSize="xs" color={mutedText}>
-                                      {message.editedAt ? 'Edited' : Math.max((message.readBy || []).length - 1, 0) > 0 ? 'Read' : 'Sent'}
+                                  <Text fontSize="xs" color={mutedText} bg={messageMetaBg} px={1.5} py={0.5} borderRadius="full">
+                                    {formatTime(message.createdAt)}
+                                  </Text>
+                                  {messageChangeText && (
+                                    <Text fontSize="xs" color={isDeletedMessage ? 'red.400' : mutedText} bg={messageMetaBg} px={1.5} py={0.5} borderRadius="full">
+                                      {messageChangeText}
                                     </Text>
                                   )}
-                                </HStack>
+                                  {isOwn && (
+                                    <Text fontSize="xs" color={isMessageReadByOthers(message, currentUser?._id) ? 'blue.500' : mutedText} bg={messageMetaBg} px={1.5} py={0.5} borderRadius="full">
+                                      {getMessageReadText(message, currentUser?._id)}
+                                    </Text>
+                                  )}
+                                </Flex>
                               </Box>
                             </Flex>
                           </Box>
@@ -1277,7 +1409,7 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                   )}
                 </Box>
                 <Divider borderColor={isSalesLayout ? salesDividerColor : borderColor} />
-                <Box p={isSalesLayout ? 2 : 4} bg={composerBg}>
+                <Box p={isSalesLayout ? 2 : 4} bg={composerBg} boxShadow={useColorModeValue('0 -12px 30px rgba(15, 23, 42, 0.06)', '0 -12px 30px rgba(0, 0, 0, 0.22)')}>
                   {editingMessageId && (
                     <Flex
                       mb={2}
@@ -1362,7 +1494,7 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                     />
                     <IconButton
                       icon={uploadingAttachments ? <Spinner size="sm" /> : <FaPaperclip />}
-                      variant="ghost"
+                      variant="outline"
                       borderRadius="full"
                       aria-label="Attach files"
                       onClick={() => attachmentInputRef.current?.click()}
@@ -1377,6 +1509,7 @@ const ChatWorkspace = ({ embedded = false, initialConversationId = '', preferred
                       borderRadius={isSalesLayout ? '14px' : '24px'}
                       bg={useColorModeValue('#ffffff', 'whiteAlpha.100')}
                       borderColor={isSalesLayout ? salesDividerColor : useColorModeValue('gray.200', 'whiteAlpha.200')}
+                      boxShadow={useColorModeValue('inset 0 1px 2px rgba(15, 23, 42, 0.04)', 'none')}
                       px={isSalesLayout ? 3.5 : 4}
                       py={isSalesLayout ? 2.5 : 3}
                       fontSize={isSalesLayout ? 'sm' : 'md'}

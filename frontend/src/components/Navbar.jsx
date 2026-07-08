@@ -25,6 +25,7 @@ import { useUserStore } from "../store/user";
 import { useEffect, useState } from "react";
 import ChatLauncher from "./chat/ChatLauncher";
 import axiosInstance from "../services/axiosInstance";
+import NotificationBall from "./notifications/NotificationBall";
 
 const NavbarPage = ({ sidebarWidth = "0px" }) => {
     const { colorMode, toggleColorMode } = useColorMode();
@@ -119,6 +120,21 @@ const NavbarPage = ({ sidebarWidth = "0px" }) => {
         navigate("/users");
     };
 
+    const extraNotifications = [
+        ...notifications.map((user) => ({
+            id: `user-${user._id}`,
+            text: `${user.username} has HR verification pending approval`,
+            type: "general",
+            read: false,
+        })),
+        ...todayPlans.map((plan) => ({
+            id: `plan-${plan._id}`,
+            text: `[${plan.platform?.toUpperCase?.() || "PLAN"}] ${plan.type}: ${plan.title || plan.topic || "Untitled Post"}`,
+            type: "task",
+            read: false,
+            createdAt: plan.scheduledDate,
+        })),
+    ];
     const combinedNotificationsCount = notifications.length + todayPlans.length;
     const planBg = useColorModeValue("red.50", "rgba(239, 68, 68, 0.15)");
     const planBorderColor = useColorModeValue("red.200", "rgba(239, 68, 68, 0.3)");
@@ -165,7 +181,7 @@ const NavbarPage = ({ sidebarWidth = "0px" }) => {
 
                 {/* Navigation Icons */}
                 <HStack spacing={4} alignItems="center">
-                    {/* Notifications Dropdown */}
+                    <Box display="none">
                     <Menu>
                         <MenuButton as={Button} variant="ghost" _hover={{ bg: "whiteAlpha.200" }} _active={{ bg: "whiteAlpha.300" }}>
                             <BsBell color="white" size={18} />
@@ -242,6 +258,8 @@ const NavbarPage = ({ sidebarWidth = "0px" }) => {
                             )}
                         </MenuList>
                     </Menu>
+                    </Box>
+                    <NotificationBall extraNotifications={extraNotifications} />
 
                     {/* Messages Dropdown */}
                     <ChatLauncher

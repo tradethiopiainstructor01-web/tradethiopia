@@ -289,8 +289,11 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const filterInputBg = useColorModeValue('gray.50', 'gray.700');
-  const subtleBg = useColorModeValue('gray.50', 'whiteAlpha.50');
-  const tableHeadBg = useColorModeValue('gray.50', 'gray.900');
+  const subtleBg = useColorModeValue('blue.50', 'whiteAlpha.50');
+  const tableHeadBg = useColorModeValue('linear-gradient(135deg, #eff6ff, #f8fafc)', 'linear-gradient(135deg, rgba(14,165,233,0.12), rgba(15,23,42,0.92))');
+  const cardShadow = useColorModeValue('0 18px 38px rgba(15, 23, 42, 0.09)', '0 18px 38px rgba(0, 0, 0, 0.28)');
+  const cardGradient = useColorModeValue('linear-gradient(135deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92))', 'linear-gradient(135deg, rgba(15,23,42,0.92), rgba(30,41,59,0.72))');
+  const targetBg = useColorModeValue('linear-gradient(135deg, #f8fafc, #ecfeff)', 'linear-gradient(135deg, rgba(15,23,42,0.92), rgba(12,74,110,0.18))');
 
   const handleToggleStatus = async (taskId, currentStatus) => {
     const isDone = currentStatus === 'done';
@@ -544,14 +547,24 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
           {summaryCards.map((card) => {
             const IconComponent = card.icon;
             return (
-              <Card key={card.label} borderRadius="14px" boxShadow="sm" bg={cardBg} border="1px solid" borderColor={borderColor}>
+              <Card
+                key={card.label}
+                borderRadius="20px"
+                boxShadow={cardShadow}
+                bg={cardGradient}
+                border="1px solid"
+                borderColor={borderColor}
+                overflow="hidden"
+                transition="transform 0.18s ease, box-shadow 0.18s ease"
+                _hover={{ transform: 'translateY(-2px)' }}
+              >
                 <CardBody>
                   <HStack justify="space-between">
                     <VStack align="start">
-                      <Text fontSize="sm" color="gray.500">
+                      <Text fontSize="sm" color="gray.500" fontWeight="700">
                         {card.label}
                       </Text>
-                      <Heading size="md">{card.value}</Heading>
+                      <Heading size="lg" lineHeight="1">{card.value}</Heading>
                       <Text fontSize="xs" color="gray.500">
                         {card.helper}
                       </Text>
@@ -564,6 +577,7 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
                       isRound
                       bg={`${card.color}.50`}
                       color={`${card.color}.500`}
+                      boxShadow="inset 0 0 0 1px rgba(255,255,255,0.72)"
                       _hover={{ bg: `${card.color}.100` }}
                     />
                   </HStack>
@@ -579,7 +593,7 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
         subtitle="Expand to adjust targets and review progress."
         defaultOpen
       >
-          <Flex direction={{ base: 'column', md: 'row' }} align="center" justify="space-between" gap={4}>
+          <Flex direction={{ base: 'column', md: 'row' }} align="center" justify="space-between" gap={5} bg={targetBg} border="1px solid" borderColor={borderColor} borderRadius="18px" p={5}>
             <Box>
               <Text fontSize="sm" color="gray.500">
                 Weekly target ({weeklyTarget} points)
@@ -623,6 +637,7 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
               w={{ base: '100%', md: '40%' }}
               hasStripe={!targetAchieved}
               bg={subtleBg}
+              boxShadow="inset 0 1px 3px rgba(15, 23, 42, 0.12)"
             />
           </Flex>
       </ITCollapsibleSection>
@@ -632,13 +647,13 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
         subtitle="Filter, comment, approve, and manage current work."
         defaultOpen
       >
-          <Flex direction={{ base: 'column', md: 'row' }} align="center" justify="space-between" gap={4}>
-            <Box>
+          <Flex direction={{ base: 'column', xl: 'row' }} align={{ base: 'stretch', xl: 'center' }} justify="space-between" gap={4}>
+            <Box minW={0}>
               <Text fontSize="sm" color="gray.500">
                 Filter and manage open requests with auto-calculated scores.
               </Text>
             </Box>
-            <HStack spacing={2}>
+            <HStack spacing={2} flexWrap="wrap" justify={{ base: 'flex-start', xl: 'flex-end' }}>
               <InputGroup>
                 <InputLeftElement pointerEvents="none" children={<FiSearch color="gray" />} />
                 <Input
@@ -646,7 +661,7 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
                   value={filters.query}
                   onChange={(e) => setFilters((prev) => ({ ...prev, query: e.target.value }))}
                   bg={filterInputBg}
-                  borderRadius="lg"
+                  borderRadius="14px"
                 />
               </InputGroup>
               <Select
@@ -654,7 +669,7 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
                 onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
                 variant="filled"
                 w="150px"
-                borderRadius="lg"
+                borderRadius="14px"
               >
                 <option value="all">All Types</option>
                 <option value="internal">Internal</option>
@@ -665,7 +680,7 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
                 onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))}
                 variant="filled"
                 w="180px"
-                borderRadius="lg"
+                borderRadius="14px"
               >
                 <option value="all">All Categories</option>
                 {[...new Set([...INTERNAL_SUBTASKS, ...EXTERNAL_SUBTASKS])].map((category) => (
@@ -679,7 +694,7 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
                 onChange={(e) => setFilters((prev) => ({ ...prev, progress: e.target.value }))}
                 variant="filled"
                 w="170px"
-                borderRadius="lg"
+                borderRadius="14px"
               >
                 <option value="all">All Progress</option>
                 <option value="low">Pending</option>
@@ -692,11 +707,15 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
           <Box
             border="1px solid"
             borderColor={borderColor}
-            borderRadius="12px"
+            borderRadius="18px"
             overflow="hidden"
+            boxShadow={cardShadow}
             sx={{
               'thead tr': { background: tableHeadBg },
+              'tbody tr': { transition: 'background 0.16s ease' },
               'tbody tr:hover': { background: subtleBg },
+              'th': { borderColor, fontSize: '0.72rem', letterSpacing: '0.02em' },
+              'td': { borderColor },
             }}
           >
           <TaskTable

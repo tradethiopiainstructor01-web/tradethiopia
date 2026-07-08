@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 const Conversation = require('../models/Conversation');
 const ChatMessage = require('../models/ChatMessage');
+const Notification = require('../models/Notification');
 const User = require('../models/user.model');
+const ITTask = require('../it/models/ITTask');
 const { emitToConversation, emitToUsers } = require('../services/chatSocketService');
 const { storage } = require('../config/appwriteClient');
 const { File } = require('node-fetch-native-with-agent');
@@ -35,6 +37,12 @@ const ROLE_DEPARTMENT_MAP = {
   eventmanager: 'Events',
   enisra: 'ENISRA',
   reception: 'Reception',
+  itadmin: 'IT',
+  itmanager: 'IT',
+  itteamleader: 'IT',
+  itleader: 'IT',
+  itstaff: 'IT',
+  itofficer: 'IT',
 };
 
 const GROUP_CREATOR_ROLES = new Set([
@@ -60,6 +68,8 @@ const getDepartmentFromUser = (user) => {
   return ROLE_DEPARTMENT_MAP[normalizeRole(user?.role)] || '';
 };
 
+const getDisplayName = (user) => user?.fullName || user?.username || user?.email || 'A teammate';
+
 const buildUserSnapshot = (user) => ({
   _id: user._id,
   username: user.username,
@@ -84,6 +94,75 @@ const buildAppwriteViewUrl = (fileId) =>
 
 const getConversationParticipantIds = (conversation) =>
   (conversation.participants || []).map((item) => item.user?._id || item.user).filter(Boolean);
+
+const getUserAliases = (user) => (
+  [
+    user?._id,
+    user?.id,
+    user?.email,
+    user?.username,
+    user?.fullName,
+    user?.name,
+  ]
+    .filter(Boolean)
+    .map((item) => String(item).trim().toLowerCase())
+);
+
+const isItAdminRole = (role) => ['admin', 'itmanager', 'itadmin'].includes(normalizeRole(role));
+const isItLeaderRole = (role) => ['itteamleader', 'itleader'].includes(normalizeRole(role));
+const isItStaffRole = (role) => ['it', 'itstaff', 'itofficer'].includes(normalizeRole(role));
+const isItScopedRole = (role) => isItAdminRole(role) || isItLeaderRole(role) || isItStaffRole(role);
+
+const taskConnectsUsers = (task, leftUser, rightUser) => {
+  const leftAliases = getUserAliases(leftUser);
+  const rightAliases = getUserAliases(rightUser);
+  const leader = String(task.taskLeader || '').trim().toLowerCase();
+  const assignees = (task.assignedTo || []).map((item) => String(item).trim().toLowerCase());
+  const allTaskAssignees = [
+    leader,
+    ...assignees,
+    task.submittedBy,
+    task.createdBy,
+    task.approvedBy,
+  ]
+    .filter(Boolean)
+    .map((item) => String(item).trim().toLowerCase());
+
+  const leftIsLeader = leader && leftAliases.includes(leader);
+  const rightIsLeader = leader && rightAliases.includes(leader);
+  const leftIsAssignee = assignees.some((item) => leftAliases.includes(item));
+  const rightIsAssignee = assignees.some((item) => rightAliases.includes(item));
+  const leftTouchesTask = allTaskAssignees.some((item) => leftAliases.includes(item));
+  const rightTouchesTask = allTaskAssignees.some((item) => rightAliases.includes(item));
+
+  return (leftIsLeader && rightIsAssignee) || (rightIsLeader && leftIsAssignee) || (leftTouchesTask && rightTouchesTask);
+};
+
+const canDirectChat = async (currentUser, otherUser) => {
+  const currentRole = normalizeRole(currentUser?.role);
+  const otherRole = normalizeRole(otherUser?.role);
+
+  if (!isItScopedRole(currentRole) && !isItScopedRole(otherRole)) return true;
+  if (isItAdminRole(currentRole)) return isItScopedRole(otherRole);
+  if (isItAdminRole(otherRole)) return isItScopedRole(currentRole);
+
+  if (
+    (isItLeaderRole(currentRole) && isItStaffRole(otherRole)) ||
+    (isItStaffRole(currentRole) && isItLeaderRole(otherRole))
+  ) {
+    const aliases = [...getUserAliases(currentUser), ...getUserAliases(otherUser)];
+    const tasks = await ITTask.find({
+      $or: [
+        { taskLeader: { $in: aliases } },
+        { assignedTo: { $in: aliases } },
+      ],
+    }).select('taskLeader assignedTo');
+
+    return tasks.some((task) => taskConnectsUsers(task, currentUser, otherUser));
+  }
+
+  return false;
+};
 
 const conversationLabelForUser = (conversation, currentUserId) => {
   if (conversation.kind !== 'direct') {
@@ -162,6 +241,8 @@ const formatMessage = (message) => ({
   createdAt: message.createdAt,
   updatedAt: message.updatedAt,
   editedAt: message.editedAt,
+  deletedAt: message.deletedAt,
+  deletedBy: message.deletedBy,
 });
 
 const refreshConversationAfterMessageMutation = async (conversationId, currentUserId) => {
@@ -267,18 +348,16 @@ const ensureDepartmentConversation = async (user) => {
   const departmentKey = buildDepartmentKey(userDepartment);
   if (!departmentKey) return;
 
-  const departmentRoles = Object.keys(ROLE_DEPARTMENT_MAP).filter(
-    (role) => ROLE_DEPARTMENT_MAP[role] === userDepartment
+  const candidates = (
+    await User.find({ status: 'active' })
+      .select('username fullName email role photo department status')
+      .limit(500)
+  ).filter(
+    (candidate) =>
+      String(candidate._id) === String(user._id) ||
+      getDepartmentFromUser(candidate) === userDepartment ||
+      CHANNEL_WATCHER_ROLES.has(normalizeRole(candidate.role))
   );
-
-  const candidates = await User.find({
-    status: 'active',
-    $or: [
-      { _id: user._id },
-      { role: { $in: departmentRoles } },
-      { role: { $in: Array.from(CHANNEL_WATCHER_ROLES) } },
-    ],
-  }).select('username fullName email role photo department status');
 
   const uniqueUsers = [];
   const seen = new Set();
@@ -393,6 +472,7 @@ const getConversationOrThrow = async (conversationId, userId) => {
 const listUsers = async (req, res) => {
   try {
     const search = normalizeText(req.query.search);
+    const currentRole = normalizeRole(req.user?.role);
     const query = {
       _id: { $ne: req.user._id },
       status: 'active',
@@ -407,10 +487,26 @@ const listUsers = async (req, res) => {
       ];
     }
 
-    const users = await User.find(query)
+    let users = await User.find(query)
       .select('username fullName email role photo department status')
       .sort({ fullName: 1, username: 1 })
-      .limit(50);
+      .limit(isItScopedRole(currentRole) ? 500 : 50);
+
+    if (isItScopedRole(currentRole)) {
+      const lowerSearch = search.toLowerCase();
+      users = users.filter((candidate) => {
+        if (!isItScopedRole(candidate.role)) return false;
+        if (!search) return true;
+        return [candidate.username, candidate.fullName, candidate.email, candidate.role, candidate.department]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(lowerSearch));
+      });
+
+      const checked = await Promise.all(
+        users.map(async (candidate) => ((await canDirectChat(req.user, candidate)) ? candidate : null))
+      );
+      users = checked.filter(Boolean);
+    }
 
     res.json({
       success: true,
@@ -458,6 +554,13 @@ const createDirectConversation = async (req, res) => {
     );
     if (!otherUser) {
       return res.status(404).json({ success: false, message: 'Selected user was not found' });
+    }
+
+    if (!(await canDirectChat(req.user, otherUser))) {
+      return res.status(403).json({
+        success: false,
+        message: 'This chat is not available for your IT role permissions.',
+      });
     }
 
     const directKey = buildDirectKey([req.user._id, otherUser._id]);
@@ -661,6 +764,25 @@ const sendMessage = async (req, res) => {
     );
 
     const participantIds = conversation.participants.map((item) => item.user?._id || item.user);
+    const recipientIds = participantIds.filter((id) => String(id) !== String(req.user._id));
+    const notificationDocs = recipientIds.map((userId) => ({
+      user: userId,
+      text: `${getDisplayName(req.user)} sent you a chat message`,
+      type: 'chat',
+    }));
+    if (notificationDocs.length) {
+      const createdNotifications = await Notification.insertMany(notificationDocs);
+      createdNotifications.forEach((notification) => {
+        emitToUsers([notification.user], 'newNotification', {
+          id: notification._id,
+          text: notification.text,
+          read: notification.read,
+          type: notification.type,
+          createdAt: notification.createdAt,
+        });
+      });
+    }
+
     emitToConversation(conversation._id, 'chat:message-created', {
       conversationId: String(conversation._id),
       message: formattedMessage,
@@ -741,6 +863,7 @@ const updateMessage = async (req, res) => {
       _id: messageId,
       conversation: conversation._id,
       sender: req.user._id,
+      deletedAt: null,
     });
 
     if (!message) {
@@ -791,23 +914,34 @@ const deleteMessage = async (req, res) => {
       _id: messageId,
       conversation: conversation._id,
       sender: req.user._id,
+      deletedAt: null,
     });
 
     if (!message) {
       return res.status(404).json({ success: false, message: 'Message not found or cannot be deleted' });
     }
 
-    await ChatMessage.deleteOne({ _id: message._id });
-    await ChatMessage.updateMany(
-      { conversation: conversation._id, replyTo: message._id },
-      { $unset: { replyTo: 1 } }
-    );
+    message.body = 'deleted message';
+    message.attachments = [];
+    message.deletedAt = new Date();
+    message.deletedBy = req.user._id;
+    await message.save();
+
+    const populatedMessage = await ChatMessage.findById(message._id)
+      .populate('sender', 'username fullName email role photo department')
+      .populate('deletedBy', 'username fullName email role photo department')
+      .populate({
+        path: 'replyTo',
+        populate: { path: 'sender', select: 'username fullName email role photo department' },
+      });
 
     const refreshed = await refreshConversationAfterMessageMutation(conversation._id, req.user._id);
+    const formattedMessage = formatMessage(populatedMessage);
 
     emitToConversation(conversation._id, 'chat:message-deleted', {
       conversationId: String(conversation._id),
       messageId: String(message._id),
+      message: formattedMessage,
     });
 
     if (refreshed) {
@@ -816,7 +950,7 @@ const deleteMessage = async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: { messageId: message._id } });
+    res.json({ success: true, data: formattedMessage });
   } catch (error) {
     res.status(error.statusCode || 500).json({ success: false, message: error.message || 'Failed to delete message' });
   }
