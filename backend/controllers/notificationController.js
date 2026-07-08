@@ -3,8 +3,21 @@ const User = require("../models/user.model.js");
 
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ user: req.user._id }).sort({ createdAt: -1 });
-    res.json(notifications);
+    const notifications = await Notification.find({ user: req.user._id, read: false }).sort({ createdAt: -1 });
+    res.json(notifications.map((notification) => {
+      const item = notification.toObject();
+      if (item.type === 'comment' && !item.link && item.itTaskId) {
+        item.link = `/it?tab=projects&task=${item.itTaskId}${item.commentId ? `&comment=${item.commentId}` : ''}`;
+      }
+      if (item.type === 'comment') {
+        item.metadata = {
+          title: 'New task comment',
+          actionLabel: 'View comment',
+          ...(item.metadata || {}),
+        };
+      }
+      return item;
+    }));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

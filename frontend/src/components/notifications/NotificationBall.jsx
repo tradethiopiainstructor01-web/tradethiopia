@@ -9,6 +9,7 @@ import {
   Menu,
   MenuButton,
   MenuList,
+  Portal,
   Spinner,
   Text,
   Tooltip,
@@ -18,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { BsBell } from 'react-icons/bs';
 import { io } from 'socket.io-client';
+import { useNavigate } from 'react-router-dom';
 import {
   getNotifications,
   markAllNotificationsAsRead,
@@ -38,8 +40,35 @@ const formatTimeAgo = (value) => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
+const buildNotificationLink = (item) => (
+  item.link ||
+  (item.itTaskId ? `/it?tab=projects&task=${item.itTaskId}${item.commentId ? `&comment=${item.commentId}` : ''}` : '')
+);
+
+const getNotificationTitle = (item) => {
+  if (item.type === 'comment') {
+    return item.metadata?.title || 'New task comment';
+  }
+  return item.text || item.message || item.title || 'Notification';
+};
+
+const getNotificationDetail = (item) => {
+  if (item.type === 'comment') {
+    const taskTitle = item.metadata?.taskTitle ? `Task: ${item.metadata.taskTitle}` : '';
+    const author = item.metadata?.authorName ? `By ${item.metadata.authorName}` : '';
+    return [taskTitle, author].filter(Boolean).join(' - ');
+  }
+  return '';
+};
+
+const getCommentPreview = (item) =>
+  String(item.metadata?.commentPreview || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export default function NotificationBall({ extraNotifications = [], iconColor = 'white' }) {
   const currentUser = useUserStore((state) => state.currentUser);
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const toast = useToast();
@@ -49,6 +78,8 @@ export default function NotificationBall({ extraNotifications = [], iconColor = 
   const buttonBg = useColorModeValue('white', 'whiteAlpha.100');
   const buttonBorder = useColorModeValue('blue.100', 'whiteAlpha.200');
   const buttonShadow = useColorModeValue('0 10px 28px rgba(37, 99, 235, 0.16)', '0 10px 28px rgba(14, 165, 233, 0.18)');
+  const menuBg = useColorModeValue('white', 'gray.900');
+  const itemBg = useColorModeValue('white', 'gray.900');
 
   const loadNotifications = async () => {
     if (!currentUser?.token) return;
@@ -87,6 +118,10 @@ export default function NotificationBall({ extraNotifications = [], iconColor = 
           text: notification.text,
           read: notification.read ?? false,
           type: notification.type || 'general',
+          itTaskId: notification.itTaskId,
+          commentId: notification.commentId,
+          link: notification.link,
+          metadata: notification.metadata,
           createdAt: notification.createdAt || new Date().toISOString(),
         },
         ...current,
@@ -99,28 +134,38 @@ export default function NotificationBall({ extraNotifications = [], iconColor = 
     () => [
       ...extraNotifications.map((item) => ({ ...item, read: item.read ?? false, local: true })),
       ...notifications,
-    ],
+    ].filter((item) => !item.read),
     [extraNotifications, notifications]
   );
 
   const unreadCount = combined.filter((item) => !item.read).length;
 
   const markOneRead = async (item) => {
-    if (item.local || item.read) return;
+    if (item.local || item.read) return item;
     try {
       const updated = await markNotificationAsRead(item._id || item.id);
       setNotifications((current) =>
-        current.map((notification) => (notification._id === updated._id ? updated : notification))
+        current.filter((notification) => notification._id !== updated._id)
       );
+      return updated;
     } catch (error) {
       toast({ title: 'Unable to mark notification read', status: 'error', duration: 1800 });
+      return item;
+    }
+  };
+
+  const openNotification = async (item) => {
+    await markOneRead(item);
+    const link = buildNotificationLink(item);
+    if (link) {
+      navigate(link);
     }
   };
 
   const markAllRead = async () => {
     try {
       await markAllNotificationsAsRead();
-      setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+      setNotifications([]);
     } catch (error) {
       toast({ title: 'Unable to mark all read', status: 'error', duration: 1800 });
     }
@@ -176,8 +221,9 @@ export default function NotificationBall({ extraNotifications = [], iconColor = 
           _hover={{ bg: unreadBg, transform: 'translateY(-1px)' }}
         />
       </Tooltip>
-      <MenuList p={0} minW="360px" maxW="420px" overflow="hidden" zIndex="9999">
-        <HStack justify="space-between" px={4} py={3}>
+      <Portal>
+        <MenuList p={0} w="380px" maxW="calc(100vw - 24px)" overflow="hidden" zIndex="9999" bg={menuBg} boxShadow="0 24px 70px rgba(15, 23, 42, 0.20)">
+        <HStack justify="space-between" px={4} py={3} bg={menuBg}>
           <Box>
             <Text fontWeight="900">Notifications</Text>
             <Text fontSize="xs" color={muted}>{unreadCount} unread updates</Text>
@@ -192,7 +238,7 @@ export default function NotificationBall({ extraNotifications = [], iconColor = 
           </HStack>
         </HStack>
         <Divider />
-        <Box maxH="420px" overflowY="auto">
+        <Box maxH="420px" overflowY="auto" bg={menuBg}>
           {combined.length === 0 ? (
             <Box py={8} textAlign="center">
               <Text fontWeight="700">No notifications yet</Text>
@@ -200,16 +246,22 @@ export default function NotificationBall({ extraNotifications = [], iconColor = 
             </Box>
           ) : (
             <VStack align="stretch" spacing={0}>
-              {combined.map((item, index) => (
+              {combined.map((item, index) => {
+                const link = buildNotificationLink(item);
+                const canOpen = Boolean(link);
+                const title = getNotificationTitle(item);
+                const detail = getNotificationDetail(item);
+                const preview = getCommentPreview(item);
+                return (
                 <Box
                   key={item._id || item.id || `${item.text}-${index}`}
                   px={4}
-                  py={3}
-                  bg={!item.read ? unreadBg : 'transparent'}
+                  py={2.5}
+                  bg={!item.read ? unreadBg : itemBg}
                   borderBottom="1px solid"
                   borderColor={itemBorder}
-                  cursor={item.local ? 'default' : 'pointer'}
-                  onClick={() => markOneRead(item)}
+                  cursor={canOpen ? 'pointer' : item.local ? 'default' : 'pointer'}
+                  onClick={() => (canOpen || !item.local ? openNotification(item) : undefined)}
                   _hover={{ bg: unreadBg }}
                 >
                   <HStack align="start" spacing={3}>
@@ -221,24 +273,46 @@ export default function NotificationBall({ extraNotifications = [], iconColor = 
                       mt={1.5}
                       flexShrink={0}
                     />
-                    <Box flex="1" minW={0}>
-                      <Text fontSize="sm" fontWeight={!item.read ? '800' : '600'} noOfLines={2}>
-                        {item.text || item.message || item.title || 'Notification'}
+                    <Box flex="1" minW={0} lineHeight="1.35">
+                      <Text fontSize="sm" fontWeight={!item.read ? '800' : '700'} noOfLines={2}>
+                        {title}
                       </Text>
-                      <HStack mt={1} spacing={2}>
-                        <Badge size="sm" colorScheme={item.type === 'task' ? 'orange' : item.type === 'chat' ? 'green' : 'gray'}>
+                      {detail && (
+                        <Text fontSize="xs" color={muted} mt={0.5} noOfLines={2}>
+                          {detail}
+                        </Text>
+                      )}
+                      {item.metadata?.taskLocation && (
+                        <Text fontSize="xs" color={muted} mt={1} noOfLines={2}>
+                          {item.metadata.taskLocation}
+                        </Text>
+                      )}
+                      {item.type === 'comment' && preview && (
+                        <Text fontSize="xs" color={muted} mt={1} noOfLines={2}>
+                          "{preview}"
+                        </Text>
+                      )}
+                      <HStack mt={2} spacing={2} align="center" flexWrap="wrap">
+                        <Badge size="sm" colorScheme={item.type === 'task' ? 'orange' : item.type === 'chat' ? 'green' : item.type === 'comment' ? 'blue' : 'gray'}>
                           {item.type || 'general'}
                         </Badge>
                         <Text fontSize="xs" color={muted}>{formatTimeAgo(item.createdAt)}</Text>
+                        {canOpen && (
+                          <Badge size="sm" colorScheme={item.type === 'comment' ? 'blue' : 'purple'} variant="subtle">
+                            {item.metadata?.actionLabel || 'Open'}
+                          </Badge>
+                        )}
                       </HStack>
                     </Box>
                   </HStack>
                 </Box>
-              ))}
+                );
+              })}
             </VStack>
           )}
         </Box>
-      </MenuList>
+        </MenuList>
+      </Portal>
     </Menu>
   );
 }

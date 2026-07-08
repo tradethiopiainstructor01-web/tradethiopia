@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Card,
@@ -13,12 +13,20 @@ import {
 import InternalTasksTab from './InternalTasksTab';
 import ExternalTasksTab from './ExternalTasksTab';
 
-export default function ITProjectWorkspace({ tasks, loading, fetchTasks, permissions }) {
+export default function ITProjectWorkspace({ tasks, loading, fetchTasks, permissions, focusedTaskId = '', focusedCommentId = '' }) {
   const [projectType, setProjectType] = useState('internal');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const controlBg = useColorModeValue('gray.50', 'gray.900');
   const accentColor = projectType === 'internal' ? 'blue' : 'purple';
+
+  useEffect(() => {
+    if (!focusedTaskId) return;
+    const focusedTask = (tasks || []).find((task) => String(task._id || task.id) === String(focusedTaskId));
+    if (focusedTask?.projectType && focusedTask.projectType !== projectType) {
+      setProjectType(focusedTask.projectType);
+    }
+  }, [focusedTaskId, projectType, tasks]);
 
   return (
     <Box>
@@ -45,9 +53,23 @@ export default function ITProjectWorkspace({ tasks, loading, fetchTasks, permiss
       </Card>
 
       {projectType === 'internal' ? (
-        <InternalTasksTab tasks={tasks} loading={loading} fetchTasks={fetchTasks} permissions={permissions} />
+        <InternalTasksTab
+          tasks={tasks}
+          loading={loading}
+          fetchTasks={fetchTasks}
+          permissions={permissions}
+          focusedTaskId={focusedTaskId}
+          focusedCommentId={focusedCommentId}
+        />
       ) : (
-        <ExternalTasksTab tasks={tasks} loading={loading} fetchTasks={fetchTasks} permissions={permissions} />
+        <ExternalTasksTab
+          tasks={tasks}
+          loading={loading}
+          fetchTasks={fetchTasks}
+          permissions={permissions}
+          focusedTaskId={focusedTaskId}
+          focusedCommentId={focusedCommentId}
+        />
       )}
     </Box>
   );

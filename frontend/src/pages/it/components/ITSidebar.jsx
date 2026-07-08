@@ -165,7 +165,7 @@ export default function ITSidebar({ activeSection, setActiveSection, setModalOpe
             size="sm"
             borderRadius="full"
             position="absolute"
-            right="-16px"
+            right="-8px"
             top="50%"
             transform="translateY(-50%)"
             colorScheme="cyan"

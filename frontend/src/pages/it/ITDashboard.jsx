@@ -51,6 +51,8 @@ export default function ITDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTabFromUrl = searchParams.get('tab') || 'dashboard';
+  const focusedTaskId = searchParams.get('task') || '';
+  const focusedCommentId = searchParams.get('comment') || '';
 
   const { currentUser, users, loading: usersLoading, error: usersError, fetchUsers, clearUser } = useUserStore();
   const token = currentUser?.token;
@@ -244,6 +246,8 @@ export default function ITDashboard() {
             loading={loadingTasks}
             fetchTasks={fetchTasks}
             permissions={persona}
+            focusedTaskId={focusedTaskId}
+            focusedCommentId={focusedCommentId}
           />
         );
       case 'performance':

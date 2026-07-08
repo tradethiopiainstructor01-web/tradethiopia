@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Box,
@@ -37,10 +37,11 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString();
 };
 
-export default function ITTaskDetailModal({ isOpen, task, onClose, onDone }) {
+export default function ITTaskDetailModal({ isOpen, task, onClose, onDone, focusedCommentId = '' }) {
   const [currentTask, setCurrentTask] = useState(task);
   const [comment, setComment] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const focusedCommentRef = useRef(null);
   const { currentUser } = useUserStore();
   const token = currentUser?.token;
   const normalizedRole = normalizeRole(currentUser?.role || currentUser?.displayRole || '');
@@ -49,6 +50,7 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone }) {
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const muted = useColorModeValue('gray.600', 'gray.400');
   const subtleBg = useColorModeValue('gray.50', 'whiteAlpha.100');
+  const focusedCommentBg = useColorModeValue('blue.50', 'whiteAlpha.100');
 
   useEffect(() => {
     setCurrentTask(task);
@@ -57,6 +59,14 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone }) {
 
   const workflow = getWorkflowMeta(currentTask?.workflowStatus, currentTask?.status);
   const comments = useMemo(() => currentTask?.comments || [], [currentTask]);
+
+  useEffect(() => {
+    if (!isOpen || !focusedCommentId) return;
+    const timer = setTimeout(() => {
+      focusedCommentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [focusedCommentId, isOpen, comments.length]);
 
   const submitComment = async () => {
     if (!currentTask || !comment.trim()) return;
@@ -190,8 +200,19 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone }) {
                   <Box bg={subtleBg} borderRadius="12px" p={4}>
                     <Text color={muted}>No comments yet.</Text>
                   </Box>
-                ) : comments.map((item) => (
-                  <Box key={item._id || item.createdAt || item.body} border="1px solid" borderColor={borderColor} borderRadius="12px" p={3}>
+                ) : comments.map((item) => {
+                  const isFocusedComment = focusedCommentId && String(item._id) === String(focusedCommentId);
+                  return (
+                  <Box
+                    key={item._id || item.createdAt || item.body}
+                    ref={isFocusedComment ? focusedCommentRef : null}
+                    border="1px solid"
+                    borderColor={isFocusedComment ? 'blue.300' : borderColor}
+                    borderRadius="12px"
+                    p={3}
+                    bg={isFocusedComment ? focusedCommentBg : 'transparent'}
+                    boxShadow={isFocusedComment ? '0 0 0 3px rgba(59,130,246,0.18)' : 'none'}
+                  >
                     <HStack justify="space-between" align="flex-start">
                       <Box>
                         <Text fontWeight="800">{item.authorName || 'IT User'}</Text>
@@ -201,7 +222,8 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone }) {
                     </HStack>
                     <Text mt={2}>{item.body}</Text>
                   </Box>
-                ))}
+                  );
+                })}
               </VStack>
 
               <FormControl>

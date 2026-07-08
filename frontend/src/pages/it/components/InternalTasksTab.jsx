@@ -48,7 +48,7 @@ const statusColor = (s) => {
   }
 };
 
-const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {} }) => {
+const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {}, focusedTaskId = '', focusedCommentId = '' }) => {
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
   const [showAdd, setShowAdd] = useState(false);
@@ -68,6 +68,16 @@ const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {}
   const subheadingColor = useColorModeValue('gray.600', 'gray.400');
   const iconColor = useColorModeValue('gray.500', 'gray.400');
   const mutedColor = useColorModeValue('gray.500', 'gray.400');
+
+  useEffect(() => {
+    if (!focusedTaskId || loading) return;
+    const focusedTask = (tasks || []).find(
+      (task) => String(task._id || task.id) === String(focusedTaskId) && task.projectType === 'internal'
+    );
+    if (focusedTask) {
+      setViewingTask(focusedTask);
+    }
+  }, [focusedTaskId, loading, tasks]);
 
   const markComplete = async (id) => {
     const featureCount = prompt('Enter the number of features/points for this task:', '1');
@@ -524,6 +534,7 @@ const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {}
         task={viewingTask}
         onClose={() => setViewingTask(null)}
         onDone={fetchTasks}
+        focusedCommentId={focusedCommentId}
       />
     </VStack>
   );

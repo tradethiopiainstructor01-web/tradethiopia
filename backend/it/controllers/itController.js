@@ -1,5 +1,8 @@
 const ITTask = require('../models/ITTask');
 const ITReport = require('../models/ITReport');
+const Notification = require('../../models/Notification');
+const User = require('../../models/user.model');
+const { emitToUsers } = require('../../services/chatSocketService');
 
 const getUserDisplayName = (user) => (
   user?.fullName
@@ -11,6 +14,110 @@ const getUserDisplayName = (user) => (
 const WORKFLOW_STATUS = ['pending', 'assigned', 'in_progress', 'submitted', 'approved', 'rejected', 'completed'];
 
 const normalizeRole = (role = '') => role.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const getTaskTitle = (task) => (
+  task?.taskName
+  || task?.client
+  || task?.platform
+  || task?.category
+  || 'IT task'
+);
+
+const getUserAliases = (user) => (
+  [
+    user?._id,
+    user?.id,
+    user?.email,
+    user?.username,
+    user?.fullName,
+    user?.name,
+  ]
+    .filter(Boolean)
+    .map((item) => String(item).trim().toLowerCase())
+);
+
+const collectTaskParticipantAliases = (task) => (
+  [
+    task.taskLeader,
+    ...(task.assignedTo || []),
+  ]
+    .filter(Boolean)
+    .map((item) => String(item).trim().toLowerCase())
+);
+
+const isItManagerRole = (role) => ['admin', 'itmanager', 'itadmin'].includes(normalizeRole(role));
+
+const notifyTaskCommentParticipants = async (task, comment, req) => {
+  try {
+    const aliases = collectTaskParticipantAliases(task);
+    const allUsers = await User.find({ status: 'active' }).select('username fullName email role department status');
+    const recipients = new Map();
+    const addRecipient = (user) => {
+      if (!user?._id) return;
+      recipients.set(String(user._id), user);
+    };
+
+    allUsers.forEach((user) => {
+      const role = normalizeRole(user.role);
+      const matchesTaskAlias = getUserAliases(user).some((alias) => aliases.includes(alias));
+      if (matchesTaskAlias || isItManagerRole(role)) {
+        addRecipient(user);
+      }
+    });
+
+    [task.createdBy, task.submittedBy, task.approvedBy, task.rejectedBy].filter(Boolean).forEach((id) => {
+      const found = allUsers.find((user) => String(user._id) === String(id));
+      if (found) addRecipient(found);
+    });
+
+    const taskId = task._id;
+    const commentId = comment._id;
+    const taskTitle = getTaskTitle(task);
+    const actorName = getUserDisplayName(req.user);
+    const link = `/it?tab=projects&task=${taskId}&comment=${commentId}`;
+    const taskLocation = `${task.projectType || 'IT'} / ${task.platform || task.category || 'Project Workspace'}`;
+    const commentPreview = String(comment.body || '').slice(0, 160);
+    const notificationDocs = [...recipients.values()].map((user) => ({
+      user: user._id,
+      text: `New IT task comment: ${taskTitle}. Click to view the comment.`,
+      type: 'comment',
+      itTaskId: taskId,
+      commentId,
+      link,
+      metadata: {
+        title: 'New task comment',
+        taskTitle,
+        taskLocation,
+        commentPreview,
+        authorName: actorName,
+        actionLabel: 'View comment',
+      },
+    }));
+
+    if (!notificationDocs.length) return [];
+
+    const createdNotifications = await Notification.insertMany(notificationDocs);
+    createdNotifications.forEach((notification) => {
+      emitToUsers([notification.user], 'newNotification', {
+        id: notification._id,
+        _id: notification._id,
+        text: notification.text,
+        read: notification.read,
+        type: notification.type,
+        itTaskId: notification.itTaskId,
+        commentId: notification.commentId,
+        link: notification.link,
+        metadata: notification.metadata,
+        createdAt: notification.createdAt,
+      });
+    });
+
+    return createdNotifications;
+  } catch (error) {
+    console.error('notifyTaskCommentParticipants error', error);
+    return [];
+  }
+};
 
 const appendAudit = (task, req, action, details = {}) => {
   task.auditLog.push({
@@ -326,14 +433,16 @@ const addTaskComment = async (req, res) => {
     const task = await ITTask.findById(req.params.id);
     if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-    task.comments.push({
+    const comment = task.comments.create({
       author: req.user?._id,
       authorName: getUserDisplayName(req.user),
       authorRole: req.user?.role || '',
       body
     });
+    task.comments.push(comment);
     appendAudit(task, req, 'comment_added', { note: body });
     await task.save();
+    await notifyTaskCommentParticipants(task, comment, req);
     res.status(201).json({ success: true, data: task });
   } catch (error) {
     console.error('addTaskComment error', error);
