@@ -251,7 +251,7 @@ export default function ITDashboard() {
           />
         );
       case 'performance':
-        return <PerformanceTab tasks={visibleTasks} users={users} />;
+        return <PerformanceTab tasks={visibleTasks} users={users} persona={persona} currentUser={currentUser} />;
       case 'kpi':
         return <KPITab users={users} usersLoading={usersLoading} tasks={visibleTasks} fetchTasks={fetchTasks} />;
       case 'reports':

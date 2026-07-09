@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box,
+  Flex,
   Table,
   Thead,
   Tbody,
@@ -58,6 +59,8 @@ const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {}
   const [viewingTask, setViewingTask] = useState(null);
   const [editingPoints, setEditingPoints] = useState(1);
   const [showCompleted, setShowCompleted] = useState(true);
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
   const toast = useToast();
   const { currentUser } = useUserStore();
   const token = currentUser?.token;
@@ -185,6 +188,13 @@ const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {}
         .includes((searchTerm || '').toLowerCase())
     )
     .sort((a, b) => sort === 'newest' ? new Date(b.startDate) - new Date(a.startDate) : new Date(a.startDate) - new Date(b.startDate));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedTasks = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, sort, showCompleted, searchTerm, pageSize]);
 
   if (loading) return (
     <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -314,6 +324,18 @@ const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {}
               <option value="oldest">Oldest First</option>
             </Select>
 
+            <Select
+              maxW="150px"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              borderRadius="lg"
+            >
+              <option value={5}>5 per page</option>
+              <option value={10}>10 per page</option>
+              <option value={20}>20 per page</option>
+              <option value={50}>50 per page</option>
+            </Select>
+
             <Button
               leftIcon={<FiFilter />}
               variant="outline"
@@ -344,7 +366,7 @@ const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {}
                 </Tr>
               </Thead>
               <Tbody>
-                {filtered.map((task) => (
+                {pagedTasks.map((task) => (
                   <Tr key={task._id || task.id}>
                     <Td>
                       <Button variant="link" colorScheme="blue" fontWeight="medium" onClick={() => setViewingTask(task)}>
@@ -499,6 +521,22 @@ const InternalTasksTab = ({ search, tasks, loading, fetchTasks, permissions = {}
                 ))}
               </Tbody>
             </Table>
+            <Flex justify="space-between" align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap={3} mt={4}>
+              <Text fontSize="sm" color={mutedColor}>
+                Showing {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, filtered.length)} of {filtered.length}
+              </Text>
+              <HStack>
+                <Button size="sm" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))} isDisabled={safePage <= 1}>
+                  Previous
+                </Button>
+                <Badge colorScheme="blue" borderRadius="full" px={3} py={1}>
+                  Page {safePage} / {totalPages}
+                </Badge>
+                <Button size="sm" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} isDisabled={safePage >= totalPages}>
+                  Next
+                </Button>
+              </HStack>
+            </Flex>
           </CardBody>
         </Card>
       ) : (

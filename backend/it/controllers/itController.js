@@ -46,6 +46,32 @@ const collectTaskParticipantAliases = (task) => (
 );
 
 const isItManagerRole = (role) => ['admin', 'itmanager', 'itadmin'].includes(normalizeRole(role));
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildTaskAccessFilter = (req, baseFilter = {}) => {
+  const role = normalizeRole(req.user?.role);
+  if (isItManagerRole(role)) return baseFilter;
+
+  const aliases = getUserAliases(req.user);
+  if (!aliases.length) return { ...baseFilter, _id: null };
+  const aliasPatterns = aliases.map((alias) => new RegExp(`^${escapeRegex(alias)}$`, 'i'));
+
+  return {
+    ...baseFilter,
+    $or: [
+      { taskLeader: { $in: aliasPatterns } },
+      { assignedTo: { $in: aliasPatterns } },
+    ],
+  };
+};
+
+const canAccessTask = (task, req) => {
+  const role = normalizeRole(req.user?.role);
+  if (isItManagerRole(role)) return true;
+  const aliases = getUserAliases(req.user);
+  const participants = collectTaskParticipantAliases(task);
+  return aliases.some((alias) => participants.includes(alias));
+};
 
 const notifyTaskCommentParticipants = async (task, comment, req) => {
   try {
@@ -260,7 +286,7 @@ const getTasks = async (req, res) => {
   try {
     const filter = {};
     if (req.query.projectType) filter.projectType = req.query.projectType;
-    const tasks = await ITTask.find(filter).sort({ createdAt: -1 });
+    const tasks = await ITTask.find(buildTaskAccessFilter(req, filter)).sort({ createdAt: -1 });
     res.json({ success: true, data: tasks });
   } catch (error) {
     console.error('getTasks error', error);
@@ -272,6 +298,9 @@ const getTaskById = async (req, res) => {
   try {
     const task = await ITTask.findById(req.params.id);
     if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+    if (!canAccessTask(task, req)) {
+      return res.status(403).json({ success: false, message: 'You do not have access to this IT task.' });
+    }
     res.json({ success: true, data: task });
   } catch (error) {
     console.error('getTaskById error', error);

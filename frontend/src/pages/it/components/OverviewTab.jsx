@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Avatar,
   Badge,
@@ -269,6 +269,8 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
     progress: 'all',
     query: '',
   });
+  const [taskPageSize, setTaskPageSize] = useState(10);
+  const [taskPage, setTaskPage] = useState(1);
   const [editingTask, setEditingTask] = useState(null);
   const [viewingTask, setViewingTask] = useState(null);
   
@@ -492,6 +494,17 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
     });
   }, [filters, tasks]);
 
+  useEffect(() => {
+    setTaskPage(1);
+  }, [filters, taskPageSize]);
+
+  const totalTaskPages = Math.max(1, Math.ceil(filteredTasks.length / taskPageSize));
+  const safeTaskPage = Math.min(taskPage, totalTaskPages);
+  const pagedTasks = filteredTasks.slice(
+    (safeTaskPage - 1) * taskPageSize,
+    safeTaskPage * taskPageSize
+  );
+
   const doneTasks = (tasks || []).filter((task) => task.status === 'done');
   const internalPoints = doneTasks
     .filter((task) => task.projectType === 'internal')
@@ -701,6 +714,18 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
                 <option value="mid">In Progress</option>
                 <option value="complete">Completed</option>
               </Select>
+              <Select
+                value={taskPageSize}
+                onChange={(e) => setTaskPageSize(Number(e.target.value))}
+                variant="filled"
+                w="150px"
+                borderRadius="14px"
+              >
+                <option value={5}>5 per page</option>
+                <option value={10}>10 per page</option>
+                <option value={20}>20 per page</option>
+                <option value={50}>50 per page</option>
+              </Select>
             </HStack>
           </Flex>
           <Box mt={5}>
@@ -719,7 +744,7 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
             }}
           >
           <TaskTable
-            tasks={filteredTasks}
+            tasks={pagedTasks}
             onToggleStatus={handleToggleStatus}
             onWorkflowAction={handleWorkflowAction}
             onRejectTask={handleRejectTask}
@@ -732,6 +757,44 @@ export default function OverviewTab({ tasks, weeklyTarget, setWeeklyTarget, fetc
             permissions={permissions}
             emptyMessage="No tasks match the filters"
           />
+          {filteredTasks.length > 0 && (
+            <Flex
+              justify="space-between"
+              align={{ base: 'stretch', md: 'center' }}
+              direction={{ base: 'column', md: 'row' }}
+              gap={3}
+              px={4}
+              py={3}
+              borderTop="1px solid"
+              borderColor={borderColor}
+              bg={filterInputBg}
+            >
+              <Text fontSize="sm" color="gray.500">
+                Showing {(safeTaskPage - 1) * taskPageSize + 1}-{Math.min(safeTaskPage * taskPageSize, filteredTasks.length)} of {filteredTasks.length}
+              </Text>
+              <HStack>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setTaskPage((page) => Math.max(1, page - 1))}
+                  isDisabled={safeTaskPage <= 1}
+                >
+                  Previous
+                </Button>
+                <Badge colorScheme="blue" borderRadius="full" px={3} py={1}>
+                  Page {safeTaskPage} / {totalTaskPages}
+                </Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setTaskPage((page) => Math.min(totalTaskPages, page + 1))}
+                  isDisabled={safeTaskPage >= totalTaskPages}
+                >
+                  Next
+                </Button>
+              </HStack>
+            </Flex>
+          )}
           </Box>
           </Box>
       </ITCollapsibleSection>
