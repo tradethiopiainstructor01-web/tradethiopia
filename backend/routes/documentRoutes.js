@@ -15,10 +15,10 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Upload a document to Appwrite Storage
 router.post('/', upload.single('file'), async (req, res) => {
     try {
-        const { title, categoryId, department, section } = req.body;
+        const { title, employeeName, categoryId, department, section } = req.body;
 
         // Log to check the received values
-        console.log('Received data:', { title, categoryId, department, section });
+        console.log('Received data:', { title, employeeName, categoryId, department, section });
         console.log('Received file:', req.file);
 
         // Validate required fields
@@ -53,6 +53,7 @@ router.post('/', upload.single('file'), async (req, res) => {
         // Create new document with Appwrite file ID
         const newDocument = new Document({
             title,
+            employeeName: employeeName || '',
             file: appwriteFile.$id, // Store Appwrite file ID instead of file path
             category: categoryId,
             department,
@@ -111,11 +112,13 @@ router.get('/:id', async (req, res) => {
 // Update a document (without changing the file)
 router.put('/:id', async (req, res) => {
     try {
-        const { title, categoryId, department, section } = req.body;
+        const { title, employeeName, categoryId, category, department, section } = req.body;
 
         // Validate category if provided
-        if (categoryId) {
-            const category = await Category.findById(categoryId);
+        const nextCategoryId = categoryId || category;
+
+        if (nextCategoryId) {
+            const category = await Category.findById(nextCategoryId);
             if (!category) {
                 return res.status(400).json({ error: 'Invalid category' });
             }
@@ -123,7 +126,7 @@ router.put('/:id', async (req, res) => {
 
         const updatedDocument = await Document.findByIdAndUpdate(
             req.params.id,
-            { title, category: categoryId, department, section },
+            { title, employeeName, category: nextCategoryId, department, section },
             { new: true }
         ).populate('category');
 
@@ -138,6 +141,46 @@ router.put('/:id', async (req, res) => {
         };
 
         res.status(200).json(documentWithUrl);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// Partially update a document (without changing the file)
+router.patch('/:id', async (req, res) => {
+    try {
+        const { title, employeeName, categoryId, category, department, section } = req.body;
+        const nextCategoryId = categoryId || category;
+        const update = {};
+
+        if (title !== undefined) update.title = title;
+        if (employeeName !== undefined) update.employeeName = employeeName;
+        if (department !== undefined) update.department = department;
+        if (section !== undefined) update.section = section;
+
+        if (nextCategoryId !== undefined) {
+            const categoryDoc = await Category.findById(nextCategoryId);
+            if (!categoryDoc) {
+                return res.status(400).json({ error: 'Invalid category' });
+            }
+            update.category = nextCategoryId;
+        }
+
+        const updatedDocument = await Document.findByIdAndUpdate(
+            req.params.id,
+            update,
+            { new: true }
+        ).populate('category');
+
+        if (!updatedDocument) {
+            return res.status(404).json({ error: 'Document not found' });
+        }
+
+        res.status(200).json({
+            ...updatedDocument.toObject(),
+            fileUrl: `https://cloud.appwrite.io/v1/storage/buckets/${process.env.APPWRITE_BUCKET_ID}/files/${updatedDocument.file}/view?project=${process.env.APPWRITE_PROJECT_ID}`
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

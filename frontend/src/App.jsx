@@ -75,6 +75,7 @@ import SupervisorLayout from "./pages/supervisor/SupervisorLayout.jsx";
 import SupervisorDashboardPage from "./pages/supervisor/SupervisorDashboardPage.jsx";
 import SupervisorAccountPage from "./pages/supervisor/SupervisorAccountPage.jsx";
 
+const CandidatePoolPage = lazy(() => import('./pages/CandidatePoolPage.jsx'));
 const FinanceERPPage = lazy(() => import("./pages/sales/FinanceERPPage.jsx"));
 const FinanceDashboardPage = lazy(() => import("./pages/sales/FinanceDashboardPage.jsx"));
 const FinanceReportsPage = lazy(() => import("./pages/sales/FinanceReportsPage.jsx"));
@@ -193,6 +194,7 @@ return (
       <Route path="/dashboard" element={<LayoutWrapper><Dashboard /></LayoutWrapper>} />
       <Route path="/course" element={<LayoutWrapper><AdminTrainingUpload /></LayoutWrapper>} />
       <Route path="/hr-training" element={<LayoutWrapper><HRTrainingPage /></LayoutWrapper>} />
+      <Route path="/candidate-pool" element={<LayoutWrapper><CandidatePoolPage /></LayoutWrapper>} />
       <Route path="/documentupload" element={<DocumentUploadForm />} />
       <Route path="/category" element={<LayoutWrapper><Category /></LayoutWrapper>} />
       <Route path="/documentlist" element={<LayoutWrapper><DocumentList /></LayoutWrapper>} />
@@ -435,3 +437,6 @@ return (
 }
 
 export default App;
+
+
+

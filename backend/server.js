@@ -53,6 +53,7 @@ const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
 const paymentRoutes = require('./routes/paymentRoutes.js');
 const awardRoutes = require('./routes/awardRoutes.js');
 const contentTrackerRoutes = require('./routes/contentTrackerRoutes');
+const candidatePoolRoutes = require('./routes/candidatePoolRoutes.js');
 
 const consultancyRoutes = require('./routes/consultancyRoutes.js');
 
@@ -334,6 +335,7 @@ app.use('/api/social-requests', requestRoutes);
 app.use('/api/social-account-credentials', socialAccountCredentialRoutes);
 app.use('/api/action-items', actionItemRoutes);
 app.use('/api/content-tracker', contentTrackerRoutes);
+app.use('/api/candidate-pool', candidatePoolRoutes);
 // Awards
 app.use('/api/awards', awardRoutes);
 
@@ -407,3 +409,4 @@ if (require.main === module) {
         process.exit(1);
       });
 }
+
