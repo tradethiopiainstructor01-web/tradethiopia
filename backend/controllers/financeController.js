@@ -1,5 +1,5 @@
 const InventoryItem = require('../models/InventoryItem');
-const SalesCustomer = require('../sales/models/SalesCustomer');
+const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const Purchase = require('../models/Purchase');
 const Cost = require('../models/Cost');

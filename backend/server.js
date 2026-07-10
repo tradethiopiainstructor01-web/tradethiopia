@@ -13,10 +13,6 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const { connectDB, disconnectDB } = require('./config/db.js');
 const userRoutes = require('./routes/user.route.js');
 const notificationRoutes = require('./routes/notificationRoutes.js');
-const facebookRoutes = require('./routes/facebookRoutes.js');
-const instagramRoutes = require('./routes/instagramRoutes.js');
-const whatsappRoutes = require('./routes/whatsappRoutes.js');
-const linkedinRoutes = require('./routes/linkedinRoutes.js');
 const messageRoutes = require('./routes/messageRoutes.js');
 const chatRoutes = require('./routes/chatRoutes.js');
 const quizRoutes = require('./routes/quiz.route.js');
@@ -35,44 +31,38 @@ const b2bMatchingRoutes = require('./routes/b2bMatchingRoutes.js');
 const savedMatchRoutes = require('./routes/savedMatchRoutes.js');
 const trainingFollowupRoutes = require('./routes/trainingFollowupRoutes.js');
 const ensraFollowupRoutes = require('./routes/ensraFollowupRoutes.js');
-const salesCustomerRoutes = require('./sales/routes/salesCustomerRoutes.js');
+const salesCustomerRoutes = require('./routes/salesCustomerRoutes.js');
 const packageRoutes = require('./routes/packageRoutes.js');
-const packageSalesRoutes = require('./sales/routes/packageSalesRoutes.js');
-const serviceTypeRoutes = require('./tradextv/routes/serviceTypeRoutes.js');
+const packageSalesRoutes = require('./routes/packageSalesRoutes.js');
+const serviceTypeRoutes = require('./routes/serviceTypeRoutes.js');
 const metricRoutes = require('./routes/metricRoutes.js');
-const tradexFollowupRoutes = require('./tradextv/routes/tradexFollowupRoutes.js');
+const tradexFollowupRoutes = require('./routes/tradexFollowupRoutes.js');
 const stockRoutes = require('./routes/stockRoutes.js');
 const orderRoutes = require('./routes/orderRoutes.js');
 const orderCustomerRoutes = require('./routes/orderCustomerRoutes.js');
-const salesManagerRoutes = require('./sales/routes/salesManagerRoutes.js');
-const salesTargetRoutes = require('./sales/routes/salesTargetRoutes.js');
+const salesManagerRoutes = require('./routes/salesManagerRoutes.js');
+const salesTargetRoutes = require('./routes/salesTargetRoutes.js');
 const taskRoutes = require('./routes/taskRoutes.js');
 const calendarRoutes = require('./routes/calendarRoutes.js');
 const courseRoutes = require('./routes/courseRoutes.js');
 const productFollowupRoutes = require('./routes/productFollowupRoutes.js');
-const itRoutes = require('./it/routes/itRoutes.js');
+const itRoutes = require('./routes/itRoutes.js');
 const inventoryRoutes = require('./routes/inventoryRoutes.js');
 const demandRoutes = require('./routes/demandRoutes.js');
 const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
 const paymentRoutes = require('./routes/paymentRoutes.js');
 const awardRoutes = require('./routes/awardRoutes.js');
 const contentTrackerRoutes = require('./routes/contentTrackerRoutes');
-<<<<<<< HEAD
 const candidatePoolRoutes = require('./routes/candidatePoolRoutes.js');
-=======
-const contentPlanRoutes = require('./routes/contentPlanRoutes');
->>>>>>> 4ae6a357f6b7a5d88c7c53e25502897f2cab333f
 
 const consultancyRoutes = require('./routes/consultancyRoutes.js');
 
 const costRoutes = require('./routes/costRoutes.js');
 const requestRoutes = require('./routes/requestRoutes.js');
 const actionItemRoutes = require('./routes/actionItemRoutes.js');
-const commissionApprovalRoutes = require('./sales/routes/commissionApprovalRoutes.js');
-const salesOnboardingCourseRoutes = require('./sales/routes/salesOnboardingCourseRoutes.js');
+const commissionApprovalRoutes = require('./routes/commissionApprovalRoutes.js');
+const salesOnboardingCourseRoutes = require('./routes/salesOnboardingCourseRoutes.js');
 const socialAccountCredentialRoutes = require('./routes/socialAccountCredentialRoutes.js');
-const pushRoutes = require('./routes/pushRoutes.js');
-const { scheduleDailyReminders } = require('./services/pushScheduler.js');
 // Load environment variables
 
 // Initialize Express app
@@ -190,16 +180,6 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(bodyParser.json({ limit: '10mb' }));
-// Temporary HTTP logger to debug redirects
-app.use((req, res, next) => {
-  const start = Date.now();
-  const oldSend = res.send;
-  res.send = function(...args) {
-    console.log(`[HTTP LOG] ${req.method} ${req.originalUrl || req.url} -> Status ${res.statusCode} (${Date.now() - start}ms)`);
-    return oldSend.apply(this, args);
-  };
-  next();
-});
 // Removed static uploads directory since we're using Appwrite for file storage
 // app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -280,7 +260,7 @@ app.get('/api/test', (req, res) => {
 
 app.get('/api/test-completed-sales', async (req, res) => {
   try {
-    const SalesCustomer = require('./sales/models/SalesCustomer');
+    const SalesCustomer = require('./models/SalesCustomer');
     const completedCount = await SalesCustomer.countDocuments({ followupStatus: 'Completed' });
     const totalCount = await SalesCustomer.countDocuments();
     
@@ -304,10 +284,6 @@ app.get('/api/test-completed-sales', async (req, res) => {
 app.use("/api/users", userRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/facebook", facebookRoutes);
-app.use("/api/instagram", instagramRoutes);
-app.use("/api/whatsapp", whatsappRoutes);
-app.use("/api/linkedin", linkedinRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/chat", chatRoutes);
 app.use('/api/followup', customerFollowUpRoutes);
@@ -359,20 +335,13 @@ app.use('/api/social-requests', requestRoutes);
 app.use('/api/social-account-credentials', socialAccountCredentialRoutes);
 app.use('/api/action-items', actionItemRoutes);
 app.use('/api/content-tracker', contentTrackerRoutes);
-<<<<<<< HEAD
 app.use('/api/candidate-pool', candidatePoolRoutes);
-=======
-app.use('/api/content-plans', contentPlanRoutes);
->>>>>>> 4ae6a357f6b7a5d88c7c53e25502897f2cab333f
 // Awards
 app.use('/api/awards', awardRoutes);
 
 // Commission Approval
 app.use('/api/commissions', commissionApprovalRoutes);
 app.use('/api/sales-onboarding-course', salesOnboardingCourseRoutes);
-
-// Web Push Notifications
-app.use('/api/push', pushRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -399,8 +368,6 @@ if (require.main === module) {
       .then(() => {
         const server = app.listen(PORT, HOST, () => {
           console.log(`Server running on http://${HOST}:${PORT}`);
-          // Start push notification cron jobs
-          scheduleDailyReminders();
         });
         
         // Initialize Socket.IO with the HTTP server

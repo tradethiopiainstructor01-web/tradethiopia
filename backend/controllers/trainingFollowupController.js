@@ -1,5 +1,5 @@
 const TrainingFollowup = require("../models/TrainingFollowup");
-const SalesCustomer = require("../sales/models/SalesCustomer");
+const SalesCustomer = require("../models/SalesCustomer");
 
 // Create Training follow-up
 const createTrainingFollowup = async (req, res) => {

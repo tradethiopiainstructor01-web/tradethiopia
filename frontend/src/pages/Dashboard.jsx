@@ -8,7 +8,7 @@ import TasksAndAlerts from '../components/TasksAndAlerts';
 import NotificationsPanel from '../components/NotificationsPanel';
 import AssetDashboard from '../components/AssetDashboard';
 import AwardsPanel from '../components/AwardsPanel';
-import CompletedSalesTable from './sales/manager/components/CompletedSalesTable';
+import CompletedSalesTable from '../components/salesmanager/CompletedSalesTable';
 import { useUserStore } from '../store/user';
 import { calculateAwards } from '../services/awardService';
 

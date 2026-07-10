@@ -1292,8 +1292,6 @@ const fetchPayrollDataHandler = async () => {
                   <option value="finance">Finance</option>
                   <option value="sales">Sales</option>
                   <option value="IT">IT</option>
-                  <option value="SocialmediaManager">Socialmedia Manager</option>
-                  <option value="socialmedia">Social Media</option>
                 </Select>
               </Box>
             </Grid>

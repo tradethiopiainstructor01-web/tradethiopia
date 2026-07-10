@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 // Import the SalesCustomer model
-const SalesCustomer = require('./sales/models/SalesCustomer');
+const SalesCustomer = require('./models/SalesCustomer');
 
 // Connect to database
 const connectDB = async () => {
