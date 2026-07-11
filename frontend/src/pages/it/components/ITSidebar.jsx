@@ -128,6 +128,9 @@ export default function ITSidebar({ activeSection, setActiveSection, setModalOpe
       backdropFilter="blur(16px)"
       transition="width 0.22s ease, min-width 0.22s ease"
       boxShadow={panelShadow}
+      flexShrink={0}
+      alignSelf="flex-start"
+      overflow="hidden"
     >
       <VStack spacing={5} align="stretch" h="full">
         <Box

@@ -26,6 +26,7 @@ import {
   Card,
   CardHeader,
   CardBody,
+  SimpleGrid,
   Switch,
   FormHelperText,
   Icon,
@@ -125,6 +126,10 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
   
   const bg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const modalBg = useColorModeValue('white', 'gray.900');
+  const headerBg = useColorModeValue('linear-gradient(135deg, #eff6ff, #ecfeff)', 'linear-gradient(135deg, rgba(14,165,233,0.18), rgba(15,23,42,0.92))');
+  const sectionBg = useColorModeValue('gray.50', 'whiteAlpha.50');
+  const muted = useColorModeValue('gray.600', 'gray.400');
 
   const submit = async () => {
     if (!token) {
@@ -406,16 +411,16 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl">
-      <ModalOverlay />
-      <ModalContent bg={bg} borderRadius="2xl" maxW={{ base: '95%', md: '600px' }}>
-        <ModalHeader pb={2}>
+    <Modal isOpen={isOpen} onClose={onClose} size="5xl" scrollBehavior="inside">
+      <ModalOverlay bg="blackAlpha.500" backdropFilter="blur(5px)" />
+      <ModalContent bg={modalBg} borderRadius="22px" maxW={{ base: '94vw', lg: '980px' }} maxH="92vh" overflow="hidden">
+        <ModalHeader pb={4} bg={headerBg} borderBottom="1px solid" borderColor={borderColor}>
           <VStack align="stretch" spacing={1}>
-            <Heading size="lg" color={useColorModeValue('gray.800', 'white')}>
+            <Heading size={{ base: 'md', md: 'lg' }} color={useColorModeValue('gray.800', 'white')}>
               Create New Task
             </Heading>
-            <Text fontSize="sm" color={useColorModeValue('gray.600', 'gray.400')}>
-              Fill in the details below to create a new IT task
+            <Text fontSize="sm" color={muted}>
+              Create a scoped IT task with ownership, timeline, and delivery context.
             </Text>
           </VStack>
         </ModalHeader>
@@ -424,9 +429,9 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
           _focus={{ boxShadow: 'none' }}
         />
         
-        <ModalBody py={2}>
-          <VStack spacing={6} align="stretch">
-            <Card variant="outline" borderRadius="xl" borderColor={borderColor}>
+        <ModalBody py={5}>
+          <VStack spacing={4} align="stretch">
+            <Card variant="outline" borderRadius="18px" borderColor={borderColor} bg={sectionBg}>
               <CardHeader pb={2}>
                 <HStack spacing={2}>
                   <FormLabel mb={0} fontWeight="semibold">Project Type</FormLabel>
@@ -434,7 +439,7 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
               </CardHeader>
               <CardBody pt={2}>
                 <RadioGroup onChange={setProjectType} value={projectType}>
-                  <Stack direction="row" spacing={6}>
+                  <Stack direction={{ base: 'column', sm: 'row' }} spacing={4}>
                     <Radio value="internal" colorScheme="blue">Internal</Radio>
                     <Radio value="external" colorScheme="purple">External</Radio>
                   </Stack>
@@ -442,7 +447,7 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
               </CardBody>
             </Card>
 
-            <Card variant="outline" borderRadius="xl" borderColor={borderColor}>
+            <Card variant="outline" borderRadius="18px" borderColor={borderColor}>
               <CardHeader pb={2}>
                 <FormLabel mb={0} fontWeight="semibold">Task Details</FormLabel>
               </CardHeader>
@@ -545,13 +550,13 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
               </CardBody>
             </Card>
 
-            <Card variant="outline" borderRadius="xl" borderColor={borderColor}>
+            <Card variant="outline" borderRadius="18px" borderColor={borderColor}>
               <CardHeader pb={2}>
-                <FormLabel mb={0} fontWeight="semibold">Timeline & Status</FormLabel>
+                <FormLabel mb={0} fontWeight="semibold">Timeline, Status & Ownership</FormLabel>
               </CardHeader>
               <CardBody pt={2}>
                 <Stack spacing={4}>
-                  <HStack spacing={4}>
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                     <FormControl>
                       <FormLabel>Start Date</FormLabel>
                       <Input 
@@ -571,40 +576,42 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
                         borderRadius="lg"
                       />
                     </FormControl>
-                  </HStack>
-                  
-                  <FormControl>
-                    <FormLabel>Status</FormLabel>
-                    <Select 
-                      value={status} 
-                      onChange={e => setStatus(e.target.value)}
-                      borderRadius="lg"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="ongoing">Ongoing</option>
-                      <option value="done">Done</option>
-                    </Select>
-                  </FormControl>
+                  </SimpleGrid>
 
-                  <FormControl>
-                    <FormLabel>Task Leader</FormLabel>
-                    <Select
-                      value={taskLeader}
-                      onChange={e => setTaskLeader(e.target.value)}
-                      placeholder="Select task leader"
-                      borderRadius="lg"
-                      isDisabled={isTeamLeaderCreator}
-                    >
-                      {taskLeaderOptions.map((person) => (
-                        <option key={person} value={person}>{person}</option>
-                      ))}
-                    </Select>
-                    <FormHelperText>
-                      {isTeamLeaderCreator
-                        ? 'Team leaders create tasks under their own leadership scope.'
-                        : 'Choose the person responsible for leading this task.'}
-                    </FormHelperText>
-                  </FormControl>
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                    <FormControl>
+                      <FormLabel>Status</FormLabel>
+                      <Select
+                        value={status}
+                        onChange={e => setStatus(e.target.value)}
+                        borderRadius="lg"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="ongoing">Ongoing</option>
+                        <option value="done">Done</option>
+                      </Select>
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel>Task Leader</FormLabel>
+                      <Select
+                        value={taskLeader}
+                        onChange={e => setTaskLeader(e.target.value)}
+                        placeholder="Select task leader"
+                        borderRadius="lg"
+                        isDisabled={isTeamLeaderCreator}
+                      >
+                        {taskLeaderOptions.map((person) => (
+                          <option key={person} value={person}>{person}</option>
+                        ))}
+                      </Select>
+                      <FormHelperText>
+                        {isTeamLeaderCreator
+                          ? 'Team leaders create tasks under their own leadership scope.'
+                          : 'Choose the person responsible for leading this task.'}
+                      </FormHelperText>
+                    </FormControl>
+                  </SimpleGrid>
                   
                   <FormControl>
                     <FormLabel>Assigned To</FormLabel>
@@ -641,7 +648,7 @@ const AddTaskForm = ({ isOpen, onClose, onDone, onLocalCreate, defaultProjectTyp
           </VStack>
         </ModalBody>
 
-        <ModalFooter pt={4} pb={6}>
+        <ModalFooter pt={4} pb={5} borderTop="1px solid" borderColor={borderColor}>
           <HStack spacing={3}>
             <Button 
               variant="ghost" 

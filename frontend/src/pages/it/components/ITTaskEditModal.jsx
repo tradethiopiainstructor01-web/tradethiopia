@@ -1,12 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Badge,
+  Box,
   Button,
+  Card,
+  CardBody,
   Checkbox,
   CheckboxGroup,
   FormControl,
   FormHelperText,
   FormLabel,
   HStack,
+  Heading,
   Input,
   Modal,
   ModalBody,
@@ -19,8 +24,11 @@ import {
   SimpleGrid,
   Stack,
   Switch,
+  Text,
   Textarea,
+  useColorModeValue,
   useToast,
+  VStack,
   Wrap,
   WrapItem,
 } from '@chakra-ui/react';
@@ -72,6 +80,11 @@ export default function ITTaskEditModal({ isOpen, task, onClose, onDone }) {
   const token = currentUser?.token;
   const toast = useToast();
   const [form, setForm] = useState(null);
+  const borderColor = useColorModeValue('gray.200', 'whiteAlpha.200');
+  const modalBg = useColorModeValue('white', 'gray.900');
+  const headerBg = useColorModeValue('linear-gradient(135deg, #eef6ff, #f0fdfa)', 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(20,184,166,0.12))');
+  const sectionBg = useColorModeValue('gray.50', 'whiteAlpha.50');
+  const muted = useColorModeValue('gray.600', 'gray.400');
 
   const itPeople = useMemo(() => {
     const storePeople = (users || [])
@@ -159,13 +172,26 @@ export default function ITTaskEditModal({ isOpen, task, onClose, onDone }) {
   const isExternal = form.projectType === 'external';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="3xl">
-      <ModalOverlay />
-      <ModalContent borderRadius="16px">
-        <ModalHeader>Edit Task</ModalHeader>
+    <Modal isOpen={isOpen} onClose={onClose} size="5xl" scrollBehavior="inside">
+      <ModalOverlay bg="blackAlpha.500" backdropFilter="blur(5px)" />
+      <ModalContent borderRadius="22px" bg={modalBg} maxW={{ base: '94vw', lg: '980px' }} maxH="92vh" overflow="hidden">
+        <ModalHeader bg={headerBg} borderBottom="1px solid" borderColor={borderColor}>
+          <VStack align="stretch" spacing={2}>
+            <HStack spacing={2} wrap="wrap">
+              <Badge colorScheme={isExternal ? 'purple' : 'blue'}>{isExternal ? 'External' : 'Internal'}</Badge>
+              <Badge colorScheme={form.urgent ? 'red' : 'gray'}>{form.urgent ? 'Urgent' : 'Standard'}</Badge>
+            </HStack>
+            <Box>
+              <Heading size={{ base: 'md', md: 'lg' }}>Edit Task</Heading>
+              <Text fontSize="sm" color={muted}>Update task ownership, timeline, workflow, and delivery details.</Text>
+            </Box>
+          </VStack>
+        </ModalHeader>
         <ModalCloseButton />
-        <ModalBody>
-          <Stack spacing={5}>
+        <ModalBody py={5}>
+          <Stack spacing={4}>
+            <Card borderRadius="18px" border="1px solid" borderColor={borderColor} bg={sectionBg}>
+              <CardBody>
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
               <FormControl>
                 <FormLabel>Project Type</FormLabel>
@@ -183,7 +209,11 @@ export default function ITTaskEditModal({ isOpen, task, onClose, onDone }) {
                 />
               </FormControl>
             </SimpleGrid>
+              </CardBody>
+            </Card>
 
+            <Card borderRadius="18px" border="1px solid" borderColor={borderColor}>
+              <CardBody>
             <FormControl>
               <FormLabel>{isExternal ? 'Category' : 'Platform'}</FormLabel>
               <CheckboxGroup
@@ -220,7 +250,11 @@ export default function ITTaskEditModal({ isOpen, task, onClose, onDone }) {
                 </CheckboxGroup>
               )}
             </FormControl>
+              </CardBody>
+            </Card>
 
+            <Card borderRadius="18px" border="1px solid" borderColor={borderColor}>
+              <CardBody>
             <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
               <FormControl>
                 <FormLabel>Start Date</FormLabel>
@@ -247,7 +281,11 @@ export default function ITTaskEditModal({ isOpen, task, onClose, onDone }) {
                 </Select>
               </FormControl>
             </SimpleGrid>
+              </CardBody>
+            </Card>
 
+            <Card borderRadius="18px" border="1px solid" borderColor={borderColor}>
+              <CardBody>
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
               <FormControl>
                 <FormLabel>Task Leader</FormLabel>
@@ -286,9 +324,11 @@ export default function ITTaskEditModal({ isOpen, task, onClose, onDone }) {
               <FormLabel htmlFor="edit-urgent-switch" mb={0}>Mark as Urgent</FormLabel>
               <Switch id="edit-urgent-switch" isChecked={form.urgent} onChange={(event) => updateField('urgent', event.target.checked)} colorScheme="red" />
             </HStack>
+              </CardBody>
+            </Card>
           </Stack>
         </ModalBody>
-        <ModalFooter>
+        <ModalFooter borderTop="1px solid" borderColor={borderColor}>
           <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
           <Button colorScheme="blue" onClick={submit}>Update Task</Button>
         </ModalFooter>

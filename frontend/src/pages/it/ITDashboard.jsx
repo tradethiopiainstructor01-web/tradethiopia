@@ -310,7 +310,7 @@ export default function ITDashboard() {
         reminderCount={reminderCount}
       />
 
-      <Box flex="1" p={{ base: 4, md: 6, xl: 8 }} minW={0}>
+      <Box flex="1" p={{ base: 3, md: 4, xl: 5 }} minW={0} w="100%">
         {activeSection === 'notice-board' ? (
           <NoticeBoardPanel title="IT Notice Board" subtitle="Internal announcements and alerts" />
         ) : (
@@ -319,11 +319,11 @@ export default function ITDashboard() {
               bg={heroBg}
               border="1px solid"
               borderColor={heroBorder}
-              borderRadius="24px"
+              borderRadius={{ base: '18px', md: '22px' }}
               boxShadow={heroShadow}
               backdropFilter="blur(18px)"
-              p={{ base: 4, md: 6 }}
-              mb={6}
+              p={{ base: 4, md: 5 }}
+              mb={5}
               position="relative"
               overflow="hidden"
             >
@@ -336,8 +336,8 @@ export default function ITDashboard() {
                 bgSize="38px 38px"
               />
               <Box position="relative">
-              <Flex justify="space-between" align={{ base: 'stretch', lg: 'flex-start' }} direction={{ base: 'column', lg: 'row' }} gap={5}>
-                <Box maxW="760px">
+              <Flex justify="space-between" align={{ base: 'stretch', lg: 'flex-start' }} direction={{ base: 'column', lg: 'row' }} gap={4}>
+                <Box maxW="720px">
                   <HStack spacing={3} wrap="wrap" mb={2}>
                     <Badge colorScheme="cyan" borderRadius="full" px={3} py={1} boxShadow="0 8px 18px rgba(14, 165, 233, 0.18)">
                       IT Operations Command
@@ -346,10 +346,10 @@ export default function ITDashboard() {
                       {persona.label}
                     </Badge>
                   </HStack>
-                  <Heading size={{ base: 'lg', md: 'xl' }} letterSpacing="0" lineHeight="1.05">
+                  <Heading size={{ base: 'md', md: 'lg', xl: 'xl' }} letterSpacing="0" lineHeight="1.08">
                     IT Department Dashboard
                   </Heading>
-                  <Text color={softText} mt={2} fontSize={{ base: 'sm', md: 'md' }}>
+                  <Text color={softText} mt={2} fontSize="sm">
                     {persona.description}
                   </Text>
                 </Box>
@@ -360,7 +360,7 @@ export default function ITDashboard() {
                   bg={toolbarBg}
                   border="1px solid"
                   borderColor={heroBorder}
-                  borderRadius="18px"
+                  borderRadius="16px"
                   p={2}
                   boxShadow={toolbarShadow}
                   backdropFilter="blur(14px)"
@@ -415,22 +415,22 @@ export default function ITDashboard() {
                 </HStack>
               </Flex>
 
-              <Box mt={6}>
+              <Box mt={5}>
                 <ITCollapsibleSection
                   title="Operational Snapshot"
                   subtitle="Collapse or expand the live command metrics."
                   defaultOpen
                   bodyProps={{ pt: 0 }}
                 >
-                  <SimpleGrid columns={{ base: 1, sm: 2, xl: 4 }} spacing={4}>
+                  <SimpleGrid columns={{ base: 1, sm: 2, xl: 4 }} spacing={3}>
                     {dashboardStats.map((stat) => (
                       <Box
                         key={stat.label}
                         border="1px solid"
                         borderColor={statBorder}
                         bg={statBg}
-                        borderRadius="18px"
-                        p={4}
+                        borderRadius="16px"
+                        p={3.5}
                         boxShadow={statShadow}
                         backdropFilter="blur(14px)"
                         transition="transform 0.18s ease, box-shadow 0.18s ease"
@@ -439,12 +439,12 @@ export default function ITDashboard() {
                         <HStack justify="space-between" align="flex-start">
                           <Stat>
                             <StatLabel color={softText} fontWeight="700">{stat.label}</StatLabel>
-                            <StatNumber fontSize="3xl" lineHeight="1.1">{stat.value}</StatNumber>
+                            <StatNumber fontSize={{ base: '2xl', xl: '3xl' }} lineHeight="1.1">{stat.value}</StatNumber>
                             <Text fontSize="xs" color={softText}>{stat.helper}</Text>
                           </Stat>
                           <Flex
-                            boxSize="44px"
-                            borderRadius="16px"
+                            boxSize="40px"
+                            borderRadius="14px"
                             align="center"
                             justify="center"
                             bg={`${stat.color}.50`}

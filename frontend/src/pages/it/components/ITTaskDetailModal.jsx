@@ -51,6 +51,8 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone, focus
   const muted = useColorModeValue('gray.600', 'gray.400');
   const subtleBg = useColorModeValue('gray.50', 'whiteAlpha.100');
   const focusedCommentBg = useColorModeValue('blue.50', 'whiteAlpha.100');
+  const modalBg = useColorModeValue('white', 'gray.900');
+  const headerBg = useColorModeValue('linear-gradient(135deg, #eff6ff, #ecfeff)', 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(20,184,166,0.12))');
 
   useEffect(() => {
     setCurrentTask(task);
@@ -95,10 +97,10 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone, focus
   if (!currentTask) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="4xl" scrollBehavior="inside">
-      <ModalOverlay />
-      <ModalContent borderRadius="16px">
-        <ModalHeader>
+    <Modal isOpen={isOpen} onClose={onClose} size="5xl" scrollBehavior="inside">
+      <ModalOverlay bg="blackAlpha.500" backdropFilter="blur(5px)" />
+      <ModalContent borderRadius="22px" bg={modalBg} maxW={{ base: '94vw', lg: '1040px' }} maxH="92vh" overflow="hidden">
+        <ModalHeader bg={headerBg} borderBottom="1px solid" borderColor={borderColor}>
           <VStack align="stretch" spacing={2}>
             <HStack spacing={2} wrap="wrap">
               <Badge colorScheme={currentTask.projectType === 'external' ? 'purple' : 'blue'}>
@@ -107,14 +109,17 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone, focus
               <Badge colorScheme={workflow.color}>{workflow.label}</Badge>
               {currentTask.urgent && <Badge colorScheme="red">Urgent</Badge>}
             </HStack>
-            <Heading size="md">{getTaskTitle(currentTask)}</Heading>
+            <Heading size={{ base: 'md', md: 'lg' }}>{getTaskTitle(currentTask)}</Heading>
+            <Text color={muted} fontSize="sm">
+              Review progress, ownership, comments, and delivery context for this task.
+            </Text>
           </VStack>
         </ModalHeader>
         <ModalCloseButton />
 
-        <ModalBody>
-          <VStack align="stretch" spacing={5}>
-            <Card borderColor={borderColor} borderWidth="1px" borderRadius="14px">
+        <ModalBody py={5}>
+          <VStack align="stretch" spacing={4}>
+            <Card borderColor={borderColor} borderWidth="1px" borderRadius="18px" boxShadow="sm">
               <CardBody>
                 <HStack justify="space-between" align="flex-start" mb={3} wrap="wrap" gap={3}>
                   <Box>
@@ -142,21 +147,23 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone, focus
               </CardBody>
             </Card>
 
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-              <Box bg={subtleBg} borderRadius="12px" p={4}>
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
+              <Box bg={subtleBg} borderRadius="14px" p={4} border="1px solid" borderColor={borderColor}>
                 <Text color={muted} fontSize="sm">Status</Text>
                 <Text fontWeight="800">{currentTask.status || 'pending'}</Text>
               </Box>
-              <Box bg={subtleBg} borderRadius="12px" p={4}>
+              <Box bg={subtleBg} borderRadius="14px" p={4} border="1px solid" borderColor={borderColor}>
                 <Text color={muted} fontSize="sm">Points</Text>
                 <Text fontWeight="800">{currentTask.featureCount || (currentTask.status === 'done' ? 1 : 0)}</Text>
               </Box>
-              <Box bg={subtleBg} borderRadius="12px" p={4}>
+              <Box bg={subtleBg} borderRadius="14px" p={4} border="1px solid" borderColor={borderColor}>
                 <Text color={muted} fontSize="sm">Approval</Text>
                 <Text fontWeight="800">{currentTask.approvalStatus || 'not_submitted'}</Text>
               </Box>
             </SimpleGrid>
 
+            <Card borderColor={borderColor} borderWidth="1px" borderRadius="18px">
+              <CardBody>
             <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4}>
               <GridItem>
                 <Text color={muted} fontSize="sm">Task Leader</Text>
@@ -183,6 +190,8 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone, focus
                 <Text fontWeight="700">{currentTask.actionType || 'N/A'}</Text>
               </GridItem>
             </Grid>
+              </CardBody>
+            </Card>
 
             {currentTask.progressNote && (
               <Box>
@@ -193,7 +202,8 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone, focus
 
             <Divider />
 
-            <Box>
+            <Card borderColor={borderColor} borderWidth="1px" borderRadius="18px">
+              <CardBody>
               <Heading size="sm" mb={3}>Comments & Updates</Heading>
               <VStack align="stretch" spacing={3} mb={4}>
                 {comments.length === 0 ? (
@@ -235,11 +245,12 @@ export default function ITTaskDetailModal({ isOpen, task, onClose, onDone, focus
                   minH="100px"
                 />
               </FormControl>
-            </Box>
+              </CardBody>
+            </Card>
           </VStack>
         </ModalBody>
 
-        <ModalFooter>
+        <ModalFooter borderTop="1px solid" borderColor={borderColor}>
           <Button variant="ghost" mr={3} onClick={onClose}>Close</Button>
           <Button colorScheme="blue" onClick={submitComment} isLoading={isSaving} isDisabled={!comment.trim()}>
             Add Comment
