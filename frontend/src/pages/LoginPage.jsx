@@ -7,7 +7,6 @@ import {
     Flex,
     FormControl,
     HStack,
-    Icon,
     IconButton,
     Image,
     Input,
@@ -20,32 +19,15 @@ import Particles from 'react-tsparticles';
 import { useNavigate } from 'react-router-dom';
 import { FaMicrosoft } from 'react-icons/fa';
 import { FcGoogle } from 'react-icons/fc';
-import { FiEye, FiEyeOff, FiAlertCircle } from 'react-icons/fi';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { useUserStore, normalizeRole } from '../store/user'; // Update the path if necessary
 import axiosInstance from '../services/axiosInstance';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [loginError, setLoginError] = useState('');
-
-    const getFriendlyErrorMessage = (errorMsg) => {
-        if (!errorMsg) return '';
-        const msg = errorMsg.toLowerCase();
-        if (msg.includes('invalid email or password') || msg.includes('unauthorized') || msg.includes('invalid credentials')) {
-            return 'Incorrect email or password. Please verify your credentials and try again.';
-        }
-        if (msg.includes('not found') || msg.includes('no user') || msg.includes('does not exist')) {
-            return 'We couldn\'t find an account matching that email address. Please verify spelling.';
-        }
-        if (msg.includes('network') || msg.includes('connect') || msg.includes('econnrefused')) {
-            return 'Server connection failed. Please check your network and try again.';
-        }
-        return errorMsg;
-    };
     const navigate = useNavigate();
     const toast = useToast();
     const setCurrentUser = useUserStore((state) => state.setCurrentUser);
@@ -57,7 +39,6 @@ const handleLogin = async (event) => {
 
     try {
         setIsLoggingIn(true);
-        setLoginError('');
         const response = await axiosInstance.post('/users/login', { email, password });
 
         console.log('Login response:', response.data); // Debugging line
@@ -151,11 +132,9 @@ const handleLogin = async (event) => {
                 isClosable: true,
             });
         } else {
-            const errMsg = response.data.message || "An error occurred.";
-            setLoginError(errMsg);
             toast({
                 title: "Login failed.",
-                description: errMsg,
+                description: response.data.message || "An error occurred.",
                 status: "error",
                 duration: 3000,
                 isClosable: true,
@@ -163,11 +142,9 @@ const handleLogin = async (event) => {
         }
     } catch (error) {
         console.error("Login error:", error);
-        const fallbackMsg = error.response?.data?.message || error.message || "An error occurred during login.";
-        setLoginError(fallbackMsg);
         toast({
             title: "Error.",
-            description: fallbackMsg,
+            description: error.response?.data?.message || "An error occurred during login.",
             status: "error",
             duration: 3000,
             isClosable: true,
@@ -239,47 +216,12 @@ const handleLogin = async (event) => {
                     <Text color="rgba(255,255,255,0.78)" fontSize="12px" fontWeight="700" mt={3}>Sign in to continue to your dashboard</Text>
                 </Box>
                 <form onSubmit={handleLogin}>
-                <AnimatePresence>
-                    {loginError && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0, y: -10 }}
-                            animate={{ opacity: 1, height: 'auto', y: 0 }}
-                            exit={{ opacity: 0, height: 0, y: -10 }}
-                            transition={{ duration: 0.3, ease: 'easeOut' }}
-                            style={{ overflow: 'hidden' }}
-                        >
-                            <Flex
-                                align="start"
-                                gap={2.5}
-                                p={3.5}
-                                mb={4}
-                                borderRadius="12px"
-                                bg="rgba(239, 68, 68, 0.12)"
-                                border="1px solid rgba(239, 68, 68, 0.24)"
-                                backdropFilter="blur(10px)"
-                            >
-                                <Icon as={FiAlertCircle} color="#FF6B6B" boxSize={4.5} mt={0.5} flexShrink={0} />
-                                <Box>
-                                    <Text fontSize="11px" fontWeight="800" color="#FF8E8E" textTransform="uppercase" letterSpacing="0.05em" mb={0.5}>
-                                        Authentication Issue
-                                    </Text>
-                                    <Text fontSize="11px" fontWeight="600" color="rgba(255, 255, 255, 0.9)" lineHeight="1.45">
-                                        {getFriendlyErrorMessage(loginError)}
-                                    </Text>
-                                </Box>
-                            </Flex>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
                 <FormControl mb={3}>
                     <Input
                         id="email"
                         type="email"
                         value={email}
-                        onChange={(e) => {
-                            setEmail(e.target.value);
-                            if (loginError) setLoginError('');
-                        }}
+                        onChange={(e) => setEmail(e.target.value)}
                         placeholder="Email or Phone"
                         focusBorderColor="#D99A00"
                         bg="rgba(0, 44, 96, 0.52)"
@@ -302,10 +244,7 @@ const handleLogin = async (event) => {
                             id="password"
                             type={showPassword ? 'text' : 'password'}
                             value={password}
-                            onChange={(e) => {
-                                setPassword(e.target.value);
-                                if (loginError) setLoginError('');
-                            }}
+                            onChange={(e) => setPassword(e.target.value)}
                             placeholder="Password"
                             focusBorderColor="#D99A00"
                             bg="rgba(0, 44, 96, 0.52)"

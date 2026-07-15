@@ -31,7 +31,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import CompletedSalesTable from '../pages/sales/manager/components/CompletedSalesTable';
+import CompletedSalesTable from './salesmanager/CompletedSalesTable';
 
 const PRIMARY = '#185FA5';
 const TARGET_GRAY = '#8A94A6';

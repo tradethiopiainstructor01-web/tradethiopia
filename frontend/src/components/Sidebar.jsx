@@ -134,6 +134,14 @@ const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
           </Flex>
         </Link>
 
+
+        {/* Candidate Pool Link */}
+        <Link as={RouterLink} to="/candidate-pool" _hover={{ textDecoration: "none" }}>
+          <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
+            <Icon as={FiBriefcase} boxSize={4} />
+            {!effectiveIsCollapsed && <Text ml={3} fontSize="sm">Candidate Pool</Text>}
+          </Flex>
+        </Link>
         {/* HR Training Link */}
         <Link as={RouterLink} to="/hr-training" _hover={{ textDecoration: "none" }}>
           <Flex align="center" p={1} borderRadius="md" _hover={{ bg: "gray.700" }}>
@@ -170,3 +178,4 @@ const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
 };
 
 export default Sidebar;
+

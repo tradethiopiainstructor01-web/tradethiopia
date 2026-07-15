@@ -13,6 +13,7 @@ import {
     HStack, 
     Box, 
     IconButton, 
+    Button,
     Drawer, 
     DrawerBody, 
     DrawerCloseButton, 
@@ -32,6 +33,7 @@ const HomePage = () => {
     const { fetchUsers, users, loading, error } = useUserStore();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedRole, setSelectedRole] = useState('');
+    const [selectedStatus, setSelectedStatus] = useState('active');
     const [sortOrder, setSortOrder] = useState('asc');
     const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -45,10 +47,11 @@ const HomePage = () => {
         const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           user.email.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = selectedRole ? user.role === selectedRole : true;
-        return isValidUser && matchesSearch && matchesRole;
+        const matchesStatus = selectedStatus === 'all' ? true : user.status === selectedStatus;
+        return isValidUser && matchesSearch && matchesRole && matchesStatus;
     });
 
-    const sortedUsers = filteredUsers.sort((a, b) => {
+    const sortedUsers = [...filteredUsers].sort((a, b) => {
         if (sortOrder === 'asc') {
             return a.username.localeCompare(b.username);
         } else {
@@ -120,7 +123,6 @@ const HomePage = () => {
                             <option value="customerservice">Customer Service</option>
                             <option value="CustomerSuccessManager">Customer Success Manager</option>
                             <option value="SocialmediaManager">Socialmedia Manager</option>
-                            <option value="socialmedia">Social Media</option>
                             <option value="salesmanager">Sales Manager</option>
                             <option value="supervisor">Supervisor</option>
                             <option value="tradextv">tradextv</option>
@@ -130,16 +132,29 @@ const HomePage = () => {
                             <option value="Instructor">Instructor</option>
                             <option value="EventManager">EventManager</option>          
                                           </Select>
+                        <Select
+                            value={selectedStatus}
+                            onChange={(e) => setSelectedStatus(e.target.value)}
+                            maxW={{ base: "100%", md: "180px" }}
+                            bg={useColorModeValue("white", "gray.700")}
+                            color={useColorModeValue("black", "white")}
+                            borderColor={useColorModeValue("gray.300", "gray.600")}
+                        >
+                            <option value="active">Active users</option>
+                            <option value="inactive">Deactivated users</option>
+                            <option value="all">All users</option>
+                        </Select>
 
                         <HStack spacing={2}>
-                            <IconButton 
-                                aria-label="Add User" 
-                                icon={<AddIcon />} 
-                                colorScheme="teal" 
+                            <Button
+                                leftIcon={<AddIcon />}
+                                colorScheme="teal"
                                 onClick={onOpen}
                                 size="lg"
-                                variant="outline"
-                            />
+                                variant="solid"
+                            >
+                                Create New Account
+                            </Button>
                             <IconButton 
                                 aria-label="Refresh Users" 
                                 icon={<RepeatIcon />} 
@@ -164,9 +179,9 @@ const HomePage = () => {
                     <DrawerOverlay />
                     <DrawerContent>
                         <DrawerCloseButton />
-                        <DrawerHeader> </DrawerHeader>
+                        <DrawerHeader>Create New Account</DrawerHeader>
                         <DrawerBody>
-                            <CreatePage onClose={onClose} />
+                            <CreatePage onClose={onClose} onCreated={fetchUsers} />
                         </DrawerBody>
                     </DrawerContent>
                 </Drawer>

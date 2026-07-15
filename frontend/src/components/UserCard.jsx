@@ -1,4 +1,4 @@
-import { Box, Heading, HStack, Divider, IconButton, Text, useColorModeValue, useToast, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody, ModalFooter, Button, VStack, Input, Select, Switch } from '@chakra-ui/react';
+import { Box, Heading, HStack, Divider, IconButton, Text, useColorModeValue, useToast, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody, ModalFooter, Button, VStack, Input, Select } from '@chakra-ui/react';
 import { EditIcon, DeleteIcon, ViewIcon, ViewOffIcon, CheckCircleIcon, WarningIcon } from '@chakra-ui/icons';
 import { useUserStore } from '../store/user';
 import { useState, useEffect } from 'react';
@@ -74,7 +74,8 @@ const UserCard = ({ user }) => {
         }
     };
 
-    const toggleUserStatus = async () => {
+    const toggleUserStatus = async (event) => {
+        event?.stopPropagation();
         const newStatus = user.status === 'active' ? 'inactive' : 'active';
         const { success } = await updateUser(user._id, { ...updatedUser, status: newStatus });
         toast({
@@ -129,6 +130,7 @@ const UserCard = ({ user }) => {
                     bg={useColorModeValue("gray.50", "gray.700")}
                     rounded="md"
                     boxShadow="sm"
+                    onClick={(event) => event.stopPropagation()}
                 >
                     <Text
                         fontSize="sm"
@@ -170,29 +172,39 @@ const UserCard = ({ user }) => {
 
                 <Divider borderColor="gray.300" />
 
-                <HStack spacing={2} alignItems="center" justifyContent="space-between" width="full">
-                    <Switch
-                        isChecked={user.status === 'active'}
-                        onChange={toggleUserStatus}
-                        size="sm"
-                        colorScheme="teal"
-                    />
-                    <Text fontSize="md" color={textColor} display="flex" alignItems="center">
+                <HStack
+                    spacing={2}
+                    alignItems="center"
+                    justifyContent="space-between"
+                    width="full"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <Text fontSize="md" color={textColor} display="flex" alignItems="center" fontWeight="semibold">
                         {user.status === 'active' ? (
                             <>
+                                <Box w={3} h={3} borderRadius="full" bg="green.500" mr={2} boxShadow="0 0 0 3px rgba(72, 187, 120, 0.18)" />
                                 <CheckCircleIcon color="green.500" boxSize={4} mr={1} />
                                 Active
                             </>
                         ) : (
                             <>
+                                <Box w={3} h={3} borderRadius="full" bg="red.500" mr={2} boxShadow="0 0 0 3px rgba(245, 101, 101, 0.18)" />
                                 <WarningIcon color="red.500" boxSize={4} mr={1} />
-                                Inactive
+                                Deactivated
                             </>
                         )}
                     </Text>
+                    <Button
+                        size="sm"
+                        colorScheme={user.status === 'active' ? 'red' : 'green'}
+                        variant="outline"
+                        onClick={toggleUserStatus}
+                    >
+                        {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                    </Button>
                 </HStack>
 
-                <HStack spacing={2}>
+                <HStack spacing={2} onClick={(event) => event.stopPropagation()}>
                     <IconButton icon={<EditIcon />} onClick={onEditOpen} colorScheme="blue" aria-label="Edit user" size="sm" />
                     <IconButton icon={<DeleteIcon />} onClick={onDeleteOpen} colorScheme="red" aria-label="Delete user" size="sm" />
                 </HStack>
@@ -247,23 +259,16 @@ const UserCard = ({ user }) => {
                                 onChange={(e) => setUpdatedUser({ ...updatedUser, role: e.target.value })}
                             >
                                 <option value="admin">Admin</option>
-                                <option value="HR">HR</option>
-                                <option value="sales">Sales</option>
-                                <option value="Enisra">Enisra</option>
                                 <option value="customerservice">Customer Service</option>
-                                <option value="CustomerSuccessManager">Customer Success Manager</option>
-                                <option value="SocialmediaManager">Socialmedia Manager</option>
-                                <option value="socialmedia">Social Media</option>
-                                <option value="supervisor">Supervisor</option>
-                                <option value="tradextv">tradextv</option>
-                                <option value="IT">IT</option>
-                                <option value="finance">Finance</option>
-                                <option value="Instructor">Instructor</option>
-                                <option value="EventManager">Event Manager</option>
+                                <option value="sales">Sales</option>
                                 <option value="salesmanager">Sales Manager</option>
-                                <option value="reception">Reception</option>
-                                <option value="COO">COO</option>
-                                <option value="CEO">CEO</option>
+                            <option value="tradextv">tradextv</option>
+                            <option value="CustomerSuccessManager">Customer Success Manager</option>
+                            <option value="IT">IT</option>
+                            <option value="Enisra">Enisra</option>
+                            <option value="HR">HR</option>
+                            <option value="COO">COO</option>
+                            <option value="reception">Reception</option>
                             </Select>
                             <Input
                                 placeholder="Salary"
@@ -305,4 +310,4 @@ const UserCard = ({ user }) => {
     );
 };
 
-export default UserCard;``
+export default UserCard;

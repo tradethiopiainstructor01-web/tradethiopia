@@ -18,8 +18,9 @@ import {
 import { MdRefresh } from 'react-icons/md'; // Import the refresh icon
 import axios from 'axios';
 
-const DocumentUploadForm = () => {
+const DocumentUploadForm = ({ fetchDocuments }) => {
     const [title, setTitle] = useState('');
+    const [employeeName, setEmployeeName] = useState('');
     const [file, setFile] = useState(null);
     const [categories, setCategories] = useState([]);
     const [categoryId, setCategoryId] = useState('');
@@ -57,6 +58,7 @@ const DocumentUploadForm = () => {
     
         const formData = new FormData();
         formData.append('title', title);
+        formData.append('employeeName', employeeName);
         formData.append('file', file);
         formData.append('categoryId', categoryId);
         formData.append('department', department); // Ensure department is included
@@ -77,10 +79,12 @@ const DocumentUploadForm = () => {
     
                 // Reset form fields
                 setTitle('');
+                setEmployeeName('');
                 setFile(null);
                 setCategoryId('');
                 setDepartment(''); // Reset department to default
                 setSection('employees'); // Reset section to default
+                await fetchDocuments?.();
             } else {
                 throw new Error('Unexpected response from the server.');
             }
@@ -115,6 +119,29 @@ const DocumentUploadForm = () => {
                     <Divider mb={3} />
                     <form onSubmit={handleSubmit}>
                         <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={3}>
+                            <GridItem>
+                                <FormControl isRequired>
+                                    <FormLabel
+                                        fontSize="sm"
+                                        fontWeight="bold"
+                                        mb={2}
+                                        color={useColorModeValue('gray.600', 'gray.300')}
+                                    >
+                                        Employee Name
+                                    </FormLabel>
+                                    <Input
+                                        value={employeeName}
+                                        onChange={(e) => setEmployeeName(e.target.value)}
+                                        placeholder="Employee full name"
+                                        size="md"
+                                        focusBorderColor="teal.500"
+                                        borderRadius="md"
+                                        bg={useColorModeValue('gray.50', 'gray.600')}
+                                        color={useColorModeValue('gray.800', 'gray.200')}
+                                        _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                                    />
+                                </FormControl>
+                            </GridItem>
                             {/* Title Input */}
                             <GridItem>
                                 <FormControl isRequired>
@@ -124,12 +151,12 @@ const DocumentUploadForm = () => {
                                         mb={2}
                                         color={useColorModeValue('gray.600', 'gray.300')}
                                     >
-                                        Title
+                                        Document Type
                                     </FormLabel>
                                     <Input
                                         value={title}
                                         onChange={(e) => setTitle(e.target.value)}
-                                        placeholder="Document Title"
+                                        placeholder="Agreement, resignation, leave, ID..."
                                         size="md"
                                         focusBorderColor="teal.500"
                                         borderRadius="md"

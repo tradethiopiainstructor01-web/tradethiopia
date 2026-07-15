@@ -161,10 +161,6 @@ const EmployeeFileUploadForm = () => {
                                 case 'hr':
                                     navigate('/hdashboard');
                                     break;
-                                case 'socialmediamanager':
-                                case 'socialmedia':
-                                    navigate('/social-media');
-                                    break;
                                 default:
                                     navigate('/home'); // Optional: handle unknown roles
                                     break;

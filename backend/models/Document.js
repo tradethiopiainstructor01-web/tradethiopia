@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const documentSchema = new mongoose.Schema({
     title: { type: String, required: true },
+    employeeName: { type: String, trim: true, default: '' },
     file: { type: String, required: true }, // Stores Appwrite file ID
     category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
     department: { type: String, required: true, default: 'none' },
