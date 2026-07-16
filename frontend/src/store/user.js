@@ -51,16 +51,22 @@ export const useUserStore = create((set) => ({
 
     setUsers: (users) => set({ users }),
 
-    fetchUsers: async () => {
-        set({ loading: true, error: null });
+    fetchUsers: async (silent = false) => {
+        if (!silent) {
+            set({ loading: true, error: null });
+        }
         try {
             const { data } = await axiosInstance.get("/users");
             set({ users: data.data });
         } catch (error) {
             console.error("Failed to fetch users:", error);
-            set({ error: "Failed to load users. Please try again later." });
+            if (!silent) {
+                set({ error: "Failed to load users. Please try again later." });
+            }
         } finally {
-            set({ loading: false });
+            if (!silent) {
+                set({ loading: false });
+            }
         }
     },
 

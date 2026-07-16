@@ -29,12 +29,9 @@ import NotificationBall from "./notifications/NotificationBall";
 
 const NavbarPage = ({ sidebarWidth = "0px" }) => {
     const { colorMode, toggleColorMode } = useColorMode();
-    const gradient = useColorModeValue(
-        "linear(to-r,rgb(11, 11, 25),rgb(47, 24, 174))",
-        "linear(to-r, #0f172a, #111827)"
-    );
-    const textColor = useColorModeValue("gray.900", "gray.100");
-    const borderColor = useColorModeValue("rgba(15,23,42,0.8)", "rgba(255,255,255,0.2)");
+    const bg = useColorModeValue("rgba(255, 255, 255, 0.8)", "rgba(15, 23, 42, 0.85)");
+    const textColor = useColorModeValue("gray.800", "gray.100");
+    const borderColor = useColorModeValue("gray.200", "rgba(255,255,255,0.08)");
     const toggleLabel = colorMode === "light" ? "Switch to dark theme" : "Switch to light theme";
     const navigate = useNavigate();
     const currentUser = useUserStore((state) => state.currentUser);
@@ -73,15 +70,16 @@ const NavbarPage = ({ sidebarWidth = "0px" }) => {
             maxW="100%"
             px={4}
             py={2}
-            bgGradient={gradient}
+            bg={bg}
             color={textColor}
             zIndex="20"
             position="fixed"
             top="0"
             left={sidebarWidth}
             width={`calc(100% - ${sidebarWidth})`}
-            boxShadow="lg"
-            transition="background 0.3s ease"
+            boxShadow="sm"
+            backdropFilter="blur(16px)"
+            transition="all 0.3s ease"
             borderBottomWidth="1px"
             borderBottomColor={borderColor}
         >
@@ -92,27 +90,24 @@ const NavbarPage = ({ sidebarWidth = "0px" }) => {
                 px={3}
                 flexDir={{ base: "column", sm: "row" }}
             >
-                {/* Dashboard Title */}
-                <Flex direction="row" alignItems="center">
+                <Flex direction="row" alignItems="center" gap={3}>
                     <Text
-                        fontSize="24px"
-                        fontWeight="bold"
-                        textTransform="uppercase"
-                        letterSpacing="wide"
-                        color="white"
-                        textShadow="0 2px 8px rgba(241, 233, 233, 0.35)"
+                        fontSize="18px"
+                        fontWeight="800"
+                        letterSpacing="tight"
+                        color={useColorModeValue("gray.800", "white")}
                     >
-                        Dashboard
+                        Trade Ethiopia
                     </Text>
                 </Flex>
 {/* Navigation Icons */}
                 <HStack spacing={4} alignItems="center">
                     <Box display="none">
                     <Menu>
-                        <MenuButton as={Button} variant="ghost">
-                            <BsBell color="inherit" />
+                        <MenuButton as={Button} variant="ghost" color={useColorModeValue("gray.600", "gray.300")}>
+                            <BsBell size="18" />
                             {notifications.length > 0 && (
-                                <Badge ml={1} colorScheme="red">
+                                <Badge ml={1} colorScheme="red" borderRadius="full">
                                     {notifications.length}
                                 </Badge>
                             )}
@@ -152,37 +147,48 @@ const NavbarPage = ({ sidebarWidth = "0px" }) => {
                     </Box>
                     <NotificationBall extraNotifications={extraNotifications} />
 
-                    {/* Messages Dropdown */}
                     <ChatLauncher
-                        icon={<BsChat color="inherit" />}
-                        iconButtonProps={{ variant: "ghost", color: "white" }}
+                        icon={<BsChat size="18" />}
+                        iconButtonProps={{ variant: "ghost", color: useColorModeValue("gray.600", "gray.300") }}
                     />
 
                     {/* User Profile Dropdown */}
                     <Menu>
-                        <MenuButton as={Avatar} size="sm" name={currentUser?.username} src={currentUser?.photoURL} />
-                        <MenuList>
+                        <MenuButton cursor="pointer">
+                            <HStack spacing={2}>
+                                <Avatar size="sm" name={currentUser?.username} src={currentUser?.photoURL} />
+                                <Box display={{ base: "none", md: "block" }}>
+                                    <Text fontSize="xs" fontWeight="700" lineHeight="short" color={useColorModeValue("gray.800", "white")}>
+                                        {currentUser?.username}
+                                    </Text>
+                                    <Badge fontSize="9px" colorScheme="blue" variant="subtle" borderRadius="full" px={1.5} textTransform="capitalize">
+                                        {currentUser?.role}
+                                    </Badge>
+                                </Box>
+                            </HStack>
+                        </MenuButton>
+                        <MenuList borderRadius="xl" boxShadow="lg" border="1px solid" borderColor={useColorModeValue("gray.100", "gray.700")} p={2}>
                             <Box p={3} textAlign="center">
                                 <Avatar size="lg" name={currentUser?.username} src={currentUser?.photoURL} mb={2} />
-                                <Text fontSize="lg" fontWeight="bold">{currentUser?.username}</Text>
-                                <Text fontSize="md">Role: {currentUser?.role}</Text>
+                                <Text fontSize="sm" fontWeight="bold">{currentUser?.username}</Text>
+                                <Text fontSize="xs" color="gray.500">{currentUser?.role}</Text>
                             </Box>
                             <Divider />
-                            <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                            <MenuItem borderRadius="lg" fontSize="sm" mt={1} onClick={handleLogout}>Logout</MenuItem>
                         </MenuList>
                     </Menu>
 
 
 {/* Dark Mode Toggle */}
                     <IconButton
-                        icon={colorMode === "light" ? <IoMoon /> : <SunIcon />}
+                        icon={colorMode === "light" ? <IoMoon size="16" /> : <SunIcon boxSize="4" />}
                         onClick={toggleColorMode}
-                        variant="solid"
-                        colorScheme={colorMode === "light" ? "purple" : "yellow"}
+                        variant="ghost"
                         aria-label={toggleLabel}
-                        rounded="full"
-                        boxShadow="md"
-                        size="md"
+                        rounded="xl"
+                        size="sm"
+                        color={useColorModeValue("gray.500", "gray.400")}
+                        _hover={{ bg: useColorModeValue("gray.100", "whiteAlpha.100") }}
                     />
                 </HStack>
             </Flex>

@@ -239,9 +239,11 @@ const AssetList = ({ readOnly = false, intangibleOnly = false }) => {
               {filteredAssets.length} of {filteredAssetPool.length} visible
             </Text>
           </Box>
-          <Box px={3} py={1} borderRadius="full" bg={filterAccentBg} color="#2563EB" fontSize="xs" fontWeight="800">
-            Read only
-          </Box>
+          {readOnly && (
+            <Box px={3} py={1} borderRadius="full" bg={filterAccentBg} color="#2563EB" fontSize="xs" fontWeight="800">
+              Read only
+            </Box>
+          )}
         </HStack>
 
         <Input
