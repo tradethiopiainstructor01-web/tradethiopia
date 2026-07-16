@@ -20,6 +20,7 @@ const itemVariants = {
 };
 import { FaUsers, FaUserPlus, FaUserCheck, FaTasks, FaBox } from 'react-icons/fa';
 import axios from 'axios';
+import axiosInstance from '../services/axiosInstance';
 
 const KpiCards = ({ department = 'All' }) => {
   const bgColor = useColorModeValue("white", "gray.700");
@@ -34,79 +35,74 @@ const KpiCards = ({ department = 'All' }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch full lists and compute counts client-side so we can filter by department
-        const [followupsRes, usersRes, resourcesRes, assetsRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/followup`),
-          fetch(`${import.meta.env.VITE_API_URL}/api/users`),
-          fetch(`${import.meta.env.VITE_API_URL}/api/resources`),
-          axios.get(`${import.meta.env.VITE_API_URL}/api/assets`),
-        ]);
+        if (department === 'All') {
+          // Optimized Central Stats Fetch
+          const [statsRes, followupsRes, resourcesRes] = await Promise.all([
+            axiosInstance.get('/users/hr-stats'),
+            fetch(`${import.meta.env.VITE_API_URL}/api/followup`),
+            fetch(`${import.meta.env.VITE_API_URL}/api/resources`)
+          ]);
 
-        const followupsJson = followupsRes.ok ? await followupsRes.json() : null;
-        const usersJson = usersRes.ok ? await usersRes.json() : null;
-        const resourcesJson = resourcesRes.ok ? await resourcesRes.json() : null;
-        const assetsJson = assetsRes.data || null;
+          const statsJson = statsRes.data?.success ? statsRes.data.data : null;
+          const followupsJson = followupsRes.ok ? await followupsRes.json() : null;
+          const resourcesJson = resourcesRes.ok ? await resourcesRes.json() : null;
 
-        const followups = Array.isArray(followupsJson) ? followupsJson : (followupsJson && followupsJson.data ? followupsJson.data : []);
-        const users = Array.isArray(usersJson) ? usersJson : (usersJson && usersJson.data ? usersJson.data : []);
-        const resourcesList = Array.isArray(resourcesJson) ? resourcesJson : (resourcesJson && resourcesJson.data ? resourcesJson.data : []);
-        const assetsArray = assetsJson && assetsJson.data ? assetsJson.data : (Array.isArray(assetsJson) ? assetsJson : []);
+          const followups = Array.isArray(followupsJson) ? followupsJson : (followupsJson && followupsJson.data ? followupsJson.data : []);
+          const resourcesList = Array.isArray(resourcesJson) ? resourcesJson : (resourcesJson && resourcesJson.data ? resourcesJson.data : []);
 
-        // Build user -> department map
-        const userMap = {};
-        users.forEach(u => {
-          const name = u.username || u.userName || '';
-          const jt = u.jobTitle && u.jobTitle.trim() ? u.jobTitle.trim() : 'Unassigned';
-          userMap[name] = jt;
-        });
+          setEmployees(statsJson?.counts?.totalUsers || 0);
+          setActiveEmployees(statsJson?.counts?.activeUsers || 0);
+          setTotalAssets(statsJson?.counts?.totalAssets || 0);
+          setTotalCustomers(followups.length);
+          setResources(resourcesList.length);
+        } else {
+          // Fallback to client-side filtering for department specific metrics
+          const [followupsRes, usersRes, resourcesRes, assetsRes] = await Promise.all([
+            fetch(`${import.meta.env.VITE_API_URL}/api/followup`),
+            fetch(`${import.meta.env.VITE_API_URL}/api/users`),
+            fetch(`${import.meta.env.VITE_API_URL}/api/resources`),
+            axios.get(`${import.meta.env.VITE_API_URL}/api/assets`),
+          ]);
 
-        // If department filter is applied, compute set of usernames in that department
-        let usersInDept = null;
-        if (department && department !== 'All') {
-          usersInDept = new Set(users.filter(u => ((u.jobTitle && u.jobTitle.trim()) ? u.jobTitle.trim() : 'Unassigned') === department).map(u => u.username || u.userName || ''));
-        }
+          const followupsJson = followupsRes.ok ? await followupsRes.json() : null;
+          const usersJson = usersRes.ok ? await usersRes.json() : null;
+          const resourcesJson = resourcesRes.ok ? await resourcesRes.json() : null;
+          const assetsJson = assetsRes.data || null;
 
-        // Customers: count followups (if dept filter, count only those assigned to users in the dept)
-        let custCount = 0;
-        followups.forEach(f => {
-          if (usersInDept) {
+          const followups = Array.isArray(followupsJson) ? followupsJson : (followupsJson && followupsJson.data ? followupsJson.data : []);
+          const users = Array.isArray(usersJson) ? usersJson : (usersJson && usersJson.data ? usersJson.data : []);
+          const resourcesList = Array.isArray(resourcesJson) ? resourcesJson : (resourcesJson && resourcesJson.data ? resourcesJson.data : []);
+          const assetsArray = assetsJson && assetsJson.data ? assetsJson.data : (Array.isArray(assetsJson) ? assetsJson : []);
+
+          let usersInDept = new Set(users.filter(u => ((u.jobTitle && u.jobTitle.trim()) ? u.jobTitle.trim() : 'Unassigned') === department).map(u => u.username || u.userName || ''));
+
+          let custCount = 0;
+          followups.forEach(f => {
             const assigned = f.assignedTo || f.owner || f.assignedUser || f.username || '';
-            if (assigned && !usersInDept.has(assigned)) return;
-          }
-          custCount += 1;
-        });
+            if (assigned && usersInDept.has(assigned)) {
+              custCount += 1;
+            }
+          });
 
-        // Employees & active employees
-        let totalEmp = users.length;
-        let activeEmp = users.filter(u => u.status === 'active').length;
-        if (usersInDept) {
-          totalEmp = users.filter(u => usersInDept.has(u.username || u.userName || '')).length;
-          activeEmp = users.filter(u => usersInDept.has(u.username || u.userName || '') && u.status === 'active').length;
-        }
+          const totalEmp = users.filter(u => usersInDept.has(u.username || u.userName || '')).length;
+          const activeEmp = users.filter(u => usersInDept.has(u.username || u.userName || '') && u.status === 'active').length;
 
-        // Resources (best-effort): try to map resource uploader/owner to department
-        let resourcesCount = resourcesList.length;
-        if (usersInDept) {
-          resourcesCount = resourcesList.filter(r => {
+          const resourcesCount = resourcesList.filter(r => {
             const owner = r.owner || r.uploadedBy || r.username || '';
             return owner && usersInDept.has(owner);
           }).length;
-        }
 
-        // Assets: map assignedTo to department
-        let assetsCount = assetsArray.length;
-        if (usersInDept) {
-          assetsCount = assetsArray.filter(a => {
+          const assetsCount = assetsArray.filter(a => {
             const assigned = a.assignedTo || a.owner || '';
             return assigned && usersInDept.has(assigned);
           }).length;
-        }
 
-        setTotalCustomers(custCount);
-        setEmployees(totalEmp);
-        setActiveEmployees(activeEmp);
-        setResources(resourcesCount);
-        setTotalAssets(assetsCount);
+          setTotalCustomers(custCount);
+          setEmployees(totalEmp);
+          setActiveEmployees(activeEmp);
+          setResources(resourcesCount);
+          setTotalAssets(assetsCount);
+        }
       } catch (error) {
         console.error("Error fetching KPI data: ", error);
       } finally {

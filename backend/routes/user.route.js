@@ -7,7 +7,8 @@ const {
     updateuser, 
     loginUser, 
     getUserCounts, 
-    updateUserInfo // Import the new function
+    updateUserInfo,
+    getHRDashboardStats // Import the new function
 } = require('../controllers/user.controller.js');
 
 const router = express.Router();
@@ -20,6 +21,9 @@ router.post("/login", loginUser);
 
 // Create user route
 router.post("/", createuser);
+
+// Get HR dashboard statistics
+router.get("/hr-stats", getHRDashboardStats);
 
 // Get all users route
 router.get("/", getuser);

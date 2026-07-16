@@ -312,6 +312,124 @@ const updateUserInfo = async (req, res) => {
     }
 };
 
+// Get aggregated stats for the HR dashboard
+const getHRDashboardStats = async (req, res) => {
+    try {
+        if (!mongoose.connection.readyState) {
+            return res.status(500).json({ success: false, message: "Database connection error" });
+        }
+
+        const Asset = mongoose.models.Asset || require('../models/Asset');
+        const CandidatePool = mongoose.models.CandidatePool || require('../models/CandidatePool');
+
+        // General Counts
+        const totalUsers = await User.countDocuments();
+        const activeUsers = await User.countDocuments({ status: 'active' });
+        const inactiveUsers = totalUsers - activeUsers;
+        const pendingInfoUsersCount = await User.countDocuments({ infoStatus: 'pending' });
+
+        // Asset Counts
+        const totalAssets = await Asset.countDocuments();
+        const assignedAssets = await Asset.countDocuments({ assignedTo: { $ne: null, $ne: '' } });
+
+        // Candidates Pool Counts
+        const totalCandidates = await CandidatePool.countDocuments();
+
+        // Group headcount by department (jobTitle)
+        const deptStats = await User.aggregate([
+            {
+                $group: {
+                    _id: { $ifNull: [ "$jobTitle", "Unassigned" ] },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } }
+        ]);
+
+        // Group headcount by employment type
+        const employmentStats = await User.aggregate([
+            {
+                $group: {
+                    _id: { $ifNull: [ "$employmentType", "full-time" ] },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // Aggregate salary data
+        const salaryStats = await User.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    totalPayroll: { $sum: "$salary" },
+                    avgSalary: { $avg: "$salary" },
+                    maxSalary: { $max: "$salary" },
+                    minSalary: { $min: "$salary" }
+                }
+            }
+        ]);
+
+        const salaryData = salaryStats.length > 0 ? salaryStats[0] : {
+            totalPayroll: 0,
+            avgSalary: 0,
+            maxSalary: 0,
+            minSalary: 0
+        };
+
+        // Group candidates by pipeline stage
+        const candidateStageStats = await CandidatePool.aggregate([
+            {
+                $group: {
+                    _id: { $ifNull: [ "$currentStage", "screening" ] },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // Get top 5 pending user approvals
+        const pendingApprovals = await User.find({ infoStatus: 'pending' })
+            .select('username email fullName jobTitle infoStatus photo createdAt')
+            .limit(5)
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const pendingApprovalsWithUrls = pendingApprovals.map(u => ({
+            ...u,
+            photoUrl: u.photo ? 
+                `https://cloud.appwrite.io/v1/storage/buckets/${process.env.APPWRITE_BUCKET_ID}/files/${u.photo}/view?project=${process.env.APPWRITE_PROJECT_ID}` : 
+                null
+        }));
+
+        res.status(200).json({
+            success: true,
+            data: {
+                counts: {
+                    totalUsers,
+                    activeUsers,
+                    inactiveUsers,
+                    pendingInfoUsersCount,
+                    totalAssets,
+                    assignedAssets,
+                    totalCandidates
+                },
+                deptStats: deptStats.map(d => ({ name: d._id, value: d.count })),
+                employmentStats: employmentStats.map(e => ({ name: e._id, value: e.count })),
+                salaryData: {
+                    totalPayroll: salaryData.totalPayroll,
+                    avgSalary: Math.round(salaryData.avgSalary || 0),
+                    maxSalary: salaryData.maxSalary || 0,
+                    minSalary: salaryData.minSalary || 0
+                },
+                candidateStages: candidateStageStats.map(c => ({ stage: c._id, count: c.count })),
+                pendingApprovals: pendingApprovalsWithUrls
+            }
+        });
+    } catch (error) {
+        console.error("Error generating HR dashboard stats:", error);
+        res.status(500).json({ success: false, message: "Failed to load HR dashboard statistics", error: error.message });
+    }
+};
+
 module.exports = {
     userHealthCheck,
     loginUser,
@@ -320,5 +438,6 @@ module.exports = {
     updateuser,
     deleteuser,
     getUserCounts,
-    updateUserInfo
+    updateUserInfo,
+    getHRDashboardStats
 };
