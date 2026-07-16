@@ -90,7 +90,9 @@ const AddCustomer = ({ onSuccess }) => {
         const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/users`);
         const usersData = response.data.users || response.data.data || [];
         setAllUsers(usersData);
-        const filteredUsers = usersData.filter(user => user.role === "customerservice");
+        const filteredUsers = usersData
+          .filter(user => user.role === "customerservice" && user.status === "active" && user.username && user.username !== "." && user.username !== "..")
+          .sort((a, b) => a.username.localeCompare(b.username));
         setCustomerServiceUsers(filteredUsers);
       } catch (error) {
         console.error("Error fetching users:", error);

@@ -1,10 +1,10 @@
-import { Box, Heading, HStack, Divider, IconButton, Text, useColorModeValue, useToast, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody, ModalFooter, Button, VStack, Input, Select } from '@chakra-ui/react';
-import { EditIcon, DeleteIcon, ViewIcon, ViewOffIcon, CheckCircleIcon, WarningIcon } from '@chakra-ui/icons';
+import { Box, Heading, HStack, Divider, IconButton, Text, useColorModeValue, useToast, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody, ModalFooter, Button, VStack, Input, Select, Avatar, Badge, Flex, Checkbox } from '@chakra-ui/react';
+import { EditIcon, DeleteIcon, ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
 import { useUserStore } from '../store/user';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import UserDetailDrawer from './UserDetailDrawer'; // Import the new drawer component
 
-const UserCard = ({ user }) => {
+const UserCard = ({ user, isSelectionMode = false, isSelected = false, onSelectToggle }) => {
     const [updatedUser, setUpdatedUser] = useState(user);
     const [showPassword, setShowPassword] = useState(false);
     const [passwordDraft, setPasswordDraft] = useState("");
@@ -49,7 +49,7 @@ const UserCard = ({ user }) => {
             isClosable: true,
         });
         if (success) onDeleteClose();
-        await fetchUsers();
+        await fetchUsers(true);
     };
 
     const handleUpdateUser = async () => {
@@ -70,7 +70,7 @@ const UserCard = ({ user }) => {
 
         if (success) {
             onEditClose();
-            await fetchUsers();
+            await fetchUsers(true);
         }
     };
 
@@ -88,90 +88,108 @@ const UserCard = ({ user }) => {
 
         if (success) {
             setUpdatedUser({ ...updatedUser, status: newStatus });
-            await fetchUsers();
+            await fetchUsers(true);
         }
     };
 
     return (
         <Box
-            shadow="md"
-            rounded="lg"
+            border="1px solid"
+            borderColor={isSelected ? "blue.400" : useColorModeValue("gray.150", "gray.700")}
+            borderRadius="xl"
             overflow="hidden"
             w="100%"
-            maxW="sm"
-            transition="all 0.3s"
-            _hover={{ transform: "translateY(-5px)", shadow: "lg" }}
-            bg={bg}
-            p={3}
-            onClick={() => setDrawerOpen(true)}
+            transition="all 0.2s ease"
+            _hover={{ 
+                borderColor: isSelected ? "blue.500" : useColorModeValue("gray.300", "gray.600"),
+                shadow: "md",
+            }}
+            bg={isSelected ? useColorModeValue("blue.50", "rgba(59, 130, 246, 0.08)") : bg}
+            p={4}
+            cursor="pointer"
+            onClick={isSelectionMode ? onSelectToggle : () => setDrawerOpen(true)}
         >
-            <VStack spacing={2} align="start">
-                <Box borderBottom="2px" borderColor={useColorModeValue("gray.300", "gray.600")} mb={2} width="full">
-                    <Heading as="h3" size="md" mb={1}>
-                        {user.username || "No Username Available"}
-                    </Heading>
-                </Box>
-                <Text fontWeight="bold" fontSize="lg" color={textColor}>
-                    {user.email || "No Email Available"}
-                </Text>
-                <Text fontSize="md" color={textColor}>
-                    Role: {user.role || "No Role Assigned"}
-                </Text>
-                <Text fontSize="md" color={textColor}>
-                    Salary: {salaryLabel}
-                </Text>
+            <VStack spacing={4} align="stretch">
+                {/* Profile Header */}
+                <Flex w="full" align="center" gap={3} borderBottom="1px solid" borderColor={useColorModeValue("gray.100", "gray.750")} pb={3}>
+                    {isSelectionMode && (
+                        <Checkbox 
+                            isChecked={isSelected} 
+                            onChange={(e) => { e.stopPropagation(); onSelectToggle(); }}
+                            mr={1}
+                            colorScheme="blue"
+                            size="md"
+                        />
+                    )}
+                    <Avatar size="md" name={user.username} src={user.photoUrl} bg="blue.500" color="white" />
+                    <Box overflow="hidden" flex="1">
+                        <Heading as="h4" size="sm" fontWeight="bold" noOfLines={1} color={useColorModeValue("gray.800", "white")}>
+                            {user.username || "No Username Available"}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.500" noOfLines={1}>
+                            {user.email || "No Email Available"}
+                        </Text>
+                    </Box>
+                </Flex>
 
+                {/* Details Section */}
+                <VStack spacing={2} align="stretch" w="full">
+                    <Flex justify="space-between" align="center">
+                        <Text fontSize="xs" fontWeight="bold" color="gray.450">ROLE</Text>
+                        <Badge px={2.5} py={0.5} borderRadius="full" fontSize="10px" fontWeight="bold" colorScheme="blue" variant="subtle">
+                            {user.role || "No Role Assigned"}
+                        </Badge>
+                    </Flex>
+                    <Flex justify="space-between" align="center">
+                        <Text fontSize="xs" fontWeight="bold" color="gray.450">SALARY</Text>
+                        <Text fontSize="xs" fontWeight="bold" color={textColor}>
+                            {salaryLabel}
+                        </Text>
+                    </Flex>
+                </VStack>
+
+                {/* Hire Date Editing Input */}
                 <HStack
-                    spacing={3}
+                    spacing={2}
                     alignItems="center"
                     width="full"
-                    py={2}
-                    px={3}
-                    bg={useColorModeValue("gray.50", "gray.700")}
-                    rounded="md"
-                    boxShadow="sm"
+                    py={1.5}
+                    px={2.5}
+                    bg={useColorModeValue("slate.50", "rgba(30, 41, 59, 0.35)")}
+                    border="1px solid"
+                    borderColor={useColorModeValue("gray.100", "gray.750")}
+                    rounded="xl"
                     onClick={(event) => event.stopPropagation()}
                 >
-                    <Text
-                        fontSize="sm"
-                        fontWeight="medium"
-                        color={textColor}
-                        minWidth="80px"
-                    >
+                    <Text fontSize="xs" fontWeight="bold" color="gray.450" whiteSpace="nowrap">
                         Hire Date:
                     </Text>
                     <Input
                         type="date"
                         value={hireDate}
                         onChange={(e) => setHireDate(e.target.value)}
-                        size="sm"
-                        variant="flushed"
-                        placeholder="Select a date"
-                        borderColor="blue.300"
-                        _hover={{ borderColor: "blue.400" }}
-                        _focus={{
-                            borderColor: "blue.500",
-                            boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                        }}
-                        fontSize="sm"
+                        size="xs"
+                        variant="unstyled"
+                        fontSize="xs"
                         color={textColor}
-                        width="60%"
+                        px={1}
                     />
                     <Button
                         onClick={handleUpdateUser}
-                        size="sm"
+                        size="xs"
                         colorScheme="blue"
-                        px={4}
-                        boxShadow="sm"
-                        _hover={{ bg: "blue.600" }}
-                        fontSize="sm"
+                        borderRadius="md"
+                        px={2.5}
+                        boxShadow="xs"
+                        fontSize="10px"
                     >
                         Save
                     </Button>
                 </HStack>
 
-                <Divider borderColor="gray.300" />
+                <Divider borderColor={useColorModeValue("gray.100", "gray.750")} />
 
+                {/* Status Toggle & Action Buttons */}
                 <HStack
                     spacing={2}
                     alignItems="center"
@@ -179,34 +197,49 @@ const UserCard = ({ user }) => {
                     width="full"
                     onClick={(event) => event.stopPropagation()}
                 >
-                    <Text fontSize="md" color={textColor} display="flex" alignItems="center" fontWeight="semibold">
-                        {user.status === 'active' ? (
-                            <>
-                                <Box w={3} h={3} borderRadius="full" bg="green.500" mr={2} boxShadow="0 0 0 3px rgba(72, 187, 120, 0.18)" />
-                                <CheckCircleIcon color="green.500" boxSize={4} mr={1} />
-                                Active
-                            </>
-                        ) : (
-                            <>
-                                <Box w={3} h={3} borderRadius="full" bg="red.500" mr={2} boxShadow="0 0 0 3px rgba(245, 101, 101, 0.18)" />
-                                <WarningIcon color="red.500" boxSize={4} mr={1} />
-                                Deactivated
-                            </>
-                        )}
-                    </Text>
-                    <Button
-                        size="sm"
-                        colorScheme={user.status === 'active' ? 'red' : 'green'}
-                        variant="outline"
-                        onClick={toggleUserStatus}
-                    >
-                        {user.status === 'active' ? 'Deactivate' : 'Activate'}
-                    </Button>
-                </HStack>
-
-                <HStack spacing={2} onClick={(event) => event.stopPropagation()}>
-                    <IconButton icon={<EditIcon />} onClick={onEditOpen} colorScheme="blue" aria-label="Edit user" size="sm" />
-                    <IconButton icon={<DeleteIcon />} onClick={onDeleteOpen} colorScheme="red" aria-label="Delete user" size="sm" />
+                    <Flex align="center">
+                        <Box 
+                            w={2} 
+                            h={2} 
+                            borderRadius="full" 
+                            bg={user.status === 'active' ? "green.400" : "red.400"} 
+                            mr={2} 
+                            boxShadow={user.status === 'active' ? "0 0 8px #48bb78" : "0 0 8px #f56565"} 
+                        />
+                        <Text fontSize="xs" fontWeight="bold" color={user.status === 'active' ? "green.500" : "red.500"}>
+                            {user.status === 'active' ? 'Active' : 'Deactivated'}
+                        </Text>
+                    </Flex>
+                    <HStack spacing={1.5}>
+                        <Button
+                            size="xs"
+                            colorScheme={user.status === 'active' ? 'red' : 'green'}
+                            variant="ghost"
+                            borderRadius="md"
+                            onClick={toggleUserStatus}
+                            fontSize="10px"
+                        >
+                            {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                        </Button>
+                        <IconButton 
+                            icon={<EditIcon />} 
+                            onClick={onEditOpen} 
+                            colorScheme="blue" 
+                            variant="outline"
+                            aria-label="Edit user" 
+                            size="xs" 
+                            borderRadius="md"
+                        />
+                        <IconButton 
+                            icon={<DeleteIcon />} 
+                            onClick={onDeleteOpen} 
+                            colorScheme="red" 
+                            variant="outline"
+                            aria-label="Delete user" 
+                            size="xs" 
+                            borderRadius="md"
+                        />
+                    </HStack>
                 </HStack>
             </VStack>
 
@@ -310,4 +343,4 @@ const UserCard = ({ user }) => {
     );
 };
 
-export default UserCard;
+export default memo(UserCard);

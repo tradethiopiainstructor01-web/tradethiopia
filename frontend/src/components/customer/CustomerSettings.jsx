@@ -104,10 +104,12 @@ const CustomerSettings = () => {
 
         const users = Array.isArray(raw) ? raw : [];
 
-        const customerServiceAgents = users.filter((u) => {
-          const role = (u.role || u.roleName || "").toLowerCase().replace(/[\s_-]+/g, "");
-          return role === "customerservice";
-        });
+        const customerServiceAgents = users
+          .filter((u) => {
+            const role = (u.role || u.roleName || "").toLowerCase().replace(/[\s_-]+/g, "");
+            return role === "customerservice" && u.status === "active" && u.username && u.username !== "." && u.username !== "..";
+          })
+          .sort((a, b) => (a.username || "").localeCompare(b.username || ""));
 
         setCsUsers(customerServiceAgents);
       } catch (err) {

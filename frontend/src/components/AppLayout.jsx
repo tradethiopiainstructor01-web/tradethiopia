@@ -10,7 +10,7 @@ const AppLayout = ({ children }) => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
 
-  const sidebarWidth = isSidebarCollapsed ? "50px" : "200px";
+  const sidebarWidth = isSidebarCollapsed ? "60px" : "220px";
   const contentWidth = `calc(100% - ${sidebarWidth})`;
 
   return (

@@ -33,6 +33,32 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Bulk transfer assets from one user to another
+router.post('/transfer', async (req, res) => {
+  const { fromUser, toUser } = req.body;
+  if (!fromUser || !toUser) {
+    return res.status(400).json({ success: false, message: "fromUser and toUser are required." });
+  }
+
+  try {
+    const result = await Asset.updateMany(
+      { assignedTo: fromUser },
+      { $set: { assignedTo: toUser } }
+    );
+    res.status(200).json({ 
+      success: true, 
+      message: `Successfully transferred assets from ${fromUser} to ${toUser}.`,
+      data: {
+        matchedCount: result.matchedCount || 0,
+        modifiedCount: result.modifiedCount || 0
+      }
+    });
+  } catch (error) {
+    console.error("Error transferring assets:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Get a specific asset by ID
 router.get('/:id', async (req, res) => {
   try {
