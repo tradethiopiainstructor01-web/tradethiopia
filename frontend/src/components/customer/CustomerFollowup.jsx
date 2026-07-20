@@ -131,6 +131,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const [isApplyingTrainingDates, setIsApplyingTrainingDates] = useState(false);
   const [isTesbinnBulkModalOpen, setIsTesbinnBulkModalOpen] = useState(false);
   const [isCsvImportingTesbinn, setIsCsvImportingTesbinn] = useState(false);
+  const [isCreatingTesbinn, setIsCreatingTesbinn] = useState(false);
   const [assignableAgents, setAssignableAgents] = useState([]);
   const [trainingAgentOptions, setTrainingAgentOptions] = useState([]);
   const [selectedAgentForAssignment, setSelectedAgentForAssignment] = useState("");
@@ -1699,6 +1700,41 @@ const saveEnsraEdit = async () => {
   };
 
   const closeTesbinnBulkModal = () => setIsTesbinnBulkModalOpen(false);
+
+  const handleManualTesbinnCreate = async (form) => {
+    setIsCreatingTesbinn(true);
+    try {
+      const payload = { ...form, progress: "Completed", materialStatus: "Not Delivered" };
+      Object.keys(payload).forEach((key) => {
+        if (typeof payload[key] === "string") payload[key] = payload[key].trim();
+        if (payload[key] === "") delete payload[key];
+      });
+      const created = await createTrainingFollowup(payload);
+      setTrainingFollowups((previous) => [
+        created,
+        ...previous.filter((item) => getTrainingFollowupId(item) !== getTrainingFollowupId(created)),
+      ]);
+      setTrainingSearch("");
+      setTrainingScheduleFilter("all");
+      setTrainingMaterialFilter("all");
+      setTrainingCourseFilter("all");
+      setTrainingStartDateFilter("");
+      toast({
+        title: "TESBINN user added",
+        description: payload.customerName + " is now visible in the completed users list.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      return true;
+    } catch (err) {
+      console.error("Unable to add TESBINN user", err);
+      toast({ title: "Unable to add TESBINN user", description: err.response?.data?.message || err.message, status: "error", duration: 4000, isClosable: true });
+      return false;
+    } finally {
+      setIsCreatingTesbinn(false);
+    }
+  };
 
   const applyTrainingDatesAndClose = async () => {
     const success = await handleApplyTrainingDates();
@@ -3670,6 +3706,8 @@ useEffect(() => {
                   handleExportTesbinn={handleExportTesbinn}
                   handleCsvImport={handleTesbinnCsvImport}
                   isCsvImportingTesbinn={isCsvImportingTesbinn}
+                  handleManualCreate={handleManualTesbinnCreate}
+                  isCreatingTesbinn={isCreatingTesbinn}
                 />
               </TabPanel>
               <TabPanel px={0}>
