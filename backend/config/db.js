@@ -75,8 +75,29 @@ const connectDB = async () => {
     catch (error){
         console.log(`Database failed to connect: ${error.message}`);
         console.error('Connection error details:', error);
-        // Don't exit in serverless environment
-        throw error;
+        
+        const localUri = "mongodb://127.0.0.1:27017/tradethiopia";
+        console.log(`Attempting fallback to local MongoDB: ${localUri}...`);
+        try {
+            const conn = await mongoose.connect(localUri, {
+                serverSelectionTimeoutMS: 4000,
+                family: 4
+            });
+            isConnected = true;
+            await ensurePackageIndexSetup();
+            console.log(`🎉 MongoDB connected to fallback local server: ${conn.connection.host}`);
+            return conn;
+        } catch (localError) {
+            console.error('Local fallback connection also failed:', localError.message);
+            console.error('\n======================================================');
+            console.error('❌ MONGODB CONNECTION ERROR:');
+            console.error('Your IP address is not whitelisted on MongoDB Atlas.');
+            console.error('Please whitelist your current IP address in the MongoDB Atlas dashboard:');
+            console.error('https://cloud.mongodb.com/ -> Network Access -> Add IP Address');
+            console.error('Alternatively, start a local MongoDB instance on port 27017.');
+            console.error('======================================================\n');
+            throw error;
+        }
     }
 }
 

@@ -28,10 +28,13 @@ import {
     VStack,
     Select,
     Link,
+    Icon,
     ModalCloseButton,
     useColorModeValue,
 } from '@chakra-ui/react';
 import { DeleteIcon, EditIcon, AddIcon, ArrowUpDownIcon } from '@chakra-ui/icons';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { FiBriefcase, FiUsers } from 'react-icons/fi';
 import axios from 'axios';
 import DocumentUploadForm from './DocumentUploadForm';
 
@@ -246,6 +249,7 @@ const DocumentList = () => {
 
 
 
+    const location = useLocation();
     const sortedCategories = [...categories].sort((a, b) => {
         if (a.name === 'Other') return 1;
         if (b.name === 'Other') return -1;
@@ -256,6 +260,36 @@ const DocumentList = () => {
 
     return (
         <Box p={{ base: '2', md: '4' }} maxW="1200px" mx="auto" mt={{ base: '0', sm: '-16', md: '-35', lg: '-75' }}>
+            {/* Top Navigation Tabs */}
+            <Flex justify="center" mb={5} gap={3} bg={useColorModeValue('white', 'gray.800')} p={2.5} borderRadius="xl" boxShadow="sm" borderWidth="1px">
+                <Button
+                    as={RouterLink}
+                    to="/documentlist"
+                    size="sm"
+                    variant={location.pathname === '/documentlist' ? 'solid' : 'ghost'}
+                    colorScheme="teal"
+                    borderRadius="lg"
+                    px={5}
+                    fontWeight="700"
+                    leftIcon={<Icon as={FiBriefcase} />}
+                >
+                    Company Documents
+                </Button>
+                <Button
+                    as={RouterLink}
+                    to="/EmployeeDocument"
+                    size="sm"
+                    variant={location.pathname === '/EmployeeDocument' ? 'solid' : 'ghost'}
+                    colorScheme="teal"
+                    borderRadius="lg"
+                    px={5}
+                    fontWeight="700"
+                    leftIcon={<Icon as={FiUsers} />}
+                >
+                    Employee Documents
+                </Button>
+            </Flex>
+
             <Heading as="h2" size="lg" mb="4" textAlign="center" color="teal.600">
                 Company Document Management
             </Heading>
