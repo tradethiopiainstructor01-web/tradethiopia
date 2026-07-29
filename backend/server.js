@@ -8,7 +8,14 @@ const http = require('http');
 const socketIo = require('socket.io');
 const { getConversationRoom, getUserRoom, setSocketServer } = require('./services/chatSocketService');
 
-dotenv.config({ path: path.join(__dirname, '.env') });
+// Local overrides are loaded first when present. The file is ignored by Git.
+// Production environments continue to supply variables through the platform.
+dotenv.config({
+  path: [
+    path.join(__dirname, '.env.local'),
+    path.join(__dirname, '.env')
+  ]
+});
 
 const { connectDB, disconnectDB } = require('./config/db.js');
 const userRoutes = require('./routes/user.route.js');
@@ -22,6 +29,7 @@ const ResourceRoute = require('./routes/ResourceRoutes.js');
 const FollowUpRoutes = require('./routes/followupRoutes.js');
 const CategoryRoutes = require('./routes/categoryRoutes.js');
 const documentRoutes = require('./routes/documentRoutes.js');
+const employeeRequestRoutes = require('./routes/employeeRequestRoutes.js');
 const assetCategoryRoutes = require('./routes/assetCategory.js');
 const assetRoutes = require('./routes/asset.js');
 const infouploadRoutes = require('./routes/infoupload.route.js');
@@ -291,6 +299,7 @@ app.use('/api/notes', noteRoutes);
 app.use('/api/resources', ResourceRoute);
 app.use("/api/followups", FollowUpRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/employee-requests', employeeRequestRoutes);
 app.use('/api/assetcategories', assetCategoryRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/categories', CategoryRoutes);
