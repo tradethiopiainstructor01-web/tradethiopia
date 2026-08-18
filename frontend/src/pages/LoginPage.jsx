@@ -53,17 +53,24 @@ const handleLogin = async (event) => {
             // Save token and user information in local storage
             setCurrentUser({ username, role, status, infoStatus, trainingStatus, examBypass, token, _id, email, fullName, jobTitle });
 
+            const normalizedRole = normalizeRole(role);
+
+            // Roles like Tessbin Admin bypass HR employee onboarding info checks
+            const bypassHrApprovalRoles = ['tessbinadmin', 'tessbin', 'tessbin_admin', 'admin', 'coo', 'ceo', 'it', 'itadmin'];
+            const isBypassRole = bypassHrApprovalRoles.includes(normalizedRole);
             const hasExamBypass = Boolean(examBypass) || String(trainingStatus || '').toLowerCase() === 'exempt';
 
             // Check user, info statuses, and HR exam/tutorial bypass permission
-            if (!hasExamBypass && status === 'inactive' && infoStatus === 'active') {
+            if (!hasExamBypass && !isBypassRole && status === 'inactive' && infoStatus === 'active') {
                 console.log('LoginPage - redirecting to /secondpage (inactive status, active infoStatus, no bypass)');
                 redirectAfterLogin('/secondpage');
-            } else if (!hasExamBypass && (status === 'inactive' || status === 'active') && infoStatus !== 'active')  {
+            } else if (!hasExamBypass && !isBypassRole && (status === 'inactive' || status === 'active') && infoStatus !== 'active')  {
+                console.log('LoginPage - redirecting to /employee-info (status is inactive/active, infoStatus is not active:', infoStatus, ')');
+                redirectAfterLogin('/employee-info');
+            } else {
                 console.log('LoginPage - redirecting to /employee-info (infoStatus is not active:', infoStatus, ')');
                 redirectAfterLogin('/employee-info');
             } else {
-                const normalizedRole = normalizeRole(role);
                 const returnPath = consumeReturnPath({ _id, role: normalizedRole });
                 console.log('LoginPage - redirecting based on normalized role:', normalizedRole);
                 if (returnPath) {
@@ -124,6 +131,11 @@ const handleLogin = async (event) => {
                         break;
                     case 'instructor':
                         redirectAfterLogin('/instructor');
+                        break;
+                    case 'tessbinadmin':
+                    case 'tessbin':
+                    case 'tessbin_admin':
+                        redirectAfterLogin('/tessbin-dashboard');
                         break;
                     default:
                         redirectAfterLogin('/ComingSoonPage'); // Optional: handle unknown roles
