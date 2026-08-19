@@ -59,15 +59,13 @@ const handleLogin = async (event) => {
             const bypassHrApprovalRoles = ['tessbinadmin', 'tessbin', 'tessbin_admin', 'admin', 'coo', 'ceo', 'it', 'itadmin'];
             const isBypassRole = bypassHrApprovalRoles.includes(normalizedRole);
             const hasExamBypass = Boolean(examBypass) || String(trainingStatus || '').toLowerCase() === 'exempt';
+            const shouldBypassOnboarding = isBypassRole || hasExamBypass;
 
             // Check user, info statuses, and HR exam/tutorial bypass permission
-            if (!hasExamBypass && !isBypassRole && status === 'inactive' && infoStatus === 'active') {
+            if (!shouldBypassOnboarding && status === 'inactive' && infoStatus === 'active') {
                 console.log('LoginPage - redirecting to /secondpage (inactive status, active infoStatus, no bypass)');
                 redirectAfterLogin('/secondpage');
-            } else if (!hasExamBypass && !isBypassRole && (status === 'inactive' || status === 'active') && infoStatus !== 'active')  {
-                console.log('LoginPage - redirecting to /employee-info (status is inactive/active, infoStatus is not active:', infoStatus, ')');
-                redirectAfterLogin('/employee-info');
-            } else {
+            } else if (!shouldBypassOnboarding && (status === 'inactive' || status === 'active') && infoStatus !== 'active')  {
                 console.log('LoginPage - redirecting to /employee-info (infoStatus is not active:', infoStatus, ')');
                 redirectAfterLogin('/employee-info');
             } else {

@@ -385,15 +385,6 @@ function App() {
         }
       />
       <Route
-      <Route
-        path="/customer-user-management"
-        element={
-          <ProtectedRoute>
-            <CustomerUserManagement />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/tessbin-dashboard"
         element={
           <RoleProtectedRoute allowedRoles={["tessbinadmin", "tessbin", "tessbin_admin", "admin"]}>
@@ -402,6 +393,14 @@ function App() {
         }
       />
       <Route path="/tessbin" element={<Navigate to="/tessbin-dashboard" replace />} />
+      <Route
+        path="/customer-user-management"
+        element={
+          <ProtectedRoute>
+            <CustomerUserManagement />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/social-media"
         element={
