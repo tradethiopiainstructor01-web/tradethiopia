@@ -50,6 +50,7 @@ import {
   MenuList,
   MenuItem,
   Divider,
+  Image,
 } from '@chakra-ui/react';
 import {
   ResponsiveContainer,
@@ -71,7 +72,6 @@ import {
 import {
   FiUsers,
   FiAward,
-  FiBookOpen,
   FiCheckCircle,
   FiPlus,
   FiRefreshCw,
@@ -100,25 +100,112 @@ import {
   FiSave,
   FiZap,
   FiLogOut,
+  FiGlobe,
+  FiRadio,
+  FiExternalLink,
+  FiServer,
+  FiAlertTriangle,
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../services/axiosInstance';
 import { useUserStore } from '../store/user';
 
-const COURSE_OPTIONS = [
-  'General Business Program',
-  'Accounting & Finance Program',
-  'International Trade Program',
-  'Marketing Management Program',
-  'Digital Marketing for International Trade',
-  'Stock Market & Investment Strategies',
-  'Artificial Intelligence for Marketing',
-  'Cyber Security Essentials',
-  'Customer Service Excellence',
-  'Netpreneurship & Online Business',
-  'International Trade Brokerage',
-  'Data Science & Analytics',
+const FALLBACK_PROGRAM_COURSES = [
+  'Coffee Cupping',
+  'Barista',
+  'International Import and Export',
+  'Digital Marketing',
 ];
+
+const extractThirdPartyCourseNames = (payload) => {
+  const courses = payload?.courses || payload?.data?.courses || payload?.data || [];
+  if (!Array.isArray(courses)) return [];
+
+  return [...new Set(
+    courses
+      .map((course) => typeof course === 'string' ? course : course?.courseName || course?.name)
+      .filter((courseName) => typeof courseName === 'string' && courseName.trim())
+      .map((courseName) => courseName.trim())
+  )];
+};
+
+const normalizeThirdPartyExamStats = (payload, selectedCourse = 'All Courses', courseCatalog = []) => {
+  const summary = payload?.summary || {};
+  const rawBreakdown = payload?.coursesBreakdown || {};
+  const breakdownEntries = Array.isArray(rawBreakdown)
+    ? rawBreakdown.filter((course) => course?.courseName).map((course) => [course.courseName, course])
+    : Object.entries(rawBreakdown);
+
+  let coursesBreakdown = Object.fromEntries(breakdownEntries.map(([courseName, course]) => [courseName, {
+    total: course?.totalExamTakers ?? course?.total ?? 0,
+    passed: course?.passed ?? 0,
+    failed: course?.failed ?? 0,
+    disqualified: course?.disqualified ?? 0,
+    activeOnline: course?.activeOnline ?? 0,
+    passRate: course?.passRatePercentage ?? course?.passRate ?? 0,
+  }]));
+  courseCatalog.forEach((course) => {
+    if (course?.courseName && !coursesBreakdown[course.courseName]) {
+      coursesBreakdown[course.courseName] = {
+        total: course.totalExamTakers ?? 0,
+        passed: 0,
+        failed: 0,
+        disqualified: 0,
+        activeOnline: course.activeOnlineExamTakers ?? 0,
+        passRate: 0,
+      };
+    }
+  });
+  let recentAttempts = Array.isArray(payload?.recentAttempts) ? payload.recentAttempts : [];
+  let totalAttempts = summary.totalExamTakers ?? summary.totalAttempts ?? 0;
+  let passed = summary.passed ?? 0;
+  let failed = summary.failed ?? 0;
+
+  if (selectedCourse && !['All', 'All Courses'].includes(selectedCourse)) {
+    const matchedCourse = Object.entries(coursesBreakdown).find(([courseName]) => (
+      courseName.toLowerCase() === selectedCourse.toLowerCase()
+      || courseName.toLowerCase().includes(selectedCourse.toLowerCase())
+      || selectedCourse.toLowerCase().includes(courseName.toLowerCase())
+    ));
+    coursesBreakdown = matchedCourse ? { [matchedCourse[0]]: matchedCourse[1] } : {};
+    totalAttempts = matchedCourse?.[1]?.total ?? 0;
+    passed = matchedCourse?.[1]?.passed ?? 0;
+    failed = matchedCourse?.[1]?.failed ?? 0;
+    recentAttempts = recentAttempts.filter((attempt) => (
+      (attempt.courseName || attempt.course || '').toLowerCase().includes(selectedCourse.toLowerCase())
+    ));
+  }
+
+  const gradedAttempts = passed + failed;
+  return {
+    totalAttempts,
+    passed,
+    failed,
+    inProgress: summary.inProgress ?? 0,
+    activeOnlineTakers: summary.activeOnlineExamTakers ?? summary.activeOnlineTakers ?? 0,
+    passRate: summary.passRatePercentage ?? (gradedAttempts > 0 ? Math.round((passed / gradedAttempts) * 100) : 0),
+    coursesBreakdown,
+    recentAttempts,
+  };
+};
+
+const MONTH_OPTIONS = [
+  { id: 'All', label: 'All Months' },
+  { id: 'January', label: 'January' },
+  { id: 'February', label: 'February' },
+  { id: 'March', label: 'March' },
+  { id: 'April', label: 'April' },
+  { id: 'May', label: 'May' },
+  { id: 'June', label: 'June' },
+  { id: 'July', label: 'July' },
+  { id: 'August', label: 'August' },
+  { id: 'September', label: 'September' },
+  { id: 'October', label: 'October' },
+  { id: 'November', label: 'November' },
+  { id: 'December', label: 'December' },
+];
+
+const YEAR_OPTIONS = ['All Years', '2027', '2026', '2025', '2024', '2023'];
 
 const TessbinAdminDashboard = () => {
   const { colorMode, toggleColorMode } = useColorMode();
@@ -127,9 +214,17 @@ const TessbinAdminDashboard = () => {
   const currentUser = useUserStore((state) => state.currentUser);
   const clearUser = useUserStore((state) => state.clearUser);
 
-  // Active navigation tab
+  // Active navigation tab & global filters
   const [activeTab, setActiveTab] = useState('overview');
-  const [kpiTimeframe, setKpiTimeframe] = useState('monthly'); // 'weekly', 'monthly', 'quarterly', 'all'
+  const [dashboardPeriod, setDashboardPeriod] = useState('all'); // 'daily', 'weekly', 'monthly', 'quarterly', 'yearly', 'all'
+  const [selectedMonth, setSelectedMonth] = useState('All'); // 'All', 'January' ... 'August' ...
+  const [selectedYear, setSelectedYear] = useState('All'); // 'All', '2026', '2025' ...
+  const [selectedCourse, setSelectedCourse] = useState('All Courses'); // 'All Courses', 'Coffee Cupping...'
+  const [programCourses, setProgramCourses] = useState(FALLBACK_PROGRAM_COURSES);
+  const [courseCatalogLoaded, setCourseCatalogLoaded] = useState(false);
+  const [kpiTimeframe, setKpiTimeframe] = useState('monthly'); // 'daily', 'weekly', 'monthly', 'quarterly', 'yearly', 'all'
+  const [syncing3rdParty, setSyncing3rdParty] = useState(false);
+  const courseOptions = ['All Courses', ...programCourses];
 
   // Mobile sidebar drawer disclosure
   const { isOpen: isMobileNavOpen, onOpen: onMobileNavOpen, onClose: onMobileNavClose } = useDisclosure();
@@ -149,16 +244,34 @@ const TessbinAdminDashboard = () => {
   // Stats state
   const [stats, setStats] = useState({
     cocExamStudentsCount: 6,
-    onlineFinalExamStudentsCount: 6,
-    totalStudentsCount: 12,
-    totalExamRecordsCount: 12,
-    passedCount: 9,
-    failedCount: 1,
+    onlineFinalExamStudentsCount: 116,
+    totalStudentsCount: 128,
+    totalExamRecordsCount: 122,
+    passedCount: 108,
+    failedCount: 8,
     scheduledCount: 2,
-    certificatesIssuedCount: 8,
-    passRate: 90,
+    certificatesIssuedCount: 5,
+    passRate: 93,
     courseBreakdown: [],
+    thirdPartyRegistrationsCount: 128,
+    thirdPartyApplicationsCount: 42,
+    online3rdPartyStats: {
+      totalAttempts: 116,
+      passed: 103,
+      failed: 7,
+      inProgress: 0,
+      activeOnlineTakers: 0,
+      passRate: 94,
+      coursesBreakdown: {},
+      recentAttempts: [],
+    },
   });
+
+  // 3rd party live data
+  const [thirdPartySummary, setThirdPartySummary] = useState(null);
+  const [thirdPartyExamTakers, setThirdPartyExamTakers] = useState(null);
+  const [thirdPartyRegistrations, setThirdPartyRegistrations] = useState(null);
+  const [thirdPartyApplications, setThirdPartyApplications] = useState(null);
 
   const [records, setRecords] = useState([]);
   const [kpiList, setKpiList] = useState([]);
@@ -176,13 +289,13 @@ const TessbinAdminDashboard = () => {
   const { isOpen: isAddKpiOpen, onOpen: onAddKpiOpen, onClose: onAddKpiClose } = useDisclosure();
   const { isOpen: isEditKpiOpen, onOpen: onEditKpiOpen, onClose: onEditKpiClose } = useDisclosure();
 
-  // Exam Record Form state
+  // Exam Record Form state (for Manual COC Exam and other manual records)
   const [formData, setFormData] = useState({
     studentId: '',
     studentName: '',
     email: '',
     phone: '',
-    courseName: COURSE_OPTIONS[0],
+    courseName: FALLBACK_PROGRAM_COURSES[0],
     session: 'Regular',
     examType: 'COC Exam',
     examMode: 'On-Site',
@@ -192,25 +305,44 @@ const TessbinAdminDashboard = () => {
     remarks: '',
     certificateStatus: 'Issued',
   });
+
+  useEffect(() => {
+    setSelectedCourse((currentCourse) => (
+      currentCourse === 'All Courses' || programCourses.includes(currentCourse)
+        ? currentCourse
+        : 'All Courses'
+    ));
+    setFormData((currentForm) => (
+      programCourses.length > 0 && !programCourses.includes(currentForm.courseName)
+        ? { ...currentForm, courseName: programCourses[0] }
+        : currentForm
+    ));
+  }, [programCourses]);
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Master KPI Unified Form State (ALL 3 Core KPIs × 3 Timeframes)
+  // Master KPI Unified Form State (ALL Core KPIs × Timeframes)
   const [masterKpiFormData, setMasterKpiFormData] = useState({
     coc: {
+      daily: 1,
       weekly: 3,
       monthly: 10,
       quarterly: 30,
+      yearly: 120,
     },
     online: {
-      weekly: 3,
-      monthly: 10,
-      quarterly: 30,
+      daily: 2,
+      weekly: 25,
+      monthly: 100,
+      quarterly: 150,
+      yearly: 200,
     },
     students: {
-      weekly: 4,
-      monthly: 15,
-      quarterly: 45,
+      daily: 5,
+      weekly: 20,
+      monthly: 100,
+      quarterly: 150,
+      yearly: 250,
     },
   });
 
@@ -227,37 +359,117 @@ const TessbinAdminDashboard = () => {
   });
   const [editingKpiId, setEditingKpiId] = useState(null);
 
-  // Fetch Dashboard Stats, Exam Records & KPI Targets
-  const fetchData = async () => {
+  // Modern UI Delete Confirmation Dialog State (Replaces native browser prompt)
+  const [deleteDialogState, setDeleteDialogState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    itemType: '',
+    onConfirm: null,
+    loading: false,
+  });
+
+  const openDeleteDialog = ({ title, message, itemType, onConfirm }) => {
+    setDeleteDialogState({
+      isOpen: true,
+      title: title || 'Confirm Delete',
+      message: message || 'Are you sure you want to proceed with deletion? This action cannot be undone.',
+      itemType: itemType || 'Item',
+      onConfirm,
+      loading: false,
+    });
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteDialogState((prev) => ({ ...prev, isOpen: false, loading: false }));
+  };
+
+  const handleExecuteDelete = async () => {
+    if (deleteDialogState.onConfirm) {
+      setDeleteDialogState((prev) => ({ ...prev, loading: true }));
+      try {
+        await deleteDialogState.onConfirm();
+      } finally {
+        closeDeleteDialog();
+      }
+    }
+  };
+
+  // Fetch Dashboard Stats, Exam Records, KPI Targets & 3rd Party Online Data
+  const fetchData = async (forceLiveSync = false) => {
     setLoading(true);
     try {
-      // Stats API
-      const statsRes = await axiosInstance.get('/tessbin/dashboard-stats');
-      if (statsRes.data?.success) {
-        setStats(statsRes.data.data);
-      }
-
-      // Records API
       let effectiveTypeFilter = examTypeFilter;
       if (activeTab === 'coc_exams') effectiveTypeFilter = 'COC Exam';
-      if (activeTab === 'online_exams') effectiveTypeFilter = 'Online Final Exam';
 
-      const params = {
+      const sharedFilterParams = {
+        period: dashboardPeriod === 'all' ? undefined : dashboardPeriod,
+        month: selectedMonth === 'All' || selectedMonth === 'All Months' ? undefined : selectedMonth,
+        year: selectedYear === 'All' || selectedYear === 'All Years' ? undefined : selectedYear,
+        course: selectedCourse === 'All Courses' || selectedCourse === 'All' ? undefined : selectedCourse,
+      };
+      const recordParams = {
         q: searchQuery,
         examType: effectiveTypeFilter,
         status: statusFilter,
+        ...sharedFilterParams,
       };
-      const recordsRes = await axiosInstance.get('/tessbin/exams', { params });
-      if (recordsRes.data?.success) {
-        setRecords(recordsRes.data.data);
+
+      const periodParam = (dashboardPeriod === 'all' || dashboardPeriod === 'allTime') ? 'allTime' : dashboardPeriod;
+
+      // Start local and live requests together to avoid sequential API wait time.
+      const [statsResult, recordsResult, kpiResult, tpSummary, tpExamTakers, tpRegs, tpApps, tpCourses] = await Promise.allSettled([
+        axiosInstance.get('/tessbin/dashboard-stats', { params: sharedFilterParams }),
+        axiosInstance.get('/tessbin/exams', { params: recordParams }),
+        axiosInstance.get('/tessbin/kpis', {
+          params: { timeframe: kpiTimeframe === 'all' ? undefined : kpiTimeframe },
+        }),
+        forceLiveSync || !thirdPartySummary
+          ? axiosInstance.get('/tessbin/third-party/summary')
+          : Promise.resolve(null),
+        axiosInstance.get(`/tessbin/third-party/exam-takers?period=${periodParam}`),
+        forceLiveSync || !thirdPartyRegistrations
+          ? axiosInstance.get(`/tessbin/third-party/registrations?period=${periodParam}`)
+          : Promise.resolve(null),
+        forceLiveSync || !thirdPartyApplications
+          ? axiosInstance.get(`/tessbin/third-party/applications?period=${periodParam}`)
+          : Promise.resolve(null),
+        forceLiveSync || !courseCatalogLoaded
+          ? axiosInstance.get('/tessbin/third-party/courses-breakdown')
+          : Promise.resolve(null),
+      ]);
+
+      if (statsResult.status === 'fulfilled' && statsResult.value.data?.success) {
+        setStats(statsResult.value.data.data);
+      }
+      if (recordsResult.status === 'fulfilled' && recordsResult.value.data?.success) {
+        setRecords(recordsResult.value.data.data);
+      }
+      if (kpiResult.status === 'fulfilled' && kpiResult.value.data?.success) {
+        setKpiList(kpiResult.value.data.data);
       }
 
-      // KPI Targets API
-      const kpiRes = await axiosInstance.get('/tessbin/kpis', {
-        params: { timeframe: kpiTimeframe === 'all' ? undefined : kpiTimeframe },
-      });
-      if (kpiRes.data?.success) {
-        setKpiList(kpiRes.data.data);
+      if (tpSummary.status === 'fulfilled' && tpSummary.value?.data) setThirdPartySummary(tpSummary.value.data);
+      if (tpExamTakers.status === 'fulfilled' && tpExamTakers.value.data?.success) {
+        const liveExamData = tpExamTakers.value.data;
+        const liveCourseCatalog = tpCourses.status === 'fulfilled' && Array.isArray(tpCourses.value?.data?.courses)
+          ? tpCourses.value.data.courses
+          : programCourses.map((courseName) => ({ courseName }));
+        const liveExamStats = normalizeThirdPartyExamStats(liveExamData, selectedCourse, liveCourseCatalog);
+        setThirdPartyExamTakers(liveExamData);
+        setStats((currentStats) => ({
+          ...currentStats,
+          onlineFinalExamStudentsCount: liveExamStats.totalAttempts,
+          totalExamRecordsCount: (currentStats.cocExamStudentsCount || 0) + liveExamStats.totalAttempts,
+          online3rdPartyStats: liveExamStats,
+        }));
+      }
+      if (tpRegs.status === 'fulfilled' && tpRegs.value?.data) setThirdPartyRegistrations(tpRegs.value.data);
+      if (tpApps.status === 'fulfilled' && tpApps.value?.data) setThirdPartyApplications(tpApps.value.data);
+      if (tpCourses.status === 'fulfilled' && tpCourses.value?.data) {
+        const syncedCourses = extractThirdPartyCourseNames(tpCourses.value.data);
+        if (syncedCourses.length > 0) setProgramCourses(syncedCourses);
+        setCourseCatalogLoaded(true);
       }
     } catch (error) {
       console.error('Failed to fetch Tessbin data:', error);
@@ -266,9 +478,34 @@ const TessbinAdminDashboard = () => {
     }
   };
 
+  // Manual trigger to sync and re-fetch from Live Portal
+  const handleSync3rdPartyApi = async () => {
+    setSyncing3rdParty(true);
+    try {
+      await fetchData(true);
+      toast({
+        title: 'Live Portal Synchronized!',
+        description: 'Successfully updated real-time examination, enrollment, and application metrics.',
+        status: 'success',
+        duration: 3500,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: 'Sync Warning',
+        description: 'Unable to communicate with the online examination portal.',
+        status: 'warning',
+        duration: 3500,
+        isClosable: true,
+      });
+    } finally {
+      setSyncing3rdParty(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
-  }, [searchQuery, examTypeFilter, statusFilter, activeTab, kpiTimeframe]);
+  }, [searchQuery, examTypeFilter, statusFilter, activeTab, dashboardPeriod, kpiTimeframe, selectedMonth, selectedYear, selectedCourse]);
 
   // Create Record Submit
   const handleAddSubmit = async (e) => {
@@ -305,7 +542,7 @@ const TessbinAdminDashboard = () => {
       studentName: record.studentName || '',
       email: record.email || '',
       phone: record.phone || '',
-      courseName: record.courseName || COURSE_OPTIONS[0],
+      courseName: record.courseName || programCourses[0] || FALLBACK_PROGRAM_COURSES[0],
       session: record.session || 'Regular',
       examType: record.examType || 'COC Exam',
       examMode: record.examMode || 'Online',
@@ -345,28 +582,36 @@ const TessbinAdminDashboard = () => {
     }
   };
 
-  // Delete Record
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this student exam record?')) return;
-    try {
-      const res = await axiosInstance.delete(`/tessbin/exams/${id}`);
-      if (res.data?.success) {
-        toast({
-          title: 'Record Deleted',
-          status: 'info',
-          duration: 3000,
-          isClosable: true,
-        });
-        fetchData();
-      }
-    } catch (error) {
-      toast({
-        title: 'Delete Failed',
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-    }
+  // Delete Record (Using sleek Chakra UI modal)
+  const handleDelete = (id) => {
+    openDeleteDialog({
+      title: 'Delete Examination Record',
+      message: 'Are you sure you want to delete this student examination record? This action will permanently remove the record and its score from the database.',
+      itemType: 'Exam Record',
+      onConfirm: async () => {
+        try {
+          const res = await axiosInstance.delete(`/tessbin/exams/${id}`);
+          if (res.data?.success) {
+            toast({
+              title: 'Record Deleted',
+              description: 'Student examination record was removed successfully.',
+              status: 'info',
+              duration: 3000,
+              isClosable: true,
+            });
+            fetchData();
+          }
+        } catch (error) {
+          toast({
+            title: 'Delete Failed',
+            description: error.response?.data?.message || 'Failed to delete record.',
+            status: 'error',
+            duration: 4000,
+            isClosable: true,
+          });
+        }
+      },
+    });
   };
 
   // View Record
@@ -381,7 +626,7 @@ const TessbinAdminDashboard = () => {
       studentName: '',
       email: '',
       phone: '',
-      courseName: COURSE_OPTIONS[0],
+      courseName: programCourses[0] || FALLBACK_PROGRAM_COURSES[0],
       session: 'Regular',
       examType: defaultExamType,
       examMode: defaultExamType === 'COC Exam' ? 'On-Site' : 'Online',
@@ -479,27 +724,36 @@ const TessbinAdminDashboard = () => {
     }
   };
 
-  const handleDeleteKpi = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this KPI target?')) return;
-    try {
-      const res = await axiosInstance.delete(`/tessbin/kpis/${id}`);
-      if (res.data?.success) {
-        toast({
-          title: 'KPI Target Deleted',
-          status: 'info',
-          duration: 3000,
-          isClosable: true,
-        });
-        fetchData();
-      }
-    } catch (error) {
-      toast({
-        title: 'Delete Failed',
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-    }
+  // Delete KPI Target (Using sleek Chakra UI modal)
+  const handleDeleteKpi = (id) => {
+    openDeleteDialog({
+      title: 'Delete Master KPI Target Goal',
+      message: 'Are you sure you want to delete this KPI target goal? It will be removed from performance evaluation scorecard and trend graphs.',
+      itemType: 'KPI Target',
+      onConfirm: async () => {
+        try {
+          const res = await axiosInstance.delete(`/tessbin/kpis/${id}`);
+          if (res.data?.success) {
+            toast({
+              title: 'KPI Target Deleted',
+              description: 'KPI target goal was removed successfully.',
+              status: 'info',
+              duration: 3000,
+              isClosable: true,
+            });
+            fetchData();
+          }
+        } catch (error) {
+          toast({
+            title: 'Delete Failed',
+            description: error.response?.data?.message || 'Failed to delete KPI target.',
+            status: 'error',
+            duration: 4000,
+            isClosable: true,
+          });
+        }
+      },
+    });
   };
 
   // Export CSV
@@ -534,37 +788,43 @@ const TessbinAdminDashboard = () => {
     clearUser();
     navigate('/login');
   };
-
   // ── GRAPHICAL DATA PREPARATION ──
+  const activeKpiPeriodKey = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'].includes(dashboardPeriod) ? dashboardPeriod : 'monthly';
+
   const kpiComparisonData = [
     {
-      name: 'COC Exam Student Takes',
-      Target: masterKpiFormData.coc[kpiTimeframe === 'weekly' ? 'weekly' : kpiTimeframe === 'quarterly' ? 'quarterly' : 'monthly'],
-      Actual: stats.cocExamStudentsCount || 6,
+      name: 'National COC Exams',
+      Target: masterKpiFormData.coc[activeKpiPeriodKey] || masterKpiFormData.coc.monthly,
+      Actual: stats.cocExamStudentsCount || 0,
     },
     {
-      name: 'Online Final Exam Takes',
-      Target: masterKpiFormData.online[kpiTimeframe === 'weekly' ? 'weekly' : kpiTimeframe === 'quarterly' ? 'quarterly' : 'monthly'],
-      Actual: stats.onlineFinalExamStudentsCount || 6,
+      name: 'Online Final Exams',
+      Target: masterKpiFormData.online[activeKpiPeriodKey] || masterKpiFormData.online.monthly,
+      Actual: stats.onlineFinalExamStudentsCount || 0,
     },
     {
-      name: 'Number of Registered Students',
-      Target: masterKpiFormData.students[kpiTimeframe === 'weekly' ? 'weekly' : kpiTimeframe === 'quarterly' ? 'quarterly' : 'monthly'],
-      Actual: stats.totalStudentsCount || 12,
+      name: 'Registered Students',
+      Target: masterKpiFormData.students[activeKpiPeriodKey] || masterKpiFormData.students.monthly,
+      Actual: stats.totalStudentsCount || 0,
+    },
+    {
+      name: 'Pass Rate %',
+      Target: 85,
+      Actual: stats.passRate || 90,
     },
   ];
 
   const pieData = [
-    { name: 'COC Exam Takes', value: stats.cocExamStudentsCount || 6, color: '#6366F1' },
-    { name: 'Online Final Exams', value: stats.onlineFinalExamStudentsCount || 6, color: '#2563EB' },
-    { name: 'Total Registered Students', value: stats.totalStudentsCount || 12, color: '#10B981' },
+    { name: 'National COC Exams', value: stats.cocExamStudentsCount || 0, color: '#6366F1' },
+    { name: 'Online Final Exams', value: stats.onlineFinalExamStudentsCount || 0, color: '#2563EB' },
+    { name: 'Registered Students', value: stats.totalStudentsCount || 0, color: '#10B981' },
   ];
 
   const trendData = [
-    { period: 'Week 1', COC: 2, Online: 2, TotalStudents: 4 },
-    { period: 'Week 2', COC: 3, Online: 3, TotalStudents: 7 },
-    { period: 'Week 3', COC: 5, Online: 4, TotalStudents: 10 },
-    { period: 'Week 4', COC: stats.cocExamStudentsCount || 6, Online: stats.onlineFinalExamStudentsCount || 6, TotalStudents: stats.totalStudentsCount || 12 },
+    { period: 'Period Start', COC: Math.max(1, Math.floor((stats.cocExamStudentsCount || 6) * 0.3)), Online: Math.max(1, Math.floor((stats.onlineFinalExamStudentsCount || 20) * 0.3)), TotalStudents: Math.max(2, Math.floor((stats.totalStudentsCount || 25) * 0.3)) },
+    { period: 'Period Mid-1', COC: Math.max(2, Math.floor((stats.cocExamStudentsCount || 6) * 0.6)), Online: Math.max(5, Math.floor((stats.onlineFinalExamStudentsCount || 20) * 0.6)), TotalStudents: Math.max(5, Math.floor((stats.totalStudentsCount || 25) * 0.6)) },
+    { period: 'Period Mid-2', COC: Math.max(3, Math.floor((stats.cocExamStudentsCount || 6) * 0.8)), Online: Math.max(10, Math.floor((stats.onlineFinalExamStudentsCount || 20) * 0.85)), TotalStudents: Math.max(10, Math.floor((stats.totalStudentsCount || 25) * 0.85)) },
+    { period: 'Current Live', COC: stats.cocExamStudentsCount || 0, Online: stats.onlineFinalExamStudentsCount || 0, TotalStudents: stats.totalStudentsCount || 0 },
   ];
 
   // ── OVERALL KPI PERCENTAGE ACHIEVEMENTS CALCULATIONS ──
@@ -573,49 +833,94 @@ const TessbinAdminDashboard = () => {
   const overallAchievementPercent = totalTargetSum > 0 ? Math.min(100, Math.round((totalActualSum / totalTargetSum) * 100)) : 0;
   const exceededCount = kpiList.filter((k) => (Number(k.actualValue) || 0) >= (Number(k.targetValue) || 1)).length;
 
-  // Sidebar Navigation Definition
+  // Clean, professional sidebar navigation without noisy badges or number counts
   const sidebarItems = [
-    { id: 'overview', label: 'Dashboard Overview', icon: FiGrid, badge: null },
-    { id: 'coc_exams', label: 'COC Exam Takes', icon: FiAward, badge: stats.cocExamStudentsCount || 6 },
-    { id: 'online_exams', label: 'Online Final Exams', icon: FiMonitor, badge: stats.onlineFinalExamStudentsCount || 6 },
-    { id: 'all_students', label: 'Students & Records', icon: FiUsers, badge: stats.totalStudentsCount || 12 },
-    { id: 'course_analytics', label: 'Course Analytics', icon: FiPieChart, badge: stats.courseBreakdown?.length || 12 },
-    { id: 'kpi_metrics', label: 'KPI Targets & Scorecard', icon: FiBarChart2, badge: `${kpiList.length || 4} KPIs` },
+    { id: 'overview', label: 'Dashboard Overview', icon: FiGrid },
+    { id: 'coc_exams', label: 'National COC Exams', icon: FiAward },
+    { id: 'online_exams', label: 'Online Final Exams', icon: FiMonitor },
+    { id: 'all_students', label: 'Student Directory', icon: FiUsers },
+    { id: 'course_analytics', label: 'Course Analytics', icon: FiPieChart },
+    { id: 'kpi_metrics', label: 'KPI Performance & Scorecard', icon: FiBarChart2 },
   ];
 
-  // Render Sidebar Component
-  const SidebarContent = () => (
-    <Flex direction="column" h="full" py={6} px={4} justify="space-between" bg={sidebarBg} color="white">
+  const normalizeExamStatus = (status = '') => {
+    const normalizedStatus = status.toUpperCase();
+    if (normalizedStatus === 'PASS' || normalizedStatus === 'PASSED') return 'Passed';
+    if (normalizedStatus === 'FAIL' || normalizedStatus === 'FAILED') return 'Failed';
+    if (normalizedStatus === 'IN_PROGRESS') return 'In Progress';
+    if (normalizedStatus === 'DISQUALIFIED') return 'Disqualified';
+    return status || 'Completed';
+  };
+
+  const liveOnlineExamRecords = (stats.online3rdPartyStats?.recentAttempts || [])
+    .map((attempt, index) => ({
+      _id: attempt.id || `live-exam-${index}`,
+      studentId: attempt.enrollmentNumber || attempt.studentId || 'N/A',
+      studentName: attempt.studentName || attempt.student || 'Student',
+      email: attempt.studentEmail || attempt.email || '',
+      courseName: attempt.courseName || attempt.course || 'General Exam',
+      examType: attempt.examTitle || 'Online Final Exam',
+      examMode: 'Online',
+      score: Number(attempt.percentage ?? attempt.score ?? 0),
+      status: normalizeExamStatus(attempt.status),
+      certificateStatus: 'Live API',
+      examDate: attempt.submittedAt || attempt.startedAt,
+      remarks: `Live third-party exam record${attempt.examTitle ? `: ${attempt.examTitle}` : ''}`,
+      isThirdParty: true,
+    }))
+    .filter((record) => statusFilter === 'All' || record.status === statusFilter)
+    .filter((record) => {
+      const query = searchQuery.trim().toLowerCase();
+      return !query || [record.studentId, record.studentName, record.email, record.courseName]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    });
+
+  const examTableRecords = activeTab === 'online_exams' ? liveOnlineExamRecords : records;
+
+  // Render Sidebar Component (Supports both Desktop and Mobile Drawer)
+  const SidebarContent = ({ isMobile = false }) => (
+    <Flex direction="column" h="full" py={isMobile ? 5 : 6} px={4} justify="space-between" bg={sidebarBg} color="white">
       <Box>
         {/* Brand Header */}
-        <HStack spacing={3.5} mb={8} px={2}>
-          <Flex
-            w="44px"
-            h="44px"
-            bg="#6366F1"
-            borderRadius="xl"
-            align="center"
-            justify="center"
-            boxShadow="0 4px 14px rgba(99, 102, 241, 0.4)"
-          >
-            <Icon as={FiBookOpen} color="white" boxSize="22px" />
-          </Flex>
-          <Box>
-            <Heading size="sm" fontWeight="900" letterSpacing="tight" color="white" fontSize="16px">
-              TESSBINN
-            </Heading>
-            <Text fontSize="11px" fontWeight="600" color="#E2E8F0" mt="-1px">
-              International Business
-            </Text>
-            <Badge bg="#4F46E5" color="white" fontSize="8px" px={2} py={0.5} borderRadius="md" mt={1.5} textTransform="uppercase" fontWeight="700">
-              ADMIN PORTAL
-            </Badge>
-          </Box>
-        </HStack>
+        <Flex align="center" justify="space-between" mb={6} px={2}>
+          <HStack spacing={3.5}>
+            <Image
+              src="/tessbin-logo.jpg"
+              alt="TESSBINN logo"
+              boxSize={isMobile ? '40px' : '44px'}
+              objectFit="cover"
+              borderRadius="full"
+              flexShrink={0}
+              boxShadow="0 4px 14px rgba(99, 102, 241, 0.35)"
+            />
+            <Box>
+              <Heading size="sm" fontWeight="900" letterSpacing="tight" color="white" fontSize="16px">
+                TESSBINN
+              </Heading>
+              <Text fontSize="10px" color="#CBD5E1" fontWeight="600" mt="-2px">
+                International Business
+              </Text>
+              <Badge bg="#4F46E5" color="white" fontSize="8px" px={2} py={0.5} borderRadius="md" mt={1} textTransform="uppercase" fontWeight="800">
+                EXECUTIVE PORTAL
+              </Badge>
+            </Box>
+          </HStack>
+          {isMobile && (
+            <IconButton
+              aria-label="Close navigation"
+              icon={<Icon as={FiXCircle} boxSize="20px" />}
+              size="sm"
+              variant="ghost"
+              color="#94A3B8"
+              _hover={{ color: 'white', bg: 'rgba(255,255,255,0.1)' }}
+              onClick={onMobileNavClose}
+            />
+          )}
+        </Flex>
 
         {/* Section Header */}
-        <Text fontSize="10px" fontWeight="800" textTransform="uppercase" color="#CBD5E1" letterSpacing="widest" px={3} mb={4}>
-          MAIN NAVIGATION
+        <Text fontSize="10px" fontWeight="800" textTransform="uppercase" color="#94A3B8" letterSpacing="widest" px={3} mb={3}>
+          NAVIGATION
         </Text>
 
         {/* Menu Items */}
@@ -633,63 +938,40 @@ const TessbinAdminDashboard = () => {
                 cursor="pointer"
                 transition="all 0.2s"
                 bg={isActive ? sidebarNavActiveBg : 'transparent'}
-                color={isActive ? sidebarNavActiveColor : '#FFFFFF'}
+                color={isActive ? sidebarNavActiveColor : '#CBD5E1'}
                 fontWeight={isActive ? '800' : '600'}
+                borderLeft={isActive ? '4px solid #818CF8' : '4px solid transparent'}
                 _hover={{
-                  bg: isActive ? sidebarNavActiveBg : 'rgba(255,255,255,0.1)',
+                  bg: isActive ? sidebarNavActiveBg : 'rgba(255,255,255,0.08)',
                   color: 'white',
                   transform: 'translateX(3px)',
                 }}
                 onClick={() => {
                   setActiveTab(item.id);
-                  onMobileNavClose();
+                  if (isMobile) onMobileNavClose();
                 }}
-                justify="space-between"
+                spacing={3.5}
               >
-                <HStack spacing={3.5}>
-                  <Icon as={item.icon} boxSize="19px" color={isActive ? '#818CF8' : '#94A3B8'} />
-                  <Text fontSize="13px" color="white">{item.label}</Text>
-                </HStack>
-                {item.badge !== null && item.badge !== undefined && (
-                  <Flex
-                    px={2}
-                    py={0.5}
-                    bg={isActive ? '#6366F1' : 'rgba(255,255,255,0.15)'}
-                    color="white"
-                    borderRadius="full"
-                    align="center"
-                    justify="center"
-                    fontSize="10px"
-                    fontWeight="700"
-                  >
-                    {item.badge}
-                  </Flex>
-                )}
+                <Icon as={item.icon} boxSize="19px" color={isActive ? '#818CF8' : '#94A3B8'} />
+                <Text fontSize="13px">{item.label}</Text>
               </HStack>
             );
           })}
         </VStack>
-
-
       </Box>
 
       {/* Admin Profile Footer */}
       <Box pt={4} borderTop="1px" borderColor="rgba(255,255,255,0.12)">
-        <HStack justify="space-between" align="center" p={2} borderRadius="lg" transition="all 0.2s">
+        <HStack justify="space-between" align="center" p={2} borderRadius="xl" bg="rgba(255,255,255,0.04)" transition="all 0.2s">
           <HStack spacing={3}>
-            <Flex
-              w="38px"
-              h="38px"
-              bgGradient="linear(to-br, #6366F1, #8B5CF6)"
-              color="white"
+            <Image
+              src="/tessbin-logo.jpg"
+              alt="TESSBINN logo"
+              boxSize="36px"
+              objectFit="cover"
               borderRadius="full"
-              align="center"
-              justify="center"
-              fontWeight="800"
-              fontSize="13px"
-            >
-              TA
-            </Flex>
+              flexShrink={0}
+            />
             <Box overflow="hidden">
               <Text fontSize="12px" fontWeight="700" color="white" noOfLines={1}>
                 {currentUser?.fullName || currentUser?.username || 'Tessbin Admin'}
@@ -707,7 +989,7 @@ const TessbinAdminDashboard = () => {
               variant="ghost"
               colorScheme="red"
               color="#CBD5E1"
-              _hover={{ color: 'red.400', bg: 'rgba(255,255,255,0.05)' }}
+              _hover={{ color: 'red.400', bg: 'rgba(255,255,255,0.1)' }}
               onClick={handleLogout}
             />
           </Tooltip>
@@ -732,19 +1014,18 @@ const TessbinAdminDashboard = () => {
         <SidebarContent />
       </Box>
 
-      {/* Mobile Drawer */}
-      <Drawer isOpen={isMobileNavOpen} placement="left" onClose={onMobileNavClose}>
-        <DrawerOverlay backdropFilter="blur(4px)" />
-        <DrawerContent bg={sidebarBg} maxW="280px">
-          <DrawerCloseButton color="white" mt={2} />
+      {/* Mobile Drawer (Elevated Native-Feel Sheet) */}
+      <Drawer isOpen={isMobileNavOpen} placement="left" onClose={onMobileNavClose} size="xs">
+        <DrawerOverlay bg="blackAlpha.700" backdropFilter="blur(8px)" />
+        <DrawerContent bg={sidebarBg} maxW="300px" borderRightRadius="2xl" boxShadow="2xl">
           <DrawerBody p={0}>
-            <SidebarContent />
+            <SidebarContent isMobile={true} />
           </DrawerBody>
         </DrawerContent>
       </Drawer>
 
       {/* Main Workspace */}
-      <Box flex={1} overflowX="hidden">
+      <Box flex={1} overflowX="hidden" pb={{ base: '90px', lg: '32px' }}>
         {/* Top Header */}
         <Box bg={cardBg} borderBottom="1px" borderColor={borderColor} px={{ base: 4, md: 8 }} py={5} zIndex={9}>
           <Flex align="center" justify="space-between" direction={{ base: 'column', md: 'row' }} gap={4}>
@@ -764,31 +1045,117 @@ const TessbinAdminDashboard = () => {
                   <Text textTransform="uppercase">{activeTab.replace('_', ' ')}</Text>
                 </HStack>
                 <Heading size="lg" fontWeight="900" mt={0.5} color={textColor} fontSize="22px">
-                  {activeTab === 'overview' && 'Business & Examination Cockpit'}
-                  {activeTab === 'coc_exams' && 'COC Examination Management'}
-                  {activeTab === 'online_exams' && 'Online Final Exams Hub'}
-                  {activeTab === 'all_students' && 'Student Records Directory'}
-                  {activeTab === 'course_analytics' && 'Course Program Analytics'}
-                  {activeTab === 'kpi_metrics' && 'Master KPI Target & Scorecard Manager'}
+                  {activeTab === 'overview' && 'Executive Examination Cockpit'}
+                  {activeTab === 'coc_exams' && 'National COC Examination Management'}
+                  {activeTab === 'online_exams' && 'Online Final Examinations Portal'}
+                  {activeTab === 'all_students' && 'Student Directory & Records'}
+                  {activeTab === 'course_analytics' && 'Course Performance Analytics'}
+                  {activeTab === 'kpi_metrics' && 'Strategic KPI Scorecard & Targets'}
                 </Heading>
                 <Text fontSize="12px" color={mutedText} mt={0.5}>
-                  {activeTab === 'overview' && 'Real-time overview of examinations, academic performance, and graphical analytics'}
-                  {activeTab === 'coc_exams' && 'National Certificate of Competency (COC) evaluation tracking'}
-                  {activeTab === 'online_exams' && 'E-learning digital final examination scoring'}
-                  {activeTab === 'all_students' && 'Complete student database, transcript, and TVET certificate records'}
-                  {activeTab === 'course_analytics' && 'Performance distribution across TESSBINN training programs'}
-                  {activeTab === 'kpi_metrics' && 'Overall KPI Form & Interactive Charts: Configure and track Weekly, Monthly, and Quarterly targets'}
+                  {activeTab === 'overview' && 'Institutional analytics across national certification evaluations and digital exam portals'}
+                  {activeTab === 'coc_exams' && 'Official TVET Certificate of Competency (COC) assessment tracking and records'}
+                  {activeTab === 'online_exams' && 'Live examination portal tracking, attempt scores, and candidate completions'}
+                  {activeTab === 'all_students' && 'Student enrollment directory, transcripts, and certification status'}
+                  {activeTab === 'course_analytics' && 'Academic achievement and score distribution across all training disciplines'}
+                  {activeTab === 'kpi_metrics' && 'Performance benchmarks, milestones, and institutional targets'}
                 </Text>
               </Box>
             </HStack>
 
             <HStack spacing={3} wrap="wrap">
-              <InputGroup size="sm" w={{ base: '100%', sm: '220px', md: '260px' }}>
+              {/* Global Timeframe Filter Pill */}
+              <HStack bg={useColorModeValue('gray.100', 'gray.700')} p={1} borderRadius="xl">
+                {[
+                  { id: 'daily', label: 'Daily' },
+                  { id: 'weekly', label: 'Weekly' },
+                  { id: 'monthly', label: 'Monthly' },
+                  { id: 'quarterly', label: 'Quarterly' },
+                  { id: 'yearly', label: 'Yearly' },
+                  { id: 'all', label: 'All Time' },
+                ].map((t) => (
+                  <Button
+                    key={t.id}
+                    size="xs"
+                    borderRadius="lg"
+                    px={2.5}
+                    py={1.5}
+                    fontSize="11px"
+                    fontWeight="800"
+                    bg={dashboardPeriod === t.id ? '#6366F1' : 'transparent'}
+                    color={dashboardPeriod === t.id ? 'white' : textColor}
+                    _hover={{ bg: dashboardPeriod === t.id ? '#4F46E5' : 'rgba(0,0,0,0.06)' }}
+                    onClick={() => setDashboardPeriod(t.id)}
+                  >
+                    {t.label}
+                  </Button>
+                ))}
+              </HStack>
+
+              {/* Specific Month Filter Dropdown */}
+              <Select
+                size="sm"
+                borderRadius="xl"
+                w="135px"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                fontSize="12px"
+                fontWeight="700"
+                bg={selectedMonth !== 'All' ? '#EEF2FF' : useColorModeValue('gray.50', 'gray.900')}
+                borderColor={selectedMonth !== 'All' ? '#6366F1' : borderColor}
+                color={selectedMonth !== 'All' ? '#4F46E5' : textColor}
+              >
+                {MONTH_OPTIONS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </Select>
+
+              {/* Specific Year Filter Dropdown */}
+              <Select
+                size="sm"
+                borderRadius="xl"
+                w="110px"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                fontSize="12px"
+                fontWeight="700"
+                bg={selectedYear !== 'All' && selectedYear !== 'All Years' ? '#EEF2FF' : useColorModeValue('gray.50', 'gray.900')}
+                borderColor={selectedYear !== 'All' && selectedYear !== 'All Years' ? '#6366F1' : borderColor}
+                color={selectedYear !== 'All' && selectedYear !== 'All Years' ? '#4F46E5' : textColor}
+              >
+                {YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </Select>
+
+              {/* Specific Course Filter Dropdown */}
+              <Select
+                size="sm"
+                borderRadius="xl"
+                w={{ base: '100%', sm: '210px', md: '240px' }}
+                value={selectedCourse}
+                onChange={(e) => {
+                  const course = e.target.value;
+                  setSelectedCourse(course);
+                  if (course !== 'All Courses' && course !== 'All') setDashboardPeriod('all');
+                }}
+                fontSize="12px"
+                fontWeight="700"
+                bg={selectedCourse !== 'All Courses' && selectedCourse !== 'All' ? '#F0FDF4' : useColorModeValue('gray.50', 'gray.900')}
+                borderColor={selectedCourse !== 'All Courses' && selectedCourse !== 'All' ? '#10B981' : borderColor}
+                color={selectedCourse !== 'All Courses' && selectedCourse !== 'All' ? '#065F46' : textColor}
+              >
+                {courseOptions.map((c, idx) => (
+                  <option key={idx} value={c}>{c}</option>
+                ))}
+              </Select>
+
+              <InputGroup size="sm" w={{ base: '100%', sm: '150px', md: '170px' }}>
                 <InputLeftElement pointerEvents="none">
                   <Icon as={FiSearch} color="gray.400" />
                 </InputLeftElement>
                 <Input
-                  placeholder="Search student, course, ID..."
+                  placeholder="Search candidate..."
                   borderRadius="xl"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -796,6 +1163,20 @@ const TessbinAdminDashboard = () => {
                   fontSize="12px"
                 />
               </InputGroup>
+
+              <Button
+                leftIcon={<FiRadio />}
+                variant="outline"
+                colorScheme="blue"
+                size="sm"
+                borderRadius="xl"
+                fontSize="11px"
+                fontWeight="700"
+                isLoading={syncing3rdParty}
+                onClick={handleSync3rdPartyApi}
+              >
+                Live Sync
+              </Button>
 
               <IconButton
                 icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
@@ -845,47 +1226,121 @@ const TessbinAdminDashboard = () => {
           {/* ========================================================================= */}
           {activeTab === 'overview' && (
             <Box>
+              {/* Comprehensive Filter Summary Banner & Active Chips */}
+              <Box p={4} mb={6} borderRadius="2xl" bg={cardBg} borderWidth="1px" borderColor={borderColor} boxShadow="0 2px 8px rgba(0,0,0,0.02)">
+                <Flex justify="space-between" align="center" wrap="wrap" gap={3}>
+                  <HStack spacing={2} wrap="wrap">
+                    <Text fontSize="12px" fontWeight="800" color={textColor}>
+                      Active Filters:
+                    </Text>
+                    <Badge bg="#EEF2FF" color="#4F46E5" fontSize="10px" px={2.5} py={1} borderRadius="md" fontWeight="800">
+                      Timeframe: {dashboardPeriod.toUpperCase()}
+                    </Badge>
+                    <Badge
+                      bg={selectedMonth !== 'All' ? '#E0E7FF' : '#F1F5F9'}
+                      color={selectedMonth !== 'All' ? '#3730A3' : '#475569'}
+                      fontSize="10px"
+                      px={2.5}
+                      py={1}
+                      borderRadius="md"
+                      fontWeight="800"
+                    >
+                      Month: {selectedMonth}
+                    </Badge>
+                    <Badge
+                      bg={selectedYear !== 'All' && selectedYear !== 'All Years' ? '#E0E7FF' : '#F1F5F9'}
+                      color={selectedYear !== 'All' && selectedYear !== 'All Years' ? '#3730A3' : '#475569'}
+                      fontSize="10px"
+                      px={2.5}
+                      py={1}
+                      borderRadius="md"
+                      fontWeight="800"
+                    >
+                      Year: {selectedYear}
+                    </Badge>
+                    <Badge
+                      bg={selectedCourse !== 'All Courses' && selectedCourse !== 'All' ? '#DCFCE7' : '#F1F5F9'}
+                      color={selectedCourse !== 'All Courses' && selectedCourse !== 'All' ? '#14532D' : '#475569'}
+                      fontSize="10px"
+                      px={2.5}
+                      py={1}
+                      borderRadius="md"
+                      fontWeight="800"
+                    >
+                      Course: {selectedCourse}
+                    </Badge>
+                  </HStack>
+
+                  {(dashboardPeriod !== 'all' || selectedMonth !== 'All' || (selectedYear !== 'All' && selectedYear !== 'All Years') || (selectedCourse !== 'All Courses' && selectedCourse !== 'All')) && (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      colorScheme="red"
+                      onClick={() => {
+                        setDashboardPeriod('all');
+                        setSelectedMonth('All');
+                        setSelectedYear('All');
+                        setSelectedCourse('All Courses');
+                      }}
+                      fontSize="11px"
+                      fontWeight="800"
+                    >
+                      Clear All Filters
+                    </Button>
+                  )}
+                </Flex>
+              </Box>
+
               <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={5} mb={8}>
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5}>
+                {/* 1. COC Exam Student Takes */}
+                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5} position="relative" overflow="hidden">
+                  <Box position="absolute" top={0} left={0} right={0} h="3px" bg="#6366F1" />
                   <Flex justify="space-between" align="start">
                     <Box>
                       <Badge bg="#EEF2FF" color="#6366F1" fontSize="9px" px={2.5} py={0.5} borderRadius="md" fontWeight="800" mb={2}>
-                        REQUIRED KPI #1
+                        NATIONAL COC
                       </Badge>
                       <Text fontSize="13px" fontWeight="800" color={textColor}>COC Exam Student Takes</Text>
-                      <Text fontSize="32px" fontWeight="900" color="#6366F1" mt={1}>{stats.cocExamStudentsCount || 6}</Text>
+                      <Text fontSize="32px" fontWeight="900" color="#6366F1" mt={1}>{stats.cocExamStudentsCount || 0}</Text>
+                      <Text fontSize="11px" color={mutedText} mt={0.5}>Certified TVET Candidates ({dashboardPeriod})</Text>
                     </Box>
                     <Flex w="46px" h="46px" bg="#F3E8FF" borderRadius="full" align="center" justify="center">
                       <Icon as={FiAward} boxSize="22px" color="#9333EA" />
                     </Flex>
                   </Flex>
-                  <Progress value={80} size="xs" colorScheme="purple" mt={4} borderRadius="full" />
+                  <Progress value={Math.min(100, ((stats.cocExamStudentsCount || 0) / 10) * 100)} size="xs" colorScheme="purple" mt={4} borderRadius="full" />
                 </Card>
 
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5}>
+                {/* 2. Online Final Exams */}
+                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5} position="relative" overflow="hidden">
+                  <Box position="absolute" top={0} left={0} right={0} h="3px" bg="#2563EB" />
                   <Flex justify="space-between" align="start">
                     <Box>
                       <Badge bg="#EFF6FF" color="#2563EB" fontSize="9px" px={2.5} py={0.5} borderRadius="md" fontWeight="800" mb={2}>
-                        REQUIRED KPI #2
+                        ONLINE PORTAL
                       </Badge>
                       <Text fontSize="13px" fontWeight="800" color={textColor}>Online Final Exams</Text>
-                      <Text fontSize="32px" fontWeight="900" color="#2563EB" mt={1}>{stats.onlineFinalExamStudentsCount || 6}</Text>
+                      <Text fontSize="32px" fontWeight="900" color="#2563EB" mt={1}>{stats.onlineFinalExamStudentsCount || 0}</Text>
+                      <Text fontSize="11px" color={mutedText} mt={0.5}>Digital Exam Submissions ({dashboardPeriod})</Text>
                     </Box>
                     <Flex w="46px" h="46px" bg="#E0F2FE" borderRadius="full" align="center" justify="center">
                       <Icon as={FiMonitor} boxSize="22px" color="#0284C7" />
                     </Flex>
                   </Flex>
-                  <Progress value={85} size="xs" colorScheme="blue" mt={4} borderRadius="full" />
+                  <Progress value={Math.min(100, ((stats.onlineFinalExamStudentsCount || 0) / 100) * 100)} size="xs" colorScheme="blue" mt={4} borderRadius="full" />
                 </Card>
 
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5}>
+                {/* 3. Number of Registered Students */}
+                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5} position="relative" overflow="hidden">
+                  <Box position="absolute" top={0} left={0} right={0} h="3px" bg="#10B981" />
                   <Flex justify="space-between" align="start">
                     <Box>
                       <Badge bg="#ECFDF5" color="#059669" fontSize="9px" px={2.5} py={0.5} borderRadius="md" fontWeight="800" mb={2}>
-                        REQUIRED KPI #3
+                        TOTAL ENROLLED
                       </Badge>
-                      <Text fontSize="13px" fontWeight="800" color={textColor}>Number of Registered Students</Text>
-                      <Text fontSize="32px" fontWeight="900" color="#059669" mt={1}>{stats.totalStudentsCount || 12}</Text>
+                      <Text fontSize="13px" fontWeight="800" color={textColor}>Registered Students</Text>
+                      <Text fontSize="32px" fontWeight="900" color="#059669" mt={1}>{stats.totalStudentsCount || 0}</Text>
+                      <Text fontSize="11px" color={mutedText} mt={0.5}>Active Academic Enrollments</Text>
                     </Box>
                     <Flex w="46px" h="46px" bg="#E6F4EA" borderRadius="full" align="center" justify="center">
                       <Icon as={FiUsers} boxSize="22px" color="#10B981" />
@@ -894,20 +1349,23 @@ const TessbinAdminDashboard = () => {
                   <Progress value={94} size="xs" colorScheme="teal" mt={4} borderRadius="full" />
                 </Card>
 
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5}>
+                {/* 4. Overall Pass Rate */}
+                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5} position="relative" overflow="hidden">
+                  <Box position="absolute" top={0} left={0} right={0} h="3px" bg="#16A34A" />
                   <Flex justify="space-between" align="start">
                     <Box>
                       <Badge bg="#ECFDF5" color="#047857" fontSize="9px" px={2.5} py={0.5} borderRadius="md" fontWeight="800" mb={2}>
-                        PERFORMANCE
+                        ACADEMIC QUALITY
                       </Badge>
-                      <Text fontSize="13px" fontWeight="800" color={textColor}>Pass Rate</Text>
-                      <Text fontSize="32px" fontWeight="900" color="#10B981" mt={1}>{stats.passRate || 90}%</Text>
+                      <Text fontSize="13px" fontWeight="800" color={textColor}>Overall Pass Rate</Text>
+                      <Text fontSize="32px" fontWeight="900" color="#10B981" mt={1}>{stats.passRate || 0}%</Text>
+                      <Text fontSize="11px" color={mutedText} mt={0.5}>{stats.passedCount || 0} Passed / {stats.failedCount || 0} Failed</Text>
                     </Box>
                     <Flex w="46px" h="46px" bg="#DCFCE7" borderRadius="full" align="center" justify="center">
                       <Icon as={FiCheckCircle} boxSize="22px" color="#16A34A" />
                     </Flex>
                   </Flex>
-                  <Progress value={90} size="xs" colorScheme="green" mt={4} borderRadius="full" />
+                  <Progress value={stats.passRate || 0} size="xs" colorScheme="green" mt={4} borderRadius="full" />
                 </Card>
               </SimpleGrid>
 
@@ -922,12 +1380,12 @@ const TessbinAdminDashboard = () => {
                       <Box>
                         <Heading size="md" fontWeight="800" fontSize="16px">Target vs. Actual Performance Comparison</Heading>
                         <Text fontSize="11px" color={mutedText}>
-                          Comparing monthly target goals against live student numbers
+                          Evaluating {dashboardPeriod} goals against verified live metrics
                         </Text>
                       </Box>
                     </HStack>
                     <Badge colorScheme="purple" fontSize="10px" px={2.5} py={0.5} borderRadius="md">
-                      LIVE DATA
+                      {dashboardPeriod.toUpperCase()} TIMEFRAME
                     </Badge>
                   </HStack>
 
@@ -951,8 +1409,8 @@ const TessbinAdminDashboard = () => {
                   <HStack spacing={3} mb={5}>
                     <Icon as={FiPieChart} color="#2563EB" boxSize="22px" />
                     <Box>
-                      <Heading size="md" fontWeight="800" fontSize="16px">Student Exam Distribution</Heading>
-                      <Text fontSize="11px" color={mutedText}>Breakdown across evaluation types</Text>
+                      <Heading size="md" fontWeight="800" fontSize="16px">Examination Distribution</Heading>
+                      <Text fontSize="11px" color={mutedText}>Proportion across National COC and Online Finals</Text>
                     </Box>
                   </HStack>
 
@@ -991,15 +1449,15 @@ const TessbinAdminDashboard = () => {
                 </Card>
               </SimpleGrid>
 
-              {/* GRAPHICAL CHART 3: WEEKLY GROWTH TREND AREA CHART */}
+              {/* GRAPHICAL CHART 3: PROGRESSION TREND AREA CHART */}
               <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6} mb={8}>
                 <HStack justify="space-between" mb={5}>
                   <HStack spacing={3}>
                     <Icon as={FiTrendingUp} color="#10B981" boxSize="22px" />
                     <Box>
-                      <Heading size="md" fontWeight="800" fontSize="16px">Weekly Student Progression Trend</Heading>
+                      <Heading size="md" fontWeight="800" fontSize="16px">{dashboardPeriod.toUpperCase()} Academic Progression Trend</Heading>
                       <Text fontSize="11px" color={mutedText}>
-                        Tracking COC exam takes, online finals, and registered student growth over time
+                        Tracking examination completions and student volume accumulation
                       </Text>
                     </Box>
                   </HStack>
@@ -1028,38 +1486,38 @@ const TessbinAdminDashboard = () => {
                       <YAxis tick={{ fontSize: 11 }} />
                       <RechartsTooltip />
                       <Legend wrapperStyle={{ fontSize: '11px' }} />
-                      <Area type="monotone" dataKey="COC" stroke="#6366F1" fillOpacity={1} fill="url(#colorCoc)" name="COC Exam Student Takes" />
-                      <Area type="monotone" dataKey="Online" stroke="#2563EB" fillOpacity={1} fill="url(#colorOnline)" name="Online Final Exam Takes" />
+                      <Area type="monotone" dataKey="COC" stroke="#6366F1" fillOpacity={1} fill="url(#colorCoc)" name="National COC Exams" />
+                      <Area type="monotone" dataKey="Online" stroke="#2563EB" fillOpacity={1} fill="url(#colorOnline)" name="Online Final Exams" />
                       <Area type="monotone" dataKey="TotalStudents" stroke="#10B981" fillOpacity={1} fill="url(#colorStudents)" name="Registered Students" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </Box>
               </Card>
 
-              {/* Course Breakdown Table */}
+              {/* Combined Course Breakdown & Exam Status */}
               <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6} mb={8}>
                 <Card gridColumn={{ lg: 'span 2' }} bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
                   <Flex justify="space-between" align="center" mb={5}>
                     <HStack spacing={3}>
                       <Icon as={FiLayers} color="#6366F1" boxSize="20px" />
-                      <Heading size="md" fontWeight="800" fontSize="16px">Course Examination Breakdown</Heading>
+                      <Heading size="md" fontWeight="800" fontSize="16px">Course Examination Performance</Heading>
                     </HStack>
                     <Badge bg="#EEF2FF" color="#6366F1" fontSize="10px" px={3} py={1} borderRadius="md" fontWeight="800">
-                      12 ACTIVE PROGRAMS
+                      ALL DISCIPLINES
                     </Badge>
                   </Flex>
                   <VStack align="stretch" spacing={4}>
-                    {(stats.courseBreakdown || []).slice(0, 4).map((c, i) => (
+                    {(stats.courseBreakdown || []).slice(0, 5).map((c, i) => (
                       <Box key={i}>
                         <Flex justify="space-between" align="center" mb={1.5}>
-                          <Text fontSize="13px" fontWeight="700">{c._id || 'General Program'}</Text>
+                          <Text fontSize="13px" fontWeight="700">{c._id || c.courseName || 'Program'}</Text>
                           <HStack spacing={2} fontSize="10px">
                             <Tag bg="#EEF2FF" color="#6366F1" size="sm">COC: {c.cocCount || 0}</Tag>
-                            <Tag bg="#EFF6FF" color="#2563EB" size="sm">ONLINE: {c.onlineCount || 0}</Tag>
-                            <Tag bg="#F0FDF4" color="#059669" size="sm">TOTAL: {c.totalStudents || 1}</Tag>
+                            <Tag bg="#EFF6FF" color="#2563EB" size="sm">Online: {c.onlineCount || 0}</Tag>
+                            <Tag bg="#F0FDF4" color="#059669" size="sm">Total: {c.totalStudents || 0}</Tag>
                           </HStack>
                         </Flex>
-                        <Progress value={70} size="xs" colorScheme="purple" borderRadius="full" />
+                        <Progress value={Math.min(100, ((c.totalStudents || 1) / Math.max(stats.totalStudentsCount || 1, 10)) * 100)} size="xs" colorScheme="purple" borderRadius="full" />
                       </Box>
                     ))}
                   </VStack>
@@ -1068,29 +1526,29 @@ const TessbinAdminDashboard = () => {
                 <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
                   <HStack spacing={3} mb={5}>
                     <Icon as={FiBarChart2} color="#6366F1" boxSize="20px" />
-                    <Heading size="md" fontWeight="800" fontSize="16px">Exam Status Summary</Heading>
+                    <Heading size="md" fontWeight="800" fontSize="16px">Examination Status Overview</Heading>
                   </HStack>
                   <VStack align="stretch" spacing={3}>
                     <Flex justify="space-between" align="center" p={3} borderRadius="xl" bg="#F0FDF4">
                       <HStack spacing={2.5}>
                         <Icon as={FiCheckCircle} color="#16A34A" />
-                        <Text fontSize="13px" fontWeight="700" color="#15803D">Passed</Text>
+                        <Text fontSize="13px" fontWeight="700" color="#15803D">Passed Exams</Text>
                       </HStack>
-                      <Text fontSize="16px" fontWeight="900" color="#16A34A">{stats.passedCount || 9}</Text>
+                      <Text fontSize="16px" fontWeight="900" color="#16A34A">{stats.passedCount || 0}</Text>
                     </Flex>
                     <Flex justify="space-between" align="center" p={3} borderRadius="xl" bg="#FEF2F2">
                       <HStack spacing={2.5}>
                         <Icon as={FiXCircle} color="#DC2626" />
-                        <Text fontSize="13px" fontWeight="700" color="#B91C1C">Failed</Text>
+                        <Text fontSize="13px" fontWeight="700" color="#B91C1C">Failed Exams</Text>
                       </HStack>
-                      <Text fontSize="16px" fontWeight="900" color="#DC2626">{stats.failedCount || 1}</Text>
+                      <Text fontSize="16px" fontWeight="900" color="#DC2626">{stats.failedCount || 0}</Text>
                     </Flex>
                     <Flex justify="space-between" align="center" p={3} borderRadius="xl" bg="#FEFCE8">
                       <HStack spacing={2.5}>
                         <Icon as={FiClock} color="#CA8A04" />
-                        <Text fontSize="13px" fontWeight="700" color="#A16207">Pending</Text>
+                        <Text fontSize="13px" fontWeight="700" color="#A16207">Scheduled / Pending</Text>
                       </HStack>
-                      <Text fontSize="16px" fontWeight="900" color="#CA8A04">{stats.scheduledCount || 2}</Text>
+                      <Text fontSize="16px" fontWeight="900" color="#CA8A04">{stats.scheduledCount || 0}</Text>
                     </Flex>
                   </VStack>
                 </Card>
@@ -1103,13 +1561,45 @@ const TessbinAdminDashboard = () => {
           {/* ========================================================================= */}
           {activeTab === 'coc_exams' && (
             <Box>
-              <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={5} mb={6}>
+              {/* Notice Banner */}
+              <Box p={4} mb={6} borderRadius="2xl" bgGradient="linear(to-r, #4F46E5, #6366F1)" color="white" boxShadow="0 4px 15px rgba(99, 102, 241, 0.3)">
+                <Flex justify="space-between" align="center" wrap="wrap" gap={3}>
+                  <HStack spacing={3}>
+                    <Flex w="40px" h="40px" bg="rgba(255,255,255,0.2)" borderRadius="xl" align="center" justify="center">
+                      <Icon as={FiAward} boxSize="22px" />
+                    </Flex>
+                    <Box>
+                      <Heading size="sm" fontWeight="900">National COC Examination Center</Heading>
+                      <Text fontSize="12px" opacity={0.9}>
+                        Official TVET Certificate of Competency assessment records. Filter: <b>{dashboardPeriod.toUpperCase()}</b>
+                      </Text>
+                    </Box>
+                  </HStack>
+                  <Button
+                    leftIcon={<FiPlus />}
+                    bg="white"
+                    color="#4F46E5"
+                    _hover={{ bg: 'gray.100' }}
+                    size="sm"
+                    borderRadius="xl"
+                    fontWeight="800"
+                    onClick={() => {
+                      resetForm('COC Exam');
+                      onAddOpen();
+                    }}
+                  >
+                    Add COC Record
+                  </Button>
+                </Flex>
+              </Box>
+
+              <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={5} mb={6}>
                 <Card bg="#EEF2FF" borderColor="#6366F1" borderWidth="1.5px" borderRadius="2xl" p={5}>
                   <HStack justify="space-between">
                     <Box>
                       <Text fontSize="12px" fontWeight="800" color="#4338CA">Total COC Exam Takers</Text>
-                      <Text fontSize="30px" fontWeight="900" color="#312E81" mt={1}>{stats.cocExamStudentsCount || 6}</Text>
-                      <Text fontSize="11px" color="#6366F1" fontWeight="700" mt={1}>National Certification Level</Text>
+                      <Text fontSize="30px" fontWeight="900" color="#312E81" mt={1}>{stats.cocExamStudentsCount || 0}</Text>
+                      <Text fontSize="11px" color="#6366F1" fontWeight="700" mt={1}>National TVET Registry ({dashboardPeriod})</Text>
                     </Box>
                     <Flex w="48px" h="48px" bg="#6366F1" color="white" borderRadius="full" align="center" justify="center">
                       <Icon as={FiAward} boxSize="24px" />
@@ -1121,8 +1611,8 @@ const TessbinAdminDashboard = () => {
                   <HStack justify="space-between">
                     <Box>
                       <Text fontSize="12px" fontWeight="800" color="#15803D">Passed COC Exams</Text>
-                      <Text fontSize="30px" fontWeight="900" color="#14532D" mt={1}>5</Text>
-                      <Text fontSize="11px" color="#10B981" fontWeight="700" mt={1}>83.3% Qualification Rate</Text>
+                      <Text fontSize="30px" fontWeight="900" color="#14532D" mt={1}>{stats.cocPassedCount || 0}</Text>
+                      <Text fontSize="11px" color="#10B981" fontWeight="700" mt={1}>{stats.cocPassRate || 0}% Qualification Rate</Text>
                     </Box>
                     <Flex w="48px" h="48px" bg="#10B981" color="white" borderRadius="full" align="center" justify="center">
                       <Icon as={FiCheckCircle} boxSize="24px" />
@@ -1130,12 +1620,25 @@ const TessbinAdminDashboard = () => {
                   </HStack>
                 </Card>
 
+                <Card bg="#FEF2F2" borderColor="#EF4444" borderWidth="1.5px" borderRadius="2xl" p={5}>
+                  <HStack justify="space-between">
+                    <Box>
+                      <Text fontSize="12px" fontWeight="800" color="#991B1B">Failed COC Exams</Text>
+                      <Text fontSize="30px" fontWeight="900" color="#7F1D1D" mt={1}>{stats.cocFailedCount || 0}</Text>
+                      <Text fontSize="11px" color="#EF4444" fontWeight="700" mt={1}>Retake Scheduled</Text>
+                    </Box>
+                    <Flex w="48px" h="48px" bg="#EF4444" color="white" borderRadius="full" align="center" justify="center">
+                      <Icon as={FiXCircle} boxSize="24px" />
+                    </Flex>
+                  </HStack>
+                </Card>
+
                 <Card bg="#FEFCE8" borderColor="#CA8A04" borderWidth="1.5px" borderRadius="2xl" p={5}>
                   <HStack justify="space-between">
                     <Box>
-                      <Text fontSize="12px" fontWeight="800" color="#854D0E">Pending COC Center Schedule</Text>
-                      <Text fontSize="30px" fontWeight="900" color="#713F12" mt={1}>1</Text>
-                      <Text fontSize="11px" color="#CA8A04" fontWeight="700" mt={1}>On-Site Evaluation Center</Text>
+                      <Text fontSize="12px" fontWeight="800" color="#854D0E">Pending Evaluation Center</Text>
+                      <Text fontSize="30px" fontWeight="900" color="#713F12" mt={1}>{stats.cocPendingCount || 0}</Text>
+                      <Text fontSize="11px" color="#CA8A04" fontWeight="700" mt={1}>Scheduled On-Site Candidates</Text>
                     </Box>
                     <Flex w="48px" h="48px" bg="#CA8A04" color="white" borderRadius="full" align="center" justify="center">
                       <Icon as={FiClock} boxSize="24px" />
@@ -1151,13 +1654,57 @@ const TessbinAdminDashboard = () => {
           {/* ========================================================================= */}
           {activeTab === 'online_exams' && (
             <Box>
-              <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={5} mb={6}>
+              {/* Online Live Examination Banner */}
+              <Box p={5} mb={6} borderRadius="2xl" bgGradient="linear(to-r, #1E40AF, #2563EB, #3B82F6)" color="white" boxShadow="0 8px 25px rgba(37, 99, 235, 0.3)">
+                <Flex justify="space-between" align="center" wrap="wrap" gap={4}>
+                  <HStack spacing={4}>
+                    <Flex w="48px" h="48px" bg="rgba(255,255,255,0.2)" borderRadius="xl" align="center" justify="center">
+                      <Icon as={FiGlobe} boxSize="24px" />
+                    </Flex>
+                    <Box>
+                      <HStack spacing={2} mb={1}>
+                        <Badge bg="#10B981" color="white" fontSize="10px" px={2.5} py={0.5} borderRadius="full" fontWeight="900">
+                          ● LIVE EXAMINATION PORTAL
+                        </Badge>
+                        <Badge bg="rgba(255,255,255,0.25)" color="white" fontSize="10px" px={2} py={0.5} borderRadius="md">
+                          Filter: {dashboardPeriod.toUpperCase()}
+                        </Badge>
+                      </HStack>
+                      <Heading size="md" fontWeight="900">Online Final Examination Center</Heading>
+                      <Text fontSize="12px" opacity={0.9} mt={0.5}>
+                        Live examination tracking, candidate attempt logs, and score evaluations
+                      </Text>
+                    </Box>
+                  </HStack>
+
+                  <HStack spacing={3}>
+                    <Button
+                      leftIcon={<FiRefreshCw />}
+                      bg="white"
+                      color="#1E40AF"
+                      _hover={{ bg: 'gray.100' }}
+                      size="sm"
+                      borderRadius="xl"
+                      fontWeight="800"
+                      isLoading={syncing3rdParty}
+                      onClick={handleSync3rdPartyApi}
+                    >
+                      Live Sync
+                    </Button>
+                  </HStack>
+                </Flex>
+              </Box>
+
+              {/* Online Metrics Cards */}
+              <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={5} mb={6}>
                 <Card bg="#EFF6FF" borderColor="#2563EB" borderWidth="1.5px" borderRadius="2xl" p={5}>
                   <HStack justify="space-between">
                     <Box>
-                      <Text fontSize="12px" fontWeight="800" color="#1E40AF">Online Exam Student Takes</Text>
-                      <Text fontSize="30px" fontWeight="900" color="#1E3A8A" mt={1}>{stats.onlineFinalExamStudentsCount || 6}</Text>
-                      <Text fontSize="11px" color="#2563EB" fontWeight="700" mt={1}>Digital E-Learning Portal</Text>
+                      <Text fontSize="12px" fontWeight="800" color="#1E40AF">Total Exam Attempts</Text>
+                      <Text fontSize="32px" fontWeight="900" color="#1E3A8A" mt={1}>
+                        {stats.online3rdPartyStats?.totalAttempts || stats.onlineFinalExamStudentsCount || 0}
+                      </Text>
+                      <Text fontSize="11px" color="#2563EB" fontWeight="700" mt={1}>Digital Exam Portal ({dashboardPeriod})</Text>
                     </Box>
                     <Flex w="48px" h="48px" bg="#2563EB" color="white" borderRadius="full" align="center" justify="center">
                       <Icon as={FiMonitor} boxSize="24px" />
@@ -1168,9 +1715,13 @@ const TessbinAdminDashboard = () => {
                 <Card bg="#ECFDF5" borderColor="#059669" borderWidth="1.5px" borderRadius="2xl" p={5}>
                   <HStack justify="space-between">
                     <Box>
-                      <Text fontSize="12px" fontWeight="800" color="#065F46">Digital Pass Rate</Text>
-                      <Text fontSize="30px" fontWeight="900" color="#064E3B" mt={1}>100%</Text>
-                      <Text fontSize="11px" color="#059669" fontWeight="700" mt={1}>All 6 Students Passed</Text>
+                      <Text fontSize="12px" fontWeight="800" color="#065F46">Exams Passed</Text>
+                      <Text fontSize="32px" fontWeight="900" color="#064E3B" mt={1}>
+                        {stats.online3rdPartyStats?.passed || 0}
+                      </Text>
+                      <Text fontSize="11px" color="#059669" fontWeight="700" mt={1}>
+                        {stats.online3rdPartyStats?.passRate || 0}% Digital Pass Rate
+                      </Text>
                     </Box>
                     <Flex w="48px" h="48px" bg="#059669" color="white" borderRadius="full" align="center" justify="center">
                       <Icon as={FiCheckSquare} boxSize="24px" />
@@ -1178,19 +1729,187 @@ const TessbinAdminDashboard = () => {
                   </HStack>
                 </Card>
 
+                <Card bg="#FEF2F2" borderColor="#DC2626" borderWidth="1.5px" borderRadius="2xl" p={5}>
+                  <HStack justify="space-between">
+                    <Box>
+                      <Text fontSize="12px" fontWeight="800" color="#991B1B">Exams Failed</Text>
+                      <Text fontSize="32px" fontWeight="900" color="#7F1D1D" mt={1}>
+                        {stats.online3rdPartyStats?.failed || 0}
+                      </Text>
+                      <Text fontSize="11px" color="#DC2626" fontWeight="700" mt={1}>Retake Required</Text>
+                    </Box>
+                    <Flex w="48px" h="48px" bg="#DC2626" color="white" borderRadius="full" align="center" justify="center">
+                      <Icon as={FiXCircle} boxSize="24px" />
+                    </Flex>
+                  </HStack>
+                </Card>
+
                 <Card bg="#F5F3FF" borderColor="#8B5CF6" borderWidth="1.5px" borderRadius="2xl" p={5}>
                   <HStack justify="space-between">
                     <Box>
-                      <Text fontSize="12px" fontWeight="800" color="#5B21B6">Average Score</Text>
-                      <Text fontSize="30px" fontWeight="900" color="#4C1D95" mt={1}>88.5%</Text>
-                      <Text fontSize="11px" color="#8B5CF6" fontWeight="700" mt={1}>High Academic Standard</Text>
+                      <Text fontSize="12px" fontWeight="800" color="#5B21B6">Active Online Candidates</Text>
+                      <Text fontSize="32px" fontWeight="900" color="#4C1D95" mt={1}>
+                        {stats.online3rdPartyStats?.activeOnlineTakers || 0}
+                      </Text>
+                      <Text fontSize="11px" color="#8B5CF6" fontWeight="700" mt={1}>Active Exam Sessions</Text>
                     </Box>
                     <Flex w="48px" h="48px" bg="#8B5CF6" color="white" borderRadius="full" align="center" justify="center">
-                      <Icon as={FiTrendingUp} boxSize="24px" />
+                      <Icon as={FiActivity} boxSize="24px" />
                     </Flex>
                   </HStack>
                 </Card>
               </SimpleGrid>
+
+              {/* Online Course Breakdown & Portal Volume */}
+              <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6} mb={6}>
+                <Card gridColumn={{ lg: 'span 2' }} bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
+                  <HStack justify="space-between" mb={5}>
+                    <HStack spacing={3}>
+                      <Icon as={FiLayers} color="#2563EB" boxSize="22px" />
+                      <Box>
+                        <Heading size="md" fontWeight="800" fontSize="16px">Course Examination Performance</Heading>
+                        <Text fontSize="11px" color={mutedText}>
+                          Attempt volume and passing rates across online course disciplines ({dashboardPeriod})
+                        </Text>
+                      </Box>
+                    </HStack>
+                    <Badge colorScheme="blue" fontSize="10px" px={2.5} py={0.5} borderRadius="md">
+                      {dashboardPeriod.toUpperCase()}
+                    </Badge>
+                  </HStack>
+
+                  <Table variant="simple" size="sm">
+                    <Thead bg={useColorModeValue('gray.50', 'gray.900')}>
+                      <Tr>
+                        <Th fontSize="10px">Online Course Name</Th>
+                        <Th fontSize="10px" textStyle="center">Total Attempts</Th>
+                        <Th fontSize="10px" textStyle="center">Passed</Th>
+                        <Th fontSize="10px" textStyle="center">Failed</Th>
+                        <Th fontSize="10px" textStyle="center">Pass Rate</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {Object.keys(stats.online3rdPartyStats?.coursesBreakdown || {}).length === 0 ? (
+                        <Tr>
+                          <Td colSpan={5} textAlign="center" py={6}>
+                            <Text fontSize="12px" color={mutedText}>No online exam course data recorded for {dashboardPeriod} timeframe.</Text>
+                          </Td>
+                        </Tr>
+                      ) : (
+                        Object.entries(stats.online3rdPartyStats?.coursesBreakdown || {}).map(([cName, cData], idx) => {
+                          const total = cData.total || 0;
+                          const passed = cData.passed || 0;
+                          const failed = cData.failed || 0;
+                          const rate = total > 0 ? Math.round((passed / (passed + failed || 1)) * 100) : 0;
+                          return (
+                            <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+                              <Td fontWeight="800" fontSize="12px" color="#2563EB">{cName}</Td>
+                              <Td textStyle="center" fontWeight="900">{total}</Td>
+                              <Td textStyle="center">
+                                <Badge bg="#DCFCE7" color="#15803D" px={2} py={0.5} borderRadius="md" fontWeight="800">{passed}</Badge>
+                              </Td>
+                              <Td textStyle="center">
+                                <Badge bg="#FEF2F2" color="#DC2626" px={2} py={0.5} borderRadius="md" fontWeight="800">{failed}</Badge>
+                              </Td>
+                              <Td textStyle="center">
+                                <HStack justify="center" spacing={2}>
+                                  <Text fontSize="12px" fontWeight="800" color="#10B981">{rate}%</Text>
+                                  <Progress value={rate} size="xs" w="50px" colorScheme="green" borderRadius="full" />
+                                </HStack>
+                              </Td>
+                            </Tr>
+                          );
+                        })
+                      )}
+                    </Tbody>
+                  </Table>
+                </Card>
+
+                {/* Candidate Registrations & Applications */}
+                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
+                  <HStack spacing={3} mb={5}>
+                    <Icon as={FiServer} color="#10B981" boxSize="22px" />
+                    <Heading size="md" fontWeight="800" fontSize="16px">Enrollment Volume</Heading>
+                  </HStack>
+                  <VStack align="stretch" spacing={4}>
+                    <Box p={4} borderRadius="xl" bg="#EFF6FF" border="1px solid #BFDBFE">
+                      <Text fontSize="11px" fontWeight="700" color="#1E40AF" textTransform="uppercase">
+                        Registered Candidates
+                      </Text>
+                      <Text fontSize="26px" fontWeight="900" color="#1E3A8A" mt={1}>
+                        {stats.thirdPartyRegistrationsCount || stats.totalStudentsCount || 0}
+                      </Text>
+                      <Text fontSize="10px" color="#3B82F6">Active on Examination Platform</Text>
+                    </Box>
+
+                    <Box p={4} borderRadius="xl" bg="#F5F3FF" border="1px solid #DDD6FE">
+                      <Text fontSize="11px" fontWeight="700" color="#6D28D9" textTransform="uppercase">
+                        Submitted Applications
+                      </Text>
+                      <Text fontSize="26px" fontWeight="900" color="#4C1D95" mt={1}>
+                        {stats.thirdPartyApplicationsCount || 57}
+                      </Text>
+                      <Text fontSize="10px" color="#8B5CF6">Program Inquiries & Submissions</Text>
+                    </Box>
+                  </VStack>
+                </Card>
+              </SimpleGrid>
+
+              {/* Recent Examination Submissions Table */}
+              {Array.isArray(stats.online3rdPartyStats?.recentAttempts) && stats.online3rdPartyStats.recentAttempts.length > 0 && (
+                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6} mb={6}>
+                  <HStack justify="space-between" mb={5}>
+                    <HStack spacing={3}>
+                      <Icon as={FiActivity} color="#2563EB" boxSize="22px" />
+                      <Box>
+                        <Heading size="md" fontWeight="800" fontSize="16px">Recent Online Examination Submissions</Heading>
+                        <Text fontSize="11px" color={mutedText}>Real-time candidate submissions and verified scores</Text>
+                      </Box>
+                    </HStack>
+                    <Badge colorScheme="green" fontSize="10px" px={2.5} py={0.5} borderRadius="md">
+                      LIVE SUBMISSIONS
+                    </Badge>
+                  </HStack>
+                  <Box overflowX="auto">
+                    <Table variant="simple" size="sm">
+                      <Thead bg={useColorModeValue('gray.50', 'gray.900')}>
+                        <Tr>
+                          <Th fontSize="10px">Candidate Name</Th>
+                          <Th fontSize="10px">Course Examination</Th>
+                          <Th fontSize="10px" textStyle="center">Score</Th>
+                          <Th fontSize="10px" textStyle="center">Status</Th>
+                          <Th fontSize="10px" textStyle="right">Timestamp</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {stats.online3rdPartyStats.recentAttempts.map((attempt, idx) => (
+                          <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+                            <Td fontWeight="700" fontSize="12px">{attempt.studentName || attempt.student || `Student #${idx + 1}`}</Td>
+                            <Td fontSize="11px" color="#2563EB" fontWeight="600">{attempt.courseName || attempt.course || 'Online Final Exam'}</Td>
+                            <Td textStyle="center" fontWeight="900" fontSize="12px">{attempt.score !== undefined ? `${attempt.score}%` : 'N/A'}</Td>
+                            <Td textStyle="center">
+                              <Badge
+                                bg={attempt.status === 'Passed' || attempt.passed ? '#DCFCE7' : '#FEF2F2'}
+                                color={attempt.status === 'Passed' || attempt.passed ? '#15803D' : '#DC2626'}
+                                px={2}
+                                py={0.5}
+                                borderRadius="full"
+                                fontSize="9px"
+                                fontWeight="800"
+                              >
+                                {attempt.status || (attempt.passed ? 'Passed' : 'Failed')}
+                              </Badge>
+                            </Td>
+                            <Td textStyle="right" fontSize="11px" color={mutedText}>
+                              {attempt.date ? new Date(attempt.date).toLocaleString() : 'Recent'}
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                </Card>
+              )}
             </Box>
           )}
 
@@ -1247,20 +1966,39 @@ const TessbinAdminDashboard = () => {
           {/* ========================================================================= */}
           {activeTab === 'course_analytics' && (
             <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" mb={8} p={6}>
-              <HStack justify="space-between" mb={5}>
+              <Flex justify="space-between" align={{ base: 'start', md: 'center' }} mb={5} direction={{ base: 'column', md: 'row' }} gap={3}>
                 <HStack spacing={3}>
                   <Icon as={FiPieChart} color="#9333EA" boxSize="22px" />
                   <Box>
                     <Heading size="md" fontWeight="800">TESSBINN 12 Program Course Performance Analytics</Heading>
                     <Text fontSize="12px" color={mutedText}>
-                      Real-time breakdown of examination scores and enrollment counts for each academic discipline
+                      Real-time breakdown of examination scores and enrollment counts for each academic discipline ({dashboardPeriod.toUpperCase()})
                     </Text>
                   </Box>
                 </HStack>
-                <Badge colorScheme="purple" fontSize="11px" px={3} py={1} borderRadius="md" fontWeight="800">
-                  12 ACTIVE COURSES
-                </Badge>
-              </HStack>
+                <HStack spacing={3}>
+                  <Select
+                    size="sm"
+                    borderRadius="xl"
+                    w="140px"
+                    value={dashboardPeriod}
+                    onChange={(e) => setDashboardPeriod(e.target.value)}
+                    fontSize="12px"
+                    fontWeight="700"
+                    bg={useColorModeValue('gray.50', 'gray.900')}
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="all">All Time</option>
+                  </Select>
+                  <Badge colorScheme="purple" fontSize="11px" px={3} py={1} borderRadius="md" fontWeight="800">
+                    12 ACTIVE COURSES
+                  </Badge>
+                </HStack>
+              </Flex>
 
               <Table variant="simple" size="sm">
                 <Thead bg={useColorModeValue('gray.50', 'gray.900')}>
@@ -1274,7 +2012,7 @@ const TessbinAdminDashboard = () => {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {COURSE_OPTIONS.map((courseName, idx) => {
+                  {programCourses.map((courseName, idx) => {
                     const found = stats.courseBreakdown?.find((c) => c._id === courseName || c.courseName === courseName);
                     const coc = found?.cocCount || (idx % 3 === 0 ? 1 : 0);
                     const online = found?.onlineCount || (idx % 2 === 0 ? 1 : 0);
@@ -1282,7 +2020,7 @@ const TessbinAdminDashboard = () => {
                     const total = found?.totalStudents || (coc + online + assess) || 1;
                     const passPercent = found?.passedCount ? Math.round((found.passedCount / total) * 100) : (idx % 2 === 0 ? 92 : 85);
                     return (
-                      <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                      <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
                         <Td fontWeight="700" fontSize="12px">{courseName}</Td>
                         <Td textStyle="center">
                           <Tag bg="#EEF2FF" color="#6366F1" size="sm" borderRadius="md" fontWeight="800">{coc}</Tag>
@@ -1332,12 +2070,14 @@ const TessbinAdminDashboard = () => {
 
                   <HStack spacing={3} wrap="wrap">
                     {/* Timeframe Selector Pills */}
-                    <HStack bg={useColorModeValue('gray.100', 'gray.700')} p={1} borderRadius="xl">
+                    <HStack bg={useColorModeValue('gray.100', 'gray.700')} p={1} borderRadius="xl" wrap="wrap">
                       {[
-                        { id: 'weekly', label: 'Weekly Targets' },
-                        { id: 'monthly', label: 'Monthly Targets' },
-                        { id: 'quarterly', label: 'Quarterly Targets' },
-                        { id: 'all', label: 'All Timeframes' },
+                        { id: 'daily', label: 'Daily' },
+                        { id: 'weekly', label: 'Weekly' },
+                        { id: 'monthly', label: 'Monthly' },
+                        { id: 'quarterly', label: 'Quarterly' },
+                        { id: 'yearly', label: 'Yearly' },
+                        { id: 'all', label: 'All Time' },
                       ].map((t) => (
                         <Button
                           key={t.id}
@@ -1432,8 +2172,8 @@ const TessbinAdminDashboard = () => {
                         <YAxis tick={{ fontSize: 11 }} />
                         <RechartsTooltip />
                         <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                        <Line type="monotone" dataKey="COC" stroke="#6366F1" strokeWidth={3} name="COC Exam Student Takes" />
-                        <Line type="monotone" dataKey="Online" stroke="#2563EB" strokeWidth={3} name="Online Final Exam Takes" />
+                        <Line type="monotone" dataKey="COC" stroke="#6366F1" strokeWidth={3} name="National COC Exams" />
+                        <Line type="monotone" dataKey="Online" stroke="#2563EB" strokeWidth={3} name="Online Final Exams" />
                         <Line type="monotone" dataKey="TotalStudents" stroke="#10B981" strokeWidth={3} name="Registered Students" />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1578,7 +2318,7 @@ const TessbinAdminDashboard = () => {
                           const isExceeded = actual >= target;
 
                           return (
-                            <Tr key={kpi._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                            <Tr key={kpi._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
                               <Td fontWeight="800" fontSize="12px">
                                 {kpi.title}
                               </Td>
@@ -1671,7 +2411,7 @@ const TessbinAdminDashboard = () => {
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {COURSE_OPTIONS.map((courseName, idx) => {
+                      {programCourses.map((courseName, idx) => {
                         const found = stats.courseBreakdown?.find((c) => c._id === courseName || c.courseName === courseName);
                         const totalCoc = found?.cocCount || (idx % 3 === 0 ? 3 + idx : 0);
                         if (totalCoc === 0) return null;
@@ -1681,7 +2421,7 @@ const TessbinAdminDashboard = () => {
                         const quarterly = totalCoc;
                         
                         return (
-                          <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                          <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
                             <Td fontWeight="700" fontSize="12px" color="#6366F1">{courseName}</Td>
                             <Td textStyle="center">
                               <Badge bg="#EEF2FF" color="#6366F1" px={2} py={0.5} borderRadius="md" fontWeight="800">{weekly}</Badge>
@@ -1734,7 +2474,7 @@ const TessbinAdminDashboard = () => {
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {COURSE_OPTIONS.map((courseName, idx) => {
+                      {programCourses.map((courseName, idx) => {
                         const found = stats.courseBreakdown?.find((c) => c._id === courseName || c.courseName === courseName);
                         const totalOnline = found?.onlineCount || (idx % 2 === 0 ? 5 + idx : 0);
                         if (totalOnline === 0) return null;
@@ -1744,7 +2484,7 @@ const TessbinAdminDashboard = () => {
                         const quarterly = totalOnline;
                         
                         return (
-                          <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                          <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
                             <Td fontWeight="700" fontSize="12px" color="#2563EB">{courseName}</Td>
                             <Td textStyle="center">
                               <Badge bg="#EFF6FF" color="#2563EB" px={2} py={0.5} borderRadius="md" fontWeight="800">{weekly}</Badge>
@@ -1767,9 +2507,9 @@ const TessbinAdminDashboard = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* EXAM RECORDS TABLE (Exclusively shown for tabs that manage student lists) */}
+          {/* EXAM RECORDS TABLE (Shown for tabs that manage student lists) */}
           {/* ========================================================================= */}
-          {activeTab !== 'course_analytics' && activeTab !== 'kpi_metrics' && activeTab !== 'all_students' && (
+          {activeTab !== 'course_analytics' && activeTab !== 'kpi_metrics' && (
             <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" boxShadow="0 2px 10px rgba(0,0,0,0.03)">
               <CardBody p={6}>
                 <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'start', md: 'center' }} gap={4} mb={6}>
@@ -1787,6 +2527,25 @@ const TessbinAdminDashboard = () => {
 
                   {/* Filter Toolbar & Actions */}
                   <HStack spacing={3} wrap="wrap">
+                    {/* Timeframe Filter Dropdown */}
+                    <Select
+                      size="sm"
+                      borderRadius="xl"
+                      w="140px"
+                      value={dashboardPeriod}
+                      onChange={(e) => setDashboardPeriod(e.target.value)}
+                      fontSize="12px"
+                      fontWeight="700"
+                      bg={useColorModeValue('gray.50', 'gray.900')}
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
+                      <option value="all">All Time</option>
+                    </Select>
+
                     {activeTab === 'overview' && (
                       <Select
                         size="sm"
@@ -1806,7 +2565,7 @@ const TessbinAdminDashboard = () => {
                     <Select
                       size="sm"
                       borderRadius="xl"
-                      w="150px"
+                      w="140px"
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value)}
                       fontSize="12px"
@@ -1859,15 +2618,15 @@ const TessbinAdminDashboard = () => {
                             <Text color={mutedText} fontSize="12px">Loading exam records...</Text>
                           </Td>
                         </Tr>
-                      ) : records.length === 0 ? (
+                      ) : examTableRecords.length === 0 ? (
                         <Tr>
                           <Td colSpan={9} textAlign="center" py={8}>
                             <Text color={mutedText} fontSize="12px">No exam records found matching your filters.</Text>
                           </Td>
                         </Tr>
                       ) : (
-                        records.map((record) => (
-                          <Tr key={record._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                        examTableRecords.map((record) => (
+                          <Tr key={record._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
                             <Td fontWeight="700" fontSize="11px">
                               <Tag size="sm" bg="#EEF2FF" color="#6366F1" borderRadius="md">
                                 {record.studentId}
@@ -1939,26 +2698,30 @@ const TessbinAdminDashboard = () => {
                                     onClick={() => openViewModal(record)}
                                   />
                                 </Tooltip>
-                                <Tooltip label="Edit Record">
-                                  <IconButton
-                                    icon={<FiEdit />}
-                                    size="sm"
-                                    variant="ghost"
-                                    colorScheme="blue"
-                                    aria-label="Edit"
-                                    onClick={() => openEditModal(record)}
-                                  />
-                                </Tooltip>
-                                <Tooltip label="Delete Record">
-                                  <IconButton
-                                    icon={<FiTrash2 />}
-                                    size="sm"
-                                    variant="ghost"
-                                    colorScheme="red"
-                                    aria-label="Delete"
-                                    onClick={() => handleDelete(record._id)}
-                                  />
-                                </Tooltip>
+                                {!record.isThirdParty && (
+                                  <>
+                                    <Tooltip label="Edit Record">
+                                      <IconButton
+                                        icon={<FiEdit />}
+                                        size="sm"
+                                        variant="ghost"
+                                        colorScheme="blue"
+                                        aria-label="Edit"
+                                        onClick={() => openEditModal(record)}
+                                      />
+                                    </Tooltip>
+                                    <Tooltip label="Delete Record">
+                                      <IconButton
+                                        icon={<FiTrash2 />}
+                                        size="sm"
+                                        variant="ghost"
+                                        colorScheme="red"
+                                        aria-label="Delete"
+                                        onClick={() => handleDelete(record._id)}
+                                      />
+                                    </Tooltip>
+                                  </>
+                                )}
                               </HStack>
                             </Td>
                           </Tr>
@@ -1986,6 +2749,25 @@ const TessbinAdminDashboard = () => {
                       Manage student registrations, course programs, and session times
                     </Text>
                   </Box>
+                  <HStack spacing={3} wrap="wrap">
+                    <Select
+                      size="sm"
+                      borderRadius="xl"
+                      w="140px"
+                      value={dashboardPeriod}
+                      onChange={(e) => setDashboardPeriod(e.target.value)}
+                      fontSize="12px"
+                      fontWeight="700"
+                      bg={useColorModeValue('gray.50', 'gray.900')}
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
+                      <option value="all">All Time</option>
+                    </Select>
+                  </HStack>
                 </Flex>
 
                 <Box overflowX="auto">
@@ -2149,7 +2931,7 @@ const TessbinAdminDashboard = () => {
                       value={formData.courseName}
                       onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
                     >
-                      {COURSE_OPTIONS.map((c, idx) => (
+                      {programCourses.map((c, idx) => (
                         <option key={idx} value={c}>{c}</option>
                       ))}
                     </Select>
@@ -2265,7 +3047,7 @@ const TessbinAdminDashboard = () => {
                       value={formData.courseName}
                       onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
                     >
-                      {COURSE_OPTIONS.map((c, idx) => (
+                      {programCourses.map((c, idx) => (
                         <option key={idx} value={c}>{c}</option>
                       ))}
                     </Select>
@@ -2359,18 +3141,33 @@ const TessbinAdminDashboard = () => {
               <VStack spacing={6} align="stretch">
                 
                 {/* SECTION 1: COC EXAM STUDENT TAKES */}
-                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#818CF8" bg={useColorModeValue('purple.50', 'purple.950')}>
+                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#818CF8" bg={useColorModeValue('purple.50', 'purple.900')}>
                   <HStack spacing={2} mb={3}>
                     <Icon as={FiAward} color="#6366F1" boxSize="18px" />
                     <Text fontSize="13px" fontWeight="800" color="#4338CA" _dark={{ color: 'purple.200' }}>
-                      1. COC Exam Student Takes Targets
+                      1. COC Exam Student Takes Targets (Manual Local Data)
                     </Text>
                     <Badge colorScheme="purple" fontSize="9px">National Evaluation</Badge>
                   </HStack>
 
-                  <SimpleGrid columns={3} spacing={3}>
+                  <SimpleGrid columns={{ base: 2, md: 5 }} spacing={2.5}>
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Weekly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Daily</FormLabel>
+                      <Input
+                        size="sm"
+                        borderRadius="xl"
+                        type="number"
+                        bg={cardBg}
+                        value={masterKpiFormData.coc.daily}
+                        onChange={(e) => setMasterKpiFormData({
+                          ...masterKpiFormData,
+                          coc: { ...masterKpiFormData.coc, daily: e.target.value }
+                        })}
+                      />
+                    </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel fontSize="xs" fontWeight="700">Weekly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2385,7 +3182,7 @@ const TessbinAdminDashboard = () => {
                     </FormControl>
 
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Monthly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Monthly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2400,7 +3197,7 @@ const TessbinAdminDashboard = () => {
                     </FormControl>
 
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Quarterly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Quarterly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2413,22 +3210,52 @@ const TessbinAdminDashboard = () => {
                         })}
                       />
                     </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel fontSize="xs" fontWeight="700">Yearly</FormLabel>
+                      <Input
+                        size="sm"
+                        borderRadius="xl"
+                        type="number"
+                        bg={cardBg}
+                        value={masterKpiFormData.coc.yearly}
+                        onChange={(e) => setMasterKpiFormData({
+                          ...masterKpiFormData,
+                          coc: { ...masterKpiFormData.coc, yearly: e.target.value }
+                        })}
+                      />
+                    </FormControl>
                   </SimpleGrid>
                 </Box>
 
                 {/* SECTION 2: ONLINE FINAL EXAM TAKES */}
-                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#60A5FA" bg={useColorModeValue('blue.50', 'blue.950')}>
+                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#60A5FA" bg={useColorModeValue('blue.50', 'blue.900')}>
                   <HStack spacing={2} mb={3}>
                     <Icon as={FiMonitor} color="#2563EB" boxSize="18px" />
                     <Text fontSize="13px" fontWeight="800" color="#1E40AF" _dark={{ color: 'blue.200' }}>
-                      2. Online Final Exam Takes Targets
+                      2. Online Final Exam Takes Targets (3rd-Party API Sync)
                     </Text>
                     <Badge colorScheme="blue" fontSize="9px">E-Learning Platform</Badge>
                   </HStack>
 
-                  <SimpleGrid columns={3} spacing={3}>
+                  <SimpleGrid columns={{ base: 2, md: 5 }} spacing={2.5}>
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Weekly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Daily</FormLabel>
+                      <Input
+                        size="sm"
+                        borderRadius="xl"
+                        type="number"
+                        bg={cardBg}
+                        value={masterKpiFormData.online.daily}
+                        onChange={(e) => setMasterKpiFormData({
+                          ...masterKpiFormData,
+                          online: { ...masterKpiFormData.online, daily: e.target.value }
+                        })}
+                      />
+                    </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel fontSize="xs" fontWeight="700">Weekly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2443,7 +3270,7 @@ const TessbinAdminDashboard = () => {
                     </FormControl>
 
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Monthly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Monthly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2458,7 +3285,7 @@ const TessbinAdminDashboard = () => {
                     </FormControl>
 
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Quarterly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Quarterly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2471,11 +3298,26 @@ const TessbinAdminDashboard = () => {
                         })}
                       />
                     </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel fontSize="xs" fontWeight="700">Yearly</FormLabel>
+                      <Input
+                        size="sm"
+                        borderRadius="xl"
+                        type="number"
+                        bg={cardBg}
+                        value={masterKpiFormData.online.yearly}
+                        onChange={(e) => setMasterKpiFormData({
+                          ...masterKpiFormData,
+                          online: { ...masterKpiFormData.online, yearly: e.target.value }
+                        })}
+                      />
+                    </FormControl>
                   </SimpleGrid>
                 </Box>
 
                 {/* SECTION 3: NUMBER OF REGISTERED STUDENTS */}
-                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#34D399" bg={useColorModeValue('teal.50', 'teal.950')}>
+                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#34D399" bg={useColorModeValue('teal.50', 'teal.900')}>
                   <HStack spacing={2} mb={3}>
                     <Icon as={FiUsers} color="#059669" boxSize="18px" />
                     <Text fontSize="13px" fontWeight="800" color="#065F46" _dark={{ color: 'teal.200' }}>
@@ -2484,9 +3326,24 @@ const TessbinAdminDashboard = () => {
                     <Badge colorScheme="teal" fontSize="9px">Student Enrollment</Badge>
                   </HStack>
 
-                  <SimpleGrid columns={3} spacing={3}>
+                  <SimpleGrid columns={{ base: 2, md: 5 }} spacing={2.5}>
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Weekly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Daily</FormLabel>
+                      <Input
+                        size="sm"
+                        borderRadius="xl"
+                        type="number"
+                        bg={cardBg}
+                        value={masterKpiFormData.students.daily}
+                        onChange={(e) => setMasterKpiFormData({
+                          ...masterKpiFormData,
+                          students: { ...masterKpiFormData.students, daily: e.target.value }
+                        })}
+                      />
+                    </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel fontSize="xs" fontWeight="700">Weekly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2501,7 +3358,7 @@ const TessbinAdminDashboard = () => {
                     </FormControl>
 
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Monthly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Monthly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2516,7 +3373,7 @@ const TessbinAdminDashboard = () => {
                     </FormControl>
 
                     <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Quarterly Target</FormLabel>
+                      <FormLabel fontSize="xs" fontWeight="700">Quarterly</FormLabel>
                       <Input
                         size="sm"
                         borderRadius="xl"
@@ -2526,6 +3383,21 @@ const TessbinAdminDashboard = () => {
                         onChange={(e) => setMasterKpiFormData({
                           ...masterKpiFormData,
                           students: { ...masterKpiFormData.students, quarterly: e.target.value }
+                        })}
+                      />
+                    </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel fontSize="xs" fontWeight="700">Yearly</FormLabel>
+                      <Input
+                        size="sm"
+                        borderRadius="xl"
+                        type="number"
+                        bg={cardBg}
+                        value={masterKpiFormData.students.yearly}
+                        onChange={(e) => setMasterKpiFormData({
+                          ...masterKpiFormData,
+                          students: { ...masterKpiFormData.students, yearly: e.target.value }
                         })}
                       />
                     </FormControl>
@@ -2695,6 +3567,133 @@ const TessbinAdminDashboard = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Premium Custom Confirmation Modal (Replaces native browser prompt) */}
+      <Modal isOpen={deleteDialogState.isOpen} onClose={closeDeleteDialog} isCentered size="md">
+        <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(6px)" />
+        <ModalContent
+          bg={cardBg}
+          borderColor={borderColor}
+          borderWidth="1px"
+          borderRadius="2xl"
+          boxShadow="0 25px 50px -12px rgba(0, 0, 0, 0.35)"
+          p={2}
+        >
+          <ModalBody pt={6} pb={4} px={6}>
+            <VStack spacing={4} align="center" textAlign="center">
+              <Flex
+                w="60px"
+                h="60px"
+                borderRadius="full"
+                bg="red.50"
+                _dark={{ bg: 'rgba(239, 68, 68, 0.2)' }}
+                color="red.500"
+                align="center"
+                justify="center"
+                boxShadow="0 0 0 8px rgba(239, 68, 68, 0.12)"
+              >
+                <Icon as={FiAlertTriangle} boxSize="28px" />
+              </Flex>
+
+              <Box>
+                <Heading size="md" fontWeight="800" color={textColor} mb={2}>
+                  {deleteDialogState.title}
+                </Heading>
+                <Text fontSize="13px" color={mutedText} lineHeight="tall">
+                  {deleteDialogState.message}
+                </Text>
+              </Box>
+            </VStack>
+          </ModalBody>
+
+          <ModalFooter px={6} pb={5} pt={2} borderTop="1px" borderColor={borderColor} gap={3}>
+            <Button
+              variant="outline"
+              onClick={closeDeleteDialog}
+              borderRadius="xl"
+              flex={1}
+              size="md"
+              fontSize="13px"
+              fontWeight="700"
+              isDisabled={deleteDialogState.loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              colorScheme="red"
+              bg="#EF4444"
+              _hover={{ bg: '#DC2626' }}
+              onClick={handleExecuteDelete}
+              isLoading={deleteDialogState.loading}
+              loadingText="Deleting..."
+              borderRadius="xl"
+              flex={1}
+              size="md"
+              fontSize="13px"
+              fontWeight="800"
+              leftIcon={<FiTrash2 />}
+            >
+              Confirm Delete
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MOBILE BOTTOM NAVIGATION DOCK (App-Style 1-Thumb Navigation) */}
+      {/* ========================================================================= */}
+      <Box
+        position="fixed"
+        bottom={0}
+        left={0}
+        right={0}
+        zIndex={99}
+        display={{ base: 'block', lg: 'none' }}
+        bg={cardBg}
+        borderTop="1px"
+        borderColor={borderColor}
+        boxShadow="0 -4px 20px rgba(0,0,0,0.1)"
+        backdropFilter="blur(14px)"
+        px={2}
+        py={1.5}
+      >
+        <Flex justify="space-around" align="center">
+          {[
+            { id: 'overview', label: 'Overview', icon: FiGrid },
+            { id: 'coc_exams', label: 'COC', icon: FiAward },
+            { id: 'online_exams', label: 'Online', icon: FiMonitor },
+            { id: 'all_students', label: 'Students', icon: FiUsers },
+            { id: 'course_analytics', label: 'Courses', icon: FiPieChart },
+            { id: 'kpi_metrics', label: 'KPIs', icon: FiBarChart2 },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <VStack
+                key={tab.id}
+                as="button"
+                spacing={0.5}
+                py={1.5}
+                px={2}
+                borderRadius="xl"
+                bg={isActive ? (colorMode === 'dark' ? 'rgba(99,102,241,0.25)' : '#EEF2FF') : 'transparent'}
+                color={isActive ? '#6366F1' : mutedText}
+                transition="all 0.2s"
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                flex={1}
+                maxW="60px"
+              >
+                <Icon as={tab.icon} boxSize={isActive ? '19px' : '17px'} />
+                <Text fontSize="9px" fontWeight={isActive ? '800' : '600'} noOfLines={1}>
+                  {tab.label}
+                </Text>
+              </VStack>
+            );
+          })}
+        </Flex>
+      </Box>
     </Flex>
   );
 };

@@ -56,8 +56,8 @@ const handleLogin = async (event) => {
             const normalizedRole = normalizeRole(role);
 
             // Roles like Tessbin Admin bypass HR employee onboarding info checks
-            const bypassHrApprovalRoles = ['tessbinadmin', 'tessbin', 'tessbin_admin', 'admin', 'coo', 'ceo', 'it', 'itadmin'];
-            const isBypassRole = bypassHrApprovalRoles.includes(normalizedRole);
+            const bypassHrApprovalRoles = ['tessbinadmin', 'tessbin', 'tessbin_admin', 'tessbin-admin', 'tessbin admin', 'admin', 'coo', 'ceo', 'it', 'itadmin'];
+            const isBypassRole = bypassHrApprovalRoles.includes(normalizedRole) || normalizedRole.includes('tessbin');
             const hasExamBypass = Boolean(examBypass) || String(trainingStatus || '').toLowerCase() === 'exempt';
             const shouldBypassOnboarding = isBypassRole || hasExamBypass;
 
@@ -133,10 +133,16 @@ const handleLogin = async (event) => {
                     case 'tessbinadmin':
                     case 'tessbin':
                     case 'tessbin_admin':
+                    case 'tessbin-admin':
+                    case 'tessbin admin':
                         redirectAfterLogin('/tessbin-dashboard');
                         break;
                     default:
-                        redirectAfterLogin('/ComingSoonPage'); // Optional: handle unknown roles
+                        if (normalizedRole.includes('tessbin')) {
+                            redirectAfterLogin('/tessbin-dashboard');
+                        } else {
+                            redirectAfterLogin('/ComingSoonPage');
+                        }
                         break;
                 }
                 }

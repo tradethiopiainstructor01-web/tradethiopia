@@ -14,7 +14,7 @@ const tessbinKpiSchema = new mongoose.Schema(
     },
     timeframe: {
       type: String,
-      enum: ['weekly', 'monthly', 'quarterly'],
+      enum: ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'],
       default: 'monthly',
       index: true,
     },
