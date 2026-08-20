@@ -10,7 +10,11 @@ const protect = async (req, res, next) => {
     }
 
     if (!token) {
-        return res.status(401).json({ success: false, message: "Not authorized, no token" });
+        return res.status(401).json({
+            success: false,
+            code: 'AUTH_TOKEN_MISSING',
+            message: "Not authorized, no token",
+        });
     }
 
     // Verify token
@@ -21,12 +25,20 @@ const protect = async (req, res, next) => {
         req.user = await User.findById(decoded.id);
         
         if (!req.user) {
-            return res.status(401).json({ success: false, message: "Not authorized, user not found" });
+            return res.status(401).json({
+                success: false,
+                code: 'AUTH_USER_NOT_FOUND',
+                message: "Not authorized, user not found",
+            });
         }
         
         next();
     } catch (error) {
-        res.status(401).json({ success: false, message: "Not authorized, token failed" });
+        res.status(401).json({
+            success: false,
+            code: 'AUTH_TOKEN_INVALID',
+            message: "Not authorized, token failed",
+        });
     }
 };
 

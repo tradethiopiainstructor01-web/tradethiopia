@@ -821,11 +821,40 @@ exports.deleteKpiTarget = async (req, res) => {
 // ── 3RD PARTY TESBINN ONLINE EXAMINATION API PROXY ──
 const axios = require('axios');
 const TESBINN_3RD_PARTY_BASE_URL = 'https://tsexam-ashen.vercel.app/api/third-party';
-const TESBINN_3RD_PARTY_API_KEY = process.env.TESBINN_3RD_PARTY_API_KEY;
 
-const get3rdPartyHeaders = () => ({
-  'x-api-key': TESBINN_3RD_PARTY_API_KEY,
-});
+const get3rdPartyHeaders = () => {
+  const apiKey = process.env.TESBINN_3RD_PARTY_API_KEY?.trim();
+  if (!apiKey) {
+    const error = new Error('TESBINN_3RD_PARTY_API_KEY is not configured');
+    error.code = 'TESBINN_API_KEY_MISSING';
+    throw error;
+  }
+  return { 'x-api-key': apiKey };
+};
+
+const handle3rdPartyError = (res, error, resourceName) => {
+  const upstreamStatus = error.response?.status;
+  const missingKey = error.code === 'TESBINN_API_KEY_MISSING';
+  const rejectedKey = upstreamStatus === 401 || upstreamStatus === 403;
+
+  if (missingKey || rejectedKey) {
+    console.error(`Tessbinn integration authentication failed while fetching ${resourceName}`);
+    return res.status(502).json({
+      success: false,
+      code: missingKey ? 'TESBINN_API_KEY_MISSING' : 'TESBINN_UPSTREAM_AUTH_FAILED',
+      message: missingKey
+        ? 'Tessbinn integration is not configured on the server'
+        : 'Tessbinn integration credentials were rejected by the upstream service',
+    });
+  }
+
+  console.error(`Error fetching 3rd party ${resourceName}:`, error.message);
+  return res.status(upstreamStatus || 500).json({
+    success: false,
+    message: `Failed to fetch 3rd party ${resourceName}`,
+    error: error.message,
+  });
+};
 
 exports.getThirdPartySummary = async (req, res) => {
   try {
@@ -834,12 +863,7 @@ exports.getThirdPartySummary = async (req, res) => {
     });
     return res.status(200).json(response.data);
   } catch (error) {
-    console.error('Error fetching 3rd party summary:', error.message);
-    return res.status(error.response?.status || 500).json({
-      success: false,
-      message: 'Failed to fetch 3rd party summary',
-      error: error.message,
-    });
+    return handle3rdPartyError(res, error, 'summary');
   }
 };
 
@@ -852,12 +876,7 @@ exports.getThirdPartyExamTakers = async (req, res) => {
     });
     return res.status(200).json(response.data);
   } catch (error) {
-    console.error('Error fetching 3rd party exam takers:', error.message);
-    return res.status(error.response?.status || 500).json({
-      success: false,
-      message: 'Failed to fetch 3rd party exam takers',
-      error: error.message,
-    });
+    return handle3rdPartyError(res, error, 'exam takers');
   }
 };
 
@@ -870,12 +889,7 @@ exports.getThirdPartyRegistrations = async (req, res) => {
     });
     return res.status(200).json(response.data);
   } catch (error) {
-    console.error('Error fetching 3rd party registrations:', error.message);
-    return res.status(error.response?.status || 500).json({
-      success: false,
-      message: 'Failed to fetch 3rd party registrations',
-      error: error.message,
-    });
+    return handle3rdPartyError(res, error, 'registrations');
   }
 };
 
@@ -888,12 +902,7 @@ exports.getThirdPartyApplications = async (req, res) => {
     });
     return res.status(200).json(response.data);
   } catch (error) {
-    console.error('Error fetching 3rd party applications:', error.message);
-    return res.status(error.response?.status || 500).json({
-      success: false,
-      message: 'Failed to fetch 3rd party applications',
-      error: error.message,
-    });
+    return handle3rdPartyError(res, error, 'applications');
   }
 };
 
@@ -904,11 +913,6 @@ exports.getThirdPartyCoursesBreakdown = async (req, res) => {
     });
     return res.status(200).json(response.data);
   } catch (error) {
-    console.error('Error fetching 3rd party courses breakdown:', error.message);
-    return res.status(error.response?.status || 500).json({
-      success: false,
-      message: 'Failed to fetch 3rd party courses breakdown',
-      error: error.message,
-    });
+    return handle3rdPartyError(res, error, 'courses breakdown');
   }
 };

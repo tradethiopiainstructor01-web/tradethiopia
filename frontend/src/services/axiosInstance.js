@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { getAuthItem, removeAuthItem } from '../utils/authStorage';
+import { clearAuthSession, getAuthItem } from '../utils/authStorage';
+import { isSessionAuthenticationError } from '../utils/authErrors';
 
 const defaultApiHost = import.meta.env.VITE_API_URL;
 
@@ -55,11 +56,11 @@ axiosInstance.interceptors.response.use(
       message: error.response?.data?.message || error.message,
       data: error.response?.data,
     });
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      removeAuthItem('userToken');
-      removeAuthItem('userRole');
-      window.location.href = '/login';
+    if (isSessionAuthenticationError(error)) {
+      clearAuthSession();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
     }
     return Promise.reject(error);
   }

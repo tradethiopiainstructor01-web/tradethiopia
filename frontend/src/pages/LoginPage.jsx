@@ -6,6 +6,7 @@ import {
     Divider,
     Flex,
     FormControl,
+    FormErrorMessage,
     HStack,
     IconButton,
     Image,
@@ -29,6 +30,7 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [loginError, setLoginError] = useState('');
     const navigate = useNavigate();
     const toast = useToast();
     const setCurrentUser = useUserStore((state) => state.setCurrentUser);
@@ -40,6 +42,7 @@ const handleLogin = async (event) => {
 
     try {
         setIsLoggingIn(true);
+        setLoginError('');
         const response = await axiosInstance.post('/users/login', { email: email.trim(), password });
 
         console.log('Login response:', response.data); // Debugging line
@@ -156,9 +159,11 @@ const handleLogin = async (event) => {
                 isClosable: true,
             });
         } else {
+            const message = response.data.message || "An error occurred.";
+            setLoginError(message);
             toast({
                 title: "Login failed.",
-                description: response.data.message || "An error occurred.",
+                description: message,
                 status: "error",
                 duration: 3000,
                 isClosable: true,
@@ -166,9 +171,11 @@ const handleLogin = async (event) => {
         }
     } catch (error) {
         console.error("Login error:", error);
+        const message = error.response?.data?.message || "An error occurred during login.";
+        setLoginError(message);
         toast({
             title: "Error.",
-            description: error.response?.data?.message || "An error occurred during login.",
+            description: message,
             status: "error",
             duration: 3000,
             isClosable: true,
@@ -240,12 +247,15 @@ const handleLogin = async (event) => {
                     <Text color="rgba(255,255,255,0.78)" fontSize="12px" fontWeight="700" mt={3}>Sign in to continue to your dashboard</Text>
                 </Box>
                 <form onSubmit={handleLogin}>
-                <FormControl mb={3}>
+                <FormControl mb={3} isInvalid={Boolean(loginError)}>
                     <Input
                         id="email"
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                            setEmail(e.target.value);
+                            if (loginError) setLoginError('');
+                        }}
                         placeholder="Email or Phone"
                         focusBorderColor="#D99A00"
                         bg="rgba(0, 44, 96, 0.52)"
@@ -262,13 +272,16 @@ const handleLogin = async (event) => {
                         autoComplete="email"
                     />
                 </FormControl>
-                <FormControl mb={3}>
+                <FormControl mb={3} isInvalid={Boolean(loginError)}>
                     <InputGroup>
                         <Input
                             id="password"
                             type={showPassword ? 'text' : 'password'}
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e) => {
+                                setPassword(e.target.value);
+                                if (loginError) setLoginError('');
+                            }}
                             placeholder="Password"
                             focusBorderColor="#D99A00"
                             bg="rgba(0, 44, 96, 0.52)"
@@ -295,6 +308,9 @@ const handleLogin = async (event) => {
                             />
                         </InputRightElement>
                     </InputGroup>
+                    <FormErrorMessage color="red.200" fontSize="11px" fontWeight="700">
+                        {loginError}
+                    </FormErrorMessage>
                 </FormControl>
                 <Flex align="center" justify="space-between" mb={6}>
                     <Checkbox size="sm" colorScheme="yellow" borderColor="rgba(255,255,255,0.65)">
