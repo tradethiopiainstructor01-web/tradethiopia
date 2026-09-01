@@ -82,28 +82,31 @@ const normalizeCategory = (item) => {
   }
 
   if (
+    cat === 'requests' ||
+    cat === 'request' ||
+    type === 'request' ||
+    cat === 'leave' ||
+    type === 'leave' ||
+    text.includes('leave') ||
+    text.includes('request') ||
+    text.includes('handover') ||
+    text.includes('approval')
+  ) {
+    return 'requests';
+  }
+
+  if (
     cat === 'onboarding' ||
     type === 'onboarding' ||
     cat === 'verification' ||
+    type === 'verification' ||
     text.includes('verification') ||
     text.includes('onboarding') ||
     text.includes('personal info') ||
     text.includes('personal information') ||
-    meta.employeeId ||
-    meta.employeeName
+    meta.workflow === 'employee-personal-information'
   ) {
     return 'onboarding';
-  }
-
-  if (
-    cat === 'leave' ||
-    cat === 'request' ||
-    type === 'request' ||
-    text.includes('leave') ||
-    text.includes('request') ||
-    text.includes('approval')
-  ) {
-    return 'requests';
   }
 
   if (
@@ -235,9 +238,11 @@ const buildNotificationLink = (item, currentUser = null) => {
     } catch (_) {}
   }
 
-  if (item.metadata?.employeeId || item.metadata?.userId) {
-    const empId = item.metadata.employeeId || item.metadata.userId;
-    return `/users?userId=${empId}&tab=2`;
+  if (item.category === 'onboarding' || item.type === 'onboarding' || item.type === 'verification') {
+    if (item.metadata?.employeeId || item.metadata?.userId) {
+      const empId = item.metadata.employeeId || item.metadata.userId;
+      return `/users?userId=${empId}&tab=2`;
+    }
   }
 
   return item.link || '';
@@ -273,6 +278,9 @@ const getNotificationTitle = (item) => {
   if (item.category === 'onboarding' || item.type === 'onboarding') {
     return item.metadata?.title || item.title || 'Employee Verification Pending';
   }
+  if (item.category === 'requests' || item.category === 'request' || item.type === 'request') {
+    return item.metadata?.title || item.title || (item.metadata?.employeeName ? `Request: ${item.metadata.employeeName}` : 'Employee Request');
+  }
   return item.title || item.text || item.message || 'Notification';
 };
 
@@ -285,6 +293,14 @@ const getNotificationDetail = (item) => {
     const author = item.metadata?.authorName || item.metadata?.actorName ? `By ${item.metadata.authorName || item.metadata.actorName}` : '';
     const reminder = item.metadata?.reminderTitle ? `Reminder: ${item.metadata.reminderTitle}` : '';
     return [taskTitle, reminder, author].filter(Boolean).join(' - ');
+  }
+  if (item.category === 'requests' || item.category === 'request' || item.type === 'request') {
+    const emp = item.metadata?.employeeName ? `From: ${item.metadata.employeeName}` : '';
+    const dept = item.metadata?.department ? `Dept: ${item.metadata.department}` : '';
+    const ref = item.metadata?.requestNumber ? `Ref: ${item.metadata.requestNumber}` : '';
+    const extra = [emp, dept, ref].filter(Boolean).join(' • ');
+    if (extra && item.text) return `${item.text} (${extra})`;
+    return item.text || item.metadata?.message || '';
   }
   if (item.title && item.text && item.title !== item.text) {
     return item.text;

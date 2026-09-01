@@ -6,6 +6,8 @@ import {
   Badge,
   Box,
   Button,
+  Card,
+  CardBody,
   Checkbox,
   Divider,
   Drawer,
@@ -27,6 +29,7 @@ import {
   Input,
   Select,
   SimpleGrid,
+  Spinner,
   Stack,
   Tab,
   TabList,
@@ -41,79 +44,60 @@ import {
 import {
   FiAlertCircle,
   FiArrowRight,
+  FiBriefcase,
+  FiCalendar,
   FiCheck,
+  FiCheckCircle,
+  FiChevronRight,
   FiClipboard,
   FiClock,
   FiDownload,
+  FiExternalLink,
   FiFileText,
+  FiFilter,
+  FiHardDrive,
+  FiInfo,
+  FiMail,
   FiPackage,
+  FiPhone,
   FiRefreshCw,
+  FiSearch,
   FiSend,
+  FiShield,
+  FiTag,
+  FiTrash2,
+  FiUser,
   FiUserCheck,
+  FiUsers,
   FiX,
+  FiXCircle,
 } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import axiosInstance from '../services/axiosInstance';
 import { normalizeRole, useUserStore } from '../store/user';
 
 const CATEGORIES = [
   {
     key: 'leave',
-    label: 'Leave & absence',
-    subcategories: [
-      { key: 'annual_leave', label: 'Annual leave' },
-      { key: 'sick_leave', label: 'Sick leave' },
-      { key: 'maternity_paternity', label: 'Maternity / paternity' },
-      { key: 'compassionate', label: 'Compassionate leave' },
-      { key: 'unpaid_leave', label: 'Unpaid leave' },
+    label: 'Leave & Absence',
+    icon: FiClock,
+    children: [
+      ['annual_leave', 'Annual Leave'],
+      ['sick_leave', 'Sick Leave'],
+      ['paternity_leave', 'Paternity Leave'],
+      ['maternity_leave', 'Maternity Leave'],
+      ['marriage_leave', 'Marriage Leave'],
+      ['unpaid_leave', 'Unpaid Leave'],
+      ['other_leave', 'Other Leave'],
     ],
   },
   {
-    key: 'payroll',
-    label: 'Payroll & compensation',
-    subcategories: [
-      { key: 'advance_salary', label: 'Advance salary' },
-      { key: 'expense_reimbursement', label: 'Expense reimbursement' },
-      { key: 'bank_account_update', label: 'Bank account update' },
-      { key: 'tax_clarification', label: 'Tax clarification' },
-    ],
-  },
-  {
-    key: 'credentials',
-    label: 'Account & credentials',
-    subcategories: [
-      { key: 'role_access_change', label: 'Role access change' },
-      { key: 'system_account_reset', label: 'System account reset' },
-      { key: 'two_factor_reset', label: 'Two-factor reset' },
-      { key: 'account_transfer', label: 'Account ownership transfer' },
-    ],
-  },
-  {
-    key: 'training',
-    label: 'Training & development',
-    subcategories: [
-      { key: 'external_training', label: 'External course approval' },
-      { key: 'certification_fee', label: 'Certification fee support' },
-      { key: 'materials_access', label: 'Specialized materials access' },
-    ],
-  },
-  {
-    key: 'workplace',
-    label: 'Workplace & equipment',
-    subcategories: [
-      { key: 'hardware_request', label: 'Hardware replacement' },
-      { key: 'office_stationery', label: 'Stationery & supplies' },
-      { key: 'ergonomic_support', label: 'Ergonomic support' },
-      { key: 'remote_work_setup', label: 'Remote work equipment' },
-    ],
-  },
-  {
-    key: 'grievance',
-    label: 'Grievance & ethics',
-    subcategories: [
-      { key: 'workplace_concern', label: 'Workplace concern' },
-      { key: 'policy_clarification', label: 'Policy clarification' },
-      { key: 'confidential_report', label: 'Confidential report' },
+    key: 'handover',
+    label: 'Handover & Transition',
+    icon: FiPackage,
+    children: [
+      ['material_handover', 'Material Handover (Laptop & Accessories)'],
+      ['task_handover', 'Task & Duty Handover'],
     ],
   },
 ];
@@ -122,47 +106,124 @@ const MANAGER_ROLES = new Set([
   'admin', 'coo', 'coo2', 'coo_2', '2coo', 'cootwo', 'ceo', 'supervisor', 'salesmanager',
   'customersuccessmanager', 'socialmediamanager', 'itmanager', 'itadmin',
 ]);
+
 const STATUS = {
-  pending_manager: ['Awaiting manager', 'orange'],
-  manager_rejected: ['Manager rejected', 'red'],
+  pending_manager: ['Awaiting Manager', 'orange'],
+  manager_rejected: ['Manager Rejected', 'red'],
   pending_hr: ['Awaiting HR', 'blue'],
-  hr_approved: ['HR approved', 'green'],
-  hr_rejected: ['HR rejected', 'red'],
+  hr_approved: ['HR Approved', 'green'],
+  hr_rejected: ['HR Rejected', 'red'],
   cancelled: ['Cancelled', 'gray'],
 };
-const labelFor = (key) =>
-  CATEGORIES.flatMap((category) => category.children).find(([value]) => value === key)?.[1] ||
-  String(key || '').replace(/_/g, ' ');
-const personName = (person) => person?.fullName || person?.username || person?.email || 'Not assigned';
-const formatDate = (value) => value ? new Date(value).toLocaleDateString() : 'Not recorded';
+
+const getCategoryChildren = (group) => {
+  if (!group) return [];
+  if (Array.isArray(group.children)) {
+    return group.children.map((item) =>
+      Array.isArray(item) ? { key: item[0], label: item[1] } : item
+    );
+  }
+  if (Array.isArray(group.subcategories)) {
+    return group.subcategories.map((item) =>
+      Array.isArray(item) ? { key: item[0], label: item[1] } : item
+    );
+  }
+  return [];
+};
+
+const labelFor = (key) => {
+  for (const group of CATEGORIES) {
+    const list = getCategoryChildren(group);
+    const match = list.find((item) => item.key === key);
+    if (match) return match.label;
+  }
+  return String(key || '').replace(/_/g, ' ');
+};
+
+const iconFor = (groupKey) => {
+  const group = CATEGORIES.find((g) => g.key === groupKey);
+  return group?.icon || FiFileText;
+};
+
+const personName = (person) =>
+  person?.fullName || person?.username || person?.email || 'Not assigned';
+
+const formatDate = (value) =>
+  value ? new Date(value).toLocaleDateString() : 'Not recorded';
+
+const formatDateTime = (value) =>
+  value ? new Date(value).toLocaleString() : 'Not recorded';
+
+const formatFormKey = (key) =>
+  String(key).replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+
+const formatFormValue = (value, key = '') => {
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.join(', ');
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  const str = String(value ?? '');
+  if (key.toLowerCase().includes('date') && str.match(/^\d{4}-\d{2}-\d{2}/)) return formatDate(str);
+  if (key === 'leaveDuration') return str === 'half_day' ? 'Half Day' : 'Full Day';
+  if (key === 'halfDaySession') return str === 'afternoon' ? 'Afternoon Session' : 'Morning Session';
+  return str;
+};
+
 const initialForm = () => ({
-  leaveDuration: 'full_day', startDate: '', endDate: '', totalDays: '',
+  leaveDuration: 'full_day',
+  startDate: '',
+  endDate: '',
+  totalDays: '',
   halfDayDate: '',
-  reason: '', contactDuringLeave: '', handoverTo: '',
-  incomingEmployeeId: '', handoverDate: '', witnessEmployeeId: '',
-  makeModel: '', serialNumber: '', assetTag: '', physicalCondition: '', functionalIssues: '',
-  chargerIncluded: false, mouseKeyboardIncluded: false, otherAccessories: '',
-  laptopUsername: '', laptopPassword: '', negligenceAccepted: false,
-  lastWorkingDate: '', responsibilities: '', pendingTasks: '', importantContacts: '',
-  filesLocations: '', additionalNotes: '', outgoingConfirmed: false, incomingConfirmed: false,
+  reason: '',
+  contactDuringLeave: '',
+  handoverTo: '',
+  incomingEmployeeId: '',
+  handoverDate: '',
+  witnessEmployeeId: '',
+  makeModel: '',
+  serialNumber: '',
+  assetTag: '',
+  physicalCondition: '',
+  functionalIssues: '',
+  chargerIncluded: false,
+  mouseKeyboardIncluded: false,
+  otherAccessories: '',
+  laptopUsername: '',
+  laptopPassword: '',
+  negligenceAccepted: false,
+  lastWorkingDate: '',
+  responsibilities: '',
+  pendingTasks: '',
+  importantContacts: '',
+  filesLocations: '',
+  additionalNotes: '',
+  outgoingConfirmed: false,
+  incomingConfirmed: false,
 });
 
 const Field = ({ label, helper, required = false, children }) => (
-  <FormControl isRequired={required}>
-    <FormLabel fontSize="sm" fontWeight="700" color="gray.700">{label}</FormLabel>
+  <FormControl isRequired={required} w="full">
+    <FormLabel fontSize="sm" fontWeight="700" color="gray.700" mb={1.5}>
+      {label}
+    </FormLabel>
     {children}
-    {helper && <FormHelperText>{helper}</FormHelperText>}
+    {helper && <FormHelperText fontSize="xs" color="gray.500" mt={1}>{helper}</FormHelperText>}
   </FormControl>
 );
 
 const EmployeeRequestsPage = () => {
   const toast = useToast();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const currentUser = useUserStore((state) => state.currentUser);
   const role = normalizeRole(currentUser?.role || currentUser?.displayRole);
   const isManager = MANAGER_ROLES.has(role);
   const cachedIsHr = role === 'hr' || role === 'admin';
+
   const [accessContext, setAccessContext] = useState(null);
   const isHr = accessContext ? accessContext.isHr : cachedIsHr;
+
   const [category, setCategory] = useState('leave');
   const [subcategory, setSubcategory] = useState('annual_leave');
   const [form, setForm] = useState(initialForm);
@@ -179,62 +240,159 @@ const EmployeeRequestsPage = () => {
   const [decisionNote, setDecisionNote] = useState('');
   const [deciding, setDeciding] = useState(false);
   const [reassigning, setReassigning] = useState(false);
+  const [tabIndex, setTabIndex] = useState(0);
+
+  // Search & filters for requests
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
   const managerPendingCount = managerInbox.filter((item) => item.status === 'pending_manager').length;
-  const hrPendingCount = hrInbox.filter((item) => item.status === 'pending_hr').length;
+  const hrPendingCount = hrInbox.filter((item) => ['pending_manager', 'pending_hr'].includes(item.status)).length;
   const canReviewAsManager = isManager || managerInbox.length > 0;
 
-  const selectedCategory = CATEGORIES.find((item) => item.key === category);
-  const update = (field, value) => setForm((previous) => ({ ...previous, [field]: value }));
+  // Build active tabs list
+  const tabList = useMemo(() => {
+    const list = [
+      { id: 'new', label: 'Submit New Request', icon: FiSend },
+      { id: 'mine', label: 'My Requests', count: mine.length, icon: FiUser },
+    ];
+    if (canReviewAsManager) {
+      list.push({ id: 'manager', label: 'Manager Approvals', count: managerPendingCount, icon: FiUserCheck });
+    }
+    if (isHr) {
+      list.push({ id: 'hr', label: 'HR Master Review', count: hrPendingCount, icon: FiShield });
+      list.push({ id: 'assignments', label: 'Manager Assignments', icon: FiUsers });
+    }
+    return list;
+  }, [mine.length, canReviewAsManager, managerPendingCount, isHr, hrPendingCount]);
+
+  // Sync tabIndex with URL query param `tab`
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) {
+      const foundIndex = tabList.findIndex((t) => t.id === tabParam || t.id === tabParam.toLowerCase());
+      if (foundIndex !== -1 && foundIndex !== tabIndex) {
+        setTabIndex(foundIndex);
+      }
+    }
+  }, [searchParams, tabList, tabIndex]);
+
+  const handleTabChange = (index) => {
+    setTabIndex(index);
+    const target = tabList[index];
+    if (target) {
+      const currentParams = Object.fromEntries(searchParams.entries());
+      setSearchParams({ ...currentParams, tab: target.id });
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const requests = [
-        axiosInstance.get('/employee-requests/mine'),
-        axiosInstance.get('/users'),
-        axiosInstance.get('/employee-requests/manager-inbox'),
+      const [ctxRes, empRes, mineRes] = await Promise.all([
         axiosInstance.get('/employee-requests/access-context'),
-      ];
-      if (isHr) requests.push(axiosInstance.get('/employee-requests/hr-inbox'));
-      if (isHr) requests.push(axiosInstance.get('/employee-requests/manager-options'));
-      const results = await Promise.all(requests);
-      setMine(results[0].data?.data || []);
-      setEmployees(results[1].data?.data || []);
-      setManagerInbox(results[2].data?.data || []);
-      setAccessContext(results[3].data?.data || null);
-      let index = 4;
-      if (isHr) {
-        setHrInbox(results[index++].data?.data || []);
-        setManagerDirectory(results[index].data?.data || { employees: [], managers: [] });
+        axiosInstance.get('/users'),
+        axiosInstance.get('/employee-requests/mine'),
+      ]);
+
+      const accessData = ctxRes.data.data;
+      setAccessContext(accessData);
+
+      const rawUsers = Array.isArray(empRes.data)
+        ? empRes.data
+        : empRes.data?.data || empRes.data?.users || [];
+      setEmployees(rawUsers);
+
+      const mineItems = mineRes.data.data || [];
+      setMine(mineItems);
+
+      let mgrItems = [];
+      let hrItems = [];
+
+      if (accessData.canReviewAsManager || accessData.hasManagerQueue) {
+        try {
+          const mgrRes = await axiosInstance.get('/employee-requests/manager-inbox');
+          mgrItems = mgrRes.data.data || [];
+          setManagerInbox(mgrItems);
+        } catch {
+          setManagerInbox([]);
+        }
+      }
+
+      if (accessData.isHr) {
+        try {
+          const [hrInboxRes, dirRes] = await Promise.all([
+            axiosInstance.get('/employee-requests/hr-inbox'),
+            axiosInstance.get('/employee-requests/manager-directory'),
+          ]);
+          hrItems = hrInboxRes.data.data || [];
+          setHrInbox(hrItems);
+          setManagerDirectory(dirRes.data.data || { employees: [], managers: [] });
+        } catch {
+          setHrInbox([]);
+        }
+      }
+
+      // Check URL for direct requestId open (e.g. from notifications)
+      const reqId = searchParams.get('requestId');
+      if (reqId) {
+        const pool = [...mineItems, ...mgrItems, ...hrItems];
+        const match = pool.find((item) => String(item._id) === String(reqId) || item.requestNumber === reqId);
+        if (match) {
+          setSelected(match);
+        } else {
+          try {
+            const single = await axiosInstance.get(`/employee-requests/${reqId}`);
+            if (single.data?.data) {
+              setSelected(single.data.data);
+            }
+          } catch {
+            // Quietly ignore if not found
+          }
+        }
       }
     } catch (error) {
-      toast({ title: 'Unable to load employee requests', description: error.response?.data?.message || error.message, status: 'error' });
+      toast({
+        title: 'Unable to load employee requests',
+        description: error.response?.data?.message || error.message,
+        status: 'error',
+      });
     } finally {
       setLoading(false);
     }
-  }, [isHr, toast]);
+  }, [searchParams, toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const selectSubcategory = (nextCategory, nextSubcategory) => {
-    setCategory(nextCategory);
-    setSubcategory(nextSubcategory);
+  const selectSubcategory = (groupKey, subKey) => {
+    setCategory(groupKey);
+    setSubcategory(subKey);
     setForm(initialForm());
     setAttachments([]);
   };
 
-  const calculateDays = (start, end) => {
-    if (!start || !end) return '';
-    const difference = Math.floor((new Date(end) - new Date(start)) / 86400000) + 1;
-    return difference > 0 ? String(difference) : '';
+  const update = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleDate = (field, value) => {
-    setForm((previous) => {
-      const next = { ...previous, [field]: value };
-      next.totalDays = calculateDays(next.startDate, next.endDate);
-      return next;
-    });
+  const handleDate = (key, value) => {
+    const updated = { ...form, [key]: value };
+    if (updated.startDate && updated.endDate) {
+      const start = new Date(updated.startDate);
+      const end = new Date(updated.endDate);
+      if (end >= start) {
+        const diffMs = end - start;
+        const days = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+        updated.totalDays = days > 0 ? String(days) : '1';
+      } else {
+        updated.totalDays = '';
+      }
+    } else {
+      updated.totalDays = '';
+    }
+    setForm(updated);
   };
 
   const validate = () => {
@@ -246,8 +404,8 @@ const EmployeeRequestsPage = () => {
         if (!form.startDate) issues.push('leave start date');
         if (!form.endDate) issues.push('leave end date');
       }
-      if (!form.contactDuringLeave.trim()) issues.push('contact during leave');
       if (!form.reason.trim()) issues.push('reason for leave');
+      if (!form.contactDuringLeave.trim()) issues.push('contact information during leave');
       if (!form.handoverTo) issues.push('work handover employee');
       return issues;
     }
@@ -265,6 +423,7 @@ const EmployeeRequestsPage = () => {
       if (!form.incomingConfirmed) issues.push('incoming employee confirmation');
       return issues;
     }
+    // Task handover
     if (!form.incomingEmployeeId) issues.push('incoming employee');
     if (!form.handoverDate) issues.push('handover date');
     if (!form.lastWorkingDate) issues.push('last working date');
@@ -274,6 +433,27 @@ const EmployeeRequestsPage = () => {
     if (!form.outgoingConfirmed) issues.push('outgoing employee confirmation');
     if (!form.incomingConfirmed) issues.push('incoming employee confirmation');
     return issues;
+  };
+
+  const handleFileAttachment = (e) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    const validFiles = [];
+    for (const file of selectedFiles) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: `File "${file.name}" exceeds 10 MB`,
+          description: 'Please select files smaller than 10 MB.',
+          status: 'warning',
+        });
+        continue;
+      }
+      validFiles.push(file);
+    }
+    setAttachments((prev) => [...prev, ...validFiles].slice(0, 5));
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const submit = async () => {
@@ -288,58 +468,82 @@ const EmployeeRequestsPage = () => {
       });
       return;
     }
-    if (form.endDate && form.startDate && new Date(form.endDate) < new Date(form.startDate)) {
+    if (
+      category === 'leave' &&
+      form.leaveDuration !== 'half_day' &&
+      form.endDate &&
+      form.startDate &&
+      new Date(form.endDate) < new Date(form.startDate)
+    ) {
       toast({ title: 'End date cannot be before start date', status: 'warning' });
       return;
     }
+
     setSubmitting(true);
     try {
       const payload = new FormData();
       payload.append('category', category);
       payload.append('subcategory', subcategory);
-      payload.append(
-        'title',
-        subcategory === 'annual_leave' && form.leaveDuration === 'half_day'
-          ? 'Half-Day Annual Leave Request'
-          : `${labelFor(subcategory)} Request`
-      );
       payload.append('formData', JSON.stringify(form));
-      attachments.forEach((file) => payload.append('attachments', file));
-      const response = await axiosInstance.post('/employee-requests', payload);
-      const assignedManager = personName(response.data?.data?.manager);
+      for (const file of attachments) {
+        payload.append('attachments', file);
+      }
+
+      const response = await axiosInstance.post('/employee-requests', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
       toast({
         title: 'Request submitted successfully',
-        description: `Assigned to ${assignedManager} for manager review.`,
+        description: `Reference: ${response.data.data?.requestNumber}. Routed to line manager for review.`,
         status: 'success',
       });
       setForm(initialForm());
       setAttachments([]);
       await load();
+      setTabIndex(1);
     } catch (error) {
-      toast({ title: 'Request could not be submitted', description: error.response?.data?.message || error.message, status: 'error' });
+      toast({
+        title: 'Unable to submit request',
+        description: error.response?.data?.message || error.message,
+        status: 'error',
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const decide = async (actor, decision) => {
+  const decide = async (actorType, decision) => {
     if (!selected?._id) return;
     if (decision === 'rejected' && !decisionNote.trim()) {
-      toast({ title: 'A rejection reason is required', status: 'warning' });
+      toast({ title: 'Provide a clear rejection reason', status: 'warning' });
       return;
     }
     setDeciding(true);
     try {
-      await axiosInstance.patch(
-        `/employee-requests/${selected._id}/${actor}-decision`,
-        { decision, note: decisionNote.trim() }
-      );
-      toast({ title: decision === 'approved' ? 'Request approved' : 'Request rejected', status: 'success' });
+      const endpoint =
+        actorType === 'hr' || isHr
+          ? `/employee-requests/${selected._id}/hr-decision`
+          : `/employee-requests/${selected._id}/manager-decision`;
+
+      await axiosInstance.patch(endpoint, {
+        decision,
+        note: decisionNote.trim(),
+      });
+
+      toast({
+        title: decision === 'approved' ? 'Request approved' : 'Request rejected',
+        status: 'success',
+      });
       setSelected(null);
       setDecisionNote('');
       await load();
     } catch (error) {
-      toast({ title: 'Decision could not be saved', description: error.response?.data?.message || error.message, status: 'error' });
+      toast({
+        title: 'Decision could not be saved',
+        description: error.response?.data?.message || error.message,
+        status: 'error',
+      });
       if (error.response?.status === 409) {
         setSelected(null);
         setDecisionNote('');
@@ -356,7 +560,11 @@ const EmployeeRequestsPage = () => {
       toast({ title: 'Request cancelled', status: 'success' });
       await load();
     } catch (error) {
-      toast({ title: 'Unable to cancel request', description: error.response?.data?.message || error.message, status: 'error' });
+      toast({
+        title: 'Unable to cancel request',
+        description: error.response?.data?.message || error.message,
+        status: 'error',
+      });
     }
   };
 
@@ -368,7 +576,11 @@ const EmployeeRequestsPage = () => {
       toast({ title: 'Manager assignment updated', status: 'success' });
       await load();
     } catch (error) {
-      toast({ title: 'Manager could not be assigned', description: error.response?.data?.message || error.message, status: 'error' });
+      toast({
+        title: 'Manager could not be assigned',
+        description: error.response?.data?.message || error.message,
+        status: 'error',
+      });
     } finally {
       setAssigningUserId('');
     }
@@ -383,10 +595,18 @@ const EmployeeRequestsPage = () => {
         { managerId }
       );
       setSelected((previous) => ({ ...previous, ...response.data.data, actor: 'hr' }));
-      toast({ title: 'Request reassigned', description: 'The new manager has been notified.', status: 'success' });
+      toast({
+        title: 'Request reassigned',
+        description: 'The new manager has been notified.',
+        status: 'success',
+      });
       await load();
     } catch (error) {
-      toast({ title: 'Request could not be reassigned', description: error.response?.data?.message || error.message, status: 'error' });
+      toast({
+        title: 'Request could not be reassigned',
+        description: error.response?.data?.message || error.message,
+        status: 'error',
+      });
     } finally {
       setReassigning(false);
     }
@@ -394,320 +614,919 @@ const EmployeeRequestsPage = () => {
 
   const renderLeaveForm = () => (
     <Stack spacing={6}>
-      <Box>
-        <Heading size="md">Leave information</Heading>
-        <Text mt={1} fontSize="sm" color="gray.500">Provide the dates, reason, contact details, and work coverage for this leave.</Text>
-      </Box>
-      {subcategory === 'annual_leave' && (
-        <Box p={4} bg="gray.50" border="1px solid" borderColor="gray.200" borderRadius="xl">
-          <Field label="Annual leave duration" required helper="Choose half-day when the absence is measured by working hours on one date.">
-            <HStack spacing={3} mt={1}>
-              <Button
-                flex="1"
-                variant={form.leaveDuration === 'full_day' ? 'solid' : 'outline'}
-                colorScheme="teal"
-                onClick={() => update('leaveDuration', 'full_day')}
-              >
-                Full-day leave
-              </Button>
-              <Button
-                flex="1"
-                variant={form.leaveDuration === 'half_day' ? 'solid' : 'outline'}
-                colorScheme="teal"
-                onClick={() => update('leaveDuration', 'half_day')}
-              >
-                Half-day leave
-              </Button>
-            </HStack>
-          </Field>
-        </Box>
-      )}
-      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
-        {subcategory === 'annual_leave' && form.leaveDuration === 'half_day' ? (
-          <>
-            <Field label="Half-day leave date" required>
-              <Input type="date" value={form.halfDayDate} onChange={(event) => update('halfDayDate', event.target.value)} />
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <HStack mb={3} spacing={2}>
+          <Icon as={FiCalendar} color="teal.600" />
+          <Heading size="sm">Leave Duration & Schedule</Heading>
+        </HStack>
+        {subcategory === 'annual_leave' && (
+          <Box mb={5} p={4} bg="white" border="1px solid" borderColor="teal.200" borderRadius="xl">
+            <Field
+              label="Annual Leave Duration Format"
+              required
+              helper="Choose half-day when the absence covers only one working session (morning or afternoon)."
+            >
+              <HStack spacing={3} mt={2}>
+                <Button
+                  flex="1"
+                  size="md"
+                  variant={form.leaveDuration === 'full_day' ? 'solid' : 'outline'}
+                  colorScheme="teal"
+                  borderRadius="xl"
+                  onClick={() => update('leaveDuration', 'full_day')}
+                >
+                  Full-day Leave
+                </Button>
+                <Button
+                  flex="1"
+                  size="md"
+                  variant={form.leaveDuration === 'half_day' ? 'solid' : 'outline'}
+                  colorScheme="teal"
+                  borderRadius="xl"
+                  onClick={() => update('leaveDuration', 'half_day')}
+                >
+                  Half-day Leave
+                </Button>
+              </HStack>
             </Field>
-            <Box gridColumn={{ md: '1 / -1' }} p={5} bg="teal.50" border="1px solid" borderColor="teal.200" borderRadius="xl">
-              <Text fontSize="xs" fontWeight="800" color="teal.700" textTransform="uppercase">Automatic half-day assignment</Text>
-              <Heading mt={1} size="sm">The submission time determines the session</Heading>
-              <Text mt={2} fontSize="sm" color="gray.600">
-                Requests submitted before 12:30 PM are recorded as Morning. Requests submitted at or after 12:30 PM are recorded as Afternoon.
-              </Text>
-              <Text mt={2} fontSize="sm" fontWeight="700" color="teal.700">
-                The exact Addis Ababa submission date and time will be attached automatically.
-              </Text>
-            </Box>
-          </>
-        ) : (
-          <>
-            <Field label="Leave start date" required><Input type="date" value={form.startDate} onChange={(event) => handleDate('startDate', event.target.value)} /></Field>
-            <Field label="Leave end date" required><Input type="date" min={form.startDate} value={form.endDate} onChange={(event) => handleDate('endDate', event.target.value)} /></Field>
-            <Field label="Total calendar days"><Input value={form.totalDays} isReadOnly bg="gray.50" /></Field>
-          </>
+          </Box>
         )}
-        <Field label="Contact during leave" required><Input value={form.contactDuringLeave} onChange={(event) => update('contactDuringLeave', event.target.value)} placeholder="Phone number or email" /></Field>
-        <Box gridColumn={{ md: '1 / -1' }}>
-          <Field label="Reason for leave" required><Textarea minH="120px" value={form.reason} onChange={(event) => update('reason', event.target.value)} placeholder={`Explain the ${labelFor(subcategory).toLowerCase()} request`} /></Field>
-        </Box>
-        <Box gridColumn={{ md: '1 / -1' }}>
-          <Field label="Work handover employee" required helper="Select the employee who will cover urgent responsibilities during the leave.">
-            <Select value={form.handoverTo} onChange={(event) => update('handoverTo', event.target.value)} placeholder="Select employee from database">
-              {employees.filter((employee) => employee._id !== currentUser?._id).map((employee) => (
-                <option key={employee._id} value={employee._id}>{personName(employee)} — {employee.jobTitle || employee.role}</option>
-              ))}
+
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
+          {subcategory === 'annual_leave' && form.leaveDuration === 'half_day' ? (
+            <>
+              <Field label="Half-day Leave Date" required>
+                <Input
+                  type="date"
+                  borderRadius="xl"
+                  bg="white"
+                  value={form.halfDayDate}
+                  onChange={(event) => update('halfDayDate', event.target.value)}
+                />
+              </Field>
+              <Box
+                gridColumn={{ md: '1 / -1' }}
+                p={4}
+                bg="teal.50"
+                border="1px solid"
+                borderColor="teal.200"
+                borderRadius="xl"
+              >
+                <HStack>
+                  <Icon as={FiClock} color="teal.700" />
+                  <Text fontSize="xs" fontWeight="800" color="teal.800" textTransform="uppercase">
+                    Automatic Session Timing
+                  </Text>
+                </HStack>
+                <Text mt={1} fontSize="xs" color="teal.900">
+                  Submissions before 12:30 PM are automatically recorded as <strong>Morning</strong>.
+                  Submissions at or after 12:30 PM are recorded as <strong>Afternoon</strong>.
+                </Text>
+              </Box>
+            </>
+          ) : (
+            <>
+              <Field label="Leave Start Date" required>
+                <Input
+                  type="date"
+                  borderRadius="xl"
+                  bg="white"
+                  value={form.startDate}
+                  onChange={(event) => handleDate('startDate', event.target.value)}
+                />
+              </Field>
+              <Field label="Leave End Date" required>
+                <Input
+                  type="date"
+                  borderRadius="xl"
+                  bg="white"
+                  min={form.startDate}
+                  value={form.endDate}
+                  onChange={(event) => handleDate('endDate', event.target.value)}
+                />
+              </Field>
+              <Field label="Total Calendar Days">
+                <Input value={form.totalDays ? `${form.totalDays} Days` : ''} isReadOnly bg="gray.100" borderRadius="xl" />
+              </Field>
+            </>
+          )}
+          <Field label="Contact Phone / Email During Leave" required>
+            <Input
+              borderRadius="xl"
+              bg="white"
+              value={form.contactDuringLeave}
+              onChange={(event) => update('contactDuringLeave', event.target.value)}
+              placeholder="e.g. +251 91 234 5678 or alternate email"
+            />
+          </Field>
+        </SimpleGrid>
+      </Box>
+
+      {/* Coverage and Reasons Card */}
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <HStack mb={4} spacing={2}>
+          <Icon as={FiUserCheck} color="teal.600" />
+          <Heading size="sm">Work Coverage & Justification</Heading>
+        </HStack>
+        <SimpleGrid columns={{ base: 1 }} spacing={5}>
+          <Field
+            label="Work Handover Colleague"
+            required
+            helper="Select the colleague who has agreed to cover urgent tasks during your absence."
+          >
+            <Select
+              borderRadius="xl"
+              bg="white"
+              value={form.handoverTo}
+              onChange={(event) => update('handoverTo', event.target.value)}
+              placeholder="Select employee from database"
+            >
+              {employees
+                .filter((employee) => employee._id !== currentUser?._id)
+                .map((employee) => (
+                  <option key={employee._id} value={employee._id}>
+                    {personName(employee)} — {employee.jobTitle || employee.role} ({employee.department || 'General'})
+                  </option>
+                ))}
             </Select>
           </Field>
-        </Box>
-      </SimpleGrid>
+          <Field label="Reason & Notes for Leave" required>
+            <Textarea
+              borderRadius="xl"
+              bg="white"
+              minH="110px"
+              value={form.reason}
+              onChange={(event) => update('reason', event.target.value)}
+              placeholder={`Provide a clear reason for the ${labelFor(subcategory).toLowerCase()} request...`}
+            />
+          </Field>
+        </SimpleGrid>
+      </Box>
     </Stack>
   );
 
   const renderMaterialForm = () => (
-    <Stack spacing={7}>
-      <Box>
-        <Heading size="lg">Laptop Handover Note</Heading>
-        <Text mt={1} fontSize="sm" color="gray.500">Complete the handover record using the same sections as the official company form.</Text>
-      </Box>
-      <Divider />
-      <Box>
-        <Heading size="sm" mb={4}>Employee Details</Heading>
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
-          <Field label="Outgoing Employee"><Input value={personName(currentUser)} isReadOnly bg="gray.50" /></Field>
-          <Field label="Incoming Employee" required>
-            <Select value={form.incomingEmployeeId} onChange={(event) => update('incomingEmployeeId', event.target.value)} placeholder="Select employee from database">
-              {employees.filter((employee) => employee._id !== currentUser?._id).map((employee) => <option key={employee._id} value={employee._id}>{personName(employee)}</option>)}
-            </Select>
-          </Field>
-          <Field label="Date of Handover" required><Input type="date" value={form.handoverDate} onChange={(event) => update('handoverDate', event.target.value)} /></Field>
-          <Field label="Witness / IT Representative">
-            <Select value={form.witnessEmployeeId} onChange={(event) => update('witnessEmployeeId', event.target.value)} placeholder="Select witness or IT representative">
-              {employees.map((employee) => <option key={employee._id} value={employee._id}>{personName(employee)} — {employee.jobTitle || employee.role}</option>)}
-            </Select>
-          </Field>
-        </SimpleGrid>
-      </Box>
-      <Divider />
-      <Box>
-        <Heading size="sm" mb={4}>Laptop Details</Heading>
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={5}>
-          <Field label="Make & Model" required><Input value={form.makeModel} onChange={(event) => update('makeModel', event.target.value)} placeholder="Example: Lenovo Core i5" /></Field>
-          <Field label="Serial Number" required><Input value={form.serialNumber} onChange={(event) => update('serialNumber', event.target.value)} /></Field>
-          <Field label="Asset Tag / ID" required><Input value={form.assetTag} onChange={(event) => update('assetTag', event.target.value)} /></Field>
-          <Box gridColumn={{ md: '1 / -1' }}><Heading size="xs" mb={3}>Condition</Heading></Box>
-          <Box gridColumn={{ md: '1 / -1' }}>
-            <Field label="Physical Condition" required helper="Record scratches, dents, screen issues, or other visible damage."><Textarea value={form.physicalCondition} onChange={(event) => update('physicalCondition', event.target.value)} /></Field>
-          </Box>
-          <Box gridColumn={{ md: '1 / -1' }}>
-            <Field label="Functional Issues" required helper="Record battery life, keyboard, port, performance, or other functional issues."><Textarea value={form.functionalIssues} onChange={(event) => update('functionalIssues', event.target.value)} /></Field>
-          </Box>
-        </SimpleGrid>
-      </Box>
-      <Divider />
-      <Box>
-        <Heading size="sm" mb={4}>Accessories Included</Heading>
-        <HStack spacing={7} flexWrap="wrap">
-          <Checkbox isChecked={form.chargerIncluded} onChange={(event) => update('chargerIncluded', event.target.checked)}>Charger</Checkbox>
-          <Checkbox isChecked={form.mouseKeyboardIncluded} onChange={(event) => update('mouseKeyboardIncluded', event.target.checked)}>Mouse / Keyboard</Checkbox>
+    <Stack spacing={6}>
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <HStack mb={4} spacing={2}>
+          <Icon as={FiUser} color="teal.600" />
+          <Heading size="sm">Employee & Witness Details</Heading>
         </HStack>
-        <Input mt={4} value={form.otherAccessories} onChange={(event) => update('otherAccessories', event.target.value)} placeholder="Other accessories included" />
-      </Box>
-      <Divider />
-      <Box>
-        <Heading size="sm" mb={1}>Access & Credentials</Heading>
-        <Text mb={4} fontSize="xs" color="orange.600">Credentials are sensitive. The password is used only to confirm the transfer and is never stored in the request database or included in notifications.</Text>
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
-          <Field label="Laptop Login — Username" required><Input value={form.laptopUsername} onChange={(event) => update('laptopUsername', event.target.value)} /></Field>
-          <Field label="Laptop Login — Password"><Input type="password" autoComplete="new-password" value={form.laptopPassword} onChange={(event) => update('laptopPassword', event.target.value)} placeholder="Enter only when required" /></Field>
+          <Field label="Outgoing Employee">
+            <Input value={personName(currentUser)} isReadOnly bg="gray.100" borderRadius="xl" />
+          </Field>
+          <Field label="Incoming Employee" required>
+            <Select
+              borderRadius="xl"
+              bg="white"
+              value={form.incomingEmployeeId}
+              onChange={(event) => update('incomingEmployeeId', event.target.value)}
+              placeholder="Select employee from database"
+            >
+              {employees
+                .filter((employee) => employee._id !== currentUser?._id)
+                .map((employee) => (
+                  <option key={employee._id} value={employee._id}>
+                    {personName(employee)} — {employee.jobTitle || employee.role}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+          <Field label="Date of Handover" required>
+            <Input
+              type="date"
+              borderRadius="xl"
+              bg="white"
+              value={form.handoverDate}
+              onChange={(event) => update('handoverDate', event.target.value)}
+            />
+          </Field>
+          <Field label="Witness / IT Representative">
+            <Select
+              borderRadius="xl"
+              bg="white"
+              value={form.witnessEmployeeId}
+              onChange={(event) => update('witnessEmployeeId', event.target.value)}
+              placeholder="Select witness or IT representative"
+            >
+              {employees.map((employee) => (
+                <option key={employee._id} value={employee._id}>
+                  {personName(employee)} — {employee.jobTitle || employee.role}
+                </option>
+              ))}
+            </Select>
+          </Field>
         </SimpleGrid>
       </Box>
-      <Divider />
-      <Box bg="orange.50" border="1px solid" borderColor="orange.200" borderRadius="xl" p={5}>
-        <Heading size="sm">Consequences of Negligence</Heading>
-        <Stack mt={3} spacing={2} fontSize="sm" color="gray.700">
-          <Text>• Repair/replacement costs may be borne by the employee if damage results from misuse.</Text>
-          <Text>• Disciplinary action may follow repeated or intentional negligence.</Text>
-          <Checkbox mt={2} isChecked={form.negligenceAccepted} onChange={(event) => update('negligenceAccepted', event.target.checked)}>
-            I acknowledge and accept these responsibilities.
+
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <HStack mb={4} spacing={2}>
+          <Icon as={FiHardDrive} color="teal.600" />
+          <Heading size="sm">Hardware Specification</Heading>
+        </HStack>
+        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={5}>
+          <Field label="Make & Model" required>
+            <Input
+              borderRadius="xl"
+              bg="white"
+              value={form.makeModel}
+              onChange={(event) => update('makeModel', event.target.value)}
+              placeholder="e.g. Lenovo ThinkPad / Dell Latitude"
+            />
+          </Field>
+          <Field label="Serial Number" required>
+            <Input
+              borderRadius="xl"
+              bg="white"
+              value={form.serialNumber}
+              onChange={(event) => update('serialNumber', event.target.value)}
+              placeholder="Hardware serial number"
+            />
+          </Field>
+          <Field label="Asset Tag / ID" required>
+            <Input
+              borderRadius="xl"
+              bg="white"
+              value={form.assetTag}
+              onChange={(event) => update('assetTag', event.target.value)}
+              placeholder="Internal asset tag"
+            />
+          </Field>
+          <Box gridColumn={{ md: '1 / -1' }}>
+            <Field
+              label="Physical Condition"
+              required
+              helper="Record any scratches, dents, screen blemishes, or visible marks."
+            >
+              <Textarea
+                borderRadius="xl"
+                bg="white"
+                value={form.physicalCondition}
+                onChange={(event) => update('physicalCondition', event.target.value)}
+                placeholder="Describe exterior condition in detail"
+              />
+            </Field>
+          </Box>
+          <Box gridColumn={{ md: '1 / -1' }}>
+            <Field
+              label="Functional Status & Battery"
+              required
+              helper="Record battery health, keyboard keys, ports, charging, or software state."
+            >
+              <Textarea
+                borderRadius="xl"
+                bg="white"
+                value={form.functionalIssues}
+                onChange={(event) => update('functionalIssues', event.target.value)}
+                placeholder="Describe functional status or state 'Fully operational'"
+              />
+            </Field>
+          </Box>
+        </SimpleGrid>
+      </Box>
+
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <Heading size="sm" mb={3}>
+          Accessories Included
+        </Heading>
+        <HStack spacing={6} flexWrap="wrap" mb={4}>
+          <Checkbox
+            isChecked={form.chargerIncluded}
+            onChange={(event) => update('chargerIncluded', event.target.checked)}
+          >
+            Original Charger / Power Adapter
           </Checkbox>
-        </Stack>
+          <Checkbox
+            isChecked={form.mouseKeyboardIncluded}
+            onChange={(event) => update('mouseKeyboardIncluded', event.target.checked)}
+          >
+            External Mouse / Keyboard
+          </Checkbox>
+        </HStack>
+        <Input
+          borderRadius="xl"
+          bg="white"
+          value={form.otherAccessories}
+          onChange={(event) => update('otherAccessories', event.target.value)}
+          placeholder="Other accessories (laptop bag, HDMI cable, adapter, etc.)"
+        />
       </Box>
-      <Box>
-        <Heading size="sm" mb={4}>Signatures</Heading>
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-          <Checkbox isChecked={form.outgoingConfirmed} onChange={(event) => update('outgoingConfirmed', event.target.checked)}>Outgoing employee confirmation</Checkbox>
-          <Checkbox isChecked={form.incomingConfirmed} onChange={(event) => update('incomingConfirmed', event.target.checked)}>Incoming employee confirmation received</Checkbox>
+
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <HStack mb={1} spacing={2}>
+          <Icon as={FiShield} color="teal.600" />
+          <Heading size="sm">Credentials & Signatures</Heading>
+        </HStack>
+        <Text mb={4} fontSize="xs" color="gray.500">
+          Account credentials entered here are transferred securely to the incoming employee and never exposed publicly.
+        </Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
+          <Field label="Laptop Login Username" required>
+            <Input
+              borderRadius="xl"
+              bg="white"
+              value={form.laptopUsername}
+              onChange={(event) => update('laptopUsername', event.target.value)}
+              placeholder="Local account username"
+            />
+          </Field>
+          <Field label="Laptop Login Password">
+            <Input
+              borderRadius="xl"
+              bg="white"
+              type="password"
+              autoComplete="new-password"
+              value={form.laptopPassword}
+              onChange={(event) => update('laptopPassword', event.target.value)}
+              placeholder="Enter only when required for handover"
+            />
+          </Field>
         </SimpleGrid>
-        <Text mt={3} fontSize="xs" color="gray.500">Manager and HR decisions are recorded as the official approval signatures in the audit timeline.</Text>
+        <Divider my={4} />
+        <Box bg="orange.50" border="1px solid" borderColor="orange.200" borderRadius="xl" p={4} mb={4}>
+          <Text fontWeight="700" fontSize="xs" color="orange.900" textTransform="uppercase">
+            Equipment Responsibility Acknowledgement
+          </Text>
+          <Text mt={1} fontSize="xs" color="orange.800">
+            Employees are accountable for safeguarding company equipment. Negligence or intentional damage may result in repair/replacement deductions.
+          </Text>
+          <Checkbox
+            mt={3}
+            isChecked={form.negligenceAccepted}
+            onChange={(event) => update('negligenceAccepted', event.target.checked)}
+          >
+            <Text fontSize="xs" fontWeight="700">I acknowledge and accept company asset responsibilities.</Text>
+          </Checkbox>
+        </Box>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <Checkbox
+            isChecked={form.outgoingConfirmed}
+            onChange={(event) => update('outgoingConfirmed', event.target.checked)}
+          >
+            Outgoing employee handover confirmation
+          </Checkbox>
+          <Checkbox
+            isChecked={form.incomingConfirmed}
+            onChange={(event) => update('incomingConfirmed', event.target.checked)}
+          >
+            Incoming employee acceptance confirmed
+          </Checkbox>
+        </SimpleGrid>
       </Box>
     </Stack>
   );
 
   const renderTaskForm = () => (
     <Stack spacing={6}>
-      <Box><Heading size="md">Task Handover</Heading><Text mt={1} fontSize="sm" color="gray.500">Document responsibilities, pending work, contacts, and file locations for a controlled transition.</Text></Box>
-      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
-        <Field label="Outgoing Employee"><Input value={personName(currentUser)} isReadOnly bg="gray.50" /></Field>
-        <Field label="Incoming Employee" required>
-          <Select value={form.incomingEmployeeId} onChange={(event) => update('incomingEmployeeId', event.target.value)} placeholder="Select employee from database">
-            {employees.filter((employee) => employee._id !== currentUser?._id).map((employee) => <option key={employee._id} value={employee._id}>{personName(employee)}</option>)}
-          </Select>
-        </Field>
-        <Field label="Handover Date" required><Input type="date" value={form.handoverDate} onChange={(event) => update('handoverDate', event.target.value)} /></Field>
-        <Field label="Last Working Date" required><Input type="date" value={form.lastWorkingDate} onChange={(event) => update('lastWorkingDate', event.target.value)} /></Field>
-        {[
-          ['responsibilities', 'Current Responsibilities', 'List recurring duties and ownership areas'],
-          ['pendingTasks', 'Pending Tasks', 'Include status, priority, and expected completion'],
-          ['importantContacts', 'Important Contacts', 'Internal and external contacts required for continuity'],
-          ['filesLocations', 'Files and System Locations', 'Shared drives, folders, tools, and references'],
-          ['additionalNotes', 'Additional Notes', 'Risks, deadlines, and special instructions'],
-        ].map(([field, label, placeholder]) => (
-          <Box key={field} gridColumn={{ md: '1 / -1' }}>
-            <Field label={label} required={['responsibilities', 'pendingTasks', 'importantContacts'].includes(field)}>
-              <Textarea minH="110px" value={form[field]} onChange={(event) => update(field, event.target.value)} placeholder={placeholder} />
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <HStack mb={4} spacing={2}>
+          <Icon as={FiUser} color="teal.600" />
+          <Heading size="sm">Task Transition Partners</Heading>
+        </HStack>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
+          <Field label="Outgoing Employee">
+            <Input value={personName(currentUser)} isReadOnly bg="gray.100" borderRadius="xl" />
+          </Field>
+          <Field label="Incoming / Taking Over Employee" required>
+            <Select
+              borderRadius="xl"
+              bg="white"
+              value={form.incomingEmployeeId}
+              onChange={(event) => update('incomingEmployeeId', event.target.value)}
+              placeholder="Select employee from database"
+            >
+              {employees
+                .filter((employee) => employee._id !== currentUser?._id)
+                .map((employee) => (
+                  <option key={employee._id} value={employee._id}>
+                    {personName(employee)} — {employee.jobTitle || employee.role}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+          <Field label="Handover Date" required>
+            <Input
+              type="date"
+              borderRadius="xl"
+              bg="white"
+              value={form.handoverDate}
+              onChange={(event) => update('handoverDate', event.target.value)}
+            />
+          </Field>
+          <Field label="Last Working Date" required>
+            <Input
+              type="date"
+              borderRadius="xl"
+              bg="white"
+              value={form.lastWorkingDate}
+              onChange={(event) => update('lastWorkingDate', event.target.value)}
+            />
+          </Field>
+        </SimpleGrid>
+      </Box>
+
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <HStack mb={4} spacing={2}>
+          <Icon as={FiClipboard} color="teal.600" />
+          <Heading size="sm">Responsibilities & Deliverables</Heading>
+        </HStack>
+        <SimpleGrid columns={{ base: 1 }} spacing={5}>
+          {[
+            ['responsibilities', 'Current Key Responsibilities', 'List regular duties, processes, and accounts owned'],
+            ['pendingTasks', 'Pending Tasks & Open Deliverables', 'List in-progress tasks, deadlines, and next action steps'],
+            ['importantContacts', 'Important Key Contacts', 'List key stakeholders, clients, vendors, or partner leads'],
+            ['filesLocations', 'Shared Folders & File Paths', 'Links to cloud drives, folders, sheets, and repositories'],
+            ['additionalNotes', 'Special Instructions / Transition Notes', 'Important tips, common blockers, and handover recommendations'],
+          ].map(([fieldKey, label, placeholder]) => (
+            <Field
+              key={fieldKey}
+              label={label}
+              required={['responsibilities', 'pendingTasks', 'importantContacts'].includes(fieldKey)}
+            >
+              <Textarea
+                borderRadius="xl"
+                bg="white"
+                minH="95px"
+                value={form[fieldKey]}
+                onChange={(event) => update(fieldKey, event.target.value)}
+                placeholder={placeholder}
+              />
             </Field>
-          </Box>
-        ))}
-      </SimpleGrid>
-      <Box bg="gray.50" borderRadius="xl" p={5}>
-        <Heading size="sm" mb={3}>Confirmations</Heading>
-        <Stack>
-          <Checkbox isChecked={form.outgoingConfirmed} onChange={(event) => update('outgoingConfirmed', event.target.checked)}>Outgoing employee confirms the handover information is complete.</Checkbox>
-          <Checkbox isChecked={form.incomingConfirmed} onChange={(event) => update('incomingConfirmed', event.target.checked)}>Incoming employee has reviewed and accepted the handover.</Checkbox>
-        </Stack>
+          ))}
+        </SimpleGrid>
+      </Box>
+
+      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+        <Heading size="sm" mb={3}>
+          Handover Sign-off Confirmations
+        </Heading>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <Checkbox
+            isChecked={form.outgoingConfirmed}
+            onChange={(event) => update('outgoingConfirmed', event.target.checked)}
+          >
+            Outgoing employee confirms accurate handover details.
+          </Checkbox>
+          <Checkbox
+            isChecked={form.incomingConfirmed}
+            onChange={(event) => update('incomingConfirmed', event.target.checked)}
+          >
+            Incoming employee confirms understanding and acceptance.
+          </Checkbox>
+        </SimpleGrid>
       </Box>
     </Stack>
   );
 
-  const RequestCards = ({ items, empty, actor }) => (
-    <Stack spacing={4}>
-      {!items.length ? (
-        <Box p={10} textAlign="center" border="1px dashed" borderColor="gray.300" borderRadius="2xl">
-          <Icon as={FiClipboard} boxSize={8} color="gray.400" />
-          <Heading mt={3} size="sm">{empty}</Heading>
-        </Box>
-      ) : items.map((item) => {
-        const [statusLabel, statusColor] = STATUS[item.status] || [item.status, 'gray'];
-        return (
-          <Box key={item._id} p={5} bg="white" border="1px solid" borderColor="gray.200" borderRadius="2xl" shadow="sm" _hover={{ borderColor: 'teal.300', shadow: 'md' }}>
-            <Flex justify="space-between" align="flex-start" gap={4}>
-              <Box minW={0}>
-                <HStack mb={2} flexWrap="wrap">
-                  <Badge colorScheme="teal">{item.requestNumber}</Badge>
-                  <Badge colorScheme={statusColor}>{statusLabel}</Badge>
-                </HStack>
-                <Heading size="sm">{item.title}</Heading>
-                <Text mt={1} fontSize="xs" color="gray.500">
-                  Assigned manager: {personName(item.manager)}
-                  {item.manager?.email ? ` • ${item.manager.email}` : ''}
-                </Text>
-                <Text mt={1} fontSize="sm" color="gray.500">{item.department} • {personName(item.requester)} • {formatDate(item.createdAt)}</Text>
-              </Box>
-              <Button size="sm" variant="outline" colorScheme="teal" rightIcon={<FiArrowRight />} onClick={() => { setSelected({ ...item, actor }); setDecisionNote(''); }}>Review</Button>
+  const filterRequests = (items) => {
+    return items.filter((item) => {
+      const q = searchQuery.trim().toLowerCase();
+      const searchable = [
+        item.requestNumber,
+        item.title,
+        item.department,
+        personName(item.requester),
+        personName(item.manager),
+        item.requester?.email,
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      const matchesQuery = !q || searchable.includes(q);
+      const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+      return matchesQuery && matchesStatus;
+    });
+  };
+
+  const RequestCards = ({ items, empty, actor }) => {
+    const filteredItems = filterRequests(items);
+
+    const counts = useMemo(() => ({
+      total: items.length,
+      pending: items.filter((i) => ['pending_manager', 'pending_hr'].includes(i.status)).length,
+      approved: items.filter((i) => i.status === 'hr_approved').length,
+      rejected: items.filter((i) => ['manager_rejected', 'hr_rejected'].includes(i.status)).length,
+    }), [items]);
+
+    return (
+      <Stack spacing={5}>
+        {/* Quick Filter & Search Bar */}
+        <Card borderRadius="2xl" border="1px solid" borderColor="gray.200" shadow="xs">
+          <CardBody p={4}>
+            <Flex gap={3} flexWrap="wrap" align="center" justify="space-between">
+              <HStack flex="1" minW={{ base: '100%', md: '300px' }}>
+                <Box position="relative" w="full">
+                  <Box position="absolute" left={3.5} top={3} color="gray.400" pointerEvents="none">
+                    <FiSearch />
+                  </Box>
+                  <Input
+                    pl={10}
+                    placeholder="Search requests by ID, employee, title, department..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    borderRadius="xl"
+                    bg="gray.50"
+                  />
+                </Box>
+              </HStack>
+              <HStack spacing={2} flexWrap="wrap">
+                <Button
+                  size="sm"
+                  borderRadius="lg"
+                  variant={statusFilter === 'all' ? 'solid' : 'ghost'}
+                  colorScheme={statusFilter === 'all' ? 'teal' : 'gray'}
+                  onClick={() => setStatusFilter('all')}
+                >
+                  All ({counts.total})
+                </Button>
+                <Button
+                  size="sm"
+                  borderRadius="lg"
+                  variant={statusFilter === 'pending_manager' || statusFilter === 'pending_hr' ? 'solid' : 'ghost'}
+                  colorScheme="orange"
+                  onClick={() => setStatusFilter(actor === 'manager' ? 'pending_manager' : 'pending_hr')}
+                >
+                  Pending ({counts.pending})
+                </Button>
+                <Button
+                  size="sm"
+                  borderRadius="lg"
+                  variant={statusFilter === 'hr_approved' ? 'solid' : 'ghost'}
+                  colorScheme="green"
+                  onClick={() => setStatusFilter('hr_approved')}
+                >
+                  Approved ({counts.approved})
+                </Button>
+                <Button
+                  size="sm"
+                  borderRadius="lg"
+                  variant={statusFilter === 'hr_rejected' || statusFilter === 'manager_rejected' ? 'solid' : 'ghost'}
+                  colorScheme="red"
+                  onClick={() => setStatusFilter('hr_rejected')}
+                >
+                  Rejected ({counts.rejected})
+                </Button>
+                {(searchQuery || statusFilter !== 'all') && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    colorScheme="gray"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setStatusFilter('all');
+                    }}
+                  >
+                    Reset
+                  </Button>
+                )}
+              </HStack>
             </Flex>
-            {actor === 'mine' && item.status === 'pending_manager' && (
-              <Button mt={4} size="xs" variant="ghost" colorScheme="red" onClick={() => cancel(item)}>Cancel request</Button>
-            )}
+          </CardBody>
+        </Card>
+
+        {/* Requests List */}
+        {!filteredItems.length ? (
+          <Box p={12} textAlign="center" border="1px dashed" borderColor="gray.300" borderRadius="2xl" bg="white">
+            <Icon as={FiClipboard} boxSize={10} color="gray.400" />
+            <Heading mt={3} size="sm">
+              {items.length === 0 ? empty : 'No requests match your current search and filters.'}
+            </Heading>
+            <Text mt={1} fontSize="xs" color="gray.500">
+              Try adjusting your search terms or filter selections.
+            </Text>
           </Box>
-        );
-      })}
-    </Stack>
-  );
+        ) : (
+          filteredItems.map((item) => {
+            const [statusLabel, statusColor] = STATUS[item.status] || [item.status, 'gray'];
+            const isActionable =
+              (actor === 'manager' && item.status === 'pending_manager') ||
+              (actor === 'hr' && ['pending_manager', 'pending_hr'].includes(item.status)) ||
+              (isHr && ['pending_manager', 'pending_hr'].includes(item.status));
+
+            const formDetails = item.formData || {};
+            const leavePeriod =
+              item.category === 'leave'
+                ? formDetails.leaveDuration === 'half_day'
+                  ? `${formatDate(formDetails.halfDayDate)} (Half Day)`
+                  : `${formatDate(formDetails.startDate)} → ${formatDate(formDetails.endDate)} (${formDetails.totalDays || 1}d)`
+                : null;
+
+            return (
+              <Box
+                key={item._id}
+                p={5}
+                bg="white"
+                border="1px solid"
+                borderColor={isActionable ? 'teal.300' : 'gray.200'}
+                borderLeft="5px solid"
+                borderLeftColor={
+                  item.status === 'hr_approved'
+                    ? 'green.500'
+                    : item.status.includes('rejected')
+                    ? 'red.500'
+                    : item.status === 'pending_hr'
+                    ? 'blue.500'
+                    : 'orange.400'
+                }
+                borderRadius="2xl"
+                shadow="xs"
+                _hover={{ borderColor: 'teal.400', shadow: 'md', transform: 'translateY(-1px)' }}
+                transition="all 0.2s ease"
+              >
+                <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap={4}>
+                  <Box minW={0} flex="1">
+                    <HStack mb={2} spacing={2} flexWrap="wrap">
+                      <Badge colorScheme="teal" borderRadius="md" px={2.5} py={0.5} fontWeight="800">
+                        {item.requestNumber}
+                      </Badge>
+                      <Badge colorScheme={statusColor} borderRadius="md" px={2.5} py={0.5} fontWeight="700">
+                        {statusLabel}
+                      </Badge>
+                      <Badge variant="subtle" colorScheme="gray" textTransform="capitalize">
+                        {labelFor(item.subcategory)}
+                      </Badge>
+                      {item.department && (
+                        <Badge variant="outline" colorScheme="teal">
+                          {item.department}
+                        </Badge>
+                      )}
+                    </HStack>
+
+                    <Heading size="sm" color="gray.800">
+                      {item.title}
+                    </Heading>
+
+                    <HStack mt={2.5} spacing={4} flexWrap="wrap" fontSize="xs" color="gray.600">
+                      <HStack spacing={1.5}>
+                        <Avatar size="2xs" name={personName(item.requester)} />
+                        <Text>
+                          Requester: <strong>{personName(item.requester)}</strong>
+                        </Text>
+                      </HStack>
+                      <HStack spacing={1.5}>
+                        <Icon as={FiUserCheck} color="teal.500" />
+                        <Text>
+                          Manager: <strong>{personName(item.manager)}</strong>
+                        </Text>
+                      </HStack>
+                      {leavePeriod && (
+                        <HStack spacing={1.5}>
+                          <Icon as={FiCalendar} color="blue.500" />
+                          <Text>
+                            Period: <strong>{leavePeriod}</strong>
+                          </Text>
+                        </HStack>
+                      )}
+                      <HStack spacing={1.5}>
+                        <Icon as={FiClock} color="gray.400" />
+                        <Text>Submitted: {formatDate(item.createdAt)}</Text>
+                      </HStack>
+                    </HStack>
+                  </Box>
+
+                  <HStack spacing={3} alignSelf={{ base: 'flex-end', md: 'center' }}>
+                    {actor === 'mine' && item.status === 'pending_manager' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="red"
+                        onClick={() => cancel(item)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={isActionable ? 'solid' : 'outline'}
+                      colorScheme="teal"
+                      rightIcon={<FiChevronRight />}
+                      onClick={() => {
+                        setSelected({ ...item, actor });
+                        setDecisionNote('');
+                      }}
+                    >
+                      {isActionable ? 'Review & Decide' : 'View Details'}
+                    </Button>
+                  </HStack>
+                </Flex>
+              </Box>
+            );
+          })
+        )}
+      </Stack>
+    );
+  };
+
+  const selectedCategory = CATEGORIES.find((g) => g.key === category);
 
   return (
-    <Box maxW="1500px" mx="auto" px={{ base: 4, md: 7 }} py={{ base: 5, md: 8 }}>
-      <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap={4} mb={7}>
+    <Box maxW="1600px" mx="auto" px={{ base: 4, md: 7 }} py={{ base: 5, md: 8 }}>
+      {/* Header Banner */}
+      <Flex
+        justify="space-between"
+        align={{ base: 'flex-start', lg: 'center' }}
+        direction={{ base: 'column', lg: 'row' }}
+        gap={4}
+        mb={7}
+      >
         <Box>
-          <Text fontSize="xs" fontWeight="800" color="teal.600" letterSpacing="widest">EMPLOYEE • MANAGER • HR WORKFLOW</Text>
-          <Heading mt={1} size="xl">Employee Request Center</Heading>
-          <Text mt={2} color="gray.500">Submit categorized requests and follow every approval decision from manager review to HR permission.</Text>
+          <HStack spacing={2}>
+            <Icon as={FiClipboard} color="teal.600" />
+            <Text fontSize="xs" fontWeight="800" color="teal.600" letterSpacing="widest">
+              EMPLOYEE • LINE MANAGER • HR DECISION CENTER
+            </Text>
+          </HStack>
+          <Heading mt={1} size="xl">
+            Employee Request Center
+          </Heading>
+          <Text mt={2} color="gray.600" maxW="850px">
+            Submit leave and equipment handover requests with automated departmental routing. Track transparent progress from Line Manager review through HR authorization.
+          </Text>
           {accessContext && (
             <HStack mt={3} spacing={2} flexWrap="wrap">
-              <Badge colorScheme={accessContext.isHr ? 'green' : 'gray'}>
-                {accessContext.isHr
-                  ? 'HR administration access'
-                  : `${accessContext.displayRole || accessContext.role} employee access`}
+              <Badge colorScheme={accessContext.isHr ? 'teal' : 'blue'} px={2.5} py={0.5} borderRadius="md">
+                {accessContext.isHr ? 'HR Administration Workspace' : `${accessContext.displayRole || accessContext.role} Workspace`}
               </Badge>
-              <Badge variant="outline" colorScheme="teal">
-                {accessContext.username || accessContext.email} • {accessContext.userId}
+              <Badge variant="outline" colorScheme="gray" px={2.5} py={0.5} borderRadius="md">
+                {personName(currentUser)} • {accessContext.department}
               </Badge>
               {accessContext.assignedRequestCount > 0 && (
-                <Badge colorScheme="orange">
-                  {accessContext.assignedRequestCount} manager review pending
+                <Badge colorScheme="orange" px={2.5} py={0.5} borderRadius="md">
+                  {accessContext.assignedRequestCount} Line Review Pending
                 </Badge>
               )}
             </HStack>
           )}
         </Box>
-        <Button leftIcon={<FiRefreshCw />} variant="outline" colorScheme="teal" onClick={load} isLoading={loading}>Refresh</Button>
+        <HStack spacing={3} flexWrap="wrap">
+          {isHr && (
+            <Button
+              as={RouterLink}
+              to="/leave-management"
+              variant="outline"
+              colorScheme="teal"
+              leftIcon={<FiClock />}
+            >
+              HR Leave Register
+            </Button>
+          )}
+          <Button
+            leftIcon={<FiRefreshCw />}
+            variant="outline"
+            colorScheme="teal"
+            onClick={load}
+            isLoading={loading}
+          >
+            Refresh Records
+          </Button>
+        </HStack>
       </Flex>
 
-      <Tabs variant="soft-rounded" colorScheme="teal" isLazy>
-        <TabList overflowX="auto" gap={2} pb={2}>
-          <Tab flexShrink={0}>New request</Tab>
-          <Tab flexShrink={0}>My requests</Tab>
-          {canReviewAsManager && <Tab flexShrink={0}>Manager approvals{managerPendingCount ? ` (${managerPendingCount})` : ''}</Tab>}
-          {isHr && <Tab flexShrink={0}>HR approvals{hrPendingCount ? ` (${hrPendingCount})` : ''}</Tab>}
-          {isHr && <Tab flexShrink={0}>Manager assignments</Tab>}
+      {/* Tabs */}
+      <Tabs index={tabIndex} onChange={handleTabChange} variant="soft-rounded" colorScheme="teal" isLazy>
+        <TabList overflowX="auto" gap={2} pb={2} borderBottom="1px solid" borderColor="gray.200">
+          {tabList.map((tabItem) => (
+            <Tab key={tabItem.id} flexShrink={0} fontWeight="700" fontSize="sm" py={2.5} px={4}>
+              <HStack spacing={2}>
+                <Icon as={tabItem.icon} />
+                <Text>{tabItem.label}</Text>
+                {tabItem.count !== undefined && tabItem.count > 0 && (
+                  <Badge colorScheme="orange" borderRadius="full" px={2}>
+                    {tabItem.count}
+                  </Badge>
+                )}
+              </HStack>
+            </Tab>
+          ))}
         </TabList>
+
         <TabPanels mt={6}>
+          {/* Panel 0: New request */}
           <TabPanel p={0}>
-            <Grid templateColumns={{ base: 'minmax(0, 1fr)', lg: '280px minmax(0, 1fr)' }} gap={{ base: 5, lg: 7 }} alignItems="start">
-              <GridItem minW={0} bg="white" border="1px solid" borderColor="gray.200" borderRadius="2xl" p={5} position={{ lg: 'sticky' }} top={{ lg: '104px' }} shadow="sm" zIndex={1}>
-                <Heading size="md">Request categories</Heading>
-                <Text mt={1} mb={5} fontSize="sm" color="gray.500">Choose the form that matches the employee request.</Text>
+            <Grid
+              templateColumns={{ base: 'minmax(0, 1fr)', lg: '320px minmax(0, 1fr)' }}
+              gap={{ base: 6, lg: 8 }}
+              alignItems="start"
+            >
+              {/* Category selector sidebar */}
+              <GridItem
+                minW={0}
+                bg="white"
+                border="1px solid"
+                borderColor="gray.200"
+                borderRadius="2xl"
+                p={5}
+                position={{ lg: 'sticky' }}
+                top={{ lg: '104px' }}
+                shadow="sm"
+                zIndex={1}
+              >
+                <Heading size="sm" color="gray.800">
+                  Select Request Form
+                </Heading>
+                <Text mt={1} mb={5} fontSize="xs" color="gray.500">
+                  Choose the category that matches your submission requirement.
+                </Text>
+
                 <Stack spacing={4}>
-                  {CATEGORIES.map((group) => (
-                    <Box
-                      key={group.key}
-                      p={3}
-                      borderRadius="xl"
-                      bg={category === group.key ? 'teal.50' : 'gray.50'}
-                      border="1px solid"
-                      borderColor={category === group.key ? 'teal.200' : 'gray.100'}
-                      transition="all 0.2s ease"
-                    >
-                      <HStack mb={2}>
-                        <Flex w="30px" h="30px" align="center" justify="center" borderRadius="lg" bg="white">
-                          <Icon as={group.icon} color="teal.600" />
-                        </Flex>
-                        <Text fontWeight="800" fontSize="sm">{group.label}</Text>
-                      </HStack>
-                      <Stack spacing={1}>
-                        {group.children.map(([key, label]) => (
-                          <Button
-                            key={key}
-                            justifyContent="flex-start"
-                            variant={subcategory === key ? 'solid' : 'ghost'}
-                            colorScheme="teal"
-                            size="sm"
-                            w="full"
-                            borderRadius="lg"
-                            onClick={() => selectSubcategory(group.key, key)}
-                          >
-                            {label}
-                          </Button>
-                        ))}
-                      </Stack>
-                    </Box>
-                  ))}
+                  {CATEGORIES.map((group) => {
+                    const children = getCategoryChildren(group);
+                    const isGroupActive = category === group.key;
+                    return (
+                      <Box
+                        key={group.key}
+                        p={3}
+                        borderRadius="xl"
+                        bg={isGroupActive ? 'teal.50' : 'gray.50'}
+                        border="1px solid"
+                        borderColor={isGroupActive ? 'teal.200' : 'gray.200'}
+                        transition="all 0.2s ease"
+                      >
+                        <HStack mb={2.5} justify="space-between">
+                          <HStack spacing={2.5}>
+                            <Flex
+                              w="28px"
+                              h="28px"
+                              align="center"
+                              justify="center"
+                              borderRadius="lg"
+                              bg="white"
+                              color="teal.600"
+                              shadow="xs"
+                            >
+                              <Icon as={iconFor(group.key)} />
+                            </Flex>
+                            <Text fontWeight="800" fontSize="xs" color="gray.800">
+                              {group.label}
+                            </Text>
+                          </HStack>
+                          <Badge fontSize="2xs" colorScheme="gray">
+                            {children.length}
+                          </Badge>
+                        </HStack>
+
+                        <Stack spacing={1.5}>
+                          {children.map((child) => {
+                            const isSelected = subcategory === child.key;
+                            return (
+                              <Button
+                                key={child.key}
+                                justifyContent="space-between"
+                                variant={isSelected ? 'solid' : 'ghost'}
+                                colorScheme="teal"
+                                size="sm"
+                                w="full"
+                                h="auto"
+                                minH="38px"
+                                py={2.5}
+                                px={3}
+                                whiteSpace="normal"
+                                wordBreak="break-word"
+                                textAlign="left"
+                                lineHeight="1.35"
+                                borderRadius="xl"
+                                onClick={() => selectSubcategory(group.key, child.key)}
+                              >
+                                <Text fontSize="xs" fontWeight={isSelected ? '800' : '600'}>
+                                  {child.label}
+                                </Text>
+                                {isSelected && <Icon as={FiChevronRight} boxSize={3.5} />}
+                              </Button>
+                            );
+                          })}
+                        </Stack>
+                      </Box>
+                    );
+                  })}
                 </Stack>
               </GridItem>
-              <GridItem minW={0} bg="white" border="1px solid" borderColor="gray.200" borderRadius="2xl" p={{ base: 5, md: 8 }} shadow="sm">
+
+              {/* Form Content */}
+              <GridItem
+                minW={0}
+                bg="white"
+                border="1px solid"
+                borderColor="gray.200"
+                borderRadius="2xl"
+                p={{ base: 5, md: 8 }}
+                shadow="sm"
+              >
+                {/* Routing Banner */}
                 {accessContext?.submissionManager ? (
                   <Flex
-                    mb={7}
-                    p={5}
+                    mb={6}
+                    p={4.5}
                     gap={4}
                     align={{ base: 'flex-start', sm: 'center' }}
                     direction={{ base: 'column', sm: 'row' }}
                     justify="space-between"
-                    bg="teal.50"
+                    bg="linear-gradient(135deg, #e6fffa 0%, #f0fdf4 100%)"
                     border="1px solid"
                     borderColor="teal.200"
                     borderRadius="2xl"
                   >
-                    <HStack spacing={4}>
+                    <HStack spacing={3.5}>
                       <Avatar
                         size="md"
                         name={personName(accessContext.submissionManager)}
@@ -715,80 +1534,200 @@ const EmployeeRequestsPage = () => {
                         color="white"
                       />
                       <Box>
-                        <Text fontSize="xs" fontWeight="800" color="teal.700" textTransform="uppercase">
-                          Sending to your manager
+                        <Text fontSize="2xs" fontWeight="800" color="teal.700" textTransform="uppercase" letterSpacing="wide">
+                          STAGE 1 REVIEWER • ASSIGNED LINE MANAGER
                         </Text>
-                        <Heading mt={1} size="sm">{personName(accessContext.submissionManager)}</Heading>
-                        <Text mt={1} fontSize="sm" color="gray.600">
+                        <Heading mt={0.5} size="sm" color="teal.950">
+                          {personName(accessContext.submissionManager)}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600">
                           {accessContext.submissionManager.jobTitle || accessContext.submissionManager.role}
                           {accessContext.submissionManager.email ? ` • ${accessContext.submissionManager.email}` : ''}
                         </Text>
                       </Box>
                     </HStack>
                     <Box textAlign={{ base: 'left', sm: 'right' }}>
-                      <Badge colorScheme="teal">First approver</Badge>
-                      <Text mt={1} fontSize="xs" color="gray.500" textTransform="capitalize">
-                        {accessContext.submissionManager.assignmentSource}
+                      <Badge colorScheme="teal" borderRadius="md" px={2.5} py={0.5}>
+                        Line Approval Route
+                      </Badge>
+                      <Text mt={1} fontSize="2xs" color="gray.500" textTransform="capitalize">
+                        Auto-assigned via {accessContext.submissionManager.assignmentSource}
                       </Text>
                     </Box>
                   </Flex>
                 ) : accessContext ? (
-                  <Alert status="error" borderRadius="xl" mb={7}>
+                  <Alert status="error" borderRadius="xl" mb={6}>
                     <AlertIcon />
-                    No active manager is assigned. Contact HR before submitting this request.
+                    No active manager is assigned to your profile. Contact HR before submitting this request.
                   </Alert>
                 ) : null}
-                <Flex justify="space-between" align="center" mb={7} gap={3} wrap="wrap">
-                  <Box><Badge colorScheme="teal">{selectedCategory?.label}</Badge><Heading mt={2} size="lg">{labelFor(subcategory)}</Heading></Box>
-                  <Badge variant="outline" colorScheme="gray">Manager → HR approval</Badge>
+
+                {/* Form Title & Stepper Badge */}
+                <Flex justify="space-between" align="center" mb={6} gap={3} wrap="wrap">
+                  <Box>
+                    <Badge colorScheme="teal" px={2.5} py={0.5} borderRadius="md">
+                      {selectedCategory?.label}
+                    </Badge>
+                    <Heading mt={1.5} size="lg" color="gray.800">
+                      {labelFor(subcategory)}
+                    </Heading>
+                  </Box>
+                  <HStack spacing={2} bg="gray.50" px={3} py={1.5} borderRadius="xl" border="1px solid" borderColor="gray.200">
+                    <Icon as={FiArrowRight} color="teal.600" />
+                    <Text fontSize="xs" fontWeight="700" color="gray.600">
+                      1. Submitter → 2. Line Manager → 3. HR Final Sign-off
+                    </Text>
+                  </HStack>
                 </Flex>
-                {category === 'leave' ? renderLeaveForm() : subcategory === 'material_handover' ? renderMaterialForm() : renderTaskForm()}
+
+                {category === 'leave'
+                  ? renderLeaveForm()
+                  : subcategory === 'material_handover'
+                  ? renderMaterialForm()
+                  : renderTaskForm()}
+
                 <Divider my={7} />
-                <Field label="Supporting attachments (optional)" helper="No file is required. If needed, attach up to five PDF, Word, JPG, or PNG files; maximum 10 MB each.">
-                  <Input type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" p={1} onChange={(event) => setAttachments(Array.from(event.target.files || []))} />
-                </Field>
-                <Flex justify="flex-end" mt={7}>
+
+                {/* Supporting Attachments Section */}
+                <Box>
+                  <Field
+                    label="Supporting Attachments (Optional)"
+                    helper="Attach up to five files (PDF, Word doc, JPG, PNG). Maximum 10 MB per file."
+                  >
+                    <Input
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      p={1.5}
+                      borderRadius="xl"
+                      bg="gray.50"
+                      onChange={handleFileAttachment}
+                    />
+                  </Field>
+
+                  {attachments.length > 0 && (
+                    <Stack spacing={2} mt={3}>
+                      {attachments.map((file, idx) => (
+                        <Flex
+                          key={`${file.name}-${idx}`}
+                          p={2.5}
+                          bg="teal.50"
+                          border="1px solid"
+                          borderColor="teal.200"
+                          borderRadius="xl"
+                          justify="space-between"
+                          align="center"
+                        >
+                          <HStack spacing={2.5}>
+                            <Icon as={FiFileText} color="teal.700" />
+                            <Text fontSize="xs" fontWeight="700" color="teal.900" noOfLines={1}>
+                              {file.name}
+                            </Text>
+                            <Badge colorScheme="teal" fontSize="2xs">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </Badge>
+                          </HStack>
+                          <IconButton
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="red"
+                            icon={<FiTrash2 />}
+                            aria-label="Remove attachment"
+                            onClick={() => removeAttachment(idx)}
+                          />
+                        </Flex>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
+
+                <Flex justify="flex-end" mt={8}>
                   <Button
                     colorScheme="teal"
                     size="lg"
+                    px={8}
+                    borderRadius="xl"
                     leftIcon={<FiSend />}
                     onClick={submit}
                     isLoading={submitting}
                     isDisabled={Boolean(accessContext && !accessContext.submissionManager)}
-                    loadingText="Submitting"
+                    loadingText="Submitting Request..."
+                    shadow="sm"
                   >
-                    Submit to manager
+                    Submit Request for Review
                   </Button>
                 </Flex>
               </GridItem>
             </Grid>
           </TabPanel>
-          <TabPanel p={0}><RequestCards items={mine} empty="You have not submitted any requests." actor="mine" /></TabPanel>
-          {canReviewAsManager && <TabPanel p={0}><RequestCards items={managerInbox} empty="No requests are assigned to you." actor="manager" /></TabPanel>}
-          {isHr && (
+
+          {/* Panel 1: My requests */}
+          <TabPanel p={0}>
+            <RequestCards items={mine} empty="You have not submitted any employee requests." actor="mine" />
+          </TabPanel>
+
+          {/* Panel 2: Manager approvals */}
+          {canReviewAsManager && (
             <TabPanel p={0}>
-              <Alert status="info" borderRadius="xl" mb={5}>
-                <AlertIcon />
-                This queue only receives requests approved by the assigned manager. Requests awaiting manager review are not available for HR approval.
-              </Alert>
-              <RequestCards items={hrInbox} empty="No manager-approved requests are available for HR review." actor="hr" />
+              <RequestCards
+                items={managerInbox}
+                empty="No employee requests are currently assigned to you for line manager review."
+                actor="manager"
+              />
             </TabPanel>
           )}
+
+          {/* Panel 3: HR approvals */}
+          {isHr && (
+            <TabPanel p={0}>
+              <Alert status="info" borderRadius="2xl" mb={5} border="1px solid" borderColor="blue.200">
+                <AlertIcon />
+                HR Master Authorization Center: You can monitor, evaluate, and make direct approval or rejection decisions for any active request in the organization.
+              </Alert>
+              <RequestCards
+                items={hrInbox}
+                empty="No pending requests currently require HR review."
+                actor="hr"
+              />
+            </TabPanel>
+          )}
+
+          {/* Panel 4: Manager assignments */}
           {isHr && (
             <TabPanel p={0}>
               <Box mb={5}>
-                <Heading size="md">Employee manager assignments</Heading>
-                <Text mt={1} fontSize="sm" color="gray.500">Assign the accountable line manager used for request routing and approvals.</Text>
+                <Heading size="md">Employee Line Manager Assignments</Heading>
+                <Text mt={1} fontSize="sm" color="gray.500">
+                  Assign the line manager accountable for routing and first-stage approvals for each employee.
+                </Text>
               </Box>
               <SimpleGrid columns={{ base: 1, xl: 2 }} spacing={4}>
                 {managerDirectory.employees
                   .filter((employee) => !MANAGER_ROLES.has(normalizeRole(employee.role)))
                   .map((employee) => (
-                    <Box key={employee._id} p={5} bg="white" border="1px solid" borderColor="gray.200" borderRadius="2xl">
-                      <Flex justify="space-between" align={{ base: 'flex-start', sm: 'center' }} direction={{ base: 'column', sm: 'row' }} gap={4}>
+                    <Box
+                      key={employee._id}
+                      p={5}
+                      bg="white"
+                      border="1px solid"
+                      borderColor="gray.200"
+                      borderRadius="2xl"
+                      shadow="xs"
+                    >
+                      <Flex
+                        justify="space-between"
+                        align={{ base: 'flex-start', sm: 'center' }}
+                        direction={{ base: 'column', sm: 'row' }}
+                        gap={4}
+                      >
                         <HStack>
-                          <Avatar size="sm" name={personName(employee)} />
-                          <Box><Text fontWeight="800">{personName(employee)}</Text><Text fontSize="xs" color="gray.500">{employee.jobTitle || employee.role}</Text></Box>
+                          <Avatar size="sm" name={personName(employee)} bg="teal.600" color="white" />
+                          <Box>
+                            <Text fontWeight="800">{personName(employee)}</Text>
+                            <Text fontSize="xs" color="gray.500">
+                              {employee.jobTitle || employee.role} • {employee.email}
+                            </Text>
+                          </Box>
                         </HStack>
                         <Select
                           maxW={{ sm: '280px' }}
@@ -796,10 +1735,12 @@ const EmployeeRequestsPage = () => {
                           onChange={(event) => assignManager(employee._id, event.target.value)}
                           isDisabled={assigningUserId === employee._id}
                           placeholder="Select manager"
+                          bg="gray.50"
+                          borderRadius="xl"
                         >
                           {managerDirectory.managers.map((manager) => (
                             <option key={manager._id} value={manager._id}>
-                              {personName(manager)} — {manager.email} — {manager.role}
+                              {personName(manager)} — {manager.jobTitle || manager.role}
                             </option>
                           ))}
                         </Select>
@@ -812,110 +1753,456 @@ const EmployeeRequestsPage = () => {
         </TabPanels>
       </Tabs>
 
-      <Drawer isOpen={Boolean(selected)} onClose={() => setSelected(null)} placement="right" size="full">
+      {/* Detail & Decision Drawer */}
+      <Drawer
+        isOpen={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        placement="right"
+        size="full"
+      >
         <DrawerOverlay bg="blackAlpha.600" backdropFilter="blur(3px)" />
-        <DrawerContent ml="auto" maxW={{ base: '100%', md: '780px', xl: '900px' }} bg="gray.50">
-          <DrawerCloseButton color="white" top={5} right={5} />
+        <DrawerContent ml="auto" maxW={{ base: '100%', md: '800px', xl: '920px' }} bg="gray.50">
+          <DrawerCloseButton color="white" top={5} right={5} zIndex={2} />
           <DrawerHeader p={0}>
-            <Box bgGradient="linear(to-r, teal.800, teal.600)" color="white" px={{ base: 5, md: 8 }} py={7}>
-              <Text fontSize="xs" fontWeight="800" color="teal.100">{selected?.requestNumber}</Text>
-              <Heading mt={1} size="lg">{selected?.title}</Heading>
-              <Text mt={2} fontSize="sm" color="teal.100">{selected && STATUS[selected.status]?.[0]}</Text>
+            <Box bg="linear-gradient(135deg, #1e4f4f 0%, #285e61 100%)" color="white" px={{ base: 5, md: 8 }} py={7}>
+              <HStack spacing={2} mb={1.5}>
+                <Badge colorScheme="teal" bg="whiteAlpha.300" color="white" px={2.5} py={0.5} borderRadius="md">
+                  {selected?.requestNumber}
+                </Badge>
+                <Badge
+                  colorScheme={STATUS[selected?.status]?.[1] || 'gray'}
+                  px={2.5}
+                  py={0.5}
+                  borderRadius="md"
+                >
+                  {STATUS[selected?.status]?.[0] || selected?.status}
+                </Badge>
+              </HStack>
+              <Heading size="lg" color="white">
+                {selected?.title}
+              </Heading>
+              <Text mt={2} fontSize="xs" color="teal.100">
+                Categorized under: <strong>{selected && labelFor(selected.subcategory)}</strong> • Department: <strong>{selected?.department || 'General'}</strong>
+              </Text>
             </Box>
           </DrawerHeader>
+
           <DrawerBody px={{ base: 4, md: 8 }} py={6}>
             {selected && (
               <Stack spacing={6}>
-                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                  <Box bg="white" borderRadius="xl" border="1px solid" borderColor="gray.200" p={5}>
-                    <Flex justify="space-between" align="center">
-                      <Box>
-                        <Text fontSize="xs" color="gray.500">EMPLOYEE</Text>
-                        <HStack mt={2}>
-                          <Avatar size="sm" name={personName(selected.requester)} />
-                          <Box>
-                            <Text fontWeight="800">{personName(selected.requester)}</Text>
-                            <Text fontSize="xs" color="gray.500">{selected.department}</Text>
-                          </Box>
-                        </HStack>
-                      </Box>
-                      {(selected.requester?._id || selected.requestedById) && (
-                        <Button
-                          size="xs"
-                          colorScheme="teal"
-                          variant="outline"
-                          onClick={() => navigate(`/users?userId=${selected.requester?._id || selected.requestedById}&tab=2`)}
-                        >
-                          Permissions & Profile
-                        </Button>
-                      )}
-                    </Flex>
-                  </Box>
-                  <Box bg="white" borderRadius="xl" border="1px solid" borderColor="gray.200" p={5}>
-                    <Text fontSize="xs" color="gray.500">ASSIGNED MANAGER</Text>
-                    <HStack mt={2}><Icon as={FiUserCheck} color="teal.600" /><Text fontWeight="800">{personName(selected.manager)}</Text></HStack>
-                  </Box>
-                </SimpleGrid>
-                {selected.actor === 'hr' && selected.status === 'pending_manager' && (
-                  <Box bg="white" borderRadius="2xl" border="1px solid" borderColor="gray.200" p={6}>
-                    <Heading size="sm">Manager routing</Heading>
-                    <Text mt={1} mb={4} fontSize="sm" color="gray.500">
-                      This request is waiting for manager review. HR can correct its assignment if it was routed to the wrong reviewer.
+                {/* 3-Step Interactive Workflow Stepper */}
+                <Card borderRadius="2xl" border="1px solid" borderColor="gray.200" shadow="xs">
+                  <CardBody p={5}>
+                    <Text fontSize="xs" fontWeight="800" color="gray.500" textTransform="uppercase" mb={3}>
+                      Workflow Approval Pipeline
                     </Text>
-                    <Select
-                      value={selected.manager?._id || selected.manager || ''}
-                      onChange={(event) => reassignRequest(event.target.value)}
-                      isDisabled={reassigning}
-                    >
-                      {managerDirectory.managers.map((manager) => (
-                        <option key={manager._id} value={manager._id}>
-                          {personName(manager)} — {manager.jobTitle || manager.role}
-                        </option>
-                      ))}
-                    </Select>
+                    <SimpleGrid columns={{ base: 1, md: 3 }} gap={3}>
+                      {/* Step 1: Submission */}
+                      <Box p={3.5} bg="green.50" border="1px solid" borderColor="green.200" borderRadius="xl">
+                        <HStack spacing={2} mb={1}>
+                          <Icon as={FiCheckCircle} color="green.600" />
+                          <Text fontWeight="800" fontSize="xs" color="green.900">1. Submitter</Text>
+                        </HStack>
+                        <Text fontSize="xs" fontWeight="700" color="gray.800">{personName(selected.requester)}</Text>
+                        <Text fontSize="2xs" color="gray.500">{formatDateTime(selected.createdAt)}</Text>
+                      </Box>
+
+                      {/* Step 2: Line Manager */}
+                      <Box
+                        p={3.5}
+                        bg={
+                          selected.status === 'pending_manager'
+                            ? 'orange.50'
+                            : selected.status === 'manager_rejected'
+                            ? 'red.50'
+                            : 'green.50'
+                        }
+                        border="1px solid"
+                        borderColor={
+                          selected.status === 'pending_manager'
+                            ? 'orange.300'
+                            : selected.status === 'manager_rejected'
+                            ? 'red.300'
+                            : 'green.300'
+                        }
+                        borderRadius="xl"
+                      >
+                        <HStack spacing={2} mb={1}>
+                          <Icon
+                            as={
+                              selected.status === 'pending_manager'
+                                ? FiClock
+                                : selected.status === 'manager_rejected'
+                                ? FiXCircle
+                                : FiCheckCircle
+                            }
+                            color={
+                              selected.status === 'pending_manager'
+                                ? 'orange.600'
+                                : selected.status === 'manager_rejected'
+                                ? 'red.600'
+                                : 'green.600'
+                            }
+                          />
+                          <Text fontWeight="800" fontSize="xs" color="gray.900">2. Line Manager</Text>
+                        </HStack>
+                        <Text fontSize="xs" fontWeight="700" color="gray.800">{personName(selected.manager)}</Text>
+                        <Text fontSize="2xs" color="gray.500">
+                          {selected.managerDecision?.decidedAt
+                            ? `${selected.managerDecision.decision.toUpperCase()} • ${formatDateTime(selected.managerDecision.decidedAt)}`
+                            : 'Awaiting Line Review'}
+                        </Text>
+                      </Box>
+
+                      {/* Step 3: HR Final */}
+                      <Box
+                        p={3.5}
+                        bg={
+                          selected.status === 'hr_approved'
+                            ? 'green.50'
+                            : selected.status === 'hr_rejected'
+                            ? 'red.50'
+                            : selected.status === 'pending_hr'
+                            ? 'blue.50'
+                            : 'gray.50'
+                        }
+                        border="1px solid"
+                        borderColor={
+                          selected.status === 'hr_approved'
+                            ? 'green.300'
+                            : selected.status === 'hr_rejected'
+                            ? 'red.300'
+                            : selected.status === 'pending_hr'
+                            ? 'blue.300'
+                            : 'gray.200'
+                        }
+                        borderRadius="xl"
+                      >
+                        <HStack spacing={2} mb={1}>
+                          <Icon
+                            as={
+                              selected.status === 'hr_approved'
+                                ? FiCheckCircle
+                                : selected.status === 'hr_rejected'
+                                ? FiXCircle
+                                : FiClock
+                            }
+                            color={
+                              selected.status === 'hr_approved'
+                                ? 'green.600'
+                                : selected.status === 'hr_rejected'
+                                ? 'red.600'
+                                : selected.status === 'pending_hr'
+                                ? 'blue.600'
+                                : 'gray.400'
+                            }
+                          />
+                          <Text fontWeight="800" fontSize="xs" color="gray.900">3. HR Authorization</Text>
+                        </HStack>
+                        <Text fontSize="xs" fontWeight="700" color="gray.800">
+                          {selected.hrDecision?.decidedBy?.fullName || 'HR Administration'}
+                        </Text>
+                        <Text fontSize="2xs" color="gray.500">
+                          {selected.hrDecision?.decidedAt
+                            ? `${selected.hrDecision.decision.toUpperCase()} • ${formatDateTime(selected.hrDecision.decidedAt)}`
+                            : selected.status === 'pending_manager'
+                            ? 'Pending manager first (or HR direct)'
+                            : 'Awaiting HR final decision'}
+                        </Text>
+                      </Box>
+                    </SimpleGrid>
+                  </CardBody>
+                </Card>
+
+                {/* Requester and Manager Details */}
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <Card borderRadius="2xl" border="1px solid" borderColor="gray.200" shadow="xs">
+                    <CardBody p={5}>
+                      <Flex justify="space-between" align="center" mb={2}>
+                        <Text fontSize="xs" color="gray.500" fontWeight="800" letterSpacing="wide">
+                          EMPLOYEE INFORMATION
+                        </Text>
+                        {(selected.requester?._id || selected.requestedById) && (
+                          <Button
+                            size="xs"
+                            colorScheme="teal"
+                            variant="outline"
+                            leftIcon={<FiExternalLink />}
+                            onClick={() =>
+                              navigate(`/users?userId=${selected.requester?._id || selected.requestedById}&tab=2`)
+                            }
+                          >
+                            Profile
+                          </Button>
+                        )}
+                      </Flex>
+                      <HStack spacing={3.5} mb={3}>
+                        <Avatar size="md" name={personName(selected.requester)} bg="teal.600" color="white" />
+                        <Box>
+                          <Text fontWeight="800" fontSize="md">
+                            {personName(selected.requester)}
+                          </Text>
+                          <Text fontSize="xs" color="teal.700" fontWeight="600">
+                            {selected.requester?.jobTitle || selected.requester?.role || 'Staff Member'}
+                          </Text>
+                          <Text fontSize="xs" color="gray.500">
+                            Dept: <strong>{selected.department || selected.requester?.department || 'General'}</strong>
+                          </Text>
+                        </Box>
+                      </HStack>
+                      <Stack spacing={1.5} fontSize="xs" bg="gray.50" p={3} borderRadius="xl">
+                        {selected.requester?.email && (
+                          <HStack><Icon as={FiMail} color="gray.400" /><Text color="gray.600">Email:</Text><Text fontWeight="600">{selected.requester.email}</Text></HStack>
+                        )}
+                        {(selected.requester?.phone || selected.requester?.altPhone) && (
+                          <HStack><Icon as={FiPhone} color="gray.400" /><Text color="gray.600">Phone:</Text><Text fontWeight="600">{selected.requester?.phone || selected.requester?.altPhone}</Text></HStack>
+                        )}
+                        {selected.requester?.digitalId && (
+                          <HStack><Icon as={FiTag} color="gray.400" /><Text color="gray.600">Digital ID:</Text><Badge colorScheme="purple">{selected.requester.digitalId}</Badge></HStack>
+                        )}
+                      </Stack>
+                    </CardBody>
+                  </Card>
+
+                  <Card borderRadius="2xl" border="1px solid" borderColor="gray.200" shadow="xs">
+                    <CardBody p={5}>
+                      <Text fontSize="xs" color="gray.500" fontWeight="800" letterSpacing="wide" mb={2}>
+                        ASSIGNED LINE MANAGER
+                      </Text>
+                      <HStack spacing={3.5} mb={3}>
+                        <Avatar size="md" name={personName(selected.manager)} bg="blue.600" color="white" />
+                        <Box>
+                          <Text fontWeight="800" fontSize="md">
+                            {personName(selected.manager)}
+                          </Text>
+                          <Text fontSize="xs" color="blue.700" fontWeight="600">
+                            {selected.manager?.jobTitle || selected.manager?.role || 'Manager'}
+                          </Text>
+                          <Text fontSize="xs" color="gray.500">
+                            Dept: <strong>{selected.department || 'General'}</strong>
+                          </Text>
+                        </Box>
+                      </HStack>
+                      <Stack spacing={1.5} fontSize="xs" bg="gray.50" p={3} borderRadius="xl">
+                        {selected.manager?.email && (
+                          <HStack><Icon as={FiMail} color="gray.400" /><Text color="gray.600">Email:</Text><Text fontWeight="600">{selected.manager.email}</Text></HStack>
+                        )}
+                        <HStack><Icon as={FiUserCheck} color="green.500" /><Text color="gray.600">Review Stage:</Text><Text fontWeight="700" color={selected.status === 'pending_manager' ? 'orange.600' : 'green.600'}>{selected.status === 'pending_manager' ? 'Pending Line Review' : 'Manager Review Completed'}</Text></HStack>
+                      </Stack>
+                    </CardBody>
+                  </Card>
+                </SimpleGrid>
+
+                {/* Form Details Grid */}
+                <Card borderRadius="2xl" border="1px solid" borderColor="gray.200" shadow="xs">
+                  <CardBody p={5}>
+                    <Heading size="sm" mb={4}>
+                      Structured Request Details
+                    </Heading>
+                    <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3.5}>
+                      {Object.entries(selected.formData || {})
+                        .filter(([key, value]) => value !== '' && value !== false && !['laptopPassword'].includes(key))
+                        .map(([key, value]) => (
+                          <Box key={key} p={3.5} bg="gray.50" borderRadius="xl" border="1px solid" borderColor="gray.100">
+                            <Text fontSize="2xs" fontWeight="800" color="gray.500" textTransform="uppercase">
+                              {formatFormKey(key)}
+                            </Text>
+                            <Text mt={1} fontSize="sm" fontWeight="700" color="gray.800">
+                              {formatFormValue(value, key)}
+                            </Text>
+                          </Box>
+                        ))}
+                    </SimpleGrid>
+                  </CardBody>
+                </Card>
+
+                {/* Attachments */}
+                {selected.attachments?.length > 0 && (
+                  <Card borderRadius="2xl" border="1px solid" borderColor="gray.200" shadow="xs">
+                    <CardBody p={5}>
+                      <Heading size="sm" mb={3}>
+                        Supporting Attachments ({selected.attachments.length})
+                      </Heading>
+                      <Stack spacing={2}>
+                        {selected.attachments.map((attachment) => (
+                          <Button
+                            key={attachment.fileId}
+                            as="a"
+                            href={attachment.url}
+                            target="_blank"
+                            variant="outline"
+                            colorScheme="teal"
+                            justifyContent="space-between"
+                            rightIcon={<FiDownload />}
+                            leftIcon={<FiFileText />}
+                            borderRadius="xl"
+                          >
+                            <Text noOfLines={1}>{attachment.originalName}</Text>
+                          </Button>
+                        ))}
+                      </Stack>
+                    </CardBody>
+                  </Card>
+                )}
+
+                {/* Previous Decisions Notes */}
+                {selected.managerDecision?.decision && (
+                  <Box bg={selected.managerDecision.decision === 'approved' ? 'teal.50' : 'red.50'} borderRadius="xl" border="1px solid" borderColor={selected.managerDecision.decision === 'approved' ? 'teal.200' : 'red.200'} p={4}>
+                    <Flex justify="space-between" align="center">
+                      <HStack spacing={2}>
+                        <Icon as={selected.managerDecision.decision === 'approved' ? FiCheckCircle : FiXCircle} color={selected.managerDecision.decision === 'approved' ? 'teal.700' : 'red.700'} />
+                        <Text fontWeight="800" color={selected.managerDecision.decision === 'approved' ? 'teal.900' : 'red.900'}>
+                          Line Manager Decision: {selected.managerDecision.decision.toUpperCase()}
+                        </Text>
+                      </HStack>
+                      <Text fontSize="2xs" color="gray.500">{formatDateTime(selected.managerDecision.decidedAt)}</Text>
+                    </Flex>
+                    {selected.managerDecision.note && (
+                      <Text mt={2} fontSize="sm" color={selected.managerDecision.decision === 'approved' ? 'teal.900' : 'red.900'}>
+                        <strong>Manager Remark:</strong> {selected.managerDecision.note}
+                      </Text>
+                    )}
                   </Box>
                 )}
-                <Box bg="white" borderRadius="2xl" border="1px solid" borderColor="gray.200" p={6}>
-                  <Heading size="sm" mb={4}>Request information</Heading>
-                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                    {Object.entries(selected.formData || {}).filter(([key, value]) => value !== '' && value !== false && !['laptopPassword'].includes(key)).map(([key, value]) => (
-                      <Box key={key} p={3} bg="gray.50" borderRadius="lg">
-                        <Text fontSize="xs" color="gray.500" textTransform="uppercase">{key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}</Text>
-                        <Text mt={1} fontSize="sm" fontWeight="700">{typeof value === 'boolean' ? 'Yes' : String(value)}</Text>
-                      </Box>
-                    ))}
-                  </SimpleGrid>
-                </Box>
-                {selected.attachments?.length > 0 && (
-                  <Box bg="white" borderRadius="2xl" border="1px solid" borderColor="gray.200" p={6}>
-                    <Heading size="sm" mb={4}>Attachments</Heading>
-                    <Stack>
-                      {selected.attachments.map((attachment) => (
-                        <Button key={attachment.fileId} as="a" href={attachment.url} target="_blank" variant="outline" justifyContent="space-between" rightIcon={<FiDownload />}>{attachment.originalName}</Button>
+
+                {selected.hrDecision?.decision && (
+                  <Box bg={selected.hrDecision.decision === 'approved' ? 'green.50' : 'red.50'} borderRadius="xl" border="1px solid" borderColor={selected.hrDecision.decision === 'approved' ? 'green.200' : 'red.200'} p={4}>
+                    <Flex justify="space-between" align="center">
+                      <HStack spacing={2}>
+                        <Icon as={selected.hrDecision.decision === 'approved' ? FiCheckCircle : FiXCircle} color={selected.hrDecision.decision === 'approved' ? 'green.700' : 'red.700'} />
+                        <Text fontWeight="800" color={selected.hrDecision.decision === 'approved' ? 'green.900' : 'red.900'}>
+                          HR Final Authorization: {selected.hrDecision.decision.toUpperCase()}
+                        </Text>
+                      </HStack>
+                      <Text fontSize="2xs" color="gray.500">{formatDateTime(selected.hrDecision.decidedAt)}</Text>
+                    </Flex>
+                    {selected.hrDecision.note && (
+                      <Text mt={2} fontSize="sm" color={selected.hrDecision.decision === 'approved' ? 'green.900' : 'red.900'}>
+                        <strong>HR Remark:</strong> {selected.hrDecision.note}
+                      </Text>
+                    )}
+                  </Box>
+                )}
+
+                {/* Audit Trail Timeline */}
+                <Card borderRadius="2xl" border="1px solid" borderColor="gray.200" shadow="xs">
+                  <CardBody p={5}>
+                    <Heading size="sm" mb={4}>
+                      Audit History & Timeline
+                    </Heading>
+                    <Stack spacing={3.5}>
+                      {(selected.history || []).map((event, index) => (
+                        <Flex key={`${event.occurredAt}-${index}`} gap={3}>
+                          <Flex
+                            w="30px"
+                            h="30px"
+                            bg="teal.50"
+                            borderRadius="full"
+                            align="center"
+                            justify="center"
+                            flexShrink={0}
+                          >
+                            <Icon as={FiCheck} color="teal.600" />
+                          </Flex>
+                          <Box>
+                            <HStack spacing={2}>
+                              <Text fontWeight="800" fontSize="xs" textTransform="capitalize">
+                                {event.action.replace(/_/g, ' ')}
+                              </Text>
+                              <Badge fontSize="2xs" colorScheme="gray">{event.actorRole || 'System'}</Badge>
+                            </HStack>
+                            <Text fontSize="xs" color="gray.600" mt={0.5}>
+                              {event.note || 'Action recorded in audit log'}
+                            </Text>
+                            <Text fontSize="2xs" color="gray.400">
+                              {formatDateTime(event.occurredAt)}
+                            </Text>
+                          </Box>
+                        </Flex>
                       ))}
                     </Stack>
-                  </Box>
+                  </CardBody>
+                </Card>
+
+                {/* Manager Reassignment Box for HR */}
+                {isHr && selected.status === 'pending_manager' && (
+                  <Card borderRadius="2xl" border="1px solid" borderColor="gray.200" shadow="xs">
+                    <CardBody p={5}>
+                      <Heading size="sm">Manager Routing Adjustment</Heading>
+                      <Text mt={1} mb={4} fontSize="xs" color="gray.500">
+                        This request is currently with the manager below. HR can reassign it to a different reviewer if needed.
+                      </Text>
+                      <Select
+                        borderRadius="xl"
+                        value={selected.manager?._id || selected.manager || ''}
+                        onChange={(event) => reassignRequest(event.target.value)}
+                        isDisabled={reassigning}
+                      >
+                        {managerDirectory.managers.map((manager) => (
+                          <option key={manager._id} value={manager._id}>
+                            {personName(manager)} — {manager.jobTitle || manager.role}
+                          </option>
+                        ))}
+                      </Select>
+                    </CardBody>
+                  </Card>
                 )}
-                <Box bg="white" borderRadius="2xl" border="1px solid" borderColor="gray.200" p={6}>
-                  <Heading size="sm" mb={4}>Approval history</Heading>
-                  <Stack spacing={4}>
-                    {(selected.history || []).map((event, index) => (
-                      <Flex key={`${event.occurredAt}-${index}`} gap={3}>
-                        <Flex w="34px" h="34px" bg="teal.50" borderRadius="full" align="center" justify="center"><Icon as={FiCheck} color="teal.600" /></Flex>
-                        <Box><Text fontWeight="800" textTransform="capitalize">{event.action.replace(/_/g, ' ')}</Text><Text fontSize="xs" color="gray.500">{event.note || 'No note'} • {formatDate(event.occurredAt)}</Text></Box>
+
+                {/* Active Decision Control Box */}
+                {((selected.actor === 'manager' && selected.status === 'pending_manager') ||
+                  (selected.actor === 'hr' && ['pending_manager', 'pending_hr'].includes(selected.status)) ||
+                  (isHr && ['pending_manager', 'pending_hr'].includes(selected.status))) && (
+                  <Card border="2px solid" borderColor="teal.300" borderRadius="2xl" shadow="sm">
+                    <CardBody p={5}>
+                      <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
+                        <Box>
+                          <Heading size="sm">Issue Decision</Heading>
+                          <Text mt={1} fontSize="xs" color="gray.600">
+                            {isHr
+                              ? 'HR has full authority to review all details and issue an immediate final approval or rejection.'
+                              : 'Review the details and issue your line manager approval or rejection.'}
+                          </Text>
+                        </Box>
+                        <Badge colorScheme={isHr ? 'teal' : 'blue'} p={2} borderRadius="lg">
+                          {isHr ? 'Direct HR Authority' : 'Line Manager Review'}
+                        </Badge>
                       </Flex>
-                    ))}
-                  </Stack>
-                </Box>
-                {((selected.actor === 'manager' && selected.status === 'pending_manager') || (selected.actor === 'hr' && selected.status === 'pending_hr')) && (
-                  <Box bg="white" borderRadius="2xl" border="1px solid" borderColor="gray.200" p={6}>
-                    <Heading size="sm">Record your decision</Heading>
-                    <Textarea mt={4} value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} placeholder="Approval note or required rejection reason" minH="110px" />
-                    <HStack mt={4} justify="flex-end">
-                      <Button leftIcon={<FiX />} colorScheme="red" variant="outline" isDisabled={deciding} onClick={() => decide(selected.actor, 'rejected')}>Reject</Button>
-                      <Button leftIcon={<FiCheck />} colorScheme="teal" isLoading={deciding} isDisabled={deciding} onClick={() => decide(selected.actor, 'approved')}>{selected.actor === 'manager' ? 'Approve & send to HR' : 'Approve request'}</Button>
-                    </HStack>
-                  </Box>
+
+                      <Textarea
+                        mt={4}
+                        borderRadius="xl"
+                        value={decisionNote}
+                        onChange={(event) => setDecisionNote(event.target.value)}
+                        placeholder="Approval remark or mandatory rejection reason..."
+                        minH="100px"
+                      />
+
+                      <Divider my={4} />
+
+                      <Flex justify="flex-end" gap={3}>
+                        <Button
+                          leftIcon={<FiX />}
+                          colorScheme="red"
+                          variant="outline"
+                          borderRadius="xl"
+                          isDisabled={deciding}
+                          onClick={() => decide(isHr ? 'hr' : 'manager', 'rejected')}
+                        >
+                          Reject Request
+                        </Button>
+                        <Button
+                          leftIcon={<FiCheck />}
+                          colorScheme="teal"
+                          borderRadius="xl"
+                          isLoading={deciding}
+                          isDisabled={deciding}
+                          onClick={() => decide(isHr ? 'hr' : 'manager', 'approved')}
+                        >
+                          {isHr ? 'Approve Request (HR Final)' : 'Approve & Forward to HR'}
+                        </Button>
+                      </Flex>
+                    </CardBody>
+                  </Card>
                 )}
               </Stack>
             )}

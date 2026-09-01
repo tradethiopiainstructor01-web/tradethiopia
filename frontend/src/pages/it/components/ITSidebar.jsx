@@ -42,6 +42,7 @@ import {
   FiZap,
   FiUserCheck,
   FiUploadCloud,
+  FiClipboard,
 } from 'react-icons/fi';
 
 const SidebarButton = ({ label, icon: IconComponent, isActive, onClick, tooltip, isCollapsed, badge }) => {
@@ -414,6 +415,13 @@ export default function ITSidebar({
               icon={FiUploadCloud}
               isActive={activeSection === 'upload-documents'}
               onClick={() => setActiveSection('upload-documents')}
+              isCollapsed={isCollapsed}
+            />
+            <SidebarButton
+              label="Employee Requests"
+              icon={FiClipboard}
+              isActive={activeSection === 'employee-requests'}
+              onClick={() => setActiveSection('employee-requests')}
               isCollapsed={isCollapsed}
             />
           </SidebarSection>
