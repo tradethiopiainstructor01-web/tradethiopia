@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const { File } = require('node-fetch-native-with-agent');
 const EmployeeRequest = require('../models/EmployeeRequest');
 const Notification = require('../models/Notification');
@@ -135,19 +136,38 @@ const validateForm = (category, subcategory, data = {}) => {
 const requestNumber = () =>
   `ER-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
-const createNotification = async (req, userId, text, targetId, actionLabel) => {
+const findHrAdmins = async () => {
+  return await User.find({
+    role: { $in: ['HR', 'hr', 'admin', 'Admin', 'COO', 'coo', 'CEO', 'ceo'] },
+    status: 'active',
+  }).select('_id fullName username email role jobTitle');
+};
+
+const createNotification = async (req, userId, text, targetId, actionLabel, link = '/employee-requests', metadata = {}) => {
   if (!userId) return;
-  const notification = await Notification.create({
-    user: userId,
-    text,
-    type: 'request',
-    targetId,
-    link: '/employee-requests',
-    metadata: { title: 'Employee request update', actionLabel },
-  });
-  const io = req.app.get('io');
-  const socketId = req.app.get('connectedUsers')?.get?.(String(userId));
-  if (io && socketId) io.to(socketId).emit('newNotification', notification.toObject());
+  try {
+    const notification = await Notification.create({
+      user: userId,
+      text,
+      type: 'request',
+      category: 'requests',
+      targetId,
+      link,
+      metadata: {
+        title: metadata.title || 'Employee Request',
+        actionLabel: actionLabel || 'View request',
+        ...metadata,
+      },
+    });
+    const io = req.app.get('io');
+    const socketId = req.app.get('connectedUsers')?.get?.(String(userId));
+    if (io && socketId) {
+      io.to(socketId).emit('newNotification', notification.toObject());
+    }
+    return notification;
+  } catch (error) {
+    console.error('Failed to create notification for user:', userId, error);
+  }
 };
 
 const sendNotificationsSafely = async (notifications, context) => {
@@ -189,6 +209,43 @@ const present = (request) => {
       url: attachmentUrl(attachment.fileId),
     })),
   };
+};
+
+const resolveFormDataUserNames = async (items = []) => {
+  const userIds = new Set();
+  items.forEach((reqItem) => {
+    const item = reqItem.toObject ? reqItem.toObject() : reqItem;
+    const fd = item.formData || {};
+    ['handoverTo', 'incomingEmployeeId', 'witnessEmployeeId', 'backupStaff'].forEach((f) => {
+      const val = String(fd[f] || '').trim();
+      if (val && mongoose.Types.ObjectId.isValid(val)) userIds.add(val);
+    });
+  });
+  if (!userIds.size) {
+    return items.map((r) => present(r));
+  }
+  const users = await User.find({ _id: { $in: Array.from(userIds) } })
+    .select('_id fullName username email jobTitle department')
+    .lean();
+  const userMap = new Map(users.map((u) => [String(u._id), u.fullName || u.username || u.email]));
+
+  return items.map((reqItem) => {
+    const item = reqItem.toObject ? reqItem.toObject() : reqItem;
+    const fd = { ...(item.formData || {}) };
+    if (fd.handoverTo && userMap.has(String(fd.handoverTo))) {
+      fd.handoverTo = `${userMap.get(String(fd.handoverTo))}`;
+    }
+    if (fd.incomingEmployeeId && userMap.has(String(fd.incomingEmployeeId))) {
+      fd.incomingEmployeeId = `${userMap.get(String(fd.incomingEmployeeId))}`;
+    }
+    if (fd.witnessEmployeeId && userMap.has(String(fd.witnessEmployeeId))) {
+      fd.witnessEmployeeId = `${userMap.get(String(fd.witnessEmployeeId))}`;
+    }
+    if (fd.backupStaff && userMap.has(String(fd.backupStaff))) {
+      fd.backupStaff = `${userMap.get(String(fd.backupStaff))}`;
+    }
+    return present({ ...item, formData: fd });
+  });
 };
 
 exports.create = async (req, res) => {
@@ -233,11 +290,52 @@ exports.create = async (req, res) => {
         note: 'Request submitted for manager review.',
       }],
     });
-    await createNotification(req, manager._id, `${req.user.fullName || req.user.username} submitted ${item.title}.`, item._id, 'Review request');
+
+    const requesterName = req.user.fullName || req.user.username;
+    const meta = {
+      title: item.title,
+      requestNumber: item.requestNumber,
+      employeeName: requesterName,
+      employeeId: req.user._id,
+      department: item.department,
+      category: item.category,
+      subcategory: item.subcategory,
+      status: 'pending_manager',
+      managerName: manager.fullName || manager.username,
+    };
+
+    const hrAdmins = await findHrAdmins();
+    const notifications = [
+      createNotification(
+        req,
+        manager._id,
+        `${requesterName} (${item.department}) submitted ${item.title} for your manager review.`,
+        item._id,
+        'Review request',
+        `/employee-requests?tab=manager&requestId=${item._id}`,
+        meta
+      ),
+      ...hrAdmins
+        .filter((hr) => String(hr._id) !== String(manager._id) && String(hr._id) !== String(req.user._id))
+        .map((hr) =>
+          createNotification(
+            req,
+            hr._id,
+            `New request submitted by ${requesterName} (${item.department}): ${item.title} (assigned to manager ${manager.fullName || manager.username}).`,
+            item._id,
+            'View request',
+            `/employee-requests?tab=hr&requestId=${item._id}`,
+            meta
+          )
+        ),
+    ];
+    await sendNotificationsSafely(notifications, 'Request creation');
+
     const populated = await EmployeeRequest.findById(item._id)
-      .populate('requester', 'fullName username email digitalId jobTitle role')
-      .populate('manager', 'fullName username email digitalId jobTitle role');
-    res.status(201).json({ success: true, data: present(populated) });
+      .populate('requester', 'fullName username email phone altPhone digitalId jobTitle role department gender employmentType')
+      .populate('manager', 'fullName username email phone altPhone digitalId jobTitle role department');
+    const [resolved] = await resolveFormDataUserNames([populated]);
+    res.status(201).json({ success: true, data: resolved });
   } catch (error) {
     console.error('Create employee request failed:', error);
     res.status(500).json({ message: error.message || 'Unable to create request.' });
@@ -246,12 +344,14 @@ exports.create = async (req, res) => {
 
 const list = async (filter, res) => {
   const items = await EmployeeRequest.find(filter)
-    .populate('requester', 'fullName username email digitalId jobTitle role')
-    .populate('manager', 'fullName username email digitalId jobTitle role')
-    .populate('managerDecision.decidedBy', 'fullName username role')
-    .populate('hrDecision.decidedBy', 'fullName username role')
+    .populate('requester', 'fullName username email phone altPhone digitalId jobTitle role department gender employmentType')
+    .populate('manager', 'fullName username email phone altPhone digitalId jobTitle role department')
+    .populate('managerDecision.decidedBy', 'fullName username role jobTitle')
+    .populate('hrDecision.decidedBy', 'fullName username role jobTitle')
+    .populate('history.actor', 'fullName username role')
     .sort({ createdAt: -1 });
-  res.json({ success: true, data: items.map(present) });
+  const resolved = await resolveFormDataUserNames(items);
+  res.json({ success: true, data: resolved });
 };
 
 exports.mine = async (req, res) => {
@@ -301,6 +401,7 @@ exports.accessContext = async (req, res) => {
         isHr: HR_ROLES.has(role),
         hasManagerQueue: assignedRequestCount > 0,
         assignedRequestCount,
+        canReviewAsManager: isManagerAccount(req.user),
       },
     });
   } catch (error) {
@@ -310,10 +411,7 @@ exports.accessContext = async (req, res) => {
 
 exports.managerInbox = async (req, res) => {
   try {
-    // Assignment is the source of authority. A line manager may retain a
-    // departmental login role, so role-name checks must not hide their queue.
-    // Pending requests also follow the employee's current manager assignment,
-    // which repairs requests submitted before HR corrected managerId.
+    if (!isManagerAccount(req.user)) return res.status(403).json({ message: 'Manager access required.' });
     const managedEmployees = await User.find({ managerId: req.user._id }).distinct('_id');
     const unassignedEmployees = await User.find({ managerId: null }).distinct('_id');
     const department = userDepartment(req.user);
@@ -322,8 +420,7 @@ exports.managerInbox = async (req, res) => {
       : [];
     await list({
       $or: [
-        { manager: req.user._id, status: { $ne: 'pending_manager' } },
-        { requester: { $in: managedEmployees }, status: 'pending_manager' },
+        { requester: { $in: managedEmployees } },
         {
           manager: req.user._id,
           requester: { $in: unassignedEmployees },
@@ -334,12 +431,10 @@ exports.managerInbox = async (req, res) => {
     }, res);
   } catch (error) { res.status(500).json({ message: error.message }); }
 };
+
 exports.hrInbox = async (req, res) => {
   try {
     if (!HR_ROLES.has(normalizeRole(req.user.role))) return res.status(403).json({ message: 'HR access required.' });
-    // HR receives a request only after the assigned manager approves it.
-    // Completed HR decisions remain visible as HR records, while requests that
-    // are still with (or were rejected by) the manager never enter this queue.
     await list({
       status: { $in: ['pending_hr', 'hr_approved', 'hr_rejected'] },
     }, res);
@@ -347,7 +442,6 @@ exports.hrInbox = async (req, res) => {
 };
 
 // HR leave register includes every workflow stage for reporting and follow-up.
-// Decision permissions remain unchanged: HR can act only on pending_hr items.
 exports.hrLeaveDashboard = async (req, res) => {
   try {
     if (!HR_ROLES.has(normalizeRole(req.user.role))) {
@@ -362,15 +456,18 @@ exports.hrLeaveDashboard = async (req, res) => {
 exports.details = async (req, res) => {
   try {
     const item = await EmployeeRequest.findById(req.params.id)
-      .populate('requester', 'fullName username email digitalId jobTitle role')
-      .populate('manager', 'fullName username email digitalId jobTitle role')
+      .populate('requester', 'fullName username email phone altPhone digitalId jobTitle role department gender employmentType')
+      .populate('manager', 'fullName username email phone altPhone digitalId jobTitle role department')
+      .populate('managerDecision.decidedBy', 'fullName username role jobTitle')
+      .populate('hrDecision.decidedBy', 'fullName username role jobTitle')
       .populate('history.actor', 'fullName username role');
     if (!item) return res.status(404).json({ message: 'Request not found.' });
     const role = normalizeRole(req.user.role);
     const allowed = String(item.requester._id) === String(req.user._id) ||
       String(item.manager._id) === String(req.user._id) || HR_ROLES.has(role);
     if (!allowed) return res.status(403).json({ message: 'You cannot view this request.' });
-    res.json({ success: true, data: present(item) });
+    const [resolved] = await resolveFormDataUserNames([item]);
+    res.json({ success: true, data: resolved });
   } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -383,7 +480,7 @@ exports.managerDecision = async (req, res) => {
     const item = await EmployeeRequest.findById(req.params.id);
     if (!item) return res.status(404).json({ message: 'Assigned request not found.' });
     if (item.status !== 'pending_manager') return res.status(409).json({ message: 'This request is no longer awaiting manager review.' });
-    const requester = await User.findById(item.requester).select('managerId');
+    const requester = await User.findById(item.requester).select('fullName username email role department managerId');
     const isRecordedManager = String(item.manager) === String(req.user._id);
     const isCurrentManager = String(requester?.managerId || '') === String(req.user._id);
     const isDepartmentManager = isManagerAccount(req.user) &&
@@ -405,17 +502,56 @@ exports.managerDecision = async (req, res) => {
     item.managerDecision = { decidedBy: req.user._id, decision, note, decidedAt: new Date() };
     item.history.push({ action: `manager_${decision}`, status: item.status, actor: req.user._id, actorRole: req.user.role, note });
     await item.save();
+
+    const requesterName = requester?.fullName || requester?.username || 'Employee';
+    const managerName = req.user.fullName || req.user.username || 'Manager';
+    const hrAdmins = await findHrAdmins();
+    const meta = {
+      title: item.title,
+      requestNumber: item.requestNumber,
+      employeeName: requesterName,
+      employeeId: item.requester,
+      department: item.department,
+      category: item.category,
+      subcategory: item.subcategory,
+      status: item.status,
+      managerName,
+      decisionNote: note || '',
+    };
+
     const notifications = [
-      createNotification(req, item.requester, `Your ${item.title} was ${decision} by your manager.`, item._id, 'View request'),
+      createNotification(
+        req,
+        item.requester,
+        `Your ${item.title} was ${decision === 'approved' ? 'approved and forwarded to HR' : 'rejected'} by manager ${managerName}.${note ? ` Note: "${note}"` : ''}`,
+        item._id,
+        'View request',
+        `/employee-requests?tab=mine&requestId=${item._id}`,
+        meta
+      ),
+      ...hrAdmins.map((hr) =>
+        createNotification(
+          req,
+          hr._id,
+          decision === 'approved'
+            ? `${item.title} for ${requesterName} (${item.department}) was approved by manager ${managerName} and is awaiting HR final decision.`
+            : `${item.title} for ${requesterName} was rejected by manager ${managerName}.${note ? ` Reason: "${note}"` : ''}`,
+          item._id,
+          decision === 'approved' ? 'Review request' : 'View request',
+          `/employee-requests?tab=hr&requestId=${item._id}`,
+          meta
+        )
+      ),
     ];
-    if (decision === 'approved') {
-      const hrUsers = await User.find({ role: { $in: ['HR', 'hr', 'admin'] }, status: 'active' }).select('_id');
-      notifications.push(
-        ...hrUsers.map((user) => createNotification(req, user._id, `${item.title} is ready for HR review.`, item._id, 'Review request'))
-      );
-    }
     await sendNotificationsSafely(notifications, 'Manager decision');
-    res.json({ success: true, data: present(item) });
+
+    const populated = await EmployeeRequest.findById(item._id)
+      .populate('requester', 'fullName username email phone altPhone digitalId jobTitle role department gender employmentType')
+      .populate('manager', 'fullName username email phone altPhone digitalId jobTitle role department')
+      .populate('managerDecision.decidedBy', 'fullName username role jobTitle')
+      .populate('hrDecision.decidedBy', 'fullName username role jobTitle');
+    const [resolved] = await resolveFormDataUserNames([populated]);
+    res.json({ success: true, data: resolved });
   } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -429,7 +565,7 @@ exports.hrDecision = async (req, res) => {
     const nextStatus = decision === 'approved' ? 'hr_approved' : 'hr_rejected';
     const decidedAt = new Date();
     const item = await EmployeeRequest.findOneAndUpdate(
-      { _id: req.params.id, status: 'pending_hr' },
+      { _id: req.params.id, status: { $in: ['pending_manager', 'pending_hr'] } },
       {
         $set: {
           status: nextStatus,
@@ -441,29 +577,61 @@ exports.hrDecision = async (req, res) => {
             status: nextStatus,
             actor: req.user._id,
             actorRole: req.user.role,
-            note,
+            note: note || (decision === 'approved' ? 'Direct HR approval issued.' : 'Direct HR rejection issued.'),
             occurredAt: decidedAt,
           },
         },
       },
       { new: true, runValidators: true }
     )
-      .populate('requester', 'fullName username email digitalId jobTitle role')
-      .populate('manager', 'fullName username email digitalId jobTitle role')
-      .populate('hrDecision.decidedBy', 'fullName username role');
+      .populate('requester', 'fullName username email phone altPhone digitalId jobTitle role department gender employmentType')
+      .populate('manager', 'fullName username email phone altPhone digitalId jobTitle role department')
+      .populate('hrDecision.decidedBy', 'fullName username role jobTitle');
     if (!item) {
       const existing = await EmployeeRequest.findById(req.params.id).select('status');
       if (!existing) return res.status(404).json({ message: 'Request not found.' });
       return res.status(409).json({
-        message: `This request is no longer awaiting HR review. Current status: ${existing.status.replace(/_/g, ' ')}.`,
+        message: `This request cannot be decided. Current status: ${existing.status.replace(/_/g, ' ')}.`,
       });
     }
-    const message = `HR ${decision} ${item.title}.`;
+
+    const requesterName = item.requester?.fullName || item.requester?.username || 'Employee';
+    const hrName = req.user.fullName || req.user.username || 'HR';
+    const meta = {
+      title: item.title,
+      requestNumber: item.requestNumber,
+      employeeName: requesterName,
+      employeeId: item.requester?._id || item.requester,
+      department: item.department,
+      category: item.category,
+      subcategory: item.subcategory,
+      status: nextStatus,
+      hrName,
+      decisionNote: note || '',
+    };
+
     await sendNotificationsSafely([
-      createNotification(req, item.requester?._id || item.requester, message, item._id, 'View final decision'),
-      createNotification(req, item.manager?._id || item.manager, message, item._id, 'View final decision'),
+      createNotification(
+        req,
+        item.requester?._id || item.requester,
+        `Your ${item.title} was ${decision === 'approved' ? 'approved' : 'rejected'} by HR (${hrName}).${note ? ` Note: "${note}"` : ''}`,
+        item._id,
+        'View final decision',
+        `/employee-requests?tab=mine&requestId=${item._id}`,
+        meta
+      ),
+      createNotification(
+        req,
+        item.manager?._id || item.manager,
+        `HR (${hrName}) ${decision === 'approved' ? 'approved' : 'rejected'} ${item.title} submitted by ${requesterName}.${note ? ` Note: "${note}"` : ''}`,
+        item._id,
+        'View final decision',
+        `/employee-requests?tab=manager&requestId=${item._id}`,
+        meta
+      ),
     ], 'HR decision');
-    res.json({ success: true, data: present(item) });
+    const [resolved] = await resolveFormDataUserNames([item]);
+    res.json({ success: true, data: resolved });
   } catch (error) {
     console.error('HR employee-request decision failed:', error);
     res.status(500).json({ message: error.message || 'Unable to save the HR decision.' });
@@ -478,8 +646,45 @@ exports.cancel = async (req, res) => {
     item.status = 'cancelled';
     item.history.push({ action: 'cancelled', status: 'cancelled', actor: req.user._id, actorRole: req.user.role, note: String(req.body.note || '') });
     await item.save();
-    await createNotification(req, item.manager, `${item.title} was cancelled by the employee.`, item._id, 'View request');
-    res.json({ success: true, data: present(item) });
+
+    const requesterName = req.user.fullName || req.user.username || 'Employee';
+    const hrAdmins = await findHrAdmins();
+    const meta = {
+      title: item.title,
+      requestNumber: item.requestNumber,
+      employeeName: requesterName,
+      employeeId: req.user._id,
+      department: item.department,
+      category: item.category,
+      subcategory: item.subcategory,
+      status: 'cancelled',
+    };
+
+    const notifications = [
+      createNotification(
+        req,
+        item.manager,
+        `${item.title} was cancelled by ${requesterName}.`,
+        item._id,
+        'View request',
+        `/employee-requests?tab=manager&requestId=${item._id}`,
+        meta
+      ),
+      ...hrAdmins.map((hr) =>
+        createNotification(
+          req,
+          hr._id,
+          `${requesterName} (${item.department}) cancelled their request: ${item.title}.`,
+          item._id,
+          'View request',
+          `/employee-requests?tab=hr&requestId=${item._id}`,
+          meta
+        )
+      ),
+    ];
+    await sendNotificationsSafely(notifications, 'Request cancellation');
+    const [resolved] = await resolveFormDataUserNames([item]);
+    res.json({ success: true, data: resolved });
   } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -489,7 +694,7 @@ exports.managerOptions = async (req, res) => {
       return res.status(403).json({ message: 'HR access required.' });
     }
     const users = await User.find({ status: 'active' })
-      .select('_id fullName username email role jobTitle managerId')
+      .select('_id fullName username email phone role jobTitle managerId department')
       .sort({ fullName: 1, username: 1 })
       .lean();
     const managers = users.filter(isManagerAccount);
@@ -505,7 +710,7 @@ exports.assignManager = async (req, res) => {
       return res.status(403).json({ message: 'HR access required.' });
     }
     const employee = await User.findById(req.params.userId);
-    const manager = await User.findById(req.body.managerId).select('_id role jobTitle status');
+    const manager = await User.findById(req.body.managerId).select('_id fullName username role jobTitle status');
     if (!employee) return res.status(404).json({ message: 'Employee not found.' });
     if (!manager || manager.status !== 'active' || !isManagerAccount(manager)) {
       return res.status(400).json({ message: 'Select an active manager account.' });
@@ -545,17 +750,62 @@ exports.reassignRequest = async (req, res) => {
       note: `HR reassigned this request to ${manager.fullName || manager.username}.`,
     });
     await item.save();
-    await Promise.all([
-      createNotification(req, manager._id, `${item.title} was assigned to you for review.`, item._id, 'Review request'),
-      createNotification(req, item.requester, `${item.title} was reassigned to ${manager.fullName || manager.username}.`, item._id, 'View request'),
-      String(previousManager) === String(manager._id)
-        ? Promise.resolve()
-        : createNotification(req, previousManager, `${item.title} was reassigned by HR.`, item._id, 'View request'),
-    ]);
+
+    const requester = await User.findById(item.requester).select('fullName username email role department');
+    const requesterName = requester?.fullName || requester?.username || 'Employee';
+    const hrName = req.user.fullName || req.user.username || 'HR';
+    const meta = {
+      title: item.title,
+      requestNumber: item.requestNumber,
+      employeeName: requesterName,
+      employeeId: item.requester,
+      department: item.department,
+      category: item.category,
+      subcategory: item.subcategory,
+      status: item.status,
+      hrName,
+    };
+
+    const notifications = [
+      createNotification(
+        req,
+        manager._id,
+        `${item.title} submitted by ${requesterName} (${item.department}) was assigned to you for manager review by HR (${hrName}).`,
+        item._id,
+        'Review request',
+        `/employee-requests?tab=manager&requestId=${item._id}`,
+        meta
+      ),
+      createNotification(
+        req,
+        item.requester,
+        `Your request ${item.title} manager reviewer was updated to ${manager.fullName || manager.username} by HR (${hrName}).`,
+        item._id,
+        'View request',
+        `/employee-requests?tab=mine&requestId=${item._id}`,
+        meta
+      ),
+    ];
+    if (String(previousManager) !== String(manager._id)) {
+      notifications.push(
+        createNotification(
+          req,
+          previousManager,
+          `${item.title} submitted by ${requesterName} was reassigned to another manager by HR (${hrName}).`,
+          item._id,
+          'View request',
+          `/employee-requests?tab=manager&requestId=${item._id}`,
+          meta
+        )
+      );
+    }
+    await sendNotificationsSafely(notifications, 'Manager reassignment');
+
     const populated = await EmployeeRequest.findById(item._id)
-      .populate('requester', 'fullName username email digitalId jobTitle role')
-      .populate('manager', 'fullName username email digitalId jobTitle role');
-    res.json({ success: true, data: present(populated) });
+      .populate('requester', 'fullName username email phone altPhone digitalId jobTitle role department gender employmentType')
+      .populate('manager', 'fullName username email phone altPhone digitalId jobTitle role department');
+    const [resolved] = await resolveFormDataUserNames([populated]);
+    res.json({ success: true, data: resolved });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

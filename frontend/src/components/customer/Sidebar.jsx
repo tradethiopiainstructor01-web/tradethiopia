@@ -28,6 +28,7 @@ import {
   FiChevronsLeft,
   FiChevronsRight,
   FiClipboard,
+  FiFileText,
   FiGlobe,
   FiHome,
   FiLogOut,
@@ -117,11 +118,14 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, acti
   const isActive = (path) => location.pathname.toLowerCase() === path.toLowerCase();
   const isDashboardActive =
     activeSection === "dashboard" ||
-    (location.pathname === "/Cdashboard" && !["notice-board", "requests", "it-requests"].includes(activeSection));
+    (location.pathname === "/Cdashboard" && !["notice-board", "requests", "it-requests", "employee-requests"].includes(activeSection));
   const isNoticeBoardActive = activeSection === "notice-board" || isActive("/customer/messages");
   const isRequestsActive = activeSection === "requests" || (
     isActive("/Cdashboard") && new URLSearchParams(location.search).get("section") === "requests"
   );
+  const isEmpRequestsActive = activeSection === "employee-requests" || (
+    isActive("/Cdashboard") && new URLSearchParams(location.search).get("section") === "employee-requests"
+  ) || isActive("/employee-requests");
   const isItRequestsActive = activeSection === "it-requests";
 
   // HR Color tokens (#1a2e22 dark forest green theme)
@@ -390,6 +394,25 @@ const SSidebar = ({ isCollapsed: collapsedProp, toggleCollapse: toggleProp, acti
                   e.preventDefault();
                   onSelectSection("requests");
                   navigate("/Cdashboard?section=requests");
+                }
+              }}
+            />
+            <SidebarLink
+              isCollapsed={isCollapsed}
+              to="/Cdashboard?section=employee-requests"
+              icon={<FiFileText size={17} />}
+              label="Employee Requests"
+              active={isEmpRequestsActive}
+              iconColor={iconColor}
+              activeIconColor={activeIconColor}
+              textColor={textColor}
+              activeTextColor={activeTextColor}
+              activeBg={activeBg}
+              onClick={(e) => {
+                if (typeof onSelectSection === "function") {
+                  e.preventDefault();
+                  onSelectSection("employee-requests");
+                  navigate("/Cdashboard?section=employee-requests");
                 }
               }}
             />

@@ -36,6 +36,7 @@ import ITCollapsibleSection from './components/ITCollapsibleSection';
 import ITRemindersPanel from './components/ITRemindersPanel';
 import TicketManagementTab from './components/TicketManagementTab';
 import EmployeeFileUploadForm from '../EmployeeFileUploadForm';
+import EmployeeRequestsPage from '../EmployeeRequestsPage';
 
 // Global shared imports
 import NoticeBoardPanel from '../../components/NoticeBoardPanel';
@@ -316,6 +317,8 @@ export default function ITDashboard() {
         return <ITProfilePanel user={currentUser} persona={persona} tasks={visibleTasks} />;
       case 'upload-documents':
         return <EmployeeFileUploadForm embedded />;
+      case 'employee-requests':
+        return <EmployeeRequestsPage />;
       case 'admin':
         return persona.canManageUsers ? (
           <ITAdminPanel tasks={tasks} users={users} refreshUsers={fetchUsers} />

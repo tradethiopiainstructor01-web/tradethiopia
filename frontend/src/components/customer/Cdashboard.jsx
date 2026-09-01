@@ -58,6 +58,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import CustomerMessagesPage from '../../pages/CustomerMessagesPage';
 import RequestPage from '../../pages/RequestPage';
+import EmployeeRequestsPage from '../../pages/EmployeeRequestsPage';
 import CompletedSalesTable from '../salesmanager/CompletedSalesTable';
 import CustomerSupportRequestPanel from './CustomerSupportRequestPanel';
 import CSExternalITRequestsPanel from './CSExternalITRequestsPanel';
@@ -379,6 +380,16 @@ const CDashboard = ({ initialTab = 'dashboard' }) => {
           <VStack spacing={6} align="stretch">
             <RequestPage embedded hideBackButton />
           </VStack>
+        </Box>
+      </Layout>
+    );
+  }
+
+  if (activeTab === 'employee-requests') {
+    return (
+      <Layout {...layoutProps}>
+        <Box p={{ base: 4, md: 6 }} bg={pageBg} minHeight="100vh">
+          <EmployeeRequestsPage />
         </Box>
       </Layout>
     );
