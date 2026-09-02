@@ -118,4 +118,9 @@ const salesCustomerSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Support the most common paginated follow-up queries without scanning the
+// complete sales-customer collection.
+salesCustomerSchema.index({ agentId: 1, createdAt: -1 });
+salesCustomerSchema.index({ followupStatus: 1, packageScope: 1, createdAt: -1 });
+
 module.exports = mongoose.model('SalesCustomer', salesCustomerSchema);

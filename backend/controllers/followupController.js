@@ -192,8 +192,14 @@ const getFollowupById = async (req, res) => {
 
 const getFollowups = async (req, res) => {
   try {
-    // Populate the agentId field with user information
-    const followups = await Followup.find().populate('agentId', 'username name email');
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const query = Followup.find()
+      .sort({ createdAt: -1, _id: -1 })
+      .populate('agentId', 'username name email');
+    if (Number.isFinite(requestedLimit) && requestedLimit > 0) {
+      query.limit(Math.min(requestedLimit, 100));
+    }
+    const followups = await query.lean();
     res.status(200).json(followups);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -572,41 +578,46 @@ const importB2BCustomers = async (req, res) => {
 // @access  Public
 const getFollowupStats = async (req, res) => {
   try {
-    const followups = await Followup.find();
     const now = new Date();
-    const stats = {
-      total: followups.length,
-      new: 0,
-      completed: 0,
-      pending: 0,
-      active: 0,
-      overdue: 0,
-      callAttempts: 0,
-      messageAttempts: 0,
-      emailAttempts: 0,
-    };
-
-    followups.forEach((f) => {
-      const createdAt = f.createdAt ? new Date(f.createdAt) : null;
-      if (createdAt && createdAt.getUTCFullYear() === now.getUTCFullYear()
-        && createdAt.getUTCMonth() === now.getUTCMonth()) {
-        stats.new += 1;
-      }
-      const status = (f.followupStatus || f.status || "").toLowerCase();
-      if (status === "completed") {
-        stats.completed += 1;
-      } else if (status === "pending") {
-        stats.pending += 1;
-        if (f.dueDate && new Date(f.dueDate) < now) {
-          stats.overdue += 1;
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const [summary = {}] = await Followup.aggregate([
+      {
+        $project: {
+          createdAt: 1,
+          dueDate: 1,
+          statusValue: { $toLower: { $ifNull: ['$followupStatus', { $ifNull: ['$status', ''] }] } },
+          calls: { $ifNull: ['$call_count', { $ifNull: ['$callAttempts', 0] }] },
+          messages: { $ifNull: ['$message_count', { $ifNull: ['$messageAttempts', 0] }] },
+          emails: { $ifNull: ['$email_count', { $ifNull: ['$emailAttempts', 0] }] },
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          new: { $sum: { $cond: [{ $gte: ['$createdAt', monthStart] }, 1, 0] } },
+          completed: { $sum: { $cond: [{ $eq: ['$statusValue', 'completed'] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $eq: ['$statusValue', 'pending'] }, 1, 0] } },
+          overdue: {
+            $sum: { $cond: [{ $and: [{ $eq: ['$statusValue', 'pending'] }, { $lt: ['$dueDate', now] }] }, 1, 0] }
+          },
+          callAttempts: { $sum: '$calls' },
+          messageAttempts: { $sum: '$messages' },
+          emailAttempts: { $sum: '$emails' },
         }
       }
-      stats.callAttempts += f.call_count || f.callAttempts || 0;
-      stats.messageAttempts += f.message_count || f.messageAttempts || 0;
-      stats.emailAttempts += f.email_count || f.emailAttempts || 0;
-    });
-
-    stats.active = stats.total - stats.completed;
+    ]);
+    const stats = {
+      total: summary.total || 0,
+      new: summary.new || 0,
+      completed: summary.completed || 0,
+      pending: summary.pending || 0,
+      overdue: summary.overdue || 0,
+      callAttempts: summary.callAttempts || 0,
+      messageAttempts: summary.messageAttempts || 0,
+      emailAttempts: summary.emailAttempts || 0,
+      active: (summary.total || 0) - (summary.completed || 0),
+    };
     res.status(200).json(stats);
   } catch (error) {
     res.status(500).json({ message: "Error fetching follow-up stats", error: error.message });

@@ -35,7 +35,11 @@ const createBuyer = async (req, res) => {
 // Get all buyers
 const getAllBuyers = async (req, res) => {
   try {
-    const buyers = await Buyer.find();
+    if (req.query.countOnly === 'true') {
+      const count = await Buyer.countDocuments();
+      return res.status(200).json({ count });
+    }
+    const buyers = await Buyer.find().lean();
     res.status(200).json(buyers);
   } catch (err) {
     res.status(500).json({ error: err.message });

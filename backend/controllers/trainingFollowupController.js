@@ -54,10 +54,17 @@ const getTrainingFollowups = async (req, res) => {
       filter.batch = new RegExp(batch, "i");
     }
 
-    const sortDir = sort === "desc" ? -1 : 1;
+    let sortOptions = { createdAt: -1, _id: -1 };
+    if (sort === "asc" || sort === "oldest") {
+      sortOptions = { createdAt: 1, _id: 1 };
+    } else if (sort === "name_asc") {
+      sortOptions = { customerName: 1 };
+    } else if (sort === "name_desc") {
+      sortOptions = { customerName: -1 };
+    }
 
     const followups = await TrainingFollowup.find(filter)
-      .sort({ customerName: sortDir })
+      .sort(sortOptions)
       .lean();
 
     res.json(followups);

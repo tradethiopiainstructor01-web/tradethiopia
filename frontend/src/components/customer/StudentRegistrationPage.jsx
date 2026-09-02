@@ -21,9 +21,12 @@ import {
   Heading,
   HStack,
   Icon,
+  IconButton,
+  Image,
   Input,
   InputGroup,
   InputLeftElement,
+  InputRightElement,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -51,7 +54,21 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { DeleteIcon, DownloadIcon, EditIcon, ViewIcon } from "@chakra-ui/icons";
-import { FiBookOpen, FiCheckCircle, FiClock, FiGrid, FiLayers, FiList, FiSearch, FiUserPlus, FiUsers } from "react-icons/fi";
+import {
+  FiBookOpen,
+  FiCheckCircle,
+  FiClock,
+  FiGrid,
+  FiLayers,
+  FiList,
+  FiSearch,
+  FiUserPlus,
+  FiUsers,
+  FiCamera,
+  FiUploadCloud,
+  FiTrash2,
+  FiRefreshCw,
+} from "react-icons/fi";
 import * as XLSX from "xlsx";
 import { useUserStore } from "../../store/user";
 import { fetchUsers } from "../../services/api";
@@ -62,6 +79,7 @@ import {
   updateStudentRegistration,
 } from "../../services/studentRegistrationService";
 import Layout from "./Layout";
+import ETHIOPIAN_BANKS from "../../utils/ethiopianBanks";
 
 const learningDepartments = [
   "Import and Export",
@@ -85,6 +103,9 @@ const initialForm = {
   email: "",
   phone: "",
   gender: "",
+  nationalIdImage: "",
+  passportPhoto: "",
+  paymentScreenshot: "",
   learningDepartment: "",
   program: "",
   enrollmentDate: "",
@@ -177,6 +198,9 @@ const normalizeStudent = (student = {}, index = 0) => ({
   id: student.id || student._id || `legacy-${index}-${Date.now()}`,
   studentId: student.studentId || student.studentID || student.registrationNo || `CS-STU-${String(index + 1).padStart(4, "0")}`,
   fullName: getStudentName(student),
+  nationalIdImage: student.nationalIdImage || "",
+  passportPhoto: student.passportPhoto || "",
+  paymentScreenshot: student.paymentScreenshot || "",
   learningDepartment: student.learningDepartment || student.department || student.learningDept || "",
   program: student.program || student.course || student.trainingProgram || "",
   examDate: formatDate(student.examDate || student.testDate),
@@ -566,13 +590,66 @@ const StudentRegistrationPage = () => {
   };
 
   const openRegistrationForm = () => {
-    resetForm();
+    const nextId = generateUniqueStudentId(students);
+    setForm({
+      ...initialForm,
+      studentId: nextId,
+      enrollmentDate: new Date().toISOString().split("T")[0],
+      registeredBy: registrarName,
+      registeredByEmail: registrarEmail,
+    });
+    setEditingId("");
     onRegistrationOpen();
   };
 
   const closeRegistrationForm = () => {
     resetForm();
     onRegistrationClose();
+  };
+
+  const handleImageUpload = (field, file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image file (JPEG, PNG, WEBP).",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const maxDim = 900;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.82);
+        setForm((prev) => ({
+          ...prev,
+          [field]: compressedBase64,
+        }));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (event) => {
@@ -713,9 +790,9 @@ const StudentRegistrationPage = () => {
     setIsSavingStudent(false);
     toast({
       title: "Student registered",
-      description: `${newStudent.fullName} was added to ${newStudent.learningDepartment}.`,
+      description: `${newStudent.fullName} was added to ${newStudent.learningDepartment} and synced to TESBINN records.`,
       status: "success",
-      duration: 3000,
+      duration: 3500,
       isClosable: true,
     });
   };
@@ -725,6 +802,9 @@ const StudentRegistrationPage = () => {
     setForm({
       ...initialForm,
       ...student,
+      nationalIdImage: student.nationalIdImage || "",
+      passportPhoto: student.passportPhoto || "",
+      paymentScreenshot: student.paymentScreenshot || "",
       enrollmentDate: formatDate(student.enrollmentDate),
       examDate: formatDate(student.examDate),
     });
@@ -1112,7 +1192,34 @@ const StudentRegistrationPage = () => {
             <DrawerBody py={5} flex="1" minH={0} overflowY="auto">
               <VStack spacing={4} align="stretch">
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
-                  <FormControl><FormLabel>Student ID</FormLabel><Input name="studentId" value={form.studentId} onChange={handleChange} placeholder="Auto generated if empty" bg={fieldBg} /></FormControl>
+                  <FormControl>
+                    <Flex justify="space-between" align="center" mb={1}>
+                      <FormLabel mb={0}>Student ID</FormLabel>
+                      <Badge colorScheme="purple" fontSize="10px" px={2} py={0.5} borderRadius="full">
+                        Auto-Generated
+                      </Badge>
+                    </Flex>
+                    <InputGroup>
+                      <Input
+                        name="studentId"
+                        value={form.studentId}
+                        onChange={handleChange}
+                        placeholder="e.g. CS-STU-0001"
+                        bg={fieldBg}
+                        fontWeight="700"
+                      />
+                      <InputRightElement>
+                        <IconButton
+                          icon={<FiRefreshCw />}
+                          size="xs"
+                          variant="ghost"
+                          title="Regenerate unique ID"
+                          aria-label="Regenerate unique ID"
+                          onClick={() => setForm((prev) => ({ ...prev, studentId: generateUniqueStudentId(students) }))}
+                        />
+                      </InputRightElement>
+                    </InputGroup>
+                  </FormControl>
                   <FormControl isRequired><FormLabel>Full Name</FormLabel><Input name="fullName" value={form.fullName} onChange={handleChange} placeholder="Student full name" bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Email</FormLabel><Input name="email" type="email" value={form.email} onChange={handleChange} placeholder="student@example.com" bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Phone</FormLabel><Input name="phone" value={form.phone} onChange={handleChange} placeholder="+251..." bg={fieldBg} /></FormControl>
@@ -1124,7 +1231,25 @@ const StudentRegistrationPage = () => {
                   <FormControl><FormLabel>Preferred Time Slot</FormLabel><Select name="preferredTimeSlot" value={form.preferredTimeSlot} onChange={handleChange} bg={fieldBg}>{timeSlotOptions.map((slot) => <option key={slot} value={slot}>{slot}</option>)}</Select></FormControl>
                   <FormControl><FormLabel>Readiness Status</FormLabel><Select name="readinessStatus" value={form.readinessStatus} onChange={handleChange} bg={fieldBg}><option value="Not assessed">Not assessed</option><option value="In preparation">In preparation</option><option value="Ready">Ready</option><option value="Needs support">Needs support</option><option value="Not ready">Not ready</option></Select></FormControl>
                   <FormControl><FormLabel>Payment Option</FormLabel><Select name="paymentOption" value={form.paymentOption} onChange={handleChange} bg={fieldBg}>{paymentOptions.map((option) => <option key={option} value={option}>{option}</option>)}</Select></FormControl>
-                  <FormControl><FormLabel>Payment Bank</FormLabel><Input name="paymentBank" value={form.paymentBank} onChange={handleChange} placeholder="Bank used for payment" bg={fieldBg} /></FormControl>
+                  <FormControl>
+                    <FormLabel>Payment Bank</FormLabel>
+                    <Select
+                      name="paymentBank"
+                      value={form.paymentBank}
+                      onChange={handleChange}
+                      placeholder="Select Ethiopian Bank"
+                      bg={fieldBg}
+                    >
+                      {form.paymentBank && !ETHIOPIAN_BANKS.includes(form.paymentBank) && (
+                        <option value={form.paymentBank}>{form.paymentBank}</option>
+                      )}
+                      {ETHIOPIAN_BANKS.map((bank) => (
+                        <option key={bank} value={bank}>
+                          {bank}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
                   <FormControl><FormLabel>FS Number</FormLabel><Input name="fsNumber" value={form.fsNumber} onChange={handleChange} placeholder="Paid receipt FS number" bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>CoC Payment Status</FormLabel><Select name="cocPaymentStatus" value={form.cocPaymentStatus} onChange={handleChange} bg={fieldBg}><option value="Unpaid">Unpaid</option><option value="Paid">Paid</option></Select></FormControl>
                   <FormControl><FormLabel>Registration Status</FormLabel><Select name="status" value={form.status} onChange={handleChange} bg={fieldBg}><option value="Active">Active</option><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="Paused">Paused</option></Select></FormControl>
@@ -1148,6 +1273,209 @@ const StudentRegistrationPage = () => {
                       </FormControl>
                     </SimpleGrid>
                   </Box>
+
+                  {/* Student Verification Documents & Photos */}
+                  <Box
+                    gridColumn={{ base: "auto", md: "1 / -1" }}
+                    border="1px solid"
+                    borderColor={borderColor}
+                    borderRadius="18px"
+                    p={5}
+                    bg={cardAltBg}
+                  >
+                    <HStack spacing={2} mb={1}>
+                      <Icon as={FiCamera} color="green.600" boxSize={5} />
+                      <Heading size="sm" color={headingColor}>
+                        Student Verification Documents & Photos
+                      </Heading>
+                    </HStack>
+                    <Text fontSize="xs" color={mutedText} mb={4}>
+                      Upload 3×4 passport photo, National ID / Kebele ID card, and bank payment receipt screenshot.
+                    </Text>
+
+                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                      {/* 1. 3x4 Passport Photo */}
+                      <Box
+                        border="1px dashed"
+                        borderColor={form.passportPhoto ? "green.400" : borderColor}
+                        borderRadius="14px"
+                        p={3}
+                        bg={fieldBg}
+                        textAlign="center"
+                      >
+                        <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
+                          3×4 Passport Photo
+                        </Text>
+                        {form.passportPhoto ? (
+                          <VStack spacing={2}>
+                            <Image
+                              src={form.passportPhoto}
+                              alt="Passport Photo Preview"
+                              maxH="110px"
+                              borderRadius="md"
+                              mx="auto"
+                              objectFit="cover"
+                            />
+                            <HStack justify="center" spacing={2}>
+                              <Badge colorScheme="green" fontSize="9px">Uploaded</Badge>
+                              <Button
+                                size="xs"
+                                colorScheme="red"
+                                variant="ghost"
+                                leftIcon={<FiTrash2 />}
+                                onClick={() => setForm((prev) => ({ ...prev, passportPhoto: "" }))}
+                              >
+                                Remove
+                              </Button>
+                            </HStack>
+                          </VStack>
+                        ) : (
+                          <VStack spacing={2} py={4}>
+                            <Icon as={FiUploadCloud} boxSize={8} color="gray.400" />
+                            <Text fontSize="11px" color={mutedText}>PNG, JPG or WEBP</Text>
+                            <Button
+                              as="label"
+                              htmlFor="passport-photo-upload"
+                              size="xs"
+                              colorScheme="blue"
+                              variant="outline"
+                              cursor="pointer"
+                            >
+                              Upload Photo
+                            </Button>
+                            <input
+                              id="passport-photo-upload"
+                              type="file"
+                              accept="image/*"
+                              style={{ display: "none" }}
+                              onChange={(e) => handleImageUpload("passportPhoto", e.target.files[0])}
+                            />
+                          </VStack>
+                        )}
+                      </Box>
+
+                      {/* 2. National ID / Kebele Card */}
+                      <Box
+                        border="1px dashed"
+                        borderColor={form.nationalIdImage ? "green.400" : borderColor}
+                        borderRadius="14px"
+                        p={3}
+                        bg={fieldBg}
+                        textAlign="center"
+                      >
+                        <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
+                          National ID / Kebele Card
+                        </Text>
+                        {form.nationalIdImage ? (
+                          <VStack spacing={2}>
+                            <Image
+                              src={form.nationalIdImage}
+                              alt="National ID Preview"
+                              maxH="110px"
+                              borderRadius="md"
+                              mx="auto"
+                              objectFit="contain"
+                            />
+                            <HStack justify="center" spacing={2}>
+                              <Badge colorScheme="green" fontSize="9px">Uploaded</Badge>
+                              <Button
+                                size="xs"
+                                colorScheme="red"
+                                variant="ghost"
+                                leftIcon={<FiTrash2 />}
+                                onClick={() => setForm((prev) => ({ ...prev, nationalIdImage: "" }))}
+                              >
+                                Remove
+                              </Button>
+                            </HStack>
+                          </VStack>
+                        ) : (
+                          <VStack spacing={2} py={4}>
+                            <Icon as={FiUploadCloud} boxSize={8} color="gray.400" />
+                            <Text fontSize="11px" color={mutedText}>PNG, JPG or WEBP</Text>
+                            <Button
+                              as="label"
+                              htmlFor="national-id-upload"
+                              size="xs"
+                              colorScheme="blue"
+                              variant="outline"
+                              cursor="pointer"
+                            >
+                              Upload National ID
+                            </Button>
+                            <input
+                              id="national-id-upload"
+                              type="file"
+                              accept="image/*"
+                              style={{ display: "none" }}
+                              onChange={(e) => handleImageUpload("nationalIdImage", e.target.files[0])}
+                            />
+                          </VStack>
+                        )}
+                      </Box>
+
+                      {/* 3. Payment Receipt Screenshot */}
+                      <Box
+                        border="1px dashed"
+                        borderColor={form.paymentScreenshot ? "green.400" : borderColor}
+                        borderRadius="14px"
+                        p={3}
+                        bg={fieldBg}
+                        textAlign="center"
+                      >
+                        <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
+                          Payment Receipt Screenshot
+                        </Text>
+                        {form.paymentScreenshot ? (
+                          <VStack spacing={2}>
+                            <Image
+                              src={form.paymentScreenshot}
+                              alt="Payment Receipt Preview"
+                              maxH="110px"
+                              borderRadius="md"
+                              mx="auto"
+                              objectFit="contain"
+                            />
+                            <HStack justify="center" spacing={2}>
+                              <Badge colorScheme="green" fontSize="9px">Uploaded</Badge>
+                              <Button
+                                size="xs"
+                                colorScheme="red"
+                                variant="ghost"
+                                leftIcon={<FiTrash2 />}
+                                onClick={() => setForm((prev) => ({ ...prev, paymentScreenshot: "" }))}
+                              >
+                                Remove
+                              </Button>
+                            </HStack>
+                          </VStack>
+                        ) : (
+                          <VStack spacing={2} py={4}>
+                            <Icon as={FiUploadCloud} boxSize={8} color="gray.400" />
+                            <Text fontSize="11px" color={mutedText}>Bank slip or screenshot</Text>
+                            <Button
+                              as="label"
+                              htmlFor="payment-screenshot-upload"
+                              size="xs"
+                              colorScheme="blue"
+                              variant="outline"
+                              cursor="pointer"
+                            >
+                              Upload Receipt
+                            </Button>
+                            <input
+                              id="payment-screenshot-upload"
+                              type="file"
+                              accept="image/*"
+                              style={{ display: "none" }}
+                              onChange={(e) => handleImageUpload("paymentScreenshot", e.target.files[0])}
+                            />
+                          </VStack>
+                        )}
+                      </Box>
+                    </SimpleGrid>
+                  </Box>
+
                   <FormControl>
                     <FormLabel>Registered By</FormLabel>
                     <Select value={selectedRegistrarKey} onChange={handleRegistrarSelect} bg={fieldBg}>
@@ -1460,6 +1788,42 @@ const StudentRegistrationPage = () => {
                     </SimpleGrid>
                   </CardBody>
                 </Card>
+
+                {(selectedStudent.passportPhoto || selectedStudent.nationalIdImage || selectedStudent.paymentScreenshot) && (
+                  <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
+                    <CardBody>
+                      <HStack mb={4} spacing={3}>
+                        <Box p={2.5} borderRadius="12px" bg={softPanelBg}>
+                          <Icon as={FiCamera} boxSize={4} color="green.600" />
+                        </Box>
+                        <Box>
+                          <Heading size="sm" color={headingColor}>Verification Documents & Photos</Heading>
+                          <Text fontSize="sm" color={mutedText}>Passport photo, National ID, and payment screenshot.</Text>
+                        </Box>
+                      </HStack>
+                      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                        {selectedStudent.passportPhoto ? (
+                          <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
+                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>3×4 Passport Photo</Text>
+                            <Image src={selectedStudent.passportPhoto} alt="Passport Photo" maxH="140px" mx="auto" borderRadius="md" objectFit="cover" />
+                          </Box>
+                        ) : null}
+                        {selectedStudent.nationalIdImage ? (
+                          <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
+                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>National ID / Kebele Card</Text>
+                            <Image src={selectedStudent.nationalIdImage} alt="National ID" maxH="140px" mx="auto" borderRadius="md" objectFit="contain" />
+                          </Box>
+                        ) : null}
+                        {selectedStudent.paymentScreenshot ? (
+                          <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
+                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>Payment Screenshot</Text>
+                            <Image src={selectedStudent.paymentScreenshot} alt="Payment Screenshot" maxH="140px" mx="auto" borderRadius="md" objectFit="contain" />
+                          </Box>
+                        ) : null}
+                      </SimpleGrid>
+                    </CardBody>
+                  </Card>
+                )}
 
                 <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
                   <CardBody>

@@ -200,101 +200,71 @@ const CDashboard = ({ initialTab = 'dashboard' }) => {
         const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setLastUpdatedTime(`Today, ${timeStr}`);
 
-        // Try to fetch stats
-        try {
-          const statsRes = await axiosInstance.get('/followups/stats');
-          if (statsRes.data && typeof statsRes.data === 'object' && isMounted) {
-            setCustomerData((prev) => ({
-              ...prev,
-              total: statsRes.data.total ?? prev.total,
-              new: statsRes.data.new ?? prev.new,
-              active: statsRes.data.active ?? prev.active,
-            }));
-          }
-        } catch (e) {
-          // Keep default design values
-        }
-
-        // Try to fetch B2B counts
-        try {
-          const [bRes, sRes] = await Promise.allSettled([
-            axiosInstance.get('/buyers'),
-            axiosInstance.get('/sellers'),
+        // Start all lightweight dashboard requests together. Counts are returned
+        // by MongoDB instead of downloading every buyer and seller document.
+        const [statsResult, buyersResult, sellersResult, trainingResult, followupsResult] =
+          await Promise.allSettled([
+            axiosInstance.get('/followups/stats'),
+            axiosInstance.get('/buyers', { params: { countOnly: true } }),
+            axiosInstance.get('/sellers', { params: { countOnly: true } }),
+            axiosInstance.get('/training-followups/incomplete-count'),
+            axiosInstance.get('/followups', { params: { limit: 5 } }),
           ]);
-          if (isMounted) {
-            let buyers = 14;
-            let sellers = 10;
-            if (bRes.status === 'fulfilled' && Array.isArray(bRes.value.data)) {
-              buyers = bRes.value.data.length;
-            }
-            if (sRes.status === 'fulfilled' && Array.isArray(sRes.value.data)) {
-              sellers = sRes.value.data.length;
-            }
-            setCustomerData((prev) => ({
-              ...prev,
-              buyers,
-              sellers,
-            }));
-          }
-        } catch (e) {
-          // Keep defaults
-        }
 
-        // Incomplete trainings
-        try {
-          const trainingRes = await axiosInstance.get('/training-followups/incomplete-count');
-          if (trainingRes.data?.count !== undefined && isMounted) {
-            setCustomerData((prev) => ({
-              ...prev,
-              incompleteTraining: trainingRes.data.count,
-            }));
-          }
-        } catch (e) {
-          // Keep defaults
-        }
+        if (!isMounted) return;
 
-        // Real followups if available
-        try {
-          const followupsRes = await axiosInstance.get('/followups?limit=5');
-          const records = Array.isArray(followupsRes.data?.followups)
-            ? followupsRes.data.followups
-            : Array.isArray(followupsRes.data)
-            ? followupsRes.data
-            : [];
-          if (records.length > 0 && isMounted) {
-            const mapped = records.slice(0, 3).map((f, idx) => {
-              const custName = f.customerName || f.companyName || 'Client ' + (idx + 1);
-              const initials = custName
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase();
-              const colors = ['#0d9488', '#0284c7', '#65a30d', '#a855f7'];
-              return {
-                id: f._id || `f-${idx}`,
-                customer: custName,
-                initials: initials || 'CL',
-                avatarBg: colors[idx % colors.length],
-                company: f.companyName || f.businessName || 'Business PLC',
-                owner: f.assignedToName || f.salesPerson || 'Tinsae Seyoum',
-                ownerInitials: (f.assignedToName || 'TS').slice(0, 2).toUpperCase(),
-                ownerBg: '#1e3a8a',
-                dueDate: f.nextFollowupDate ? new Date(f.nextFollowupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'May 28, 2025',
-                type: f.followupType || 'Package Renewal',
-                status: f.status || (idx === 0 ? 'Overdue' : idx === 1 ? 'Due Today' : 'Upcoming'),
-                statusColor: idx === 0 ? 'red' : idx === 1 ? 'orange' : 'blue',
-                priority: f.priority || (idx === 0 ? 'High' : idx === 1 ? 'Medium' : 'Low'),
-                priorityColor: idx === 0 ? 'red' : idx === 1 ? 'orange' : 'green',
-              };
-            });
-            setAnalyticsData((prev) => ({
-              ...prev,
-              priorityFollowups: mapped,
-            }));
-          }
-        } catch (e) {
-          // Keep defaults
+        const stats = statsResult.status === 'fulfilled' ? statsResult.value.data : null;
+        const buyers = buyersResult.status === 'fulfilled'
+          ? Number(buyersResult.value.data?.count) || 0
+          : 14;
+        const sellers = sellersResult.status === 'fulfilled'
+          ? Number(sellersResult.value.data?.count) || 0
+          : 10;
+        const incompleteTraining = trainingResult.status === 'fulfilled'
+          ? trainingResult.value.data?.count
+          : undefined;
+
+        setCustomerData((prev) => ({
+          ...prev,
+          total: stats?.total ?? prev.total,
+          new: stats?.new ?? prev.new,
+          active: stats?.active ?? prev.active,
+          buyers,
+          sellers,
+          incompleteTraining: incompleteTraining ?? prev.incompleteTraining,
+        }));
+
+        const followupsPayload = followupsResult.status === 'fulfilled'
+          ? followupsResult.value.data
+          : [];
+        const records = Array.isArray(followupsPayload?.followups)
+          ? followupsPayload.followups
+          : Array.isArray(followupsPayload)
+          ? followupsPayload
+          : [];
+        if (records.length > 0) {
+          const colors = ['#0d9488', '#0284c7', '#65a30d', '#a855f7'];
+          const mapped = records.slice(0, 3).map((f, idx) => {
+            const custName = f.customerName || f.companyName || `Client ${idx + 1}`;
+            const initials = custName.split(' ').map((name) => name[0]).join('').slice(0, 2).toUpperCase();
+            return {
+              id: f._id || `f-${idx}`,
+              customer: custName,
+              initials: initials || 'CL',
+              avatarBg: colors[idx % colors.length],
+              company: f.companyName || f.businessName || 'Business PLC',
+              owner: f.assignedToName || f.salesPerson || 'Tinsae Seyoum',
+              ownerInitials: (f.assignedToName || 'TS').slice(0, 2).toUpperCase(),
+              ownerBg: '#1e3a8a',
+              dueDate: f.nextFollowupDate ? new Date(f.nextFollowupDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'May 28, 2025',
+              type: f.followupType || 'Package Renewal',
+              status: f.status || (idx === 0 ? 'Overdue' : idx === 1 ? 'Due Today' : 'Upcoming'),
+              statusColor: idx === 0 ? 'red' : idx === 1 ? 'orange' : 'blue',
+              priority: f.priority || (idx === 0 ? 'High' : idx === 1 ? 'Medium' : 'Low'),
+              priorityColor: idx === 0 ? 'red' : idx === 1 ? 'orange' : 'green',
+            };
+          });
+          setAnalyticsData((prev) => ({ ...prev, priorityFollowups: mapped }));
         }
       } catch (err) {
         console.warn('Dashboard fetch notice:', err);

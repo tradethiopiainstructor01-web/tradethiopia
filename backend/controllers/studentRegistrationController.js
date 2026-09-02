@@ -1,4 +1,65 @@
+
 const StudentRegistration = require('../models/StudentRegistration');
+const TrainingFollowup = require('../models/TrainingFollowup');
+
+const syncStudentToTrainingFollowup = async (student) => {
+  if (!student) return;
+  try {
+    const studentId = student.studentId ? String(student.studentId).trim() : '';
+    const email = student.email ? String(student.email).trim() : '';
+    const customerName = student.fullName ? String(student.fullName).trim() : '';
+
+    const query = [];
+    if (studentId) query.push({ idInfo: studentId });
+    if (email && customerName) query.push({ email, customerName });
+    if (customerName) query.push({ customerName, trainingType: student.learningDepartment });
+
+    let followup = null;
+    if (query.length > 0) {
+      followup = await TrainingFollowup.findOne({ $or: query });
+    }
+
+    const payload = {
+      customerName,
+      email,
+      phoneNumber: student.phone || '',
+      trainingType: student.learningDepartment || student.program || 'General',
+      scheduleShift: student.preferredTimeSlot || 'Morning',
+      startDate: student.enrollmentDate || student.createdAt || new Date(),
+      progress: 'Completed', // Marked as Completed so student appears in All TESBINN Users tab
+      idInfo: studentId,
+      agentName: student.registeredBy || 'Customer Success',
+      salesAgent: student.registeredBy || 'Customer Success',
+      paymentAmount: student.paymentAmount || 0,
+      totalAmount: student.totalAmount || 0,
+      paymentOption: (student.paymentOption || '').toLowerCase().includes('half') ? 'partial' : 'full',
+      materialStatus: 'Delivered',
+      packageStatus: student.status || 'Active',
+    };
+
+    if (followup) {
+      await TrainingFollowup.findByIdAndUpdate(followup._id, { $set: payload });
+    } else {
+      await TrainingFollowup.create(payload);
+    }
+  } catch (err) {
+    console.error('Error syncing student registration to TrainingFollowup:', err);
+  }
+};
+
+let hasSyncedExistingStudents = false;
+const syncExistingStudents = async () => {
+  if (hasSyncedExistingStudents) return;
+  hasSyncedExistingStudents = true;
+  try {
+    const students = await StudentRegistration.find({}).lean();
+    for (const student of students) {
+      await syncStudentToTrainingFollowup(student);
+    }
+  } catch (err) {
+    console.error('Error in syncExistingStudents:', err);
+  }
+};
 
 const parseDate = (value) => {
   if (!value) return undefined;
@@ -47,6 +108,16 @@ const normalizeTimeSlot = (value) => {
   return 'Morning';
 };
 
+const isValidRegistrationImage = (value) => {
+  if (!value) return true; // Optional or empty is allowed
+  if (typeof value !== 'string') return false;
+  if (value.startsWith('http://') || value.startsWith('https://')) return true;
+  if (!/^data:image\/(jpe?g|png|webp|gif);base64,/i.test(value)) return false;
+  const base64 = value.split(',')[1] || '';
+  const decodedBytes = Math.ceil((base64.length * 3) / 4);
+  return decodedBytes > 0 && decodedBytes <= 5 * 1024 * 1024;
+};
+
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const generateStudentId = async () => {
@@ -81,6 +152,26 @@ const buildPayload = (body = {}) => {
     email: body.email || '',
     phone: body.phone || body.phoneNumber || '',
     gender: body.gender || '',
+    nationalIdImage: body.nationalIdImage || undefined,
+    passportPhoto: body.passportPhoto || undefined,
+    paymentScreenshot: body.paymentScreenshot || undefined,
+    learningDepartment: body.learningDepartment || body.department || body.learningDept || '',
+    program: body.program || body.course || body.trainingProgram || '',
+    enrollmentDate: parseDate(body.enrollmentDate || body.registrationDate),
+    examDate: parseDate(body.examDate || body.testDate),
+    preferredTimeSlot: normalizeTimeSlot(body.preferredTimeSlot || body.timeSlot || body.section),
+    readinessStatus: body.readinessStatus || body.readiness || 'Not assessed',
+    paymentOption: normalizePaymentOption(body.paymentOption || body.paymentPlan),
+    paymentStatus: normalizePaymentStatus(body.paymentStatus || body.payment),
+    paymentBank: body.paymentBank || body.bankName || '',
+    fsNumber: body.fsNumber || body.receiptFsNumber || body.receiptNumber || '',
+    classCompleted: classCompletionStatus === 'Completed',
+    classCompletionStatus,
+    cocPaymentStatus: normalizeCocPaymentStatus(body.cocPaymentStatus || body.cocPayment),
+    status: body.status || 'Active',
+    notes: body.notes || '',
+    registeredBy: body.registeredBy || body.registeredByName || body.csMember || body.createdByName || body.createdBy || 'Unknown CS member',
+    registeredByEmail: body.registeredByEmail || body.registrarEmail || body.createdByEmail || '',
     learningDepartment: body.learningDepartment || body.department || body.learningDept || '',
     program: body.program || body.course || body.trainingProgram || '',
     enrollmentDate: parseDate(body.enrollmentDate || body.registrationDate),
@@ -103,7 +194,7 @@ const buildPayload = (body = {}) => {
   };
 };
 
-const normalizeStudent = (student) => ({
+const normalizeStudent = (student, includeDocuments = false) => ({
   id: student._id,
   _id: student._id,
   clientLocalId: student.clientLocalId,
@@ -112,6 +203,20 @@ const normalizeStudent = (student) => ({
   email: student.email,
   phone: student.phone,
   gender: student.gender,
+  hasNationalIdImage: Boolean(student.nationalIdImage || student.hasNationalIdImage),
+  hasPassportPhoto: Boolean(student.passportPhoto || student.hasPassportPhoto),
+  hasPaymentScreenshot: Boolean(student.paymentScreenshot || student.hasPaymentScreenshot),
+  ...(includeDocuments
+    ? {
+        nationalIdImage: student.nationalIdImage || '',
+        passportPhoto: student.passportPhoto || '',
+        paymentScreenshot: student.paymentScreenshot || '',
+      }
+    : {
+        nationalIdImage: '',
+        passportPhoto: '',
+        paymentScreenshot: '',
+      }),
   learningDepartment: student.learningDepartment,
   program: student.program,
   enrollmentDate: student.enrollmentDate,
@@ -167,10 +272,36 @@ const getStudentRegistrations = async (req, res) => {
       ];
     }
 
-    const students = await StudentRegistration.find(query).sort({ createdAt: -1 }).lean();
-    res.json({ success: true, data: students.map(normalizeStudent) });
+    // Default to false so list queries return lightweight JSON quickly
+    const includeDocuments = req.query.includeDocuments === 'true';
+    let studentQuery = StudentRegistration.find(query).sort({ createdAt: -1 });
+    if (includeDocuments) {
+      studentQuery = studentQuery.select('+nationalIdImage +passportPhoto +paymentScreenshot');
+    }
+    const students = await studentQuery.lean();
+
+    // Ensure all existing students are added to All TESBINN Users data asynchronously
+    setImmediate(() => {
+      syncExistingStudents().catch(() => {});
+    });
+
+    res.json({ success: true, data: students.map((student) => normalizeStudent(student, includeDocuments)) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch student registrations', error: error.message });
+  }
+};
+
+const getStudentRegistrationById = async (req, res) => {
+  try {
+    const student = await StudentRegistration.findById(req.params.id)
+      .select('+nationalIdImage +passportPhoto +paymentScreenshot')
+      .lean();
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student registration not found.' });
+    }
+    res.json({ success: true, data: normalizeStudent(student, true) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch student registration', error: error.message });
   }
 };
 
@@ -180,6 +311,27 @@ const createStudentRegistration = async (req, res) => {
     if (!payload.fullName || !payload.learningDepartment) {
       return res.status(400).json({ success: false, message: 'Student name and learning department are required.' });
     }
+    if (payload.nationalIdImage && !isValidRegistrationImage(payload.nationalIdImage)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid National ID image format. Please upload a valid JPEG, PNG, or WEBP under 5MB.',
+      });
+    }
+    if (payload.passportPhoto && !isValidRegistrationImage(payload.passportPhoto)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid 3×4 Passport Photo format. Please upload a valid JPEG, PNG, or WEBP under 5MB.',
+      });
+    }
+    if (payload.paymentScreenshot && !isValidRegistrationImage(payload.paymentScreenshot)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Payment Receipt format. Please upload a valid JPEG, PNG, or WEBP under 5MB.',
+      });
+    }
+    if (!payload.paymentBank) {
+      return res.status(400).json({ success: false, message: 'Payment bank is required.' });
+    }
 
     if (!payload.studentId) {
       payload.studentId = await generateStudentId();
@@ -188,6 +340,7 @@ const createStudentRegistration = async (req, res) => {
     if (payload.clientLocalId) {
       const existing = await StudentRegistration.findOne({ clientLocalId: payload.clientLocalId });
       if (existing) {
+        await syncStudentToTrainingFollowup(existing);
         return res.status(200).json({ success: true, data: normalizeStudent(existing), message: 'Student registration already exists.' });
       }
     }
@@ -201,7 +354,10 @@ const createStudentRegistration = async (req, res) => {
     }
 
     const student = await StudentRegistration.create(payload);
-    res.status(201).json({ success: true, data: normalizeStudent(student) });
+    // Automatically add registered student to All TESBINN Users data
+    await syncStudentToTrainingFollowup(student);
+
+    res.status(201).json({ success: true, data: normalizeStudent(student, true) });
   } catch (error) {
     if (error.code === 11000 && error.keyPattern?.studentId) {
       return res.status(409).json({
@@ -236,13 +392,16 @@ const updateStudentRegistration = async (req, res) => {
     const student = await StudentRegistration.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
-    });
+    }).select('+nationalIdImage +passportPhoto +paymentScreenshot');
 
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student registration not found.' });
     }
 
-    res.json({ success: true, data: normalizeStudent(student) });
+    // Update synced record in All TESBINN Users data
+    await syncStudentToTrainingFollowup(student);
+
+    res.json({ success: true, data: normalizeStudent(student, true) });
   } catch (error) {
     if (error.code === 11000 && error.keyPattern?.studentId) {
       return res.status(409).json({
@@ -268,6 +427,7 @@ const deleteStudentRegistration = async (req, res) => {
 
 module.exports = {
   getStudentRegistrations,
+  getStudentRegistrationById,
   createStudentRegistration,
   updateStudentRegistration,
   deleteStudentRegistration,

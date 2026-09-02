@@ -1,6 +1,5 @@
-import React from "react";
+import React, { useEffect, useMemo, useState, memo } from "react";
 import {
-  Badge,
   Box,
   Button,
   Card,
@@ -9,6 +8,7 @@ import {
   Heading,
   HStack,
   Input,
+  Select,
   Table,
   Tbody,
   Td,
@@ -63,7 +63,7 @@ const TesbinnTabPage = ({
   trainingSortAsc,
   setTrainingSortAsc,
   trainingFollowupColumnsToRender,
-  tesbinnFollowups,
+  tesbinnFollowups = [],
   isMobile,
   tableMinWidth = "900px",
   isCustomerSuccessManager,
@@ -71,6 +71,30 @@ const TesbinnTabPage = ({
   handleCsvImport,
   isCsvImportingTesbinn,
 }) => {
+  const [pageSize, setPageSize] = useState(15);
+  const [page, setPage] = useState(1);
+
+  // Reset page when any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [
+    trainingSearch,
+    trainingScheduleFilter,
+    trainingMaterialFilter,
+    trainingCourseFilter,
+    trainingStartDateFilter,
+    trainingSortAsc,
+  ]);
+
+  const total = tesbinnFollowups.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pagedItems = useMemo(
+    () => tesbinnFollowups.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [tesbinnFollowups, safePage, pageSize]
+  );
+  const firstRecord = total ? (safePage - 1) * pageSize + 1 : 0;
+  const lastRecord = total ? Math.min(firstRecord + pagedItems.length - 1, total) : 0;
   return (
     <Card bg={cardBg} boxShadow="md" borderRadius="lg">
       <CardBody>
@@ -194,7 +218,7 @@ const TesbinnTabPage = ({
                 variant="outline"
                 onClick={() => setTrainingSortAsc((prev) => !prev)}
               >
-                Sort {trainingSortAsc ? "A-Z" : "Z-A"}
+                Sort: {trainingSortAsc ? "Latest to Old" : "Oldest to Latest"}
               </Button>
             </HStack>
           </Flex>
@@ -221,8 +245,8 @@ const TesbinnTabPage = ({
                 </Tr>
               </Thead>
               <Tbody>
-                {tesbinnFollowups.length > 0 ? (
-                  tesbinnFollowups.map((item) => (
+                {pagedItems.length > 0 ? (
+                  pagedItems.map((item) => (
                     <Tr key={item._id} _hover={{ bg: rowHoverBg }}>
                       {trainingFollowupColumnsToRender.map((col) => (
                         <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
@@ -241,10 +265,63 @@ const TesbinnTabPage = ({
               </Tbody>
             </Table>
           </TableContainer>
+
+          {/* Pagination Controls */}
+          {total > 0 && (
+            <Flex
+              justify="space-between"
+              align="center"
+              pt={2}
+              gap={3}
+              flexWrap="wrap"
+            >
+              <HStack spacing={2}>
+                <Text fontSize="xs" color="gray.500">
+                  Showing {firstRecord}-{lastRecord} of {total} completed training records
+                </Text>
+                <Select
+                  size="xs"
+                  width="95px"
+                  borderRadius="md"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={15}>15 / page</option>
+                  <option value={25}>25 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </Select>
+              </HStack>
+              <HStack spacing={2}>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  isDisabled={safePage <= 1}
+                >
+                  Previous
+                </Button>
+                <Text fontSize="xs" fontWeight="medium">
+                  Page {safePage} of {totalPages}
+                </Text>
+                <Button
+                  size="xs"
+                  colorScheme="teal"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  isDisabled={safePage >= totalPages}
+                >
+                  Next
+                </Button>
+              </HStack>
+            </Flex>
+          )}
         </VStack>
       </CardBody>
     </Card>
   );
 };
 
-export default TesbinnTabPage;
+export default memo(TesbinnTabPage);

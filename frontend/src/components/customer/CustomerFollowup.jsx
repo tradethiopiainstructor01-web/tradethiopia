@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import Layout from "./Layout";
 import FollowupTabPage from "./tabs/FollowupTabPage";
@@ -9,6 +9,7 @@ import TesbinnTabPage from "./tabs/TesbinnTabPage";
 import EnsraTabPage from "./tabs/EnsraTabPage";
 import ConsultancyTabPage from "./tabs/ConsultancyTabPage";
 import TradexTvTabPage from "./tabs/TradexTvTabPage";
+import SalesFollowupsTabPage from "./tabs/SalesFollowupsTabPage";
 import {
   Box,
   Table,
@@ -107,6 +108,7 @@ import {
   FiTv,
   FiCheckCircle,
   FiPlay,
+  FiDollarSign,
 } from "react-icons/fi";
 import EditCustomerInfo from "./EditCustomerInfo";
 import {
@@ -123,6 +125,22 @@ import {
 const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const [data, setData] = useState([]);
   const [completedSales, setCompletedSales] = useState([]);
+  const [salesCustomers, setSalesCustomers] = useState([]);
+  const [salesPagination, setSalesPagination] = useState({
+    page: 1,
+    limit: 15,
+    total: 0,
+    totalPages: 1,
+    hasPrevious: false,
+    hasNext: false,
+  });
+  const [loadingSales, setLoadingSales] = useState(false);
+  const [salesError, setSalesError] = useState("");
+  const salesRequestId = useRef(0);
+  const [activeFollowupTab, setActiveFollowupTab] = useState(0);
+  const completedSalesLoadedRef = useRef(false);
+  const trainingFollowupsLoadedRef = useRef(false);
+  const ensraFollowupsLoadedRef = useRef(false);
   const [loadingTraining, setLoadingTraining] = useState(false);
   const [trainingError, setTrainingError] = useState("");
   const [trainingFollowups, setTrainingFollowups] = useState([]);
@@ -158,10 +176,8 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const [isTesbinnBulkModalOpen, setIsTesbinnBulkModalOpen] = useState(false);
   const [isCsvImportingTesbinn, setIsCsvImportingTesbinn] = useState(false);
   const [assignableAgents, setAssignableAgents] = useState([]);
-  const [trainingAgentOptions, setTrainingAgentOptions] = useState([]);
   const [selectedAgentForAssignment, setSelectedAgentForAssignment] = useState("");
   const [assignableInstructors, setAssignableInstructors] = useState([]);
-  const [trainingInstructorOptions, setTrainingInstructorOptions] = useState([]);
   const [selectedInstructorForAssignment, setSelectedInstructorForAssignment] = useState("");
   const [ensraSearch, setEnsraSearch] = useState("");
   const [ensraTypeFilter, setEnsraTypeFilter] = useState("all");
@@ -528,7 +544,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     onClose: onEditClose
   } = useDisclosure();
 
-  const fetchData = async ({ silent = false } = {}) => {
+  const fetchData = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
       setLoading(true);
     }
@@ -560,9 +576,9 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
         setLoading(false);
       }
     }
-  };
+  }, []);
 
-  const fetchCompletedSales = async () => {
+  const fetchCompletedSales = useCallback(async () => {
     setLoadingTraining(true);
     setTrainingError("");
     try {
@@ -588,26 +604,31 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
         if (Array.isArray(response.data) && response.data.length > 0) {
           completedSalesData = response.data;
           hasSalesCustomerData = true;
+        } else if (response.data?.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+          completedSalesData = response.data.data;
+          hasSalesCustomerData = true;
         }
-      } catch (err) {
-        console.warn("Failed to fetch from sales-customers, trying followups:", err);
+      } catch (salesErr) {
+        console.warn("Could not fetch from SalesCustomer collection:", salesErr);
       }
 
-      // If no data from SalesCustomer, try Followup collection
+      // If SalesCustomer didn't work or had no completed sales, try StudentRegistration
       if (!hasSalesCustomerData) {
         try {
-          const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/followups`, {
+          const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/student-registrations`, {
+            params: {
+              paymentStatus: "Completed"
+            },
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
 
-          if (Array.isArray(response.data)) {
-            // Filter for completed status in Followup collection
-            completedSalesData = response.data.filter(item =>
-              (item.followupStatus || "").toLowerCase() === "completed"
-            );
+          if (Array.isArray(response.data) && response.data.length > 0) {
+            completedSalesData = response.data;
+          } else if (response.data?.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+            completedSalesData = response.data.data;
           }
         } catch (err) {
-          console.warn("Failed to fetch from followups:", err);
+          console.warn("Failed to fetch from student-registrations:", err);
         }
       }
 
@@ -656,7 +677,61 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     } finally {
       setLoadingTraining(false);
     }
-  };
+  }, [toast]);
+
+  const fetchSalesCustomers = useCallback(async ({
+    page = 1,
+    limit = 15,
+    search = "",
+    followupStatus = "",
+    packageScope = "",
+    dateFrom = "",
+    dateTo = "",
+  } = {}) => {
+    const requestId = ++salesRequestId.current;
+    setLoadingSales(true);
+    setSalesError("");
+    try {
+      const token = localStorage.getItem("userToken");
+      if (!token) {
+        setSalesCustomers([]);
+        setSalesError("Unauthorized: please sign in to view sales follow-ups.");
+        return;
+      }
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers`, {
+        params: {
+          page,
+          limit,
+          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(followupStatus ? { followupStatus } : {}),
+          ...(packageScope ? { packageScope } : {}),
+          ...(dateFrom ? { dateFrom } : {}),
+          ...(dateTo ? { dateTo } : {}),
+        },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (requestId !== salesRequestId.current) return;
+
+      const rows = Array.isArray(response.data) ? response.data : response.data?.data;
+      const pagination = response.data?.pagination;
+      setSalesCustomers(Array.isArray(rows) ? rows.slice(0, limit) : []);
+      setSalesPagination(pagination || {
+        page,
+        limit,
+        total: Array.isArray(rows) ? rows.length : 0,
+        totalPages: 1,
+        hasPrevious: false,
+        hasNext: false,
+      });
+    } catch (err) {
+      if (requestId !== salesRequestId.current) return;
+      console.error("Failed to load sales customer follow-ups", err);
+      setSalesCustomers([]);
+      setSalesError(err.response?.data?.message || "Failed to load sales customer follow-ups.");
+    } finally {
+      if (requestId === salesRequestId.current) setLoadingSales(false);
+    }
+  }, []);
 
   const resetPendingForm = () => {
     setPendingForm({
@@ -969,7 +1044,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     }
   };
 
-  const loadTrainingFollowups = async () => {
+  const loadTrainingFollowups = useCallback(async () => {
     try {
       const result = await fetchTrainingFollowups();
       setTrainingFollowups(Array.isArray(result) ? result : []);
@@ -977,7 +1052,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       console.error("Failed to load training follow-ups", err);
       setTrainingFollowups([]);
     }
-  };
+  }, []);
 
   const handleApplyTrainingDates = async () => {
     if (selectedTrainingFollowupIds.length === 0) {
@@ -1141,7 +1216,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     }
   };
 
-  const loadEnsraFollowups = async () => {
+  const loadEnsraFollowups = useCallback(async () => {
     try {
       const result = await fetchEnsraFollowups();
       const normalized = Array.isArray(result)
@@ -1155,7 +1230,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       console.error("Failed to load ENSRA follow-ups", err);
       setEnsraFollowups([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const fetchPackagesList = async () => {
@@ -1225,7 +1300,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     };
   }, [isCustomerSuccessManager]);
 
-  useEffect(() => {
+  const trainingAgentOptions = useMemo(() => {
     const primaryOptions = assignableAgents.map((agent) => {
       const label =
         agent.fullName?.trim() ||
@@ -1247,10 +1322,10 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       )
     ).map((name) => ({ value: name, label: name }));
 
-    setTrainingAgentOptions([...primaryOptions, ...fallbackNames]);
+    return [...primaryOptions, ...fallbackNames];
   }, [assignableAgents, trainingFollowups]);
 
-  useEffect(() => {
+  const trainingInstructorOptions = useMemo(() => {
     const primaryOptions = assignableInstructors.map((instructor) => {
       const label =
         instructor.fullName?.trim() ||
@@ -1272,7 +1347,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       )
     ).map((name) => ({ value: name, label: name }));
 
-    setTrainingInstructorOptions([...primaryOptions, ...fallbackNames]);
+    return [...primaryOptions, ...fallbackNames];
   }, [assignableInstructors, trainingFollowups]);
 
   const handleDeleteTrainingFollowup = async (id) => {
@@ -1451,11 +1526,14 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       return agentIdentifier.includes(normalizedUserDisplayName);
     })
     .sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.startDate || 0).getTime();
+      const dateB = new Date(b.createdAt || b.startDate || 0).getTime();
+      if (dateB !== dateA) {
+        return trainingSortAsc ? dateB - dateA : dateA - dateB;
+      }
       const nameA = (a.customerName || "").toLowerCase();
       const nameB = (b.customerName || "").toLowerCase();
-      if (nameA < nameB) return trainingSortAsc ? -1 : 1;
-      if (nameA > nameB) return trainingSortAsc ? 1 : -1;
-      return 0;
+      return nameA.localeCompare(nameB);
     });
 
   const filteredTrainingFollowups = baseFilteredTrainingFollowups.filter((item) => {
@@ -1509,10 +1587,19 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
 
   const tesbinnFollowups = useMemo(() => {
     // Reuse user-facing filters (search, course, schedule, etc.) but allow completed records even if end date passed
-    return baseFilteredTrainingFollowups.filter(
+    const items = baseFilteredTrainingFollowups.filter(
       (item) => (item.progress || "").toLowerCase() === "completed"
     );
-  }, [baseFilteredTrainingFollowups]);
+    // Sort latest to old (newest first) by default
+    return items.sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.startDate || 0).getTime();
+      const dateB = new Date(b.createdAt || b.startDate || 0).getTime();
+      if (dateB !== dateA) {
+        return trainingSortAsc ? dateB - dateA : dateA - dateB;
+      }
+      return 0;
+    });
+  }, [baseFilteredTrainingFollowups, trainingSortAsc]);
 
   const downloadCsv = (content, filename) => {
     const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
@@ -1831,12 +1918,29 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     );
   };
 
+  const handleFollowupTabChange = (index) => {
+    setActiveFollowupTab(index);
+
+    if (index === 2 && salesCustomers.length === 0 && !loadingSales) {
+      fetchSalesCustomers({ page: 1, limit: 15 });
+    }
+    if (index === 3 && !completedSalesLoadedRef.current) {
+      completedSalesLoadedRef.current = true;
+      fetchCompletedSales();
+    }
+    if ((index === 4 || index === 5) && !trainingFollowupsLoadedRef.current) {
+      trainingFollowupsLoadedRef.current = true;
+      loadTrainingFollowups();
+    }
+    if (index === 6 && !ensraFollowupsLoadedRef.current) {
+      ensraFollowupsLoadedRef.current = true;
+      loadEnsraFollowups();
+    }
+  };
+
   useEffect(() => {
     fetchData();
-    fetchCompletedSales();
-    loadTrainingFollowups();
-    loadEnsraFollowups();
-  }, []);
+  }, [fetchData]);
 
   const handleUpdateServices = async (id) => {
     try {
@@ -2298,38 +2402,48 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     );
   };
 
-  // Compact table cell component for better spacing
-  const CompactCell = ({ children, isHeader = false }) => (
-    <Td
-      py={isHeader ? 3 : 2}
-      px={3}
-      fontSize={isHeader ? "sm" : "sm"}
-      fontWeight={isHeader ? "bold" : "normal"}
-      borderBottom="1px solid"
-      borderColor={borderColor}
-      whiteSpace="nowrap"
-    >
-      {children}
-    </Td>
+  // Compact table cell component for better spacing (memoized to prevent unmount churn)
+  const CompactCell = useMemo(
+    () =>
+      React.memo(({ children, isHeader = false, ...rest }) => (
+        <Td
+          py={isHeader ? 3 : 2}
+          px={3}
+          fontSize="sm"
+          fontWeight={isHeader ? "bold" : "normal"}
+          borderBottom="1px solid"
+          borderColor={borderColor}
+          whiteSpace="nowrap"
+          {...rest}
+        >
+          {children}
+        </Td>
+      )),
+    [borderColor]
   );
 
-  // Compact header cell component
-  const CompactHeaderCell = ({ children }) => (
-    <Th
-      py={3}
-      px={3}
-      fontSize="sm"
-      color="white"
-      textTransform="none"
-      position="sticky"
-      top={0}
-      bg={headerBg}
-      zIndex={1}
-      boxShadow="sm"
-      borderColor={borderColor}
-    >
-      {children}
-    </Th>
+  // Compact header cell component (memoized to prevent unmount churn)
+  const CompactHeaderCell = useMemo(
+    () =>
+      React.memo(({ children, ...rest }) => (
+        <Th
+          py={3}
+          px={3}
+          fontSize="sm"
+          color="white"
+          textTransform="none"
+          position="sticky"
+          top={0}
+          bg={headerBg}
+          zIndex={1}
+          boxShadow="sm"
+          borderColor={borderColor}
+          {...rest}
+        >
+          {children}
+        </Th>
+      )),
+    [headerBg, borderColor]
   );
 
   const followupColumnOptions = [
@@ -3747,7 +3861,14 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
           </Box>
         ) : (
           <Box w="100%">
-            <Tabs variant="unstyled" colorScheme="teal" defaultIndex={0}>
+            <Tabs
+              variant="unstyled"
+              colorScheme="teal"
+              index={activeFollowupTab}
+              onChange={handleFollowupTabChange}
+              isLazy
+              lazyBehavior="unmount"
+            >
               {/* Tab Navigation Pill Bar */}
               <Box
                 borderBottom="1px solid"
@@ -3817,10 +3938,31 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
                     }}
                   >
                     <HStack spacing={1.5}>
+                      <Icon as={FiDollarSign} boxSize={3.5} />
+                      <Text>Sales</Text>
+                      <Badge bg="#f1f5f9" color="#475569" fontSize="10px" borderRadius="full" px={1.5}>
+                        {salesPagination.total || 0}
+                      </Badge>
+                    </HStack>
+                  </Tab>
+                  <Tab
+                    fontSize="12px"
+                    fontWeight="600"
+                    color="gray.500"
+                    px={3}
+                    py={2}
+                    borderRadius="md"
+                    _selected={{
+                      color: "#0d9488",
+                      borderBottom: "2px solid #0d9488",
+                      fontWeight: "700",
+                    }}
+                  >
+                    <HStack spacing={1.5}>
                       <Icon as={FiDownload} boxSize={3.5} />
                       <Text>Pending Training</Text>
                       <Badge bg="#f1f5f9" color="#475569" fontSize="10px" borderRadius="full" px={1.5}>
-                        {completedSales.length || 3}
+                        {completedSales.length || 0}
                       </Badge>
                     </HStack>
                   </Tab>
@@ -3841,7 +3983,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
                       <Icon as={FiCheck} boxSize={3.5} />
                       <Text>Training</Text>
                       <Badge bg="#f1f5f9" color="#475569" fontSize="10px" borderRadius="full" px={1.5}>
-                        {trainingFollowups.length || 6}
+                        {trainingFollowups.length || 0}
                       </Badge>
                     </HStack>
                   </Tab>
@@ -3862,7 +4004,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
                       <Icon as={FiUsers} boxSize={3.5} />
                       <Text>All TESBINN Users</Text>
                       <Badge bg="#f1f5f9" color="#475569" fontSize="10px" borderRadius="full" px={1.5}>
-                        {tesbinnFollowups.length || 24}
+                        {tesbinnFollowups.length || 0}
                       </Badge>
                     </HStack>
                   </Tab>
@@ -3883,7 +4025,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
                       <Icon as={FiDownload} boxSize={3.5} />
                       <Text>ENSRA</Text>
                       <Badge bg="#f1f5f9" color="#475569" fontSize="10px" borderRadius="full" px={1.5}>
-                        {ensraFollowups.length || 5}
+                        {ensraFollowups.length || 0}
                       </Badge>
                     </HStack>
                   </Tab>
@@ -3934,188 +4076,215 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
 
               <TabPanels>
                 <TabPanel px={0} py={1}>
-                  <FollowupTabPage
-                    cardBg={cardBg}
-                    borderColor={borderColor}
-                    loading={loading}
-                    error={error}
-                    filteredData={localFollowups}
-                    onRefresh={fetchData}
-                    onSelectRow={toggleSelectFollowup}
-                    onSelectAll={(checked) => selectAllFiltered(localFollowups, checked)}
-                    selectedIds={selectedFollowupIds}
-                    onOpenConversation={openConversation}
-                    onOpenActivity={openActivityModal}
-                    onOpenEdit={(item) => {
-                      setSelectedClient(item);
-                      onEditOpen();
-                    }}
-                    onOpenUpdate={(item) => {
-                      setSelectedClient(item);
-                      setShowUpdateCard(true);
-                    }}
-                    onDeleteCustomer={handleDeleteCustomer}
-                    searchQuery={searchQuery}
-                    handleSearch={handleSearch}
-                  />
-                </TabPanel>
-                <TabPanel px={0} py={1}>
-                  <FollowupTabPage
-                    cardBg={cardBg}
-                    borderColor={borderColor}
-                    loading={loading}
-                    error={error}
-                    filteredData={internationalFollowups}
-                    onRefresh={fetchData}
-                    onSelectRow={toggleSelectFollowup}
-                    onSelectAll={(checked) => selectAllFiltered(internationalFollowups, checked)}
-                    selectedIds={selectedFollowupIds}
-                    onOpenConversation={openConversation}
-                    onOpenActivity={openActivityModal}
-                    onOpenEdit={(item) => {
-                      setSelectedClient(item);
-                      onEditOpen();
-                    }}
-                    onOpenUpdate={(item) => {
-                      setSelectedClient(item);
-                      setShowUpdateCard(true);
-                    }}
-                    onDeleteCustomer={handleDeleteCustomer}
-                    searchQuery={searchQuery}
-                    handleSearch={handleSearch}
-                  />
-                </TabPanel>
-                <TabPanel px={0} py={1}>
-                  <TrainingTabPage
-                    cardBg={cardBg}
-                    headerBg={headerBg}
-                    borderColor={borderColor}
-                    tableBorderColor={tableBorderColor}
-                    tableBg={tableBg}
-                    rowHoverBg={rowHoverBg}
-                    renderColumnMenu={renderColumnMenu}
-                    completedSalesColumnOptions={completedSalesColumnOptions}
-                    completedSalesColumnsToRender={completedSalesColumnsToRender}
-                    completedSales={completedSales}
-                    loadingTraining={loadingTraining}
-                    trainingError={trainingError}
-                    fetchCompletedSales={fetchCompletedSales}
-                    trainingPrograms={trainingPrograms}
-                    trainingForm={trainingForm}
-                    setTrainingForm={setTrainingForm}
-                    handleTrainingTypeChange={handleTrainingTypeChange}
-                    handlePaymentOptionChange={handlePaymentOptionChange}
-                    handleTrainingSubmit={handleTrainingSubmit}
-                    isMobile={isMobile}
-                  />
-                </TabPanel>
-                <TabPanel px={0} py={1}>
-                  <TrainingFollowupTabPage
-                    cardBg={cardBg}
-                    headerBg={headerBg}
-                    borderColor={borderColor}
-                    tableBorderColor={tableBorderColor}
-                    tableBg={tableBg}
-                    rowHoverBg={rowHoverBg}
-                    trainingSearch={trainingSearch}
-                    setTrainingSearch={setTrainingSearch}
-                    trainingProgressFilter={trainingProgressFilter}
-                    setTrainingProgressFilter={setTrainingProgressFilter}
-                    trainingScheduleFilter={trainingScheduleFilter}
-                    setTrainingScheduleFilter={setTrainingScheduleFilter}
-                    trainingMaterialFilter={trainingMaterialFilter}
-                    setTrainingMaterialFilter={setTrainingMaterialFilter}
-                    trainingCourseFilter={trainingCourseFilter}
-                    setTrainingCourseFilter={setTrainingCourseFilter}
-                    trainingStartDateFilter={trainingStartDateFilter}
-                    setTrainingStartDateFilter={setTrainingStartDateFilter}
-                    trainingCourseOptions={trainingCourseOptions}
-                    renderColumnMenu={renderColumnMenu}
-                    trainingFollowupColumnOptions={trainingFollowupColumnOptions}
-                    trainingSortAsc={trainingSortAsc}
-                    setTrainingSortAsc={setTrainingSortAsc}
-                    trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
-                    filteredTrainingFollowups={filteredTrainingFollowups}
-                    selectedTrainingFollowupCount={selectedTrainingFollowupIds.length}
-                    trainingBulkStartDate={trainingBulkStartDate}
-                    trainingBulkEndDate={trainingBulkEndDate}
-                    trainingBulkStartTime={trainingBulkStartTime}
-                    trainingBulkEndTime={trainingBulkEndTime}
-                    setTrainingBulkStartDate={setTrainingBulkStartDate}
-                    setTrainingBulkEndDate={setTrainingBulkEndDate}
-                    setTrainingBulkStartTime={setTrainingBulkStartTime}
-                    setTrainingBulkEndTime={setTrainingBulkEndTime}
-                    applyTrainingDates={handleApplyTrainingDates}
-                    isApplyingTrainingDates={isApplyingTrainingDates}
-                    assignableAgents={assignableAgents}
-                    trainingAgentOptions={trainingAgentOptions}
-                    selectedAgentForAssignment={selectedAgentForAssignment}
-                    setSelectedAgentForAssignment={setSelectedAgentForAssignment}
-                    trainingInstructorOptions={trainingInstructorOptions}
-                    selectedInstructorForAssignment={selectedInstructorForAssignment}
-                    setSelectedInstructorForAssignment={setSelectedInstructorForAssignment}
-                    isCustomerSuccessManager={isCustomerSuccessManager}
-                    isMobile={isMobile}
-                    tableMinWidth="900px"
-                    handleBulkUpdate={handleBulkUpdate}
-                  >
-                    <TrainingFollowupGrouped
-                      groupedTrainingFollowups={groupedTrainingFollowups}
+                  {activeFollowupTab === 0 && (
+                    <FollowupTabPage
                       cardBg={cardBg}
                       borderColor={borderColor}
-                      headerBg={headerBg}
-                      isLargerThan1024={isLargerThan1024}
+                      loading={loading}
+                      error={error}
+                      filteredData={localFollowups}
+                      onRefresh={fetchData}
+                      onSelectRow={toggleSelectFollowup}
+                      onSelectAll={(checked) => selectAllFiltered(localFollowups, checked)}
+                      selectedIds={selectedFollowupIds}
+                      onOpenConversation={openConversation}
+                      onOpenActivity={openActivityModal}
+                      onOpenEdit={(item) => {
+                        setSelectedClient(item);
+                        onEditOpen();
+                      }}
+                      onOpenUpdate={(item) => {
+                        setSelectedClient(item);
+                        setShowUpdateCard(true);
+                      }}
+                      onDeleteCustomer={handleDeleteCustomer}
+                      searchQuery={searchQuery}
+                      handleSearch={handleSearch}
                     />
-                  </TrainingFollowupTabPage>
+                  )}
                 </TabPanel>
                 <TabPanel px={0} py={1}>
-                  <TesbinnTabPage
-                    cardBg={cardBg}
-                    headerBg={headerBg}
-                    borderColor={borderColor}
-                    tableBorderColor={tableBorderColor}
-                    tableBg={tableBg}
-                    rowHoverBg={rowHoverBg}
-                    trainingSearch={trainingSearch}
-                    setTrainingSearch={setTrainingSearch}
-                    trainingScheduleFilter={trainingScheduleFilter}
-                    setTrainingScheduleFilter={setTrainingScheduleFilter}
-                    trainingMaterialFilter={trainingMaterialFilter}
-                    setTrainingMaterialFilter={setTrainingMaterialFilter}
-                    trainingCourseFilter={trainingCourseFilter}
-                    setTrainingCourseFilter={setTrainingCourseFilter}
-                    trainingStartDateFilter={trainingStartDateFilter}
-                    setTrainingStartDateFilter={setTrainingStartDateFilter}
-                    trainingCourseOptions={trainingCourseOptions}
-                    renderColumnMenu={renderColumnMenu}
-                    trainingFollowupColumnOptions={trainingFollowupColumnOptions}
-                    trainingSortAsc={trainingSortAsc}
-                    setTrainingSortAsc={setTrainingSortAsc}
-                    trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
-                    tesbinnFollowups={tesbinnFollowups}
-                    isMobile={isMobile}
-                    isCustomerSuccessManager={isCustomerSuccessManager}
-                    handleExportTesbinn={handleExportTesbinn}
-                    handleCsvImport={handleTesbinnCsvImport}
-                    isCsvImportingTesbinn={isCsvImportingTesbinn}
-                  />
+                  {activeFollowupTab === 1 && (
+                    <FollowupTabPage
+                      cardBg={cardBg}
+                      borderColor={borderColor}
+                      loading={loading}
+                      error={error}
+                      filteredData={internationalFollowups}
+                      onRefresh={fetchData}
+                      onSelectRow={toggleSelectFollowup}
+                      onSelectAll={(checked) => selectAllFiltered(internationalFollowups, checked)}
+                      selectedIds={selectedFollowupIds}
+                      onOpenConversation={openConversation}
+                      onOpenActivity={openActivityModal}
+                      onOpenEdit={(item) => {
+                        setSelectedClient(item);
+                        onEditOpen();
+                      }}
+                      onOpenUpdate={(item) => {
+                        setSelectedClient(item);
+                        setShowUpdateCard(true);
+                      }}
+                      onDeleteCustomer={handleDeleteCustomer}
+                      searchQuery={searchQuery}
+                      handleSearch={handleSearch}
+                    />
+                  )}
                 </TabPanel>
                 <TabPanel px={0} py={1}>
-                  {ensraModule}
+                  {activeFollowupTab === 2 && (
+                    <SalesFollowupsTabPage
+                      salesCustomers={salesCustomers}
+                      pagination={salesPagination}
+                      loading={loadingSales}
+                      error={salesError}
+                      onRefresh={fetchSalesCustomers}
+                      cardBg={cardBg}
+                      borderColor={borderColor}
+                    />
+                  )}
                 </TabPanel>
                 <TabPanel px={0} py={1}>
-                  <ConsultancyTabPage
-                    cardBg={cardBg}
-                    headerBg={headerBg}
-                    borderColor={borderColor}
-                  />
+                  {activeFollowupTab === 3 && (
+                    <TrainingTabPage
+                      cardBg={cardBg}
+                      headerBg={headerBg}
+                      borderColor={borderColor}
+                      tableBorderColor={tableBorderColor}
+                      tableBg={tableBg}
+                      rowHoverBg={rowHoverBg}
+                      renderColumnMenu={renderColumnMenu}
+                      completedSalesColumnOptions={completedSalesColumnOptions}
+                      completedSalesColumnsToRender={completedSalesColumnsToRender}
+                      completedSales={completedSales}
+                      loadingTraining={loadingTraining}
+                      trainingError={trainingError}
+                      fetchCompletedSales={fetchCompletedSales}
+                      trainingPrograms={trainingPrograms}
+                      trainingForm={trainingForm}
+                      setTrainingForm={setTrainingForm}
+                      handleTrainingTypeChange={handleTrainingTypeChange}
+                      handlePaymentOptionChange={handlePaymentOptionChange}
+                      handleTrainingSubmit={handleTrainingSubmit}
+                      isMobile={isMobile}
+                    />
+                  )}
                 </TabPanel>
                 <TabPanel px={0} py={1}>
-                  <TradexTvTabPage
-                    cardBg={cardBg}
-                    headerBg={headerBg}
-                    borderColor={borderColor}
-                  />
+                  {activeFollowupTab === 4 && (
+                    <TrainingFollowupTabPage
+                      cardBg={cardBg}
+                      headerBg={headerBg}
+                      borderColor={borderColor}
+                      tableBorderColor={tableBorderColor}
+                      tableBg={tableBg}
+                      rowHoverBg={rowHoverBg}
+                      trainingSearch={trainingSearch}
+                      setTrainingSearch={setTrainingSearch}
+                      trainingProgressFilter={trainingProgressFilter}
+                      setTrainingProgressFilter={setTrainingProgressFilter}
+                      trainingScheduleFilter={trainingScheduleFilter}
+                      setTrainingScheduleFilter={setTrainingScheduleFilter}
+                      trainingMaterialFilter={trainingMaterialFilter}
+                      setTrainingMaterialFilter={setTrainingMaterialFilter}
+                      trainingCourseFilter={trainingCourseFilter}
+                      setTrainingCourseFilter={setTrainingCourseFilter}
+                      trainingStartDateFilter={trainingStartDateFilter}
+                      setTrainingStartDateFilter={setTrainingStartDateFilter}
+                      trainingCourseOptions={trainingCourseOptions}
+                      renderColumnMenu={renderColumnMenu}
+                      trainingFollowupColumnOptions={trainingFollowupColumnOptions}
+                      trainingSortAsc={trainingSortAsc}
+                      setTrainingSortAsc={setTrainingSortAsc}
+                      trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
+                      filteredTrainingFollowups={filteredTrainingFollowups}
+                      selectedTrainingFollowupCount={selectedTrainingFollowupIds.length}
+                      trainingBulkStartDate={trainingBulkStartDate}
+                      trainingBulkEndDate={trainingBulkEndDate}
+                      trainingBulkStartTime={trainingBulkStartTime}
+                      trainingBulkEndTime={trainingBulkEndTime}
+                      setTrainingBulkStartDate={setTrainingBulkStartDate}
+                      setTrainingBulkEndDate={setTrainingBulkEndDate}
+                      setTrainingBulkStartTime={setTrainingBulkStartTime}
+                      setTrainingBulkEndTime={setTrainingBulkEndTime}
+                      applyTrainingDates={handleApplyTrainingDates}
+                      isApplyingTrainingDates={isApplyingTrainingDates}
+                      assignableAgents={assignableAgents}
+                      trainingAgentOptions={trainingAgentOptions}
+                      selectedAgentForAssignment={selectedAgentForAssignment}
+                      setSelectedAgentForAssignment={setSelectedAgentForAssignment}
+                      trainingInstructorOptions={trainingInstructorOptions}
+                      selectedInstructorForAssignment={selectedInstructorForAssignment}
+                      setSelectedInstructorForAssignment={setSelectedInstructorForAssignment}
+                      isCustomerSuccessManager={isCustomerSuccessManager}
+                      isMobile={isMobile}
+                      tableMinWidth="900px"
+                      handleBulkUpdate={handleBulkUpdate}
+                    >
+                      <TrainingFollowupGrouped
+                        groupedTrainingFollowups={groupedTrainingFollowups}
+                        cardBg={cardBg}
+                        borderColor={borderColor}
+                        headerBg={headerBg}
+                        isLargerThan1024={isLargerThan1024}
+                      />
+                    </TrainingFollowupTabPage>
+                  )}
+                </TabPanel>
+                <TabPanel px={0} py={1}>
+                  {activeFollowupTab === 5 && (
+                    <TesbinnTabPage
+                      cardBg={cardBg}
+                      headerBg={headerBg}
+                      borderColor={borderColor}
+                      tableBorderColor={tableBorderColor}
+                      tableBg={tableBg}
+                      rowHoverBg={rowHoverBg}
+                      trainingSearch={trainingSearch}
+                      setTrainingSearch={setTrainingSearch}
+                      trainingScheduleFilter={trainingScheduleFilter}
+                      setTrainingScheduleFilter={setTrainingScheduleFilter}
+                      trainingMaterialFilter={trainingMaterialFilter}
+                      setTrainingMaterialFilter={setTrainingMaterialFilter}
+                      trainingCourseFilter={trainingCourseFilter}
+                      setTrainingCourseFilter={setTrainingCourseFilter}
+                      trainingStartDateFilter={trainingStartDateFilter}
+                      setTrainingStartDateFilter={setTrainingStartDateFilter}
+                      trainingCourseOptions={trainingCourseOptions}
+                      renderColumnMenu={renderColumnMenu}
+                      trainingFollowupColumnOptions={trainingFollowupColumnOptions}
+                      trainingSortAsc={trainingSortAsc}
+                      setTrainingSortAsc={setTrainingSortAsc}
+                      trainingFollowupColumnsToRender={trainingFollowupColumnsToRender}
+                      tesbinnFollowups={tesbinnFollowups}
+                      isMobile={isMobile}
+                      isCustomerSuccessManager={isCustomerSuccessManager}
+                      handleExportTesbinn={handleExportTesbinn}
+                      handleCsvImport={handleTesbinnCsvImport}
+                      isCsvImportingTesbinn={isCsvImportingTesbinn}
+                    />
+                  )}
+                </TabPanel>
+                <TabPanel px={0} py={1}>
+                  {activeFollowupTab === 6 && ensraModule}
+                </TabPanel>
+                <TabPanel px={0} py={1}>
+                  {activeFollowupTab === 7 && (
+                    <ConsultancyTabPage
+                      cardBg={cardBg}
+                      headerBg={headerBg}
+                      borderColor={borderColor}
+                    />
+                  )}
+                </TabPanel>
+                <TabPanel px={0} py={1}>
+                  {activeFollowupTab === 8 && (
+                    <TradexTvTabPage
+                      cardBg={cardBg}
+                      headerBg={headerBg}
+                      borderColor={borderColor}
+                    />
+                  )}
                 </TabPanel>
               </TabPanels>
             </Tabs>
