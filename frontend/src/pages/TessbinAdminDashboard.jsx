@@ -626,7 +626,7 @@ const TessbinAdminDashboard = () => {
 
   // Sidebar Navigation Definition
   const sidebarItems = [
-    { id: 'overview', label: 'Dashboard Overview', icon: FiGrid },
+    { id: 'overview', label: 'Overall Data Analytics', icon: FiPieChart },
     { id: 'cs_registered_users', label: 'Student Register Lists', icon: FiUserCheck },
     { id: 'coc_students_list', label: 'COC Students List', icon: FiAward },
     { id: 'data_analysis', label: 'Online Exam Results', icon: FiTrendingUp },
@@ -813,7 +813,7 @@ const TessbinAdminDashboard = () => {
                   <Text textTransform="uppercase">{activeTab.replace('_', ' ')}</Text>
                 </HStack>
                 <Heading size="lg" fontWeight="900" mt={0.5} color={textColor} fontSize="22px">
-                  {activeTab === 'overview' && 'Business & Examination Cockpit'}
+                  {activeTab === 'overview' && 'Overall Data Analytics & Smart Intelligence'}
                   {activeTab === 'cs_registered_users' && 'Student Register Lists'}
                   {activeTab === 'coc_students_list' && 'COC Students List (Customer Service)'}
                   {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Online Exam Results & Performance Insights'}
@@ -821,7 +821,7 @@ const TessbinAdminDashboard = () => {
                   {activeTab === 'kpi_metrics' && 'Master KPI Target & Scorecard Manager'}
                 </Heading>
                 <Text fontSize="12px" color={mutedText} mt={0.5}>
-                  {activeTab === 'overview' && 'Real-time overview of examinations, academic performance, and graphical analytics'}
+                  {activeTab === 'overview' && 'Real-time multi-dimensional executive intelligence combining Student Registrations, COC Paid records, Online Exam Results & KPIs'}
                   {activeTab === 'cs_registered_users' && 'Live view of student registrations with multi-period Daily, Weekly, Monthly, and Yearly filters'}
                   {activeTab === 'coc_students_list' && 'Verified read-only directory of students registered by Customer Service whose COC fee is marked as Paid'}
                   {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Real-time online examination outcomes, qualification rates, course test outcomes, and performance insights'}
@@ -1425,39 +1425,23 @@ const TessbinAdminDashboard = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* EXAM RECORDS TABLE (Exclusively shown for tabs that manage student lists) */}
+          {/* EXAM RECORDS TABLE (Exclusively shown for coc_exams tab) */}
           {/* ========================================================================= */}
-          {(activeTab === 'overview' || activeTab === 'coc_exams') && (
+          {activeTab === 'coc_exams' && (
             <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" boxShadow="0 2px 10px rgba(0,0,0,0.03)">
               <CardBody p={6}>
                 <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'start', md: 'center' }} gap={4} mb={6}>
                   <Box>
                     <Heading size="md" fontWeight="800" fontSize="16px">
-                      {activeTab === 'coc_exams' && 'COC Exam Students List'}
-                      {activeTab === 'overview' && 'Student Examination Records'}
+                      COC Exam Students List
                     </Heading>
                     <Text fontSize="12px" color={mutedText} mt={0.5}>
                       Manage student exam scores, statuses, and certification records
                     </Text>
                   </Box>
 
-                  {/* Filter Toolbar & Actions */}
-                  <HStack spacing={3} wrap="wrap">
-                    {activeTab === 'overview' && (
-                      <Select
-                        size="sm"
-                        borderRadius="xl"
-                        w="170px"
-                        value={examTypeFilter}
-                        onChange={(e) => setExamTypeFilter(e.target.value)}
-                        fontSize="12px"
-                      >
-                        <option value="All">All Exam Types</option>
-                        <option value="COC Exam">COC Exam</option>
-                        <option value="Online Final Exam">Online Final Exam</option>
-                        <option value="Course Assessment">Course Assessment</option>
-                      </Select>
-                    )}
+                    {/* Filter Toolbar & Actions */}
+                    <HStack spacing={3} wrap="wrap">
 
                     <Select
                       size="sm"

@@ -172,6 +172,23 @@ const buildPayload = (body = {}) => {
     notes: body.notes || '',
     registeredBy: body.registeredBy || body.registeredByName || body.csMember || body.createdByName || body.createdBy || 'Unknown CS member',
     registeredByEmail: body.registeredByEmail || body.registrarEmail || body.createdByEmail || '',
+    learningDepartment: body.learningDepartment || body.department || body.learningDept || '',
+    program: body.program || body.course || body.trainingProgram || '',
+    enrollmentDate: parseDate(body.enrollmentDate || body.registrationDate),
+    examDate: parseDate(body.examDate || body.testDate),
+    preferredTimeSlot: normalizeTimeSlot(body.preferredTimeSlot || body.timeSlot || body.section),
+    readinessStatus: body.readinessStatus || body.readiness || 'Not assessed',
+    paymentOption: normalizePaymentOption(body.paymentOption || body.paymentPlan),
+    paymentStatus: normalizePaymentStatus(body.paymentStatus || body.payment),
+    paymentBank: body.paymentBank || body.bankName || '',
+    fsNumber: body.fsNumber || body.receiptFsNumber || body.receiptNumber || '',
+    classCompleted: classCompletionStatus === 'Completed',
+    classCompletionStatus,
+    cocPaymentStatus: normalizeCocPaymentStatus(body.cocPaymentStatus || body.cocPayment),
+    status: body.status || 'Active',
+    notes: body.notes || '',
+    registeredBy: body.registeredBy || body.registeredByName || body.csMember || body.createdByName || body.createdBy || 'Unknown CS member',
+    registeredByEmail: body.registeredByEmail || body.registrarEmail || body.createdByEmail || '',
     updatedBy: body.updatedBy || '',
     updatedByEmail: body.updatedByEmail || '',
   };
@@ -186,13 +203,20 @@ const normalizeStudent = (student, includeDocuments = false) => ({
   email: student.email,
   phone: student.phone,
   gender: student.gender,
+  hasNationalIdImage: Boolean(student.nationalIdImage || student.hasNationalIdImage),
+  hasPassportPhoto: Boolean(student.passportPhoto || student.hasPassportPhoto),
+  hasPaymentScreenshot: Boolean(student.paymentScreenshot || student.hasPaymentScreenshot),
   ...(includeDocuments
     ? {
         nationalIdImage: student.nationalIdImage || '',
         passportPhoto: student.passportPhoto || '',
         paymentScreenshot: student.paymentScreenshot || '',
       }
-    : {}),
+    : {
+        nationalIdImage: '',
+        passportPhoto: '',
+        paymentScreenshot: '',
+      }),
   learningDepartment: student.learningDepartment,
   program: student.program,
   enrollmentDate: student.enrollmentDate,
@@ -248,18 +272,36 @@ const getStudentRegistrations = async (req, res) => {
       ];
     }
 
-    // Always include documents so Tessbin Admin & CS can fully view documents and photos
-    const includeDocuments = req.query.includeDocuments !== 'false';
-    const studentQuery = StudentRegistration.find(query).sort({ createdAt: -1 });
-    if (includeDocuments) studentQuery.select('+nationalIdImage +passportPhoto +paymentScreenshot');
+    // Default to false so list queries return lightweight JSON quickly
+    const includeDocuments = req.query.includeDocuments === 'true';
+    let studentQuery = StudentRegistration.find(query).sort({ createdAt: -1 });
+    if (includeDocuments) {
+      studentQuery = studentQuery.select('+nationalIdImage +passportPhoto +paymentScreenshot');
+    }
     const students = await studentQuery.lean();
 
-    // Ensure all existing students are added to All TESBINN Users data without removing any data
-    syncExistingStudents().catch(() => {});
+    // Ensure all existing students are added to All TESBINN Users data asynchronously
+    setImmediate(() => {
+      syncExistingStudents().catch(() => {});
+    });
 
     res.json({ success: true, data: students.map((student) => normalizeStudent(student, includeDocuments)) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch student registrations', error: error.message });
+  }
+};
+
+const getStudentRegistrationById = async (req, res) => {
+  try {
+    const student = await StudentRegistration.findById(req.params.id)
+      .select('+nationalIdImage +passportPhoto +paymentScreenshot')
+      .lean();
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student registration not found.' });
+    }
+    res.json({ success: true, data: normalizeStudent(student, true) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch student registration', error: error.message });
   }
 };
 
@@ -385,6 +427,7 @@ const deleteStudentRegistration = async (req, res) => {
 
 module.exports = {
   getStudentRegistrations,
+  getStudentRegistrationById,
   createStudentRegistration,
   updateStudentRegistration,
   deleteStudentRegistration,

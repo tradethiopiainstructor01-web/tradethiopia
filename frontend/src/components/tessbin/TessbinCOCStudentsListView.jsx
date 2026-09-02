@@ -64,7 +64,7 @@ import {
   FiBookOpen,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
-import { getStudentRegistrations } from '../../services/studentRegistrationService';
+import { getStudentRegistrations, getStudentRegistrationById } from '../../services/studentRegistrationService';
 
 export default function TessbinCOCStudentsListView() {
   const toast = useToast();
@@ -98,6 +98,21 @@ export default function TessbinCOCStudentsListView() {
     title: '',
     studentName: '',
   });
+
+  const handleOpenStudentDetail = async (student) => {
+    setSelectedStudent(student);
+    onOpen();
+    if (student?._id || student?.id) {
+      try {
+        const fullStudent = await getStudentRegistrationById(student._id || student.id);
+        if (fullStudent) {
+          setSelectedStudent(fullStudent);
+        }
+      } catch (err) {
+        console.warn('Could not load full student details:', err);
+      }
+    }
+  };
 
   const handleOpenFullImage = (url, title, studentName) => {
     if (!url) return;
@@ -774,7 +789,7 @@ export default function TessbinCOCStudentsListView() {
                 </Tr>
               ) : (
                 paginatedStudents.map((student) => {
-                  const hasDocs = Boolean(student.passportPhoto || student.nationalIdImage || student.paymentScreenshot);
+                  const hasDocs = Boolean(student.hasPassportPhoto || student.hasNationalIdImage || student.hasPaymentScreenshot || student.passportPhoto || student.nationalIdImage || student.paymentScreenshot);
                   return (
                     <Tr
                       key={student._id || student.studentId}
@@ -864,10 +879,7 @@ export default function TessbinCOCStudentsListView() {
                             py={0.5}
                             borderRadius="md"
                             cursor="pointer"
-                            onClick={() => {
-                              setSelectedStudent(student);
-                              onOpen();
-                            }}
+                            onClick={() => handleOpenStudentDetail(student)}
                           >
                             Photos & Docs
                           </Badge>
@@ -904,10 +916,7 @@ export default function TessbinCOCStudentsListView() {
                           _hover={{ bg: '#047857' }}
                           color="white"
                           leftIcon={<FiMaximize2 />}
-                          onClick={() => {
-                            setSelectedStudent(student);
-                            onOpen();
-                          }}
+                          onClick={() => handleOpenStudentDetail(student)}
                           fontWeight="700"
                         >
                           Full View

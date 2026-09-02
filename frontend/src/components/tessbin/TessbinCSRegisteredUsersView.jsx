@@ -63,7 +63,7 @@ import {
   FiFileText,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
-import { getStudentRegistrations } from '../../services/studentRegistrationService';
+import { getStudentRegistrations, getStudentRegistrationById } from '../../services/studentRegistrationService';
 
 const DEPARTMENTS = [
   'All Departments',
@@ -162,7 +162,7 @@ export default function TessbinCSRegisteredUsersView() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getStudentRegistrations({ includeDocuments: 'true' });
+      const data = await getStudentRegistrations();
       let studentList = Array.isArray(data) ? data : [];
 
       // Sort by newest first
@@ -464,9 +464,19 @@ export default function TessbinCSRegisteredUsersView() {
     });
   };
 
-  const handleOpenDetail = (student) => {
+  const handleOpenDetail = async (student) => {
     setSelectedStudent(student);
     onOpen();
+    if (student?._id || student?.id) {
+      try {
+        const fullStudent = await getStudentRegistrationById(student._id || student.id);
+        if (fullStudent) {
+          setSelectedStudent(fullStudent);
+        }
+      } catch (err) {
+        console.warn('Could not load full student details:', err);
+      }
+    }
   };
 
   return (
