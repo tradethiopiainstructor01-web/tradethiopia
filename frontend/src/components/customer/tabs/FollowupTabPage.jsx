@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Avatar,
   Badge,
@@ -78,12 +78,16 @@ const FollowupTabPage = ({
   const headingColor = useColorModeValue("#0f172a", "#f8fafc");
   const textColor = useColorModeValue("#334155", "#cbd5e1");
   const subtextColor = useColorModeValue("#64748b", "#94a3b8");
-  const cardBorder = borderColor || useColorModeValue("#e2e8f0", "#1e293b");
+  const defaultCardBorder = useColorModeValue("#e2e8f0", "#1e293b");
+  const tableHeaderBg = useColorModeValue("#ffffff", "#0f172a");
+  const tableRowHoverBg = useColorModeValue("gray.50", "whiteAlpha.50");
+  const packageBadgeBg = useColorModeValue("#f3e8ff", "#3b0764");
+  const cardBorder = borderColor || defaultCardBorder;
 
   const [ownerFilter, setOwnerFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [deadlineFilter, setDeadlineFilter] = useState("Any");
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Active filter chips
@@ -97,11 +101,34 @@ const FollowupTabPage = ({
     setTypeChip("All");
   };
 
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pagedData = useMemo(
+    () => filteredData.slice(
+      (safeCurrentPage - 1) * rowsPerPage,
+      safeCurrentPage * rowsPerPage
+    ),
+    [filteredData, rowsPerPage, safeCurrentPage]
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const isAllSelected =
-    filteredData.length > 0 &&
-    filteredData.every((item) => selectedIds.includes(item._id));
+    pagedData.length > 0 &&
+    pagedData.every((item) => selectedIds.includes(item._id));
   const isIndeterminate =
-    selectedIds.length > 0 && !isAllSelected;
+    pagedData.some((item) => selectedIds.includes(item._id)) && !isAllSelected;
+
+  const selectVisibleRows = (checked) => {
+    pagedData.forEach((item) => {
+      const isSelected = selectedIds.includes(item._id);
+      if ((checked && !isSelected) || (!checked && isSelected)) {
+        onSelectRow?.(item._id);
+      }
+    });
+  };
 
   return (
     <Box w="100%">
@@ -362,7 +389,7 @@ const FollowupTabPage = ({
               minWidth: "980px",
             }}
           >
-            <Thead bg={useColorModeValue("#ffffff", "#0f172a")}>
+            <Thead bg={tableHeaderBg}>
               <Tr borderBottom="1px solid" borderColor={cardBorder}>
                 <Th w="36px" py={2.5} px={3} textAlign="center">
                   <Checkbox
@@ -371,7 +398,7 @@ const FollowupTabPage = ({
                     borderRadius="sm"
                     isChecked={isAllSelected}
                     isIndeterminate={isIndeterminate}
-                    onChange={(e) => onSelectAll && onSelectAll(e.target.checked)}
+                    onChange={(e) => selectVisibleRows(e.target.checked)}
                   />
                 </Th>
                 <Th fontSize="11px" fontWeight="700" color={headingColor} textTransform="none" letterSpacing="normal" py={2.5} px={3}>
@@ -441,8 +468,8 @@ const FollowupTabPage = ({
                     <Spinner size="md" color="teal.500" />
                   </Td>
                 </Tr>
-              ) : filteredData.length > 0 ? (
-                filteredData.map((item, idx) => {
+              ) : pagedData.length > 0 ? (
+                pagedData.map((item, idx) => {
                   const clientName = item.clientName || item.customerName || "Client";
                   const companyName = item.companyName || "Company";
                   const isBuyer = (item.type || item.customerType || "").toLowerCase().includes("buyer");
@@ -452,7 +479,7 @@ const FollowupTabPage = ({
                   return (
                     <Tr
                       key={item._id || idx}
-                      _hover={{ bg: useColorModeValue("gray.50", "whiteAlpha.50") }}
+                      _hover={{ bg: tableRowHoverBg }}
                       borderBottom="1px solid"
                       borderColor={cardBorder}
                       transition="background 0.15s ease"
@@ -528,7 +555,7 @@ const FollowupTabPage = ({
                           <Flex
                             boxSize="18px"
                             borderRadius="full"
-                            bg={useColorModeValue("#f3e8ff", "#3b0764")}
+                            bg={packageBadgeBg}
                             color="#9333ea"
                             fontSize="10px"
                             fontWeight="700"
@@ -698,7 +725,8 @@ const FollowupTabPage = ({
           gap={3}
         >
           <Text fontSize="12px" color={subtextColor}>
-            Showing 1–{filteredData.length} of {filteredData.length} customers
+            Showing {filteredData.length ? (safeCurrentPage - 1) * rowsPerPage + 1 : 0}
+            {"-"}{Math.min(safeCurrentPage * rowsPerPage, filteredData.length)} of {filteredData.length} customers
           </Text>
 
           <HStack spacing={4}>
@@ -714,10 +742,13 @@ const FollowupTabPage = ({
                 w="68px"
                 h="30px"
                 value={rowsPerPage}
-                onChange={(e) => setRowsPerPage(Number(e.target.value))}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
               >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
+                <option value={15}>15</option>
+                <option value={30}>30</option>
                 <option value={50}>50</option>
               </Select>
             </HStack>
@@ -732,7 +763,8 @@ const FollowupTabPage = ({
                 color="gray.400"
                 h="30px"
                 w="30px"
-                isDisabled
+                isDisabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
               />
               <Button
                 size="xs"
@@ -744,7 +776,7 @@ const FollowupTabPage = ({
                 minW="30px"
                 borderRadius="md"
               >
-                1
+                {safeCurrentPage}
               </Button>
               <IconButton
                 aria-label="Next page"
@@ -755,7 +787,8 @@ const FollowupTabPage = ({
                 color="gray.400"
                 h="30px"
                 w="30px"
-                isDisabled
+                isDisabled={safeCurrentPage >= totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
               />
             </HStack>
           </HStack>

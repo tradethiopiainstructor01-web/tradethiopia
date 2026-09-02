@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState, memo } from "react";
 import {
   Badge,
   Box,
@@ -65,7 +65,7 @@ const TrainingFollowupTabPage = ({
   trainingSortAsc,
   setTrainingSortAsc,
   trainingFollowupColumnsToRender,
-  filteredTrainingFollowups,
+  filteredTrainingFollowups = [],
   selectedTrainingFollowupCount,
   trainingBulkStartDate,
   trainingBulkEndDate,
@@ -88,6 +88,32 @@ const TrainingFollowupTabPage = ({
   tableMinWidth = "900px",
   children, // for grouped cards
 }) => {
+  const [pageSize, setPageSize] = useState(15);
+  const [page, setPage] = useState(1);
+
+  // Reset page when any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [
+    trainingSearch,
+    trainingProgressFilter,
+    trainingScheduleFilter,
+    trainingMaterialFilter,
+    trainingCourseFilter,
+    trainingStartDateFilter,
+    trainingSortAsc,
+  ]);
+
+  const total = filteredTrainingFollowups.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pagedItems = useMemo(
+    () => filteredTrainingFollowups.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filteredTrainingFollowups, safePage, pageSize]
+  );
+  const firstRecord = total ? (safePage - 1) * pageSize + 1 : 0;
+  const lastRecord = total ? Math.min(firstRecord + pagedItems.length - 1, total) : 0;
+
   return (
     <Card bg={cardBg} boxShadow="md" borderRadius="lg">
       <CardBody>
@@ -189,7 +215,7 @@ const TrainingFollowupTabPage = ({
                 variant="outline"
                 onClick={() => setTrainingSortAsc((prev) => !prev)}
               >
-                Sort {trainingSortAsc ? "A-Z" : "Z-A"}
+                Sort: {trainingSortAsc ? "Latest to Old" : "Oldest to Latest"}
               </Button>
             </HStack>
           </Flex>
@@ -321,8 +347,8 @@ const TrainingFollowupTabPage = ({
                 </Tr>
               </Thead>
               <Tbody>
-                {filteredTrainingFollowups.length > 0 ? (
-                  filteredTrainingFollowups.map((item) => (
+                {pagedItems.length > 0 ? (
+                  pagedItems.map((item) => (
                     <Tr key={item._id} _hover={{ bg: rowHoverBg }}>
                       {trainingFollowupColumnsToRender.map((col) => (
                         <React.Fragment key={col.key}>{col.render(item)}</React.Fragment>
@@ -342,6 +368,59 @@ const TrainingFollowupTabPage = ({
             </Table>
           </TableContainer>
 
+          {/* Pagination Controls */}
+          {total > 0 && (
+            <Flex
+              justify="space-between"
+              align="center"
+              pt={2}
+              gap={3}
+              flexWrap="wrap"
+            >
+              <HStack spacing={2}>
+                <Text fontSize="xs" color="gray.500">
+                  Showing {firstRecord}-{lastRecord} of {total} training follow-ups
+                </Text>
+                <Select
+                  size="xs"
+                  width="95px"
+                  borderRadius="md"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={15}>15 / page</option>
+                  <option value={25}>25 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </Select>
+              </HStack>
+              <HStack spacing={2}>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  isDisabled={safePage <= 1}
+                >
+                  Previous
+                </Button>
+                <Text fontSize="xs" fontWeight="medium">
+                  Page {safePage} of {totalPages}
+                </Text>
+                <Button
+                  size="xs"
+                  colorScheme="teal"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  isDisabled={safePage >= totalPages}
+                >
+                  Next
+                </Button>
+              </HStack>
+            </Flex>
+          )}
+
           {children}
         </VStack>
       </CardBody>
@@ -349,4 +428,4 @@ const TrainingFollowupTabPage = ({
   );
 };
 
-export default TrainingFollowupTabPage;
+export default memo(TrainingFollowupTabPage);

@@ -13,6 +13,7 @@ import {
   Td,
   Badge,
   Button,
+  Image,
   Input,
   Select,
   HStack,
@@ -101,12 +102,16 @@ import {
   FiZap,
   FiLogOut,
   FiGlobe,
+  FiUserCheck,
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../services/axiosInstance';
 import { fetchExternalCourses } from '../services/api';
 import { useUserStore } from '../store/user';
 import TessbinDataAnalyticsView from '../components/tessbin/TessbinDataAnalyticsView';
+import TessbinCSRegisteredUsersView from '../components/tessbin/TessbinCSRegisteredUsersView';
+import TessbinCOCStudentsListView from '../components/tessbin/TessbinCOCStudentsListView';
+import TessbinOverviewAnalyticsView from '../components/tessbin/TessbinOverviewAnalyticsView';
 
 const COURSE_OPTIONS = [
   'Digital Marketing',
@@ -621,10 +626,11 @@ const TessbinAdminDashboard = () => {
 
   // Sidebar Navigation Definition
   const sidebarItems = [
-    { id: 'overview', label: 'Dashboard Overview', icon: FiGrid, badge: null },
-    { id: 'data_analysis', label: 'Data Analysis', icon: FiTrendingUp, badge: 'Live' },
-    { id: 'coc_exams', label: 'COC Exam Takes', icon: FiAward, badge: stats.cocExamStudentsCount ?? 0 },
-    { id: 'kpi_metrics', label: 'KPI Targets & Scorecard', icon: FiBarChart2, badge: `${kpiList.length || 4} KPIs` },
+    { id: 'overview', label: 'Dashboard Overview', icon: FiGrid },
+    { id: 'cs_registered_users', label: 'Student Register Lists', icon: FiUserCheck },
+    { id: 'coc_students_list', label: 'COC Students List', icon: FiAward },
+    { id: 'data_analysis', label: 'Online Exam Results', icon: FiTrendingUp },
+    { id: 'kpi_metrics', label: 'KPI Targets & Scorecard', icon: FiBarChart2 },
   ];
 
 
@@ -633,26 +639,35 @@ const TessbinAdminDashboard = () => {
     <Flex direction="column" h="full" py={6} px={4} justify="space-between" bg={sidebarBg} color="white">
       <Box>
         {/* Brand Header */}
-        <HStack spacing={3.5} mb={8} px={2}>
-          <Flex
-            w="44px"
-            h="44px"
-            bg="#6366F1"
+        <HStack spacing={3.5} mb={8} px={2} align="center">
+          <Box
+            w="46px"
+            h="46px"
             borderRadius="xl"
-            align="center"
-            justify="center"
-            boxShadow="0 4px 14px rgba(99, 102, 241, 0.4)"
+            overflow="hidden"
+            bg="white"
+            p="3px"
+            boxShadow="0 4px 16px rgba(0, 0, 0, 0.3)"
+            border="2px solid rgba(255, 255, 255, 0.2)"
+            flexShrink={0}
           >
-            <Icon as={FiBookOpen} color="white" boxSize="22px" />
-          </Flex>
+            <Image
+              src="/tessbin-dashboard-logo.png"
+              alt="Tessbin Logo"
+              w="full"
+              h="full"
+              objectFit="contain"
+              fallbackSrc="/company-logos/tesbinn.png"
+            />
+          </Box>
           <Box>
             <Heading size="sm" fontWeight="900" letterSpacing="tight" color="white" fontSize="16px">
               TESSBINN
             </Heading>
-            <Text fontSize="11px" fontWeight="600" color="#E2E8F0" mt="-1px">
+            <Text fontSize="11px" fontWeight="600" color="#CBD5E1" mt="-1px">
               International Business
             </Text>
-            <Badge bg="#4F46E5" color="white" fontSize="8px" px={2} py={0.5} borderRadius="md" mt={1.5} textTransform="uppercase" fontWeight="700">
+            <Badge bg="#4F46E5" color="white" fontSize="8.5px" px={2} py={0.5} borderRadius="md" mt={1.5} textTransform="uppercase" fontWeight="800">
               ADMIN PORTAL
             </Badge>
           </Box>
@@ -689,27 +704,11 @@ const TessbinAdminDashboard = () => {
                   setActiveTab(item.id);
                   onMobileNavClose();
                 }}
-                justify="space-between"
               >
                 <HStack spacing={3.5}>
                   <Icon as={item.icon} boxSize="19px" color={isActive ? '#818CF8' : '#94A3B8'} />
                   <Text fontSize="13px" color="white">{item.label}</Text>
                 </HStack>
-                {item.badge !== null && item.badge !== undefined && (
-                  <Flex
-                    px={2}
-                    py={0.5}
-                    bg={isActive ? '#6366F1' : 'rgba(255,255,255,0.15)'}
-                    color="white"
-                    borderRadius="full"
-                    align="center"
-                    justify="center"
-                    fontSize="10px"
-                    fontWeight="700"
-                  >
-                    {item.badge}
-                  </Flex>
-                )}
               </HStack>
             );
           })}
@@ -720,19 +719,26 @@ const TessbinAdminDashboard = () => {
       <Box pt={4} borderTop="1px" borderColor="rgba(255,255,255,0.12)">
         <HStack justify="space-between" align="center" p={2} borderRadius="lg" transition="all 0.2s">
           <HStack spacing={3}>
-            <Flex
+            <Box
               w="38px"
               h="38px"
-              bgGradient="linear(to-br, #6366F1, #8B5CF6)"
-              color="white"
               borderRadius="full"
-              align="center"
-              justify="center"
-              fontWeight="800"
-              fontSize="13px"
+              overflow="hidden"
+              bg="white"
+              p="2px"
+              boxShadow="0 2px 10px rgba(0, 0, 0, 0.2)"
+              border="2px solid rgba(255, 255, 255, 0.25)"
+              flexShrink={0}
             >
-              TA
-            </Flex>
+              <Image
+                src="/tessbin-dashboard-logo.png"
+                alt="Tessbin Logo"
+                w="full"
+                h="full"
+                objectFit="contain"
+                fallbackSrc="/company-logos/tesbinn.png"
+              />
+            </Box>
             <Box overflow="hidden">
               <Text fontSize="12px" fontWeight="700" color="white" noOfLines={1}>
                 {currentUser?.fullName || currentUser?.username || 'Tessbin Admin'}
@@ -808,13 +814,17 @@ const TessbinAdminDashboard = () => {
                 </HStack>
                 <Heading size="lg" fontWeight="900" mt={0.5} color={textColor} fontSize="22px">
                   {activeTab === 'overview' && 'Business & Examination Cockpit'}
-                  {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Data Analysis & Performance Insights'}
+                  {activeTab === 'cs_registered_users' && 'Student Register Lists'}
+                  {activeTab === 'coc_students_list' && 'COC Students List (Customer Service)'}
+                  {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Online Exam Results & Performance Insights'}
                   {activeTab === 'coc_exams' && 'COC Examination Management'}
                   {activeTab === 'kpi_metrics' && 'Master KPI Target & Scorecard Manager'}
                 </Heading>
                 <Text fontSize="12px" color={mutedText} mt={0.5}>
                   {activeTab === 'overview' && 'Real-time overview of examinations, academic performance, and graphical analytics'}
-                  {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Real-time course examination outcomes, qualification rates, and student training applications'}
+                  {activeTab === 'cs_registered_users' && 'Live view of student registrations with multi-period Daily, Weekly, Monthly, and Yearly filters'}
+                  {activeTab === 'coc_students_list' && 'Verified read-only directory of students registered by Customer Service whose COC fee is marked as Paid'}
+                  {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Real-time online examination outcomes, qualification rates, course test outcomes, and performance insights'}
                   {activeTab === 'coc_exams' && 'National Certificate of Competency (COC) evaluation tracking'}
                   {activeTab === 'kpi_metrics' && 'Overall KPI Form & Interactive Charts: Configure and track Weekly, Monthly, and Quarterly targets'}
                 </Text>
@@ -881,6 +891,20 @@ const TessbinAdminDashboard = () => {
         <Box p={{ base: 4, md: 8 }}>
           
           {/* ========================================================================= */}
+          {/* TAB: CS REGISTERED USERS (DAILY, WEEKLY, MONTHLY, YEARLY FILTERS) */}
+          {/* ========================================================================= */}
+          {activeTab === 'cs_registered_users' && (
+            <TessbinCSRegisteredUsersView />
+          )}
+
+          {/* ========================================================================= */}
+          {/* TAB: COC STUDENTS LIST (ONLY COC PAID FROM CUSTOMER SERVICE - READ ONLY) */}
+          {/* ========================================================================= */}
+          {activeTab === 'coc_students_list' && (
+            <TessbinCOCStudentsListView />
+          )}
+
+          {/* ========================================================================= */}
           {/* TAB: DATA ANALYSIS (EXCLUSIVELY EXTERNAL READ-ONLY API DATA) */}
           {/* ========================================================================= */}
           {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && (
@@ -891,259 +915,7 @@ const TessbinAdminDashboard = () => {
           {/* TAB 1: OVERVIEW PAGE & GRAPHICAL CHARTS */}
           {/* ========================================================================= */}
           {activeTab === 'overview' && (
-
-            <Box>
-              <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={5} mb={8}>
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5}>
-                  <Flex justify="space-between" align="start">
-                    <Box>
-                      <Badge bg="#EEF2FF" color="#6366F1" fontSize="9px" px={2.5} py={0.5} borderRadius="md" fontWeight="800" mb={2}>
-                        REQUIRED KPI #1
-                      </Badge>
-                      <Text fontSize="13px" fontWeight="800" color={textColor}>COC Exam Student Takes</Text>
-                      <Text fontSize="32px" fontWeight="900" color="#6366F1" mt={1}>{stats.cocExamStudentsCount ?? 0}</Text>
-                    </Box>
-                    <Flex w="46px" h="46px" bg="#F3E8FF" borderRadius="full" align="center" justify="center">
-                      <Icon as={FiAward} boxSize="22px" color="#9333EA" />
-                    </Flex>
-                  </Flex>
-                  <Progress value={80} size="xs" colorScheme="purple" mt={4} borderRadius="full" />
-                </Card>
-
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5}>
-                  <Flex justify="space-between" align="start">
-                    <Box>
-                      <Badge bg="#EFF6FF" color="#2563EB" fontSize="9px" px={2.5} py={0.5} borderRadius="md" fontWeight="800" mb={2}>
-                        REQUIRED KPI #2
-                      </Badge>
-                      <Text fontSize="13px" fontWeight="800" color={textColor}>Online Final Exams</Text>
-                      <Text fontSize="32px" fontWeight="900" color="#2563EB" mt={1}>{stats.onlineFinalExamStudentsCount ?? 0}</Text>
-                    </Box>
-                    <Flex w="46px" h="46px" bg="#E0F2FE" borderRadius="full" align="center" justify="center">
-                      <Icon as={FiMonitor} boxSize="22px" color="#0284C7" />
-                    </Flex>
-                  </Flex>
-                  <Progress value={85} size="xs" colorScheme="blue" mt={4} borderRadius="full" />
-                </Card>
-
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5}>
-                  <Flex justify="space-between" align="start">
-                    <Box>
-                      <Badge bg="#ECFDF5" color="#059669" fontSize="9px" px={2.5} py={0.5} borderRadius="md" fontWeight="800" mb={2}>
-                        REQUIRED KPI #3
-                      </Badge>
-                      <Text fontSize="13px" fontWeight="800" color={textColor}>Number of Registered Students</Text>
-                      <Text fontSize="32px" fontWeight="900" color="#059669" mt={1}>{stats.totalStudentsCount ?? 0}</Text>
-                    </Box>
-                    <Flex w="46px" h="46px" bg="#E6F4EA" borderRadius="full" align="center" justify="center">
-                      <Icon as={FiUsers} boxSize="22px" color="#10B981" />
-                    </Flex>
-                  </Flex>
-                  <Progress value={94} size="xs" colorScheme="teal" mt={4} borderRadius="full" />
-                </Card>
-
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5}>
-                  <Flex justify="space-between" align="start">
-                    <Box>
-                      <Badge bg="#ECFDF5" color="#047857" fontSize="9px" px={2.5} py={0.5} borderRadius="md" fontWeight="800" mb={2}>
-                        PERFORMANCE
-                      </Badge>
-                      <Text fontSize="13px" fontWeight="800" color={textColor}>Pass Rate</Text>
-                      <Text fontSize="32px" fontWeight="900" color="#10B981" mt={1}>{stats.passRate || 90}%</Text>
-                    </Box>
-                    <Flex w="46px" h="46px" bg="#DCFCE7" borderRadius="full" align="center" justify="center">
-                      <Icon as={FiCheckCircle} boxSize="22px" color="#16A34A" />
-                    </Flex>
-                  </Flex>
-                  <Progress value={90} size="xs" colorScheme="green" mt={4} borderRadius="full" />
-                </Card>
-              </SimpleGrid>
-
-              {/* ── RICH GRAPHICAL CHARTS SECTION ── */}
-              <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6} mb={8}>
-                
-                {/* GRAPHICAL CHART 1: KPI TARGET VS ACTUAL BAR CHART */}
-                <Card gridColumn={{ lg: 'span 2' }} bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
-                  <HStack justify="space-between" mb={5}>
-                    <HStack spacing={3}>
-                      <Icon as={FiBarChart2} color="#6366F1" boxSize="22px" />
-                      <Box>
-                        <Heading size="md" fontWeight="800" fontSize="16px">Target vs. Actual Performance Comparison</Heading>
-                        <Text fontSize="11px" color={mutedText}>
-                          Comparing monthly target goals against live student numbers
-                        </Text>
-                      </Box>
-                    </HStack>
-                    <Badge colorScheme="purple" fontSize="10px" px={2.5} py={0.5} borderRadius="md">
-                      LIVE DATA
-                    </Badge>
-                  </HStack>
-
-                  <Box h="280px" w="full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={kpiComparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
-                        <RechartsTooltip />
-                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                        <Bar dataKey="Target" fill="#94A3B8" radius={[6, 6, 0, 0]} name="Target Goal" />
-                        <Bar dataKey="Actual" fill="#6366F1" radius={[6, 6, 0, 0]} name="Actual Score" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </Card>
-
-                {/* GRAPHICAL CHART 2: STUDENT EXAM DISTRIBUTION PIE CHART */}
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
-                  <HStack spacing={3} mb={5}>
-                    <Icon as={FiPieChart} color="#2563EB" boxSize="22px" />
-                    <Box>
-                      <Heading size="md" fontWeight="800" fontSize="16px">Student Exam Distribution</Heading>
-                      <Text fontSize="11px" color={mutedText}>Breakdown across evaluation types</Text>
-                    </Box>
-                  </HStack>
-
-                  <Box h="220px" w="full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={80}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <RechartsTooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </Box>
-
-                  <VStack spacing={2} align="stretch" mt={2}>
-                    {pieData.map((item, idx) => (
-                      <Flex key={idx} justify="space-between" align="center" fontSize="11px">
-                        <HStack spacing={2}>
-                          <Box w="10px" h="10px" borderRadius="full" bg={item.color} />
-                          <Text fontWeight="700">{item.name}</Text>
-                        </HStack>
-                        <Text fontWeight="900">{item.value} Students</Text>
-                      </Flex>
-                    ))}
-                  </VStack>
-                </Card>
-              </SimpleGrid>
-
-              {/* GRAPHICAL CHART 3: WEEKLY GROWTH TREND AREA CHART */}
-              <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6} mb={8}>
-                <HStack justify="space-between" mb={5}>
-                  <HStack spacing={3}>
-                    <Icon as={FiTrendingUp} color="#10B981" boxSize="22px" />
-                    <Box>
-                      <Heading size="md" fontWeight="800" fontSize="16px">Weekly Student Progression Trend</Heading>
-                      <Text fontSize="11px" color={mutedText}>
-                        Tracking COC exam takes, online finals, and registered student growth over time
-                      </Text>
-                    </Box>
-                  </HStack>
-                  <Tag colorScheme="green" size="sm" fontWeight="700">Growth Trajectory</Tag>
-                </HStack>
-
-                <Box h="250px" w="full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorCoc" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366F1" stopOpacity={0.8} />
-                          <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="colorOnline" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#2563EB" stopOpacity={0.8} />
-                          <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.8} />
-                          <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <RechartsTooltip />
-                      <Legend wrapperStyle={{ fontSize: '11px' }} />
-                      <Area type="monotone" dataKey="COC" stroke="#6366F1" fillOpacity={1} fill="url(#colorCoc)" name="COC Exam Student Takes" />
-                      <Area type="monotone" dataKey="Online" stroke="#2563EB" fillOpacity={1} fill="url(#colorOnline)" name="Online Final Exam Takes" />
-                      <Area type="monotone" dataKey="TotalStudents" stroke="#10B981" fillOpacity={1} fill="url(#colorStudents)" name="Registered Students" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </Box>
-              </Card>
-
-              {/* Course Breakdown Table */}
-              <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6} mb={8}>
-                <Card gridColumn={{ lg: 'span 2' }} bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
-                  <Flex justify="space-between" align="center" mb={5}>
-                    <HStack spacing={3}>
-                      <Icon as={FiLayers} color="#6366F1" boxSize="20px" />
-                      <Heading size="md" fontWeight="800" fontSize="16px">Course Examination Breakdown</Heading>
-                    </HStack>
-                    <Badge bg="#EEF2FF" color="#6366F1" fontSize="10px" px={3} py={1} borderRadius="md" fontWeight="800">
-                      12 ACTIVE PROGRAMS
-                    </Badge>
-                  </Flex>
-                  <VStack align="stretch" spacing={4}>
-                    {(stats.courseBreakdown || []).slice(0, 4).map((c, i) => (
-                      <Box key={i}>
-                        <Flex justify="space-between" align="center" mb={1.5}>
-                          <Text fontSize="13px" fontWeight="700">{c._id || 'General Program'}</Text>
-                          <HStack spacing={2} fontSize="10px">
-                            <Tag bg="#EEF2FF" color="#6366F1" size="sm">COC: {c.cocCount || 0}</Tag>
-                            <Tag bg="#EFF6FF" color="#2563EB" size="sm">ONLINE: {c.onlineCount || 0}</Tag>
-                            <Tag bg="#F0FDF4" color="#059669" size="sm">TOTAL: {c.totalStudents || 1}</Tag>
-                          </HStack>
-                        </Flex>
-                        <Progress value={70} size="xs" colorScheme="purple" borderRadius="full" />
-                      </Box>
-                    ))}
-                  </VStack>
-                </Card>
-
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
-                  <HStack spacing={3} mb={5}>
-                    <Icon as={FiBarChart2} color="#6366F1" boxSize="20px" />
-                    <Heading size="md" fontWeight="800" fontSize="16px">Exam Status Summary</Heading>
-                  </HStack>
-                  <VStack align="stretch" spacing={3}>
-                    <Flex justify="space-between" align="center" p={3} borderRadius="xl" bg="#F0FDF4">
-                      <HStack spacing={2.5}>
-                        <Icon as={FiCheckCircle} color="#16A34A" />
-                        <Text fontSize="13px" fontWeight="700" color="#15803D">Passed</Text>
-                      </HStack>
-                      <Text fontSize="16px" fontWeight="900" color="#16A34A">{stats.passedCount || 9}</Text>
-                    </Flex>
-                    <Flex justify="space-between" align="center" p={3} borderRadius="xl" bg="#FEF2F2">
-                      <HStack spacing={2.5}>
-                        <Icon as={FiXCircle} color="#DC2626" />
-                        <Text fontSize="13px" fontWeight="700" color="#B91C1C">Failed</Text>
-                      </HStack>
-                      <Text fontSize="16px" fontWeight="900" color="#DC2626">{stats.failedCount || 1}</Text>
-                    </Flex>
-                    <Flex justify="space-between" align="center" p={3} borderRadius="xl" bg="#FEFCE8">
-                      <HStack spacing={2.5}>
-                        <Icon as={FiClock} color="#CA8A04" />
-                        <Text fontSize="13px" fontWeight="700" color="#A16207">Pending</Text>
-                      </HStack>
-                      <Text fontSize="16px" fontWeight="900" color="#CA8A04">{stats.scheduledCount || 2}</Text>
-                    </Flex>
-                  </VStack>
-                </Card>
-              </SimpleGrid>
-            </Box>
+            <TessbinOverviewAnalyticsView kpiList={kpiList} stats={stats} />
           )}
 
           {/* ========================================================================= */}

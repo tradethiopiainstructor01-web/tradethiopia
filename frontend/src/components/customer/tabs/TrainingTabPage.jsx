@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -71,6 +71,20 @@ const TrainingTabPage = ({
   handleTrainingSubmit,
   isMobile,
 }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+  const salesRows = Array.isArray(completedSales) ? completedSales : [];
+  const totalPages = Math.max(1, Math.ceil(salesRows.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pagedSales = useMemo(
+    () => salesRows.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize),
+    [salesRows, safeCurrentPage]
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   return (
     <Card bg={cardBg} boxShadow="md" borderRadius="lg">
       <CardBody>
@@ -125,8 +139,8 @@ const TrainingTabPage = ({
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {Array.isArray(completedSales) && completedSales.length > 0 ? (
-                    completedSales.map((item) => (
+                  {pagedSales.length > 0 ? (
+                    pagedSales.map((item) => (
                       <Tr
                         key={item.id || item._id}
                         _hover={{ bg: rowHoverBg }}
@@ -147,6 +161,40 @@ const TrainingTabPage = ({
                   )}
                 </Tbody>
               </Table>
+              {salesRows.length > 0 && (
+                <Flex
+                  justify="space-between"
+                  align="center"
+                  px={4}
+                  py={3}
+                  borderTop="1px solid"
+                  borderColor={tableBorderColor}
+                >
+                  <Text fontSize="sm" color="gray.500">
+                    Showing {(safeCurrentPage - 1) * pageSize + 1}-
+                    {Math.min(safeCurrentPage * pageSize, salesRows.length)} of {salesRows.length}
+                  </Text>
+                  <HStack spacing={2}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      isDisabled={safeCurrentPage <= 1}
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <Text fontSize="sm">Page {safeCurrentPage} of {totalPages}</Text>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      isDisabled={safeCurrentPage >= totalPages}
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    >
+                      Next
+                    </Button>
+                  </HStack>
+                </Flex>
+              )}
             </TableContainer>
           )}
 

@@ -462,7 +462,7 @@ export const TessbinDataAnalyticsView = () => {
             </HStack>
 
             <Heading size="md" fontWeight="900" color={textColor} letterSpacing="tight">
-              Academic & Online Examination Data Analysis
+              Academic & Online Examination Results
             </Heading>
             <Text fontSize="12px" color={mutedText}>
               Live performance metrics, examination pass/fail rates, and student registrations.

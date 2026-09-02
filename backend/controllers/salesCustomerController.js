@@ -60,6 +60,10 @@ const canAccessCustomer = (customer, user) => {
 const getCustomers = asyncHandler(async (req, res) => {
   const normalizedUserRole = normalizeRoleValue(req.user?.role);
   const filter = {};
+  const paginationRequested = req.query.page !== undefined || req.query.limit !== undefined;
+  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 15));
+  const skip = (page - 1) * limit;
 
   const canViewAll = PRIVILEGED_ROLES.has(normalizedUserRole);
   if (!canViewAll) {
@@ -98,6 +102,12 @@ const getCustomers = asyncHandler(async (req, res) => {
     filter.productInterest = { $regex: new RegExp(escaped, 'i') };
   }
 
+  if (req.query.packageScope) {
+    filter.packageScope = {
+      $regex: new RegExp(`^${escapeRegex(req.query.packageScope)}$`, 'i')
+    };
+  }
+
   if (req.query.pipelineStatus || req.query.workflowStatus) {
     const statusQuery = req.query.pipelineStatus || req.query.workflowStatus;
     filter.pipelineStatus = { $regex: new RegExp(`^${escapeRegex(statusQuery)}$`, 'i') };
@@ -119,16 +129,60 @@ const getCustomers = asyncHandler(async (req, res) => {
       filter.date.$gte = new Date(req.query.dateFrom);
     }
     if (req.query.dateTo) {
-      filter.date.$lte = new Date(req.query.dateTo);
+      const endDate = new Date(req.query.dateTo);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.dateTo)) {
+        endDate.setUTCHours(23, 59, 59, 999);
+      }
+      filter.date.$lte = endDate;
     }
   }
   
   // Optional followupStatus filter (case insensitive exact match)
   if (req.query.followupStatus) {
-    filter.followupStatus = { $regex: new RegExp(`^${req.query.followupStatus}$`, 'i') };
+    filter.followupStatus = {
+      $regex: new RegExp(`^${escapeRegex(req.query.followupStatus)}$`, 'i')
+    };
   }
-  
-  const customers = await SalesCustomer.find(filter).lean();
+
+  // Search is intentionally handled on the server so pagination never searches
+  // just the current 15-row page.
+  if (req.query.search?.trim()) {
+    const searchRegex = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+    const matchingAgents = await User.find({
+      $or: [
+        { username: searchRegex },
+        { name: searchRegex },
+        { fullName: searchRegex }
+      ]
+    }).select('_id').lean();
+    const matchingAgentIds = matchingAgents.map((user) => user._id.toString());
+    const searchConditions = [
+      { customerName: searchRegex },
+      { phone: searchRegex },
+      { email: searchRegex },
+      { productInterest: searchRegex },
+      { contactTitle: searchRegex },
+      { courseName: searchRegex }
+    ];
+    if (matchingAgentIds.length) searchConditions.push({ agentId: { $in: matchingAgentIds } });
+
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+      delete filter.$or;
+    } else {
+      filter.$or = searchConditions;
+    }
+  }
+
+  const customerQuery = SalesCustomer.find(filter)
+    .sort({ createdAt: -1, _id: -1 })
+    .lean();
+  if (paginationRequested) customerQuery.skip(skip).limit(limit);
+
+  const [customers, total] = await Promise.all([
+    customerQuery,
+    paginationRequested ? SalesCustomer.countDocuments(filter) : Promise.resolve(0)
+  ]);
 
   // Attach agentName by looking up user records
   const agentIds = [...new Set(customers.map((c) => c.agentId).filter(Boolean))];
@@ -145,7 +199,23 @@ const getCustomers = asyncHandler(async (req, res) => {
     agentName: userMap[c.agentId?.toString()] || c.agentId || 'Unknown',
   }));
 
-  res.json(withAgentName);
+  if (!paginationRequested) {
+    res.json(withAgentName);
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  res.json({
+    data: withAgentName,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasPrevious: page > 1,
+      hasNext: page < totalPages
+    }
+  });
 });
 
 // Helper function to normalize phone numbers for search

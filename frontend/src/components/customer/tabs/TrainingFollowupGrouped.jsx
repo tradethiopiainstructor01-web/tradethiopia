@@ -1,12 +1,14 @@
-import React from "react";
+import React, { useMemo, useState, memo } from "react";
 import {
   Badge,
   Box,
+  Button,
   Card,
   CardBody,
   CardHeader,
   Flex,
   Heading,
+  HStack,
   SimpleGrid,
   Stack,
   Text,
@@ -15,15 +17,50 @@ import {
   WrapItem,
 } from "@chakra-ui/react";
 
-const TrainingFollowupGrouped = ({ groupedTrainingFollowups, cardBg, borderColor, headerBg, isLargerThan1024 }) => {
+const TrainingFollowupGrouped = ({ groupedTrainingFollowups = [], cardBg, borderColor, headerBg, isLargerThan1024 }) => {
+  const [groupPage, setGroupPage] = useState(1);
+  const groupsPerPage = 6;
+  const totalGroupPages = Math.max(1, Math.ceil(groupedTrainingFollowups.length / groupsPerPage));
+  const safeGroupPage = Math.min(Math.max(1, groupPage), totalGroupPages);
+
+  const pagedGroups = useMemo(
+    () => groupedTrainingFollowups.slice((safeGroupPage - 1) * groupsPerPage, safeGroupPage * groupsPerPage),
+    [groupedTrainingFollowups, safeGroupPage, groupsPerPage]
+  );
+
   return (
     groupedTrainingFollowups.length > 0 && (
-      <Stack align="stretch" spacing={2} mt={4}>
-        <Heading size="sm" color={headerBg}>
-          Grouped by Start Date / Course / Schedule
-        </Heading>
+      <Stack align="stretch" spacing={3} mt={4}>
+        <Flex justify="space-between" align="center" flexWrap="wrap" gap={2}>
+          <Heading size="sm" color={headerBg}>
+            Grouped by Start Date / Course / Schedule ({groupedTrainingFollowups.length} groups)
+          </Heading>
+          {totalGroupPages > 1 && (
+            <HStack spacing={2}>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => setGroupPage((p) => Math.max(1, p - 1))}
+                isDisabled={safeGroupPage <= 1}
+              >
+                Previous
+              </Button>
+              <Text fontSize="xs" color="gray.500">
+                Group {safeGroupPage} of {totalGroupPages}
+              </Text>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => setGroupPage((p) => Math.min(totalGroupPages, p + 1))}
+                isDisabled={safeGroupPage >= totalGroupPages}
+              >
+                Next
+              </Button>
+            </HStack>
+          )}
+        </Flex>
         <SimpleGrid columns={isLargerThan1024 ? 2 : 1} spacing={3}>
-          {groupedTrainingFollowups.map((group) => (
+          {pagedGroups.map((group) => (
             <Card
               key={`${group.dateKey}-${group.courseKey}-${group.scheduleKey}`}
               bg={cardBg}
@@ -151,4 +188,4 @@ const TrainingFollowupGrouped = ({ groupedTrainingFollowups, cardBg, borderColor
   );
 };
 
-export default TrainingFollowupGrouped;
+export default memo(TrainingFollowupGrouped);

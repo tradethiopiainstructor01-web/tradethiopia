@@ -3,8 +3,11 @@ import axiosInstance from "./axiosInstance";
 const unwrap = (response) => response.data?.data || response.data || [];
 const requestConfig = { timeout: 15000 };
 
-export const getStudentRegistrations = async () => {
-  const response = await axiosInstance.get("/student-registrations", requestConfig);
+export const getStudentRegistrations = async (params = {}) => {
+  const response = await axiosInstance.get("/student-registrations", {
+    ...requestConfig,
+    params,
+  });
   return unwrap(response);
 };
 

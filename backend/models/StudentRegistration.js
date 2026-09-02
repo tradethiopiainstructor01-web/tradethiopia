@@ -31,6 +31,21 @@ const StudentRegistrationSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    nationalIdImage: {
+      type: String,
+      default: '',
+      select: false,
+    },
+    passportPhoto: {
+      type: String,
+      default: '',
+      select: false,
+    },
+    paymentScreenshot: {
+      type: String,
+      default: '',
+      select: false,
+    },
     learningDepartment: {
       type: String,
       required: true,
