@@ -21,12 +21,10 @@ import {
   Heading,
   HStack,
   Icon,
-  IconButton,
   Image,
   Input,
   InputGroup,
   InputLeftElement,
-  InputRightElement,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -67,14 +65,13 @@ import {
   FiCamera,
   FiUploadCloud,
   FiTrash2,
-  FiRefreshCw,
 } from "react-icons/fi";
 import * as XLSX from "xlsx";
 import { useUserStore } from "../../store/user";
-import { fetchUsers } from "../../services/api";
 import {
   createStudentRegistration,
   deleteStudentRegistration,
+  getStudentRegistrationById,
   getStudentRegistrations,
   updateStudentRegistration,
 } from "../../services/studentRegistrationService";
@@ -82,13 +79,13 @@ import Layout from "./Layout";
 import ETHIOPIAN_BANKS from "../../utils/ethiopianBanks";
 
 const learningDepartments = [
-  "Import and Export",
-  "Digital Marketing",
-  "Stock Marketing",
-  "Barista",
   "AI for Business",
+  "Barista",
   "Coffee Cupping",
+  "Digital Marketing",
+  "Import and Export",
   "Logistics",
+  "Stock Marketing",
   "Transit",
 ];
 
@@ -97,6 +94,14 @@ const paymentOptions = ["Full Payment", "Half Payment"];
 const classCompletionOptions = ["Completed", "Not Completed", "Stopped"];
 const cocPaymentOptions = ["Paid", "Unpaid"];
 
+const isCoffeeCuppingCourse = (registration = {}) => {
+  const normalizeCourseName = (value) =>
+    (value || "").toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return [registration.learningDepartment, registration.program].some((value) =>
+    ["coffeecupping", "coffeeindustrycuppingandqualityassessment"].includes(normalizeCourseName(value))
+  );
+};
+
 const initialForm = {
   studentId: "",
   fullName: "",
@@ -104,11 +109,14 @@ const initialForm = {
   phone: "",
   gender: "",
   nationalIdImage: "",
+  nationalIdFrontImage: "",
+  nationalIdBackImage: "",
   passportPhoto: "",
   paymentScreenshot: "",
   learningDepartment: "",
   program: "",
   enrollmentDate: "",
+  trainingEndDate: "",
   examDate: "",
   preferredTimeSlot: "Morning",
   readinessStatus: "Not assessed",
@@ -198,13 +206,16 @@ const normalizeStudent = (student = {}, index = 0) => ({
   id: student.id || student._id || `legacy-${index}-${Date.now()}`,
   studentId: student.studentId || student.studentID || student.registrationNo || `CS-STU-${String(index + 1).padStart(4, "0")}`,
   fullName: getStudentName(student),
-  nationalIdImage: student.nationalIdImage || "",
+  nationalIdImage: student.nationalIdFrontImage || student.nationalIdImage || "",
+  nationalIdFrontImage: student.nationalIdFrontImage || student.nationalIdImage || "",
+  nationalIdBackImage: student.nationalIdBackImage || "",
   passportPhoto: student.passportPhoto || "",
   paymentScreenshot: student.paymentScreenshot || "",
   learningDepartment: student.learningDepartment || student.department || student.learningDept || "",
   program: student.program || student.course || student.trainingProgram || "",
   examDate: formatDate(student.examDate || student.testDate),
   enrollmentDate: formatDate(student.enrollmentDate || student.registrationDate || student.createdAt),
+  trainingEndDate: formatDate(student.trainingEndDate || student.endDate),
   preferredTimeSlot: normalizeTimeSlot(student.preferredTimeSlot || student.timeSlot || student.section),
   readinessStatus: student.readinessStatus || student.readiness || "Not assessed",
   paymentOption: normalizePaymentOption(student.paymentOption || student.paymentPlan),
@@ -319,7 +330,6 @@ const StudentRegistrationPage = () => {
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [registrarUsers, setRegistrarUsers] = useState([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isSavingStudent, setIsSavingStudent] = useState(false);
   const [studentLoadError, setStudentLoadError] = useState("");
@@ -354,49 +364,6 @@ const StudentRegistrationPage = () => {
     "Customer Service Member";
 
   const registrarEmail = currentUser?.email || localStorage.getItem("userEmail") || "";
-
-  const getUserDisplayName = (user = {}) =>
-    user.fullName ||
-    user.name ||
-    user.username ||
-    [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-    user.email ||
-    "";
-
-  const registrarOptions = useMemo(() => {
-    const options = [
-      {
-        name: registrarName,
-        email: registrarEmail,
-        key: `${registrarName}|${registrarEmail}`,
-      },
-      ...registrarUsers.map((user) => {
-        const name = getUserDisplayName(user);
-        const email = user.email || "";
-        return {
-          name,
-          email,
-          key: `${name}|${email}`,
-        };
-      }),
-    ].filter((option) => option.name);
-
-    const unique = new Map();
-    options.forEach((option) => {
-      if (!unique.has(option.key)) {
-        unique.set(option.key, option);
-      }
-    });
-
-    return Array.from(unique.values());
-  }, [registrarEmail, registrarName, registrarUsers]);
-
-  const selectedRegistrarKey = useMemo(() => {
-    const name = form.registeredBy || registrarName;
-    const email = form.registeredByEmail || registrarEmail;
-    const key = `${name}|${email}`;
-    return registrarOptions.some((option) => option.key === key) ? key : "manual";
-  }, [form.registeredBy, form.registeredByEmail, registrarEmail, registrarName, registrarOptions]);
 
   useEffect(() => {
     let isMounted = true;
@@ -437,24 +404,6 @@ const StudentRegistrationPage = () => {
     };
   }, [toast]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    fetchUsers()
-      .then((users) => {
-        if (isMounted) {
-          setRegistrarUsers(Array.isArray(users) ? users : []);
-        }
-      })
-      .catch((error) => {
-        console.warn("Unable to load registrar users for student registration", error);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const groupedStudents = useMemo(() => {
     return students.reduce((groups, student) => {
       const key = student.learningDepartment || "Unassigned";
@@ -473,7 +422,9 @@ const StudentRegistrationPage = () => {
       const matchesPayment = paymentFilter === "All" || (student.paymentOption || "Full Payment") === paymentFilter;
       const matchesTimeSlot = timeSlotFilter === "All" || (student.preferredTimeSlot || "Morning") === timeSlotFilter;
       const matchesClassCompletion = classCompletionFilter === "All" || (student.classCompletionStatus || (student.classCompleted ? "Completed" : "Not Completed")) === classCompletionFilter;
-      const matchesCocPayment = cocPaymentFilter === "All" || (student.cocPaymentStatus || "Unpaid") === cocPaymentFilter;
+      const matchesCocPayment = cocPaymentFilter === "All" || (
+        isCoffeeCuppingCourse(student) && (student.cocPaymentStatus || "Unpaid") === cocPaymentFilter
+      );
       const searchableText = [
         student.studentId,
         student.fullName,
@@ -567,21 +518,16 @@ const StudentRegistrationPage = () => {
       }));
       return;
     }
-    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
-  };
-
-  const handleRegistrarSelect = (event) => {
-    const selected = registrarOptions.find((option) => option.key === event.target.value);
-    if (!selected) {
-      setForm((prev) => ({ ...prev, registeredBy: "", registeredByEmail: "" }));
+    if (name === "learningDepartment" || name === "program") {
+      setForm((prev) => {
+        const next = { ...prev, [name]: value };
+        return isCoffeeCuppingCourse(next)
+          ? next
+          : { ...next, cocPaymentStatus: "Unpaid" };
+      });
       return;
     }
-
-    setForm((prev) => ({
-      ...prev,
-      registeredBy: selected.name,
-      registeredByEmail: selected.email,
-    }));
+    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
   const resetForm = () => {
@@ -659,6 +605,7 @@ const StudentRegistrationPage = () => {
       return;
     }
     const now = new Date().toISOString();
+    const cocPaymentStatus = isCoffeeCuppingCourse(form) ? form.cocPaymentStatus : "Unpaid";
     const requestedStudentId = form.studentId.trim();
     const duplicateStudentId = requestedStudentId
       ? students.find(
@@ -684,6 +631,7 @@ const StudentRegistrationPage = () => {
     if (editingId) {
       const updatedPayload = {
         ...form,
+        cocPaymentStatus,
         fullName: form.fullName.trim(),
         classCompleted: form.classCompletionStatus === "Completed",
         registeredBy: form.registeredBy?.trim() || registrarName,
@@ -738,6 +686,7 @@ const StudentRegistrationPage = () => {
 
     const newStudent = {
       ...form,
+      cocPaymentStatus,
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       studentId: requestedStudentId || generateUniqueStudentId(students),
       fullName: form.fullName.trim(),
@@ -797,16 +746,32 @@ const StudentRegistrationPage = () => {
     });
   };
 
-  const handleEdit = (student) => {
+  const handleEdit = async (student) => {
+    let fullStudent = student;
+    try {
+      fullStudent = await getStudentRegistrationById(student.id);
+    } catch (error) {
+      toast({
+        title: "Could not load registration documents",
+        description: error.response?.data?.message || "Please try again before editing this registration.",
+        status: "error",
+        duration: 3500,
+        isClosable: true,
+      });
+      return;
+    }
     setEditingId(student.id);
     setForm({
       ...initialForm,
-      ...student,
-      nationalIdImage: student.nationalIdImage || "",
-      passportPhoto: student.passportPhoto || "",
-      paymentScreenshot: student.paymentScreenshot || "",
-      enrollmentDate: formatDate(student.enrollmentDate),
-      examDate: formatDate(student.examDate),
+      ...fullStudent,
+      nationalIdImage: fullStudent.nationalIdFrontImage || fullStudent.nationalIdImage || "",
+      nationalIdFrontImage: fullStudent.nationalIdFrontImage || fullStudent.nationalIdImage || "",
+      nationalIdBackImage: fullStudent.nationalIdBackImage || "",
+      passportPhoto: fullStudent.passportPhoto || "",
+      paymentScreenshot: fullStudent.paymentScreenshot || "",
+      enrollmentDate: formatDate(fullStudent.enrollmentDate),
+      trainingEndDate: formatDate(fullStudent.trainingEndDate || fullStudent.endDate),
+      examDate: formatDate(fullStudent.examDate),
     });
     onRegistrationOpen();
   };
@@ -831,9 +796,15 @@ const StudentRegistrationPage = () => {
     }
   };
 
-  const handleDetail = (student) => {
+  const handleDetail = async (student) => {
     setSelectedStudent(student);
     onOpen();
+    try {
+      const fullStudent = await getStudentRegistrationById(student.id);
+      setSelectedStudent(normalizeStudent(fullStudent));
+    } catch (error) {
+      console.warn("Could not load full registration details", error);
+    }
   };
 
   const toExportRow = (student) => ({
@@ -846,6 +817,7 @@ const StudentRegistrationPage = () => {
     "Learning Department": student.learningDepartment || "Unassigned",
     Program: student.program || "",
     "Enrollment Date": formatDate(student.enrollmentDate),
+      "Training End Date": formatDate(student.trainingEndDate || student.endDate),
     "Exam Date": formatDate(student.examDate),
     "Preferred Time Slot": student.preferredTimeSlot || "Morning",
     "Readiness Status": student.readinessStatus || "Not assessed",
@@ -854,7 +826,7 @@ const StudentRegistrationPage = () => {
     "FS Number": student.fsNumber || "",
     "Class Completed": student.classCompleted ? "Yes" : "No",
     "Class Outcome": student.classCompletionStatus || (student.classCompleted ? "Completed" : "Not Completed"),
-    "CoC Payment Status": student.cocPaymentStatus || "Unpaid",
+    "CoC Payment Status": isCoffeeCuppingCourse(student) ? (student.cocPaymentStatus || "Unpaid") : "Not Applicable",
     Status: student.status || "",
     Notes: student.notes || "",
     "Registered By": student.registeredBy || "Unknown CS member",
@@ -1199,34 +1171,24 @@ const StudentRegistrationPage = () => {
                         Auto-Generated
                       </Badge>
                     </Flex>
-                    <InputGroup>
-                      <Input
-                        name="studentId"
-                        value={form.studentId}
-                        onChange={handleChange}
-                        placeholder="e.g. CS-STU-0001"
-                        bg={fieldBg}
-                        fontWeight="700"
-                      />
-                      <InputRightElement>
-                        <IconButton
-                          icon={<FiRefreshCw />}
-                          size="xs"
-                          variant="ghost"
-                          title="Regenerate unique ID"
-                          aria-label="Regenerate unique ID"
-                          onClick={() => setForm((prev) => ({ ...prev, studentId: generateUniqueStudentId(students) }))}
-                        />
-                      </InputRightElement>
-                    </InputGroup>
+                    <Input
+                      name="studentId"
+                      value={form.studentId}
+                      isReadOnly
+                      placeholder="Generated by the system"
+                      bg={softPanelBg}
+                      fontWeight="700"
+                      cursor="not-allowed"
+                    />
                   </FormControl>
                   <FormControl isRequired><FormLabel>Full Name</FormLabel><Input name="fullName" value={form.fullName} onChange={handleChange} placeholder="Student full name" bg={fieldBg} /></FormControl>
-                  <FormControl><FormLabel>Email</FormLabel><Input name="email" type="email" value={form.email} onChange={handleChange} placeholder="student@example.com" bg={fieldBg} /></FormControl>
+                  <FormControl><FormLabel>Email (Optional)</FormLabel><Input name="email" type="email" value={form.email} onChange={handleChange} placeholder="student@example.com" bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Phone</FormLabel><Input name="phone" value={form.phone} onChange={handleChange} placeholder="+251..." bg={fieldBg} /></FormControl>
-                  <FormControl><FormLabel>Gender</FormLabel><Select name="gender" value={form.gender} onChange={handleChange} bg={fieldBg} placeholder="Select gender"><option value="Female">Female</option><option value="Male">Male</option><option value="Prefer not to say">Prefer not to say</option></Select></FormControl>
+                  <FormControl><FormLabel>Gender</FormLabel><Select name="gender" value={form.gender} onChange={handleChange} bg={fieldBg} placeholder="Select gender"><option value="Female">Female</option><option value="Male">Male</option></Select></FormControl>
                   <FormControl isRequired><FormLabel>Learning Department</FormLabel><Select name="learningDepartment" value={form.learningDepartment} onChange={handleChange} bg={fieldBg} placeholder="Assign department">{form.learningDepartment && !learningDepartments.includes(form.learningDepartment) && <option value={form.learningDepartment}>{form.learningDepartment}</option>}{learningDepartments.map((department) => <option key={department} value={department}>{department}</option>)}</Select></FormControl>
                   <FormControl><FormLabel>Program / Course</FormLabel><Input name="program" value={form.program} onChange={handleChange} placeholder="Course or program name" bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Enrollment Date</FormLabel><Input name="enrollmentDate" type="date" value={form.enrollmentDate} onChange={handleChange} bg={fieldBg} /></FormControl>
+                  <FormControl><FormLabel>Training End Date</FormLabel><Input name="trainingEndDate" type="date" value={form.trainingEndDate} onChange={handleChange} bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Exam Date</FormLabel><Input name="examDate" type="date" value={form.examDate} onChange={handleChange} bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Preferred Time Slot</FormLabel><Select name="preferredTimeSlot" value={form.preferredTimeSlot} onChange={handleChange} bg={fieldBg}>{timeSlotOptions.map((slot) => <option key={slot} value={slot}>{slot}</option>)}</Select></FormControl>
                   <FormControl><FormLabel>Readiness Status</FormLabel><Select name="readinessStatus" value={form.readinessStatus} onChange={handleChange} bg={fieldBg}><option value="Not assessed">Not assessed</option><option value="In preparation">In preparation</option><option value="Ready">Ready</option><option value="Needs support">Needs support</option><option value="Not ready">Not ready</option></Select></FormControl>
@@ -1251,7 +1213,16 @@ const StudentRegistrationPage = () => {
                     </Select>
                   </FormControl>
                   <FormControl><FormLabel>FS Number</FormLabel><Input name="fsNumber" value={form.fsNumber} onChange={handleChange} placeholder="Paid receipt FS number" bg={fieldBg} /></FormControl>
-                  <FormControl><FormLabel>CoC Payment Status</FormLabel><Select name="cocPaymentStatus" value={form.cocPaymentStatus} onChange={handleChange} bg={fieldBg}><option value="Unpaid">Unpaid</option><option value="Paid">Paid</option></Select></FormControl>
+                  {isCoffeeCuppingCourse(form) && (
+                    <FormControl>
+                      <FormLabel>COC Fee</FormLabel>
+                      <Select name="cocPaymentStatus" value={form.cocPaymentStatus} onChange={handleChange} bg={fieldBg}>
+                        <option value="Unpaid">Unpaid</option>
+                        <option value="Paid">Paid</option>
+                      </Select>
+                      <Text mt={1} fontSize="xs" color={mutedText}>Available only for Coffee Cupping students.</Text>
+                    </FormControl>
+                  )}
                   <FormControl><FormLabel>Registration Status</FormLabel><Select name="status" value={form.status} onChange={handleChange} bg={fieldBg}><option value="Active">Active</option><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="Paused">Paused</option></Select></FormControl>
                   <Box gridColumn={{ base: "auto", md: "1 / -1" }} border="1px solid" borderColor={form.classCompleted ? "green.300" : borderColor} borderRadius="18px" px={5} py={4} bg={form.classCompleted ? softPanelBg : cardAltBg}>
                     <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} alignItems="center">
@@ -1290,10 +1261,10 @@ const StudentRegistrationPage = () => {
                       </Heading>
                     </HStack>
                     <Text fontSize="xs" color={mutedText} mb={4}>
-                      Upload 3×4 passport photo, National ID / Kebele ID card, and bank payment receipt screenshot.
+                      National ID front/back is optional. The payment receipt photo is required.
                     </Text>
 
-                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                    <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
                       {/* 1. 3x4 Passport Photo */}
                       <Box
                         border="1px dashed"
@@ -1354,23 +1325,23 @@ const StudentRegistrationPage = () => {
                         )}
                       </Box>
 
-                      {/* 2. National ID / Kebele Card */}
+                      {/* 2. Optional National ID / Kebele Card Front */}
                       <Box
                         border="1px dashed"
-                        borderColor={form.nationalIdImage ? "green.400" : borderColor}
+                        borderColor={form.nationalIdFrontImage ? "green.400" : borderColor}
                         borderRadius="14px"
                         p={3}
                         bg={fieldBg}
                         textAlign="center"
                       >
                         <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
-                          National ID / Kebele Card
+                          National ID Front (Optional)
                         </Text>
-                        {form.nationalIdImage ? (
+                        {form.nationalIdFrontImage ? (
                           <VStack spacing={2}>
                             <Image
-                              src={form.nationalIdImage}
-                              alt="National ID Preview"
+                              src={form.nationalIdFrontImage}
+                              alt="National ID Front Preview"
                               maxH="110px"
                               borderRadius="md"
                               mx="auto"
@@ -1383,7 +1354,7 @@ const StudentRegistrationPage = () => {
                                 colorScheme="red"
                                 variant="ghost"
                                 leftIcon={<FiTrash2 />}
-                                onClick={() => setForm((prev) => ({ ...prev, nationalIdImage: "" }))}
+                                onClick={() => setForm((prev) => ({ ...prev, nationalIdImage: "", nationalIdFrontImage: "" }))}
                               >
                                 Remove
                               </Button>
@@ -1395,26 +1366,86 @@ const StudentRegistrationPage = () => {
                             <Text fontSize="11px" color={mutedText}>PNG, JPG or WEBP</Text>
                             <Button
                               as="label"
-                              htmlFor="national-id-upload"
+                              htmlFor="national-id-front-upload"
                               size="xs"
                               colorScheme="blue"
                               variant="outline"
                               cursor="pointer"
                             >
-                              Upload National ID
+                              Upload Front
                             </Button>
                             <input
-                              id="national-id-upload"
+                              id="national-id-front-upload"
                               type="file"
                               accept="image/*"
                               style={{ display: "none" }}
-                              onChange={(e) => handleImageUpload("nationalIdImage", e.target.files[0])}
+                              onChange={(e) => handleImageUpload("nationalIdFrontImage", e.target.files[0])}
                             />
                           </VStack>
                         )}
                       </Box>
 
-                      {/* 3. Payment Receipt Screenshot */}
+                      {/* 3. Optional National ID / Kebele Card Back */}
+                      <Box
+                        border="1px dashed"
+                        borderColor={form.nationalIdBackImage ? "green.400" : borderColor}
+                        borderRadius="14px"
+                        p={3}
+                        bg={fieldBg}
+                        textAlign="center"
+                      >
+                        <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
+                          National ID Back (Optional)
+                        </Text>
+                        {form.nationalIdBackImage ? (
+                          <VStack spacing={2}>
+                            <Image
+                              src={form.nationalIdBackImage}
+                              alt="National ID Back Preview"
+                              maxH="110px"
+                              borderRadius="md"
+                              mx="auto"
+                              objectFit="contain"
+                            />
+                            <HStack justify="center" spacing={2}>
+                              <Badge colorScheme="green" fontSize="9px">Uploaded</Badge>
+                              <Button
+                                size="xs"
+                                colorScheme="red"
+                                variant="ghost"
+                                leftIcon={<FiTrash2 />}
+                                onClick={() => setForm((prev) => ({ ...prev, nationalIdBackImage: "" }))}
+                              >
+                                Remove
+                              </Button>
+                            </HStack>
+                          </VStack>
+                        ) : (
+                          <VStack spacing={2} py={4}>
+                            <Icon as={FiUploadCloud} boxSize={8} color="gray.400" />
+                            <Text fontSize="11px" color={mutedText}>PNG, JPG or WEBP</Text>
+                            <Button
+                              as="label"
+                              htmlFor="national-id-back-upload"
+                              size="xs"
+                              colorScheme="blue"
+                              variant="outline"
+                              cursor="pointer"
+                            >
+                              Upload Back
+                            </Button>
+                            <input
+                              id="national-id-back-upload"
+                              type="file"
+                              accept="image/*"
+                              style={{ display: "none" }}
+                              onChange={(e) => handleImageUpload("nationalIdBackImage", e.target.files[0])}
+                            />
+                          </VStack>
+                        )}
+                      </Box>
+
+                      {/* 4. Payment Receipt Screenshot */}
                       <Box
                         border="1px dashed"
                         borderColor={form.paymentScreenshot ? "green.400" : borderColor}
@@ -1424,7 +1455,7 @@ const StudentRegistrationPage = () => {
                         textAlign="center"
                       >
                         <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
-                          Payment Receipt Screenshot
+                          Payment Receipt Screenshot (Required)
                         </Text>
                         {form.paymentScreenshot ? (
                           <VStack spacing={2}>
@@ -1478,22 +1509,22 @@ const StudentRegistrationPage = () => {
 
                   <FormControl>
                     <FormLabel>Registered By</FormLabel>
-                    <Select value={selectedRegistrarKey} onChange={handleRegistrarSelect} bg={fieldBg}>
-                      <option value="manual">Manual entry</option>
-                      {registrarOptions.map((option) => (
-                        <option key={option.key} value={option.key}>
-                          {option.name}{option.email ? ` - ${option.email}` : ""}
-                        </option>
-                      ))}
-                    </Select>
+                    <Input
+                      value={form.registeredBy || registrarName}
+                      isReadOnly
+                      bg={softPanelBg}
+                      fontWeight="800"
+                    />
+                    <Text mt={1} fontSize="xs" color={mutedText}>Fixed automatically from the signed-in system user.</Text>
                   </FormControl>
                   <FormControl>
-                    <FormLabel>Registrar Name</FormLabel>
-                    <Input name="registeredBy" value={form.registeredBy} onChange={handleChange} placeholder={registrarName} bg={fieldBg} />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Registrar Email</FormLabel>
-                    <Input name="registeredByEmail" type="email" value={form.registeredByEmail} onChange={handleChange} placeholder={registrarEmail || "registrar@example.com"} bg={fieldBg} />
+                    <FormLabel>Registrar Email (System)</FormLabel>
+                    <Input
+                      type="email"
+                      value={form.registeredByEmail || registrarEmail}
+                      isReadOnly
+                      bg={softPanelBg}
+                    />
                   </FormControl>
                 </SimpleGrid>
                 <FormControl><FormLabel>Notes</FormLabel><Textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Optional learning notes" bg={fieldBg} rows={3} /></FormControl>
@@ -1646,7 +1677,13 @@ const StudentRegistrationPage = () => {
                       <Td><Badge colorScheme={getStateColor(student.preferredTimeSlot)}>{student.preferredTimeSlot || "Morning"}</Badge></Td>
                       <Td><Badge colorScheme={getStateColor(student.paymentOption)}>{student.paymentOption || "Full Payment"}</Badge></Td>
                       <Td><Badge colorScheme={getStateColor(getClassOutcome(student))}>{getClassOutcome(student)}</Badge></Td>
-                      <Td><Badge colorScheme={getStateColor(student.cocPaymentStatus)}>{student.cocPaymentStatus || "Unpaid"}</Badge></Td>
+                      <Td>
+                        {isCoffeeCuppingCourse(student) ? (
+                          <Badge colorScheme={getStateColor(student.cocPaymentStatus)}>{student.cocPaymentStatus || "Unpaid"}</Badge>
+                        ) : (
+                          <Badge colorScheme="gray">N/A</Badge>
+                        )}
+                      </Td>
                       <Td>{student.readinessStatus || "Not assessed"}</Td>
                       <Td>{formatDate(student.examDate) || "Not set"}</Td>
                       <Td>{student.registeredBy || "Unknown CS member"}</Td>
@@ -1699,7 +1736,9 @@ const StudentRegistrationPage = () => {
                           <Badge colorScheme={getStateColor(selectedStudent.preferredTimeSlot)} borderRadius="full" px={3} py={1}>{selectedStudent.preferredTimeSlot || "Morning"}</Badge>
                           <Badge colorScheme={getStateColor(selectedStudent.paymentOption)} borderRadius="full" px={3} py={1}>{selectedStudent.paymentOption || "Full Payment"}</Badge>
                           <Badge colorScheme={getStateColor(getClassOutcome(selectedStudent))} borderRadius="full" px={3} py={1}>Class {getClassOutcome(selectedStudent)}</Badge>
-                          <Badge colorScheme={getStateColor(selectedStudent.cocPaymentStatus)} borderRadius="full" px={3} py={1}>CoC {selectedStudent.cocPaymentStatus || "Unpaid"}</Badge>
+                          {isCoffeeCuppingCourse(selectedStudent) && (
+                            <Badge colorScheme={getStateColor(selectedStudent.cocPaymentStatus)} borderRadius="full" px={3} py={1}>CoC {selectedStudent.cocPaymentStatus || "Unpaid"}</Badge>
+                          )}
                         </HStack>
                         <Heading size="md" color={headingColor}>{selectedStudent.fullName}</Heading>
                         <Text fontSize="sm" color={mutedText}>{selectedStudent.studentId || "No student ID"} - {selectedStudent.program || "No program assigned"}</Text>
@@ -1783,13 +1822,15 @@ const StudentRegistrationPage = () => {
                       <DetailItem label="FS Number" value={selectedStudent.fsNumber} />
                       <DetailItem label="Class Completed" value={selectedStudent.classCompleted ? "Yes" : "No"} />
                       <DetailItem label="Class Outcome" value={getClassOutcome(selectedStudent)} />
-                      <DetailItem label="CoC Payment Status" value={selectedStudent.cocPaymentStatus || "Unpaid"} />
+                      {isCoffeeCuppingCourse(selectedStudent) && (
+                        <DetailItem label="CoC Payment Status" value={selectedStudent.cocPaymentStatus || "Unpaid"} />
+                      )}
                       <DetailItem label="Registration Status" value={selectedStudent.status} />
                     </SimpleGrid>
                   </CardBody>
                 </Card>
 
-                {(selectedStudent.passportPhoto || selectedStudent.nationalIdImage || selectedStudent.paymentScreenshot) && (
+                {(selectedStudent.passportPhoto || selectedStudent.nationalIdFrontImage || selectedStudent.nationalIdBackImage || selectedStudent.nationalIdImage || selectedStudent.paymentScreenshot) && (
                   <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
                     <CardBody>
                       <HStack mb={4} spacing={3}>
@@ -1798,20 +1839,26 @@ const StudentRegistrationPage = () => {
                         </Box>
                         <Box>
                           <Heading size="sm" color={headingColor}>Verification Documents & Photos</Heading>
-                          <Text fontSize="sm" color={mutedText}>Passport photo, National ID, and payment screenshot.</Text>
+                          <Text fontSize="sm" color={mutedText}>Passport photo, optional National ID front/back, and payment screenshot.</Text>
                         </Box>
                       </HStack>
-                      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                      <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
                         {selectedStudent.passportPhoto ? (
                           <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
                             <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>3×4 Passport Photo</Text>
                             <Image src={selectedStudent.passportPhoto} alt="Passport Photo" maxH="140px" mx="auto" borderRadius="md" objectFit="cover" />
                           </Box>
                         ) : null}
-                        {selectedStudent.nationalIdImage ? (
+                        {(selectedStudent.nationalIdFrontImage || selectedStudent.nationalIdImage) ? (
                           <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
-                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>National ID / Kebele Card</Text>
-                            <Image src={selectedStudent.nationalIdImage} alt="National ID" maxH="140px" mx="auto" borderRadius="md" objectFit="contain" />
+                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>National ID Front</Text>
+                            <Image src={selectedStudent.nationalIdFrontImage || selectedStudent.nationalIdImage} alt="National ID Front" maxH="140px" mx="auto" borderRadius="md" objectFit="contain" />
+                          </Box>
+                        ) : null}
+                        {selectedStudent.nationalIdBackImage ? (
+                          <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
+                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>National ID Back</Text>
+                            <Image src={selectedStudent.nationalIdBackImage} alt="National ID Back" maxH="140px" mx="auto" borderRadius="md" objectFit="contain" />
                           </Box>
                         ) : null}
                         {selectedStudent.paymentScreenshot ? (

@@ -1151,7 +1151,7 @@ const CustomerFollowupReport = () => {
                     <Th>Start Date</Th>
                     <Th>End Date</Th>
                     <Th>Progress</Th>
-                    <Th>Package Status</Th>
+                    
                     <Th>Material Delivery</Th>
                     <Th>Updated</Th>
                   </Tr>
@@ -1159,7 +1159,7 @@ const CustomerFollowupReport = () => {
                 <Tbody>
                   {paginatedTrainingFollowups.length === 0 && (
                     <Tr>
-                      <Td colSpan={9} textAlign="center" color={secondaryTextColor}>
+                      <Td colSpan={8} textAlign="center" color={secondaryTextColor}>
                         No training follow-ups available.
                       </Td>
                     </Tr>
@@ -1167,7 +1167,7 @@ const CustomerFollowupReport = () => {
                   {paginatedTrainingFollowups.map((item, idx) => {
                     const customer = getValue(item, ['customerName', 'clientName', 'name']);
                     const course = getValue(item, ['course', 'Course', 'trainingCourse', 'trainingType', 'program'], 'N/A');
-                    const schedule = getValue(item, ['schedule', 'shift', 'scheduleShift'], 'N/A');
+                    const schedule = getValue(item, ['scheduleShift', 'preferredTimeSlot', 'schedule', 'shift'], 'Morning');
                     const startDate = getValue(item, ['startDate', 'trainingStartDate'], null);
                     const endDate = getValue(item, ['endDate', 'trainingEndDate'], null);
                     const progressVal = getValue(item, ['progress', 'trainingProgress', 'status', 'followupStatus'], 'N/A');
@@ -1192,7 +1192,7 @@ const CustomerFollowupReport = () => {
                             {progressVal || 'N/A'}
                           </Badge>
                         </Td>
-                        <Td>{packageStatus}</Td>
+                        
                         <Td>{material}</Td>
                         <Td>{updated ? updated.toLocaleDateString() : 'N/A'}</Td>
                       </Tr>

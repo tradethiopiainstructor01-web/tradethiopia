@@ -377,10 +377,11 @@ const TrainingTabPage = ({
                     }
                   >
                     <option value="">Select schedule</option>
-                    <option value="Regular">Regular</option>
+                    <option value="Morning">Morning</option>
+                    <option value="Afternoon">Afternoon</option>
                     <option value="Night">Night</option>
                     <option value="Weekend">Weekend</option>
-                    <option value="Night/Weekend">Night/Weekend</option>
+                    <option value="VIP">VIP</option>
                   </Input>
                 </Box>
               </Stack>
@@ -427,12 +428,11 @@ const TrainingTabPage = ({
                   </Text>
                   <Input
                     as="select"
-                    value={trainingForm.materialStatus}
+                    value={trainingForm.materialStatus || "Not Delivered"}
                     onChange={(e) =>
                       setTrainingForm((prev) => ({ ...prev, materialStatus: e.target.value }))
                     }
                   >
-                    <option value="">Select status</option>
                     <option value="Not Delivered">Not Delivered</option>
                     <option value="Delivered">Delivered</option>
                   </Input>
@@ -469,23 +469,6 @@ const TrainingTabPage = ({
                     }
                     placeholder="ID number or link to ID"
                   />
-                </Box>
-                <Box flex={1}>
-                  <Text mb={1} fontWeight="medium">
-                    Package Status
-                  </Text>
-                  <Input
-                    as="select"
-                    value={trainingForm.packageStatus}
-                    onChange={(e) =>
-                      setTrainingForm((prev) => ({ ...prev, packageStatus: e.target.value }))
-                    }
-                  >
-                    <option value="">Select status</option>
-                    <option value="Interested">Interested</option>
-                    <option value="Not Interested">Not Interested</option>
-                    <option value="Not Sure">Not Sure</option>
-                  </Input>
                 </Box>
               </Stack>
 

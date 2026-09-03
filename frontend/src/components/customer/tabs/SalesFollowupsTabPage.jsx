@@ -202,8 +202,7 @@ const SalesFollowupsTabPage = ({
                   {[
                     "Training Start Date",
                     "Training End Date",
-                    "Agent Name",
-                    "Sales Agent",
+                    "Customer Services",
                     "Assigned Instructor",
                     "Customer Name",
                     "Email",
@@ -215,7 +214,6 @@ const SalesFollowupsTabPage = ({
                     "Material Delivery Status",
                     "Progress",
                     "ID Info",
-                    "Package Status",
                     "Actions",
                   ].map((heading) => (
                     <Th key={heading} color="white" whiteSpace="nowrap">{heading}</Th>
@@ -227,8 +225,7 @@ const SalesFollowupsTabPage = ({
                   <Tr key={customer._id} _hover={{ bg: "gray.50" }}>
                     <Td whiteSpace="nowrap">{formatDate(customer.startDate || customer.trainingStartDate)}</Td>
                     <Td whiteSpace="nowrap">{formatDate(customer.endDate || customer.trainingEndDate)}</Td>
-                    <Td>{valueOrDash(customer.agentName)}</Td>
-                    <Td>{valueOrDash(customer.salesAgent, customer.salesAgentName, customer.agentName)}</Td>
+                    <Td>{valueOrDash(customer.agentName, customer.registeredBy, customer.csMember)}</Td>
                     <Td>{valueOrDash(customer.assignedInstructor, customer.instructorName)}</Td>
                     <Td fontWeight="600">{valueOrDash(customer.customerName)}</Td>
                     <Td>{valueOrDash(customer.email)}</Td>
@@ -236,15 +233,14 @@ const SalesFollowupsTabPage = ({
                     <Td>{valueOrDash(customer.fieldOfWork, customer.productInterest)}</Td>
                     <Td>{valueOrDash(customer.trainingType, customer.courseName, customer.contactTitle)}</Td>
                     <Td>{valueOrDash(customer.batch, customer.group, customer.batchGroup)}</Td>
-                    <Td>{valueOrDash(customer.scheduleShift, customer.schedulePreference)}</Td>
-                    <Td>{valueOrDash(customer.materialStatus, customer.materialDeliveryStatus)}</Td>
+                    <Td>{valueOrDash(customer.scheduleShift, customer.preferredTimeSlot, customer.schedulePreference)}</Td>
+                    <Td>{valueOrDash(customer.materialStatus, customer.materialDeliveryStatus, 'Not Delivered')}</Td>
                     <Td>
                       <Badge colorScheme={statusColor(customer.progress || customer.followupStatus)}>
                         {valueOrDash(customer.progress, customer.followupStatus)}
                       </Badge>
                     </Td>
                     <Td>{valueOrDash(customer.idInfo, customer.studentId)}</Td>
-                    <Td>{valueOrDash(customer.packageStatus, customer.packageScope)}</Td>
                     <Td>
                       <HStack spacing={2}>
                         <Button
