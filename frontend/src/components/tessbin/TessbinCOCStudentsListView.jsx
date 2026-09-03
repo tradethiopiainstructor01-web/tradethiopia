@@ -140,9 +140,19 @@ export default function TessbinCOCStudentsListView() {
       const data = await getStudentRegistrations({ cocPaymentStatus: 'Paid' });
       const rawList = Array.isArray(data) ? data : [];
       // Ensure only strictly COC Paid students are displayed
-      const paidOnly = rawList.filter(
-        (s) => (s.cocPaymentStatus || '').toString().trim().toLowerCase() === 'paid'
-      );
+      const paidOnly = rawList.filter((s) => {
+        const acceptedCourses = [
+          'coffeecupping',
+          'coffeeindustrycuppingandqualityassessment',
+        ];
+        const isCoffeeCupping = [s.learningDepartment, s.program].some((value) =>
+          acceptedCourses.includes(
+            (value || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+          )
+        );
+        return isCoffeeCupping &&
+          (s.cocPaymentStatus || '').toString().trim().toLowerCase() === 'paid';
+      });
       // Sort latest to oldest
       paidOnly.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       setStudents(paidOnly);
@@ -382,6 +392,9 @@ export default function TessbinCOCStudentsListView() {
       day: 'numeric',
     });
   };
+
+  const selectedNationalIdFront = selectedStudent?.nationalIdFrontImage || selectedStudent?.nationalIdImage || '';
+  const selectedNationalIdBack = selectedStudent?.nationalIdBackImage || '';
 
   return (
     <Box p={{ base: 4, md: 6 }} maxW="100%" mx="auto">
@@ -789,7 +802,7 @@ export default function TessbinCOCStudentsListView() {
                 </Tr>
               ) : (
                 paginatedStudents.map((student) => {
-                  const hasDocs = Boolean(student.hasPassportPhoto || student.hasNationalIdImage || student.hasPaymentScreenshot || student.passportPhoto || student.nationalIdImage || student.paymentScreenshot);
+                  const hasDocs = Boolean(student.hasPassportPhoto || student.hasNationalIdFrontImage || student.hasNationalIdBackImage || student.hasNationalIdImage || student.hasPaymentScreenshot || student.passportPhoto || student.nationalIdFrontImage || student.nationalIdBackImage || student.nationalIdImage || student.paymentScreenshot);
                   return (
                     <Tr
                       key={student._id || student.studentId}
@@ -1061,7 +1074,7 @@ export default function TessbinCOCStudentsListView() {
                     </Text>
                   </Flex>
 
-                  <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                  <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
                     {/* 1. Passport Photo (3x4) */}
                     <Box
                       border="1px solid"
@@ -1159,10 +1172,10 @@ export default function TessbinCOCStudentsListView() {
                       )}
                     </Box>
 
-                    {/* 2. National ID / Kebele Card */}
+                    {/* 2. National ID / Kebele Card Front */}
                     <Box
                       border="1px solid"
-                      borderColor={selectedStudent.nationalIdImage ? '#A7F3D0' : borderColor}
+                      borderColor={selectedNationalIdFront ? '#A7F3D0' : borderColor}
                       borderRadius="xl"
                       p={3}
                       bg={cardBg}
@@ -1175,27 +1188,27 @@ export default function TessbinCOCStudentsListView() {
                       <Box>
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="12px" fontWeight="800" color={textColor}>
-                            National ID / Kebele
+                            National ID Front
                           </Text>
-                          {selectedStudent.nationalIdImage ? (
+                          {selectedNationalIdFront ? (
                             <Badge colorScheme="green" fontSize="10px">Available</Badge>
                           ) : (
                             <Badge colorScheme="gray" fontSize="10px">Not Provided</Badge>
                           )}
                         </Flex>
-                        {selectedStudent.nationalIdImage ? (
+                        {selectedNationalIdFront ? (
                           <Box
                             position="relative"
                             borderRadius="lg"
                             overflow="hidden"
                             bg="blackAlpha.900"
                             cursor="zoom-in"
-                            onClick={() => handleOpenFullImage(selectedStudent.nationalIdImage, 'National ID / Kebele Card', selectedStudent.fullName)}
+                            onClick={() => handleOpenFullImage(selectedNationalIdFront, 'National ID Front', selectedStudent.fullName)}
                             role="group"
                           >
                             <Image
-                              src={selectedStudent.nationalIdImage}
-                              alt="National ID"
+                              src={selectedNationalIdFront}
+                              alt="National ID Front"
                               h="170px"
                               w="100%"
                               objectFit="contain"
@@ -1222,11 +1235,11 @@ export default function TessbinCOCStudentsListView() {
                         ) : (
                           <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
                             <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
-                            <Text fontSize="11px">No National ID uploaded</Text>
+                            <Text fontSize="11px">No National ID front uploaded</Text>
                           </Flex>
                         )}
                       </Box>
-                      {selectedStudent.nationalIdImage && (
+                      {selectedNationalIdFront && (
                         <ButtonGroup size="xs" mt={3} isAttached w="full">
                           <Button
                             flex="1"
@@ -1235,7 +1248,7 @@ export default function TessbinCOCStudentsListView() {
                             _hover={{ bg: '#047857' }}
                             color="white"
                             leftIcon={<FiMaximize2 />}
-                            onClick={() => handleOpenFullImage(selectedStudent.nationalIdImage, 'National ID / Kebele Card', selectedStudent.fullName)}
+                            onClick={() => handleOpenFullImage(selectedNationalIdFront, 'National ID Front', selectedStudent.fullName)}
                           >
                             Full View
                           </Button>
@@ -1245,8 +1258,8 @@ export default function TessbinCOCStudentsListView() {
                             leftIcon={<FiDownload />}
                             onClick={() => {
                               const link = document.createElement('a');
-                              link.href = selectedStudent.nationalIdImage;
-                              link.download = `National_ID_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                              link.href = selectedNationalIdFront;
+                              link.download = `National_ID_Front_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
                               link.click();
                             }}
                           >
@@ -1256,7 +1269,32 @@ export default function TessbinCOCStudentsListView() {
                       )}
                     </Box>
 
-                    {/* 3. Payment Receipt Screenshot */}
+                    {/* 3. National ID / Kebele Card Back */}
+                    <Box border="1px solid" borderColor={selectedNationalIdBack ? '#A7F3D0' : borderColor} borderRadius="xl" p={3} bg={cardBg}>
+                      <Flex justify="space-between" align="center" mb={2}>
+                        <Text fontSize="12px" fontWeight="800" color={textColor}>National ID Back</Text>
+                        <Badge colorScheme={selectedNationalIdBack ? 'green' : 'gray'} fontSize="10px">
+                          {selectedNationalIdBack ? 'Available' : 'Not Provided'}
+                        </Badge>
+                      </Flex>
+                      {selectedNationalIdBack ? (
+                        <>
+                          <Box borderRadius="lg" overflow="hidden" bg="blackAlpha.900" cursor="zoom-in" onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}>
+                            <Image src={selectedNationalIdBack} alt="National ID Back" h="170px" w="100%" objectFit="contain" />
+                          </Box>
+                          <Button size="xs" mt={3} w="full" colorScheme="green" leftIcon={<FiMaximize2 />} onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}>
+                            Full View
+                          </Button>
+                        </>
+                      ) : (
+                        <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                          <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
+                          <Text fontSize="11px">No National ID back uploaded</Text>
+                        </Flex>
+                      )}
+                    </Box>
+
+                    {/* 4. Payment Receipt Screenshot */}
                     <Box
                       border="1px solid"
                       borderColor={selectedStudent.paymentScreenshot ? '#A7F3D0' : borderColor}

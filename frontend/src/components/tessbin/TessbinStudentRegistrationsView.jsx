@@ -71,21 +71,28 @@ import { useUserStore } from "../../store/user";
 import ETHIOPIAN_BANKS from "../../utils/ethiopianBanks";
 
 const learningDepartments = [
-  "Import and Export",
-  "Digital Marketing",
-  "Stock Marketing",
-  "Barista",
   "AI for Business",
+  "Barista",
   "Coffee Cupping",
+  "Digital Marketing",
+  "Import and Export",
   "Logistics",
-  "Transit",
   "Operations & Support",
+  "Stock Marketing",
+  "Transit",
 ];
 
 const timeSlotOptions = ["Morning", "Afternoon", "Night", "Weekend", "VIP"];
 // Tessbin displays only registrations whose CoC payment is confirmed as paid.
 const paymentOptions = ["Full Payment"];
 const classCompletionOptions = ["Completed", "Not Completed", "Stopped"];
+const isCoffeeCuppingCourse = (registration = {}) => {
+  const normalizeCourseName = (value) =>
+    (value || "").toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return [registration.learningDepartment, registration.program].some((value) =>
+    ["coffeecupping", "coffeeindustrycuppingandqualityassessment"].includes(normalizeCourseName(value))
+  );
+};
 const monthOptions = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -115,6 +122,7 @@ const initialForm = {
   learningDepartment: "",
   program: "",
   enrollmentDate: "",
+  trainingEndDate: "",
   examDate: "",
   preferredTimeSlot: "Morning",
   readinessStatus: "Not assessed",
@@ -162,6 +170,7 @@ const normalizePaymentOption = (value) => {
 };
 
 const isCocPaidStudent = (student = {}) =>
+  isCoffeeCuppingCourse(student) &&
   (student.cocPaymentStatus || student.cocPayment || "").toString().trim().toLowerCase() === "paid";
 
 const keepCocPaidStudents = (students = []) =>
@@ -227,6 +236,7 @@ const normalizeStudent = (student = {}, index = 0) => {
     enrollmentDate: formatDate(
       safe.enrollmentDate || safe.registrationDate || safe.createdAt
     ),
+    trainingEndDate: formatDate(safe.trainingEndDate || safe.endDate),
     preferredTimeSlot: normalizeTimeSlot(
       safe.preferredTimeSlot || safe.timeSlot || safe.section
     ),
@@ -572,6 +582,15 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
       }));
       return;
     }
+    if (name === "learningDepartment" || name === "program") {
+      setForm((prev) => {
+        const next = { ...prev, [name]: value };
+        return isCoffeeCuppingCourse(next)
+          ? next
+          : { ...next, cocPaymentStatus: "Unpaid" };
+      });
+      return;
+    }
     setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
@@ -593,6 +612,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
       ...initialForm,
       ...student,
       enrollmentDate: formatDate(student.enrollmentDate),
+      trainingEndDate: formatDate(student.trainingEndDate || student.endDate),
       examDate: formatDate(student.examDate),
     });
     onFormOpen();
@@ -647,11 +667,13 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
 
     setIsSaving(true);
     const now = new Date().toISOString();
+    const cocPaymentStatus = isCoffeeCuppingCourse(form) ? form.cocPaymentStatus : "Unpaid";
 
     try {
       if (editingId) {
         const payload = {
           ...form,
+          cocPaymentStatus,
           fullName: form.fullName.trim(),
           classCompleted: form.classCompletionStatus === "Completed",
           updatedAt: now,
@@ -680,6 +702,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
       } else {
         const payload = {
           ...form,
+          cocPaymentStatus,
           fullName: form.fullName.trim(),
           classCompleted: form.classCompletionStatus === "Completed",
           registeredBy: form.registeredBy?.trim() || registrarName,
@@ -731,6 +754,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
       "Learning Department": s.learningDepartment || "Unassigned",
       Program: s.program || "",
       "Enrollment Date": formatDate(s.enrollmentDate),
+      "Training End Date": formatDate(s.trainingEndDate || s.endDate),
       "Exam Date": formatDate(s.examDate),
       "Preferred Time Slot": s.preferredTimeSlot || "Morning",
       "Payment Option": s.paymentOption || "Full Payment",
@@ -1437,6 +1461,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                       <DetailItem label="Learning Department" value={selectedStudent.learningDepartment} />
                       <DetailItem label="Program / Course" value={selectedStudent.program} />
                       <DetailItem label="Enrollment Date" value={formatDate(selectedStudent.enrollmentDate)} />
+                      <DetailItem label="Training End Date" value={formatDate(selectedStudent.trainingEndDate || selectedStudent.endDate)} />
                       <DetailItem label="Exam Date" value={formatDate(selectedStudent.examDate)} />
                       <DetailItem label="Time Slot" value={selectedStudent.preferredTimeSlot || "Morning"} />
                       <DetailItem label="Class Outcome" value={getClassOutcome(selectedStudent)} />
@@ -1513,11 +1538,12 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                     <Input
                       name="studentId"
                       value={form.studentId}
-                      onChange={handleChange}
-                      placeholder="e.g. CS-STU-0001"
-                      bg={fieldBg}
+                      isReadOnly
+                      placeholder="Generated by the system"
+                      bg={softGreenBg}
                       size="sm"
                       borderRadius="xl"
+                      cursor="not-allowed"
                     />
                   </FormControl>
 
@@ -1574,7 +1600,6 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                     >
                       <option value="Female">Female</option>
                       <option value="Male">Male</option>
-                      <option value="Prefer not to say">Prefer not to say</option>
                     </Select>
                   </FormControl>
 
@@ -1633,6 +1658,19 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                       name="enrollmentDate"
                       type="date"
                       value={form.enrollmentDate}
+                      onChange={handleChange}
+                      bg={fieldBg}
+                      size="sm"
+                      borderRadius="xl"
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs">Training End Date</FormLabel>
+                    <Input
+                      name="trainingEndDate"
+                      type="date"
+                      value={form.trainingEndDate}
                       onChange={handleChange}
                       bg={fieldBg}
                       size="sm"
@@ -1703,6 +1741,21 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                       borderRadius="xl"
                     />
                   </FormControl>
+
+                  {isCoffeeCuppingCourse(form) && (
+                    <FormControl>
+                      <FormLabel fontSize="xs">Digital QR Verification (Tessbin Admin)</FormLabel>
+                      <Input
+                        value="Live Scannable QR Code Active"
+                        isReadOnly
+                        bg={softGreenBg}
+                        size="sm"
+                        borderRadius="xl"
+                        fontWeight="700"
+                      />
+                      <Text mt={1} fontSize="xs" color={mutedText}>Scannable verification QR Code is automatically embedded on official dossiers.</Text>
+                    </FormControl>
+                  )}
 
                   {/* Class Completion Status Card */}
                   <Box

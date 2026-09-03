@@ -44,6 +44,7 @@ import AdminCustomerReport from './components/AdminCSReport.jsx';
 import CustomerSettings from "./components/customer/CustomerSettings";
 import CustomerUserManagement from "./components/customer/CustomerUserManagement";
 import StudentRegistrationPage from "./components/customer/StudentRegistrationPage";
+import StudentVerificationPage from "./pages/StudentVerificationPage";
 import ReceptionDashboard from './pages/ReceptionDashboard';
 import CooTwoDashboard from "./pages/coo2/CooTwoDashboard";
 import HRTrainingPage from './pages/HRTrainingPage.jsx';
@@ -156,7 +157,7 @@ function LayoutWrapper({ children }) {
     "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
     "/cdashboard", "/waitingforapproval", "/training", "/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
     "/coo-dashboard", "/ceo-dashboard", "/tradextv-dashboard", "/customer-settings", "/customer-user-management", "/customer/student-registration", "/customer/manager-tasks", "/customer-manager-tasks", "/admincustomerreport", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/finance-dashboard/commission-approval", "/finance-dashboard/forms", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard",
-    "/tessbin-dashboard", "/tessbin"
+    "/tessbin-dashboard", "/tessbin", "/verify", "/verify-student", "/tessbin/verify"
   ].map((path) => path.toLowerCase());
 
   const normalizedPath = location.pathname.toLowerCase();
@@ -512,6 +513,11 @@ function App() {
         }
       />
       <Route path="/tessbin" element={<Navigate to="/tessbin-dashboard" replace />} />
+      {/* Public Student Verification Routes */}
+      <Route path="/verify/student/:id" element={<StudentVerificationPage />} />
+      <Route path="/verify-student/:id" element={<StudentVerificationPage />} />
+      <Route path="/verify/:id" element={<StudentVerificationPage />} />
+      <Route path="/tessbin/verify/:id" element={<StudentVerificationPage />} />
       <Route
         path="/customer-user-management"
         element={

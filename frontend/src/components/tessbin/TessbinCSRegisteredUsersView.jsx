@@ -61,9 +61,14 @@ import {
   FiExternalLink,
   FiCamera,
   FiFileText,
+  FiPrinter,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { getStudentRegistrations, getStudentRegistrationById } from '../../services/studentRegistrationService';
+import TessbinStudentA4Dossier from './TessbinStudentA4Dossier';
+import TessbinStudentListA4Report from './TessbinStudentListA4Report';
+import { printA4Element, openA4InNewWindow } from '../../utils/tessbinPrintHelper';
+import './TessbinA4Print.css';
 
 const DEPARTMENTS = [
   'All Departments',
@@ -135,6 +140,14 @@ export default function TessbinCSRegisteredUsersView() {
   // Detail Modal
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [detailViewMode, setDetailViewMode] = useState('a4'); // 'a4' | 'interactive'
+
+  // Full View Directory List Report Modal
+  const {
+    isOpen: isListReportOpen,
+    onOpen: onListReportOpen,
+    onClose: onListReportClose,
+  } = useDisclosure();
 
   // Full View Image Lightbox Modal
   const {
@@ -466,6 +479,7 @@ export default function TessbinCSRegisteredUsersView() {
 
   const handleOpenDetail = async (student) => {
     setSelectedStudent(student);
+    setDetailViewMode('a4');
     onOpen();
     if (student?._id || student?.id) {
       try {
@@ -478,6 +492,9 @@ export default function TessbinCSRegisteredUsersView() {
       }
     }
   };
+
+  const selectedNationalIdFront = selectedStudent?.nationalIdFrontImage || selectedStudent?.nationalIdImage || '';
+  const selectedNationalIdBack = selectedStudent?.nationalIdBackImage || '';
 
   return (
     <Box>
@@ -526,6 +543,20 @@ export default function TessbinCSRegisteredUsersView() {
               aria-label="Refresh registrations"
             />
           </Tooltip>
+          <Button
+            leftIcon={<FiPrinter />}
+            size="sm"
+            variant="outline"
+            borderColor="#6366F1"
+            color="#6366F1"
+            _hover={{ bg: 'rgba(99, 102, 241, 0.08)' }}
+            borderRadius="xl"
+            fontWeight="700"
+            fontSize="12px"
+            onClick={onListReportOpen}
+          >
+            Print A4 List (PDF)
+          </Button>
           <Button
             leftIcon={<FiDownload />}
             size="sm"
@@ -954,7 +985,7 @@ export default function TessbinCSRegisteredUsersView() {
                       CLASS STATUS
                     </Th>
                     <Th py={3.5} color={mutedColor} fontSize="11px" fontWeight="800" textAlign="center">
-                      ACTIONS
+                      A4 VIEW & PRINT
                     </Th>
                   </Tr>
                 </Thead>
@@ -994,7 +1025,7 @@ export default function TessbinCSRegisteredUsersView() {
                                   {s.gender}
                                 </Text>
                               )}
-                              {(s.nationalIdImage || s.passportPhoto || s.paymentScreenshot) && (
+                              {(s.hasNationalIdFrontImage || s.hasNationalIdBackImage || s.hasNationalIdImage || s.hasPassportPhoto || s.hasPaymentScreenshot || s.nationalIdFrontImage || s.nationalIdBackImage || s.nationalIdImage || s.passportPhoto || s.paymentScreenshot) && (
                                 <Badge colorScheme="purple" fontSize="9px" px={1.5} py={0.2} borderRadius="full">
                                   Photos & Docs
                                 </Badge>
@@ -1083,20 +1114,41 @@ export default function TessbinCSRegisteredUsersView() {
                           </Badge>
                         </Td>
                         <Td py={3} textAlign="center">
-                          <Button
-                            leftIcon={<FiEye />}
-                            size="xs"
-                            variant="solid"
-                            colorScheme="indigo"
-                            bg="#4F46E5"
-                            _hover={{ bg: '#4338CA' }}
-                            color="white"
-                            borderRadius="lg"
-                            fontWeight="700"
-                            onClick={() => handleOpenDetail(s)}
-                          >
-                            Full View
-                          </Button>
+                          <HStack spacing={1.5} justify="center">
+                            <Button
+                              leftIcon={<FiEye />}
+                              size="xs"
+                              variant="solid"
+                              colorScheme="indigo"
+                              bg="#4F46E5"
+                              _hover={{ bg: '#4338CA' }}
+                              color="white"
+                              borderRadius="lg"
+                              fontWeight="700"
+                              onClick={() => handleOpenDetail(s)}
+                            >
+                              Full View (A4)
+                            </Button>
+                            <Tooltip label="Print Official A4 Dossier">
+                              <IconButton
+                                icon={<FiPrinter />}
+                                size="xs"
+                                variant="outline"
+                                borderColor={borderColor}
+                                colorScheme="indigo"
+                                aria-label="Print A4 Dossier"
+                                onClick={() => {
+                                  handleOpenDetail(s);
+                                  setTimeout(() => {
+                                    printA4Element(
+                                      'tessbin-student-a4-document',
+                                      `Tessbin_Registration_${(s.fullName || 'Student').replace(/\s+/g, '_')}`
+                                    );
+                                  }, 350);
+                                }}
+                              />
+                            </Tooltip>
+                          </HStack>
                         </Td>
                       </Tr>
                     );
@@ -1149,51 +1201,125 @@ export default function TessbinCSRegisteredUsersView() {
         )}
       </Card>
 
-      {/* Student Detail Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="4xl" isCentered scrollBehavior="inside">
-        <ModalOverlay backdropFilter="blur(5px)" bg="rgba(0,0,0,0.6)" />
-        <ModalContent borderRadius="2xl" bg={cardBg} borderColor={borderColor} borderWidth="1px" overflow="hidden" boxShadow="2xl">
-          <ModalHeader borderBottom="1px solid" borderColor={borderColor} pb={4} bg={headerBg}>
-            <Flex justify="space-between" align="center" pr={8}>
+      {/* Student Detail Modal (A4 Dossier Full View) */}
+      <Modal isOpen={isOpen} onClose={onClose} size="5xl" isCentered scrollBehavior="inside">
+        <ModalOverlay backdropFilter="blur(6px)" bg="rgba(0,0,0,0.7)" />
+        <ModalContent
+          borderRadius="2xl"
+          bg={cardBg}
+          borderColor={borderColor}
+          borderWidth="1px"
+          overflow="hidden"
+          boxShadow="2xl"
+          maxW={{ base: '98vw', md: '90vw', lg: '960px' }}
+        >
+          <ModalHeader borderBottom="1px solid" borderColor={borderColor} py={3.5} px={6} bg={headerBg} className="no-print">
+            <Flex justify="space-between" align="center" pr={8} wrap="wrap" gap={3}>
               <HStack spacing={3}>
                 {selectedStudent?.passportPhoto ? (
                   <Tooltip label="Click for full photo view">
                     <Avatar
-                      size="md"
+                      size="sm"
                       src={selectedStudent.passportPhoto}
                       name={selectedStudent.fullName}
                       cursor="pointer"
                       onClick={() => handleOpenFullImage(selectedStudent.passportPhoto, '3×4 Passport Photo', selectedStudent.fullName)}
                       border="2px solid #4F46E5"
-                      _hover={{ transform: 'scale(1.08)' }}
-                      transition="all 0.15s"
                     />
                   </Tooltip>
                 ) : (
-                  <Flex w="44px" h="44px" bg="#EEF2FF" color="#4F46E5" borderRadius="xl" align="center" justify="center">
-                    <Icon as={FiUserCheck} boxSize="22px" />
+                  <Flex w="36px" h="36px" bg="#EEF2FF" color="#4F46E5" borderRadius="lg" align="center" justify="center">
+                    <Icon as={FiUserCheck} boxSize="18px" />
                   </Flex>
                 )}
                 <Box>
                   <HStack spacing={2}>
-                    <Heading size="md" color={textColor} fontWeight="800">
+                    <Heading size="sm" color={textColor} fontWeight="800">
                       {selectedStudent?.fullName || 'Student Details'}
                     </Heading>
-                    <Badge colorScheme="purple" fontSize="12px" px={2} py={0.5} borderRadius="md" fontWeight="800">
+                    <Badge colorScheme="purple" fontSize="11px" px={2} py={0.5} borderRadius="md" fontWeight="800">
                       {selectedStudent?.studentId || 'N/A'}
                     </Badge>
                   </HStack>
-                  <Text fontSize="12px" color={mutedColor} mt={0.5}>
-                    Department: <b>{selectedStudent?.learningDepartment || 'General'}</b> • Shift: <b>{selectedStudent?.preferredTimeSlot || 'Morning'}</b>
+                  <Text fontSize="11px" color={mutedColor}>
+                    {selectedStudent?.learningDepartment || 'General'} • {selectedStudent?.preferredTimeSlot || 'Morning'}
                   </Text>
                 </Box>
               </HStack>
+
+              {/* View Mode Toggle & Print Button */}
+              <HStack spacing={2.5}>
+                <ButtonGroup size="xs" isAttached variant="outline" borderRadius="lg">
+                  <Button
+                    bg={detailViewMode === 'a4' ? '#4F46E5' : 'transparent'}
+                    color={detailViewMode === 'a4' ? 'white' : textColor}
+                    borderColor={borderColor}
+                    onClick={() => setDetailViewMode('a4')}
+                    fontWeight="800"
+                    leftIcon={<FiFileText />}
+                  >
+                    A4 Hardcopy File
+                  </Button>
+                  <Button
+                    bg={detailViewMode === 'interactive' ? '#4F46E5' : 'transparent'}
+                    color={detailViewMode === 'interactive' ? 'white' : textColor}
+                    borderColor={borderColor}
+                    onClick={() => setDetailViewMode('interactive')}
+                    fontWeight="800"
+                    leftIcon={<FiEye />}
+                  >
+                    Card Inspector
+                  </Button>
+                </ButtonGroup>
+
+                <Button
+                  leftIcon={<FiPrinter />}
+                  size="xs"
+                  bgGradient="linear(to-r, #4F46E5, #6366F1)"
+                  color="white"
+                  _hover={{ bgGradient: 'linear(to-r, #4338CA, #4F46E5)' }}
+                  onClick={() =>
+                    printA4Element(
+                      'tessbin-student-a4-document',
+                      `Tessbin_Registration_${(selectedStudent?.fullName || 'Student').replace(/\s+/g, '_')}`
+                    )
+                  }
+                  fontWeight="800"
+                  borderRadius="lg"
+                  px={3}
+                >
+                  Print / PDF (A4)
+                </Button>
+
+                <Tooltip label="Open document in clean new tab to preview & print">
+                  <IconButton
+                    icon={<FiExternalLink />}
+                    size="xs"
+                    variant="outline"
+                    borderColor={borderColor}
+                    color={textColor}
+                    aria-label="Open print preview tab"
+                    onClick={() =>
+                      openA4InNewWindow(
+                        'tessbin-student-a4-document',
+                        `Tessbin_Registration_${(selectedStudent?.fullName || 'Student').replace(/\s+/g, '_')}`
+                      )
+                    }
+                  />
+                </Tooltip>
+              </HStack>
             </Flex>
           </ModalHeader>
-          <ModalCloseButton top="18px" right="20px" />
+          <ModalCloseButton top="14px" right="16px" className="no-print" />
 
-          <ModalBody py={5} px={6}>
-            {selectedStudent && (
+          <ModalBody p={detailViewMode === 'a4' ? 0 : 6} bg={detailViewMode === 'a4' ? '#0B0F19' : cardBg}>
+            {selectedStudent && detailViewMode === 'a4' ? (
+              <TessbinStudentA4Dossier
+                student={selectedStudent}
+                onClose={onClose}
+                onOpenImage={handleOpenFullImage}
+              />
+            ) : selectedStudent && detailViewMode === 'interactive' ? (
               <VStack spacing={5} align="stretch">
                 {/* ID and Status Banner */}
                 <Flex
@@ -1279,7 +1405,7 @@ export default function TessbinCSRegisteredUsersView() {
                     </Text>
                   </Flex>
 
-                  <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                  <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
                     {/* 1. Passport Photo (3x4) */}
                     <Box
                       border="1px solid"
@@ -1377,10 +1503,10 @@ export default function TessbinCSRegisteredUsersView() {
                       )}
                     </Box>
 
-                    {/* 2. National ID / Kebele Card */}
+                    {/* 2. National ID / Kebele Card Front */}
                     <Box
                       border="1px solid"
-                      borderColor={selectedStudent.nationalIdImage ? '#C7D2FE' : borderColor}
+                      borderColor={selectedNationalIdFront ? '#C7D2FE' : borderColor}
                       borderRadius="xl"
                       p={3}
                       bg={cardBg}
@@ -1393,27 +1519,27 @@ export default function TessbinCSRegisteredUsersView() {
                       <Box>
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="12px" fontWeight="800" color={textColor}>
-                            National ID / Kebele
+                            National ID Front
                           </Text>
-                          {selectedStudent.nationalIdImage ? (
+                          {selectedNationalIdFront ? (
                             <Badge colorScheme="green" fontSize="10px">Available</Badge>
                           ) : (
                             <Badge colorScheme="gray" fontSize="10px">Not Provided</Badge>
                           )}
                         </Flex>
-                        {selectedStudent.nationalIdImage ? (
+                        {selectedNationalIdFront ? (
                           <Box
                             position="relative"
                             borderRadius="lg"
                             overflow="hidden"
                             bg="blackAlpha.900"
                             cursor="zoom-in"
-                            onClick={() => handleOpenFullImage(selectedStudent.nationalIdImage, 'National ID / Kebele Card', selectedStudent.fullName)}
+                            onClick={() => handleOpenFullImage(selectedNationalIdFront, 'National ID Front', selectedStudent.fullName)}
                             role="group"
                           >
                             <Image
-                              src={selectedStudent.nationalIdImage}
-                              alt="National ID"
+                              src={selectedNationalIdFront}
+                              alt="National ID Front"
                               h="170px"
                               w="100%"
                               objectFit="contain"
@@ -1440,11 +1566,11 @@ export default function TessbinCSRegisteredUsersView() {
                         ) : (
                           <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
                             <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
-                            <Text fontSize="11px">No National ID uploaded</Text>
+                            <Text fontSize="11px">No National ID front uploaded</Text>
                           </Flex>
                         )}
                       </Box>
-                      {selectedStudent.nationalIdImage && (
+                      {selectedNationalIdFront && (
                         <ButtonGroup size="xs" mt={3} isAttached w="full">
                           <Button
                             flex="1"
@@ -1453,7 +1579,7 @@ export default function TessbinCSRegisteredUsersView() {
                             _hover={{ bg: '#4338CA' }}
                             color="white"
                             leftIcon={<FiMaximize2 />}
-                            onClick={() => handleOpenFullImage(selectedStudent.nationalIdImage, 'National ID / Kebele Card', selectedStudent.fullName)}
+                            onClick={() => handleOpenFullImage(selectedNationalIdFront, 'National ID Front', selectedStudent.fullName)}
                           >
                             Full View
                           </Button>
@@ -1463,8 +1589,8 @@ export default function TessbinCSRegisteredUsersView() {
                             leftIcon={<FiDownload />}
                             onClick={() => {
                               const link = document.createElement('a');
-                              link.href = selectedStudent.nationalIdImage;
-                              link.download = `National_ID_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                              link.href = selectedNationalIdFront;
+                              link.download = `National_ID_Front_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
                               link.click();
                             }}
                           >
@@ -1474,7 +1600,32 @@ export default function TessbinCSRegisteredUsersView() {
                       )}
                     </Box>
 
-                    {/* 3. Payment Receipt Screenshot */}
+                    {/* 3. National ID / Kebele Card Back */}
+                    <Box border="1px solid" borderColor={selectedNationalIdBack ? '#C7D2FE' : borderColor} borderRadius="xl" p={3} bg={cardBg}>
+                      <Flex justify="space-between" align="center" mb={2}>
+                        <Text fontSize="12px" fontWeight="800" color={textColor}>National ID Back</Text>
+                        <Badge colorScheme={selectedNationalIdBack ? 'green' : 'gray'} fontSize="10px">
+                          {selectedNationalIdBack ? 'Available' : 'Not Provided'}
+                        </Badge>
+                      </Flex>
+                      {selectedNationalIdBack ? (
+                        <>
+                          <Box borderRadius="lg" overflow="hidden" bg="blackAlpha.900" cursor="zoom-in" onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}>
+                            <Image src={selectedNationalIdBack} alt="National ID Back" h="170px" w="100%" objectFit="contain" />
+                          </Box>
+                          <Button size="xs" mt={3} w="full" colorScheme="indigo" leftIcon={<FiMaximize2 />} onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}>
+                            Full View
+                          </Button>
+                        </>
+                      ) : (
+                        <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                          <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
+                          <Text fontSize="11px">No National ID back uploaded</Text>
+                        </Flex>
+                      )}
+                    </Box>
+
+                    {/* 4. Payment Receipt Screenshot */}
                     <Box
                       border="1px solid"
                       borderColor={selectedStudent.paymentScreenshot ? '#C7D2FE' : borderColor}
@@ -1680,14 +1831,57 @@ export default function TessbinCSRegisteredUsersView() {
                   </Box>
                 )}
               </VStack>
-            )}
+            ) : null}
           </ModalBody>
 
-          <ModalFooter borderTop="1px solid" borderColor={borderColor}>
-            <Button size="sm" variant="ghost" onClick={onClose}>
-              Close
-            </Button>
+          <ModalFooter borderTop="1px solid" borderColor={borderColor} py={3} className="no-print">
+            <HStack justify="space-between" w="full">
+              <Text fontSize="11px" color={mutedColor}>
+                {detailViewMode === 'a4' ? 'Viewing authentic A4 document layout' : 'Viewing interactive inspection cards'}
+              </Text>
+              <HStack spacing={2}>
+                <Button
+                  size="sm"
+                  leftIcon={<FiPrinter />}
+                  bg="#4F46E5"
+                  color="white"
+                  _hover={{ bg: '#4338CA' }}
+                  onClick={() =>
+                    printA4Element(
+                      'tessbin-student-a4-document',
+                      `Tessbin_Registration_${(selectedStudent?.fullName || 'Student').replace(/\s+/g, '_')}`
+                    )
+                  }
+                >
+                  Print / Save PDF (A4)
+                </Button>
+                <Button size="sm" variant="ghost" onClick={onClose}>
+                  Close
+                </Button>
+              </HStack>
+            </HStack>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Student List A4 Directory Report Modal */}
+      <Modal isOpen={isListReportOpen} onClose={onListReportClose} size="5xl" isCentered scrollBehavior="inside">
+        <ModalOverlay backdropFilter="blur(6px)" bg="rgba(0,0,0,0.7)" />
+        <ModalContent
+          borderRadius="2xl"
+          bg="#0B0F19"
+          overflow="hidden"
+          boxShadow="2xl"
+          maxW={{ base: '98vw', md: '90vw', lg: '960px' }}
+        >
+          <ModalBody p={0}>
+            <TessbinStudentListA4Report
+              students={filteredStudents}
+              timePeriodLabel={getTimePeriodLabel(timePeriod)}
+              departmentFilter={departmentFilter}
+              onClose={onListReportClose}
+            />
+          </ModalBody>
         </ModalContent>
       </Modal>
 

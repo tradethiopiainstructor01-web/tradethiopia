@@ -35,5 +35,11 @@ router.get('/ts-exam-live/registrations', tessbinController.getTsExamLiveRegistr
 // READ-ONLY DATA ANALYTICS EXTERNAL API ROUTE
 router.get('/external/data-analytics', tessbinController.getExternalDataAnalytics);
 
+// PUBLIC VERIFICATION ROUTE FOR TESSBIN
+const { verifyStudentRegistration } = require('../controllers/studentRegistrationController');
+router.get('/verify-student/:id', verifyStudentRegistration);
+router.get('/verify/:id', verifyStudentRegistration);
+
 module.exports = router;
+
 

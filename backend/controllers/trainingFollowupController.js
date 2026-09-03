@@ -1,5 +1,14 @@
 const TrainingFollowup = require("../models/TrainingFollowup");
 const SalesCustomer = require("../models/SalesCustomer");
+const User = require("../models/user.model");
+
+const isCustomerServiceIdentifier = (val, csSet) => {
+  if (!val) return true;
+  const lower = String(val).trim().toLowerCase();
+  if (csSet.has(lower)) return true;
+  if (/test-cs|customerservice|customer\s*success|customer\s*service|reception|csm_manager/i.test(lower)) return true;
+  return false;
+};
 
 // Create Training follow-up
 const createTrainingFollowup = async (req, res) => {
@@ -67,7 +76,120 @@ const getTrainingFollowups = async (req, res) => {
       .sort(sortOptions)
       .lean();
 
-    res.json(followups);
+    // Enrich followups with real sales agents from SalesCustomer
+    try {
+      const allUsers = await User.find({}).select('_id username name fullName role').lean();
+      const userMap = {};
+      const csSet = new Set(['test-cs', 'customerservice', 'cs', 'customer success', 'customer service']);
+
+      allUsers.forEach((u) => {
+        const id = u._id.toString();
+        const displayName = u.fullName || u.name || u.username;
+        userMap[id] = displayName;
+        const role = (u.role || '').toLowerCase();
+        if (role.includes('customer') || role.includes('cs') || role.includes('reception') || role.includes('csm')) {
+          if (u.username) csSet.add(u.username.toLowerCase());
+          if (u.fullName) csSet.add(u.fullName.toLowerCase());
+          if (u.name) csSet.add(u.name.toLowerCase());
+        }
+      });
+
+      // Find all followups needing sales agent lookup
+      const lookupCriteria = [];
+      followups.forEach((f) => {
+        const curSales = (f.salesAgent || '').trim();
+        if (isCustomerServiceIdentifier(curSales, csSet)) {
+          if (f.email) lookupCriteria.push({ email: f.email.trim() });
+          if (f.customerName) lookupCriteria.push({ customerName: f.customerName.trim() });
+          if (f.phoneNumber) lookupCriteria.push({ phone: f.phoneNumber.trim() });
+        }
+      });
+
+      let matchedSalesCustomers = [];
+      if (lookupCriteria.length > 0) {
+        matchedSalesCustomers = await SalesCustomer.find({ $or: lookupCriteria })
+          .select('agentId customerName email phone')
+          .lean();
+      }
+
+      const salesCustomerByEmail = new Map();
+      const salesCustomerByName = new Map();
+      const salesCustomerByPhone = new Map();
+
+      matchedSalesCustomers.forEach((sc) => {
+        if (sc.email) salesCustomerByEmail.set(sc.email.toLowerCase().trim(), sc);
+        if (sc.customerName) salesCustomerByName.set(sc.customerName.toLowerCase().trim(), sc);
+        if (sc.phone) salesCustomerByPhone.set(sc.phone.toLowerCase().trim(), sc);
+      });
+
+      // Also look up student registrations to populate preferredTimeSlot into scheduleShift
+      let matchedStudents = [];
+      try {
+        const StudentRegistration = require('../models/StudentRegistration');
+        const studentCriteria = [];
+        followups.forEach((f) => {
+          if (f.idInfo) studentCriteria.push({ studentId: f.idInfo.trim() });
+          if (f.email) studentCriteria.push({ email: f.email.trim() });
+          if (f.customerName) studentCriteria.push({ fullName: f.customerName.trim() });
+          if (f.phoneNumber) studentCriteria.push({ phone: f.phoneNumber.trim() });
+        });
+
+        if (studentCriteria.length > 0) {
+          matchedStudents = await StudentRegistration.find({ $or: studentCriteria })
+            .select('studentId fullName email phone preferredTimeSlot')
+            .lean();
+        }
+      } catch (stuErr) {
+        console.warn('Could not lookup student registrations for followups:', stuErr.message);
+      }
+
+      const studentById = new Map();
+      const studentByEmail = new Map();
+      const studentByName = new Map();
+      const studentByPhone = new Map();
+
+      matchedStudents.forEach((stu) => {
+        if (stu.studentId) studentById.set(stu.studentId.toLowerCase().trim(), stu);
+        if (stu.email) studentByEmail.set(stu.email.toLowerCase().trim(), stu);
+        if (stu.fullName) studentByName.set(stu.fullName.toLowerCase().trim(), stu);
+        if (stu.phone) studentByPhone.set(stu.phone.toLowerCase().trim(), stu);
+      });
+
+      const enrichedFollowups = followups.map((f) => {
+        let currentSales = (f.salesAgent || '').trim();
+        const isCS = isCustomerServiceIdentifier(currentSales, csSet);
+
+        const emailKey = (f.email || '').toLowerCase().trim();
+        const nameKey = (f.customerName || '').toLowerCase().trim();
+        const phoneKey = (f.phoneNumber || '').toLowerCase().trim();
+        const idKey = (f.idInfo || '').toLowerCase().trim();
+
+        if (isCS) {
+          const sc = salesCustomerByEmail.get(emailKey) || salesCustomerByName.get(nameKey) || salesCustomerByPhone.get(phoneKey);
+          if (sc && sc.agentId && userMap[sc.agentId.toString()]) {
+            currentSales = userMap[sc.agentId.toString()];
+          } else {
+            currentSales = ''; // Don't show CS agent name under Sales Agent!
+          }
+        }
+
+        const matchedStudent = (idKey ? studentById.get(idKey) : null) || studentByEmail.get(emailKey) || studentByName.get(nameKey) || studentByPhone.get(phoneKey);
+        const scheduleShift = matchedStudent?.preferredTimeSlot || f.scheduleShift || 'Morning';
+        const materialStatus = f.materialStatus || 'Not Delivered';
+
+        return {
+          ...f,
+          salesAgent: currentSales,
+          scheduleShift,
+          materialStatus,
+        };
+      });
+
+      return res.json(enrichedFollowups);
+    } catch (enrichErr) {
+      console.error('Error enriching sales agents:', enrichErr);
+      return res.json(followups);
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

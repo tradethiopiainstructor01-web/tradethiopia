@@ -22,7 +22,7 @@ const trainingFollowupSchema = new Schema(
     phoneNumber: { type: String },
     fieldOfWork: { type: String },
     scheduleShift: { type: String },
-    materialStatus: { type: String },
+    materialStatus: { type: String, default: "Not Delivered" },
     progress: { type: String, index: true },
     idInfo: { type: String },
     packageStatus: { type: String },

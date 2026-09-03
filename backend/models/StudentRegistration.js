@@ -11,6 +11,7 @@ const StudentRegistrationSchema = new mongoose.Schema(
       type: String,
       trim: true,
       required: true,
+      immutable: true,
       unique: true,
     },
     fullName: {
@@ -29,9 +30,21 @@ const StudentRegistrationSchema = new mongoose.Schema(
     },
     gender: {
       type: String,
+      enum: ['', 'Female', 'Male'],
+      default: '',
       trim: true,
     },
     nationalIdImage: {
+      type: String,
+      default: '',
+      select: false,
+    },
+    nationalIdFrontImage: {
+      type: String,
+      default: '',
+      select: false,
+    },
+    nationalIdBackImage: {
       type: String,
       default: '',
       select: false,
@@ -43,7 +56,7 @@ const StudentRegistrationSchema = new mongoose.Schema(
     },
     paymentScreenshot: {
       type: String,
-      default: '',
+      required: [true, 'Payment receipt photo is required.'],
       select: false,
     },
     learningDepartment: {
@@ -57,6 +70,9 @@ const StudentRegistrationSchema = new mongoose.Schema(
       trim: true,
     },
     enrollmentDate: {
+      type: Date,
+    },
+    trainingEndDate: {
       type: Date,
     },
     examDate: {

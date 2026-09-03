@@ -862,7 +862,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     scheduleShift: "",
     endDate: "",
     endTime: "",
-    materialStatus: "",
+    materialStatus: "Not Delivered",
     progress: "",
     idInfo: "",
     packageStatus: "",
@@ -1000,7 +1000,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
         phoneNumber: "",
         fieldOfWork: "",
         scheduleShift: "",
-        materialStatus: "",
+        materialStatus: "Not Delivered",
         progress: "",
         idInfo: "",
         packageStatus: "",
@@ -2477,8 +2477,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     { key: "select", label: "Select" },
     { key: "startDate", label: "Training Start Date" },
     { key: "endDate", label: "Training End Date" },
-    { key: "agentName", label: "Agent Name" },
-    { key: "salesAgent", label: "Sales Agent" },
+    { key: "salesAgent", label: "Customer Services" },
     { key: "assignedInstructor", label: "Assigned Instructor" },
     { key: "customerName", label: "Customer Name" },
     { key: "email", label: "Email" },
@@ -2490,7 +2489,6 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     { key: "materialStatus", label: "Material Delivery Status" },
     { key: "progress", label: "Progress" },
     { key: "idInfo", label: "ID Info" },
-    { key: "packageStatus", label: "Package Status" },
     { key: "actions", label: "Actions" },
   ];
 
@@ -2916,7 +2914,15 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       header: "Training Start Date",
       render: (item) => (
         <CompactCell>
-          {item.startDate ? new Date(item.startDate).toLocaleDateString() : "-"}
+          <Input
+            type="date"
+            size="sm"
+            minW="135px"
+            value={item.startDate ? String(item.startDate).split("T")[0] : ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "startDate", e.target.value)
+            }
+          />
         </CompactCell>
       ),
     },
@@ -2926,23 +2932,33 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       header: "Training End Date",
       render: (item) => (
         <CompactCell>
-          {item.endDate ? new Date(item.endDate).toLocaleDateString() : "-"}
+          <Input
+            type="date"
+            size="sm"
+            minW="135px"
+            value={item.endDate ? String(item.endDate).split("T")[0] : ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "endDate", e.target.value)
+            }
+          />
         </CompactCell>
       ),
     },
     {
-      key: "agentName",
-      visible: visibleColumns.trainingFollowup.agentName,
-      header: "Agent Name",
-      render: (item) => <CompactCell>{item.agentName}</CompactCell>,
-    },
-    {
       key: "salesAgent",
       visible: visibleColumns.trainingFollowup.salesAgent,
-      header: "Sales Agent",
+      header: "Customer Services",
       render: (item) => (
         <CompactCell>
-          {item.salesAgent || item.salesAgentName || "-"}
+          <Input
+            size="sm"
+            minW="130px"
+            value={item.agentName || item.registeredBy || item.csMember || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "agentName", e.target.value)
+            }
+            placeholder="CS Agent"
+          />
         </CompactCell>
       ),
     },
@@ -2950,37 +2966,110 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       key: "assignedInstructor",
       visible: visibleColumns.trainingFollowup.assignedInstructor,
       header: "Assigned Instructor",
-      render: (item) => <CompactCell>{item.assignedInstructor || "-"}</CompactCell>,
+      render: (item) => (
+        <CompactCell>
+          <Input
+            size="sm"
+            minW="140px"
+            value={item.assignedInstructor || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "assignedInstructor", e.target.value)
+            }
+            placeholder="Instructor"
+          />
+        </CompactCell>
+      ),
     },
     {
       key: "customerName",
       visible: visibleColumns.trainingFollowup.customerName,
       header: "Customer Name",
-      render: (item) => <CompactCell>{item.customerName}</CompactCell>,
+      render: (item) => (
+        <CompactCell>
+          <Input
+            size="sm"
+            minW="140px"
+            fontWeight="600"
+            value={item.customerName || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "customerName", e.target.value)
+            }
+            placeholder="Customer Name"
+          />
+        </CompactCell>
+      ),
     },
     {
       key: "email",
       visible: visibleColumns.trainingFollowup.email,
       header: "Email",
-      render: (item) => <CompactCell>{item.email}</CompactCell>,
+      render: (item) => (
+        <CompactCell>
+          <Input
+            size="sm"
+            minW="150px"
+            value={item.email || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "email", e.target.value)
+            }
+            placeholder="Email"
+          />
+        </CompactCell>
+      ),
     },
     {
       key: "phone",
       visible: visibleColumns.trainingFollowup.phone,
       header: "Phone Number",
-      render: (item) => <CompactCell>{item.phoneNumber}</CompactCell>,
+      render: (item) => (
+        <CompactCell>
+          <Input
+            size="sm"
+            minW="120px"
+            value={item.phoneNumber || item.phone || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "phoneNumber", e.target.value)
+            }
+            placeholder="Phone Number"
+          />
+        </CompactCell>
+      ),
     },
     {
       key: "fieldOfWork",
       visible: visibleColumns.trainingFollowup.fieldOfWork,
       header: "Field of Work",
-      render: (item) => <CompactCell>{item.fieldOfWork}</CompactCell>,
+      render: (item) => (
+        <CompactCell>
+          <Input
+            size="sm"
+            minW="130px"
+            value={item.fieldOfWork || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "fieldOfWork", e.target.value)
+            }
+            placeholder="Field of Work"
+          />
+        </CompactCell>
+      ),
     },
     {
       key: "course",
       visible: visibleColumns.trainingFollowup.course,
       header: "Course",
-      render: (item) => <CompactCell>{item.trainingType}</CompactCell>,
+      render: (item) => (
+        <CompactCell>
+          <Input
+            size="sm"
+            minW="140px"
+            value={item.trainingType || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "trainingType", e.target.value)
+            }
+            placeholder="Course"
+          />
+        </CompactCell>
+      ),
     },
     {
       key: "batchGroup",
@@ -2988,7 +3077,15 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       header: "Batch/Group",
       render: (item) => (
         <CompactCell>
-          {item.batch || item.group || item.batchGroup || "-"}
+          <Input
+            size="sm"
+            minW="100px"
+            value={item.batch || item.group || item.batchGroup || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "batch", e.target.value)
+            }
+            placeholder="Batch/Group"
+          />
         </CompactCell>
       ),
     },
@@ -2998,20 +3095,20 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       header: "Schedule & Shift",
       render: (item) => (
         <CompactCell>
-          <Tooltip label={item.scheduleShift || "Not set"} hasArrow>
+          <Tooltip label={item.scheduleShift || item.preferredTimeSlot || "Morning"} hasArrow>
             <Input
               as="select"
               size="sm"
-              value={item.scheduleShift || ""}
+              value={item.scheduleShift || item.preferredTimeSlot || "Morning"}
               onChange={(e) =>
                 handleInlineTrainingChange(item._id, "scheduleShift", e.target.value)
               }
             >
-              <option value="">Select schedule</option>
-              <option value="Regular">Regular</option>
+              <option value="Morning">Morning</option>
+              <option value="Afternoon">Afternoon</option>
               <option value="Night">Night</option>
               <option value="Weekend">Weekend</option>
-              <option value="Night/Weekend">Night/Weekend</option>
+              <option value="VIP">VIP</option>
             </Input>
           </Tooltip>
         </CompactCell>
@@ -3023,16 +3120,15 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       header: "Material Delivery Status",
       render: (item) => (
         <CompactCell>
-          <Tooltip label={item.materialStatus || "Not set"} hasArrow>
+          <Tooltip label={item.materialStatus || "Not Delivered"} hasArrow>
             <Input
               as="select"
               size="sm"
-              value={item.materialStatus || ""}
+              value={item.materialStatus || "Not Delivered"}
               onChange={(e) =>
                 handleInlineTrainingChange(item._id, "materialStatus", e.target.value)
               }
             >
-              <option value="">Select status</option>
               <option value="Not Delivered">Not Delivered</option>
               <option value="Delivered">Delivered</option>
             </Input>
@@ -3069,29 +3165,17 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       key: "idInfo",
       visible: visibleColumns.trainingFollowup.idInfo,
       header: "ID Info",
-      render: (item) => <CompactCell>{item.idInfo}</CompactCell>,
-    },
-    {
-      key: "packageStatus",
-      visible: visibleColumns.trainingFollowup.packageStatus,
-      header: "Package Status",
       render: (item) => (
         <CompactCell>
-          <Tooltip label={item.packageStatus || "Not set"} hasArrow>
-            <Input
-              as="select"
-              size="sm"
-              value={item.packageStatus || ""}
-              onChange={(e) =>
-                handleInlineTrainingChange(item._id, "packageStatus", e.target.value)
-              }
-            >
-              <option value="">Select status</option>
-              <option value="Interested">Interested</option>
-              <option value="Not Interested">Not Interested</option>
-              <option value="Not Sure">Not Sure</option>
-            </Input>
-          </Tooltip>
+          <Input
+            size="sm"
+            minW="110px"
+            value={item.idInfo || ""}
+            onChange={(e) =>
+              handleInlineTrainingChange(item._id, "idInfo", e.target.value)
+            }
+            placeholder="ID Info"
+          />
         </CompactCell>
       ),
     },
@@ -4793,21 +4877,20 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
                 />
                 <Input
                   as="select"
-                  value={trainingEditData.scheduleShift || ""}
+                  value={trainingEditData.scheduleShift || "Morning"}
                   onChange={(e) => handleTrainingEditChange("scheduleShift", e.target.value)}
                 >
-                  <option value="">Select schedule</option>
-                  <option value="Regular">Regular</option>
+                  <option value="Morning">Morning</option>
+                  <option value="Afternoon">Afternoon</option>
                   <option value="Night">Night</option>
                   <option value="Weekend">Weekend</option>
-                  <option value="Night/Weekend">Night/Weekend</option>
+                  <option value="VIP">VIP</option>
                 </Input>
                 <Input
                   as="select"
-                  value={trainingEditData.materialStatus || ""}
+                  value={trainingEditData.materialStatus || "Not Delivered"}
                   onChange={(e) => handleTrainingEditChange("materialStatus", e.target.value)}
                 >
-                  <option value="">Select material status</option>
                   <option value="Not Delivered">Not Delivered</option>
                   <option value="Delivered">Delivered</option>
                 </Input>
