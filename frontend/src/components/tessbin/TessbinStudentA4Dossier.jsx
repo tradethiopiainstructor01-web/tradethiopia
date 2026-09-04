@@ -16,11 +16,11 @@ import {
   FiCamera,
   FiCheckCircle,
   FiExternalLink,
-  FiShield,
-  FiCheck,
+  FiMaximize2,
+  FiX,
 } from 'react-icons/fi';
 import './TessbinA4Print.css';
-import { printA4Element } from '../../utils/tessbinPrintHelper';
+import { printA4Element, openA4InNewWindow } from '../../utils/tessbinPrintHelper';
 import QRCodeGenerator from '../common/QRCodeGenerator';
 
 const formatDate = (dateStr) => {
@@ -50,11 +50,15 @@ const formatDateTime = (dateStr) => {
 export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage }) {
   if (!student) return null;
 
+  const docId = `tessbin-student-a4-document-${student._id || student.id || student.studentId || 'preview'}`;
+  const docTitle = `Tessbin_Registration_${(student.fullName || 'Student').replace(/\s+/g, '_')}`;
+
   const printDocument = () => {
-    printA4Element(
-      'tessbin-student-a4-document',
-      `Tessbin_Registration_${(student.fullName || 'Student').replace(/\s+/g, '_')}`
-    );
+    printA4Element(docId, docTitle);
+  };
+
+  const previewInNewTab = () => {
+    openA4InNewWindow(docId, docTitle);
   };
 
   const acceptedCoffeeCuppingCourses = [
@@ -78,11 +82,103 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
     year: 'numeric',
   });
 
+  const verifyUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/verify/student/${student._id || student.id || student.studentId || 'REC'}`
+    : `/verify/student/${student._id || student.id || student.studentId || 'REC'}`;
+
   return (
     <Box w="full">
+      {/* Top Action Bar (Screen View Only) */}
+      <Flex
+        className="no-print"
+        bg="#0F172A"
+        color="white"
+        p={3}
+        px={5}
+        borderRadius="xl"
+        mb={3}
+        justify="space-between"
+        align="center"
+        boxShadow="0 4px 14px rgba(0, 0, 0, 0.3)"
+        border="1px solid rgba(255, 255, 255, 0.1)"
+        wrap="wrap"
+        gap={3}
+      >
+        <HStack spacing={3}>
+          <Flex
+            w="36px"
+            h="36px"
+            borderRadius="lg"
+            bg="#4F46E5"
+            align="center"
+            justify="center"
+          >
+            <Icon as={FiPrinter} boxSize="18px" color="white" />
+          </Flex>
+          <Box>
+            <HStack spacing={2}>
+              <Text fontSize="14px" fontWeight="800" color="white">
+                Official Trainee Registration Dossier
+              </Text>
+              <Badge bg="#312E81" color="#C7D2FE" fontSize="10px" px={2} py={0.5} borderRadius="md" fontWeight="800">
+                A4 SINGLE PAGE
+              </Badge>
+            </HStack>
+            <Text fontSize="11px" color="gray.400">
+              {student.fullName} • ID: {student.studentId || 'N/A'} • {student.learningDepartment || 'General'}
+            </Text>
+          </Box>
+        </HStack>
+
+        <HStack spacing={2.5}>
+          <Button
+            leftIcon={<FiPrinter />}
+            bgGradient="linear(to-r, #4F46E5, #6366F1)"
+            color="white"
+            _hover={{ bgGradient: 'linear(to-r, #4338CA, #4F46E5)' }}
+            size="sm"
+            borderRadius="lg"
+            fontSize="12px"
+            fontWeight="800"
+            onClick={printDocument}
+          >
+            Print Dossier (A4)
+          </Button>
+
+          <Button
+            leftIcon={<FiMaximize2 />}
+            variant="outline"
+            borderColor="rgba(255, 255, 255, 0.25)"
+            color="white"
+            _hover={{ bg: 'rgba(255, 255, 255, 0.1)' }}
+            size="sm"
+            borderRadius="lg"
+            fontSize="12px"
+            onClick={previewInNewTab}
+          >
+            Open in New Window / PDF
+          </Button>
+
+          {onClose && (
+            <Button
+              leftIcon={<FiX />}
+              variant="ghost"
+              color="gray.300"
+              _hover={{ bg: 'rgba(255, 255, 255, 0.1)', color: 'white' }}
+              size="sm"
+              borderRadius="lg"
+              fontSize="12px"
+              onClick={onClose}
+            >
+              Close
+            </Button>
+          )}
+        </HStack>
+      </Flex>
+
       {/* Screen Wrapper Displaying Authentic A4 Paper Sheet */}
       <Box className="tessbin-a4-screen-wrapper">
-        <Box id="tessbin-student-a4-document" className="tessbin-a4-sheet">
+        <Box id={docId} className="tessbin-a4-sheet">
           {/* Formal Hardcopy Perimeter Frame */}
           <Box className="tessbin-a4-frame">
             {/* Background Seal Watermark */}
@@ -97,10 +193,10 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
               {/* ============================================================= */}
               <Flex className="tessbin-a4-header" justify="space-between" align="center">
                 {/* Logo & Bilingual Institution Titles */}
-                <HStack spacing={3} align="center">
+                <HStack spacing={2.5} align="center">
                   <Box
-                    w="52px"
-                    h="52px"
+                    w="46px"
+                    h="46px"
                     borderRadius="md"
                     overflow="hidden"
                     bg="white"
@@ -119,56 +215,56 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                   </Box>
                   <Box>
                     <Text
-                      fontSize="14pt"
+                      fontSize="13pt"
                       fontWeight="900"
-                      letterSpacing="0.8px"
+                      letterSpacing="0.6px"
                       color="#0F172A"
-                      lineHeight="1.1"
+                      lineHeight="1.05"
                       fontFamily="Georgia, 'Times New Roman', serif"
                     >
                       TESBINN
                     </Text>
                     <Text
-                      fontSize="8.5pt"
+                      fontSize="7.5pt"
                       fontWeight="800"
                       color="#1E293B"
-                      letterSpacing="0.3px"
+                      letterSpacing="0.2px"
                       textTransform="uppercase"
-                      lineHeight="1.2"
+                      lineHeight="1.15"
                     >
                       TRADE ETHIOPIA SCHOOL OF BUSINESS & INNOVATION
                     </Text>
                     <Text
-                      fontSize="8pt"
+                      fontSize="7.2pt"
                       fontWeight="700"
                       color="#B45309"
-                      letterSpacing="0.2px"
-                      lineHeight="1.2"
+                      letterSpacing="0.1px"
+                      lineHeight="1.15"
                     >
                       ትሬድ ኢትዮጵያ የቢዝነስ እና ፈጠራ ት/ቤት
                     </Text>
-                    <Text fontSize="6.2pt" color="#64748B" mt={0.5}>
-                      Addis Ababa, Ethiopia • Tel: +251 911 000 000 • Email: info@tessbin.com • Web: www.tessbin.com
+                    <Text fontSize="5.8pt" color="#64748B">
+                      Addis Ababa, Ethiopia • Tel: +251 911 000 000 • Email: admissions@tessbin.com • Web: www.tessbin.com
                     </Text>
                   </Box>
                 </HStack>
 
                 {/* Right: Prominent Student ID & Passport Photo */}
-                <HStack spacing={2.5} align="center">
-                  <Box className="tessbin-a4-meta-box" minW="50mm">
+                <HStack spacing={2} align="center">
+                  <Box className="tessbin-a4-meta-box" minW="44mm">
                     <Flex justify="space-between" borderBottom="1px solid #CBD5E1" pb={0.5} mb={0.5}>
-                      <Text fontSize="5.5pt" color="#64748B">FORM NO: <b>TSB/REG/01</b></Text>
-                      <Text fontSize="5.5pt" color="#64748B">Year: <b>2026/18 E.C.</b></Text>
+                      <Text fontSize="5.2pt" color="#64748B">FORM NO: <b>TSB/REG/01</b></Text>
+                      <Text fontSize="5.2pt" color="#64748B">Year: <b>2026/18 E.C.</b></Text>
                     </Flex>
-                    <Box bg="#EEF2FF" border="1.5px solid #4F46E5" borderRadius="4px" p="2px 6px" textAlign="center" my={0.5}>
-                      <Text fontSize="5.2pt" fontWeight="800" color="#4338CA" letterSpacing="0.6px">
+                    <Box bg="#EEF2FF" border="1.2px solid #4F46E5" borderRadius="3px" p="1.5px 4px" textAlign="center" my={0.5}>
+                      <Text fontSize="4.8pt" fontWeight="800" color="#4338CA" letterSpacing="0.4px">
                         STUDENT ID / የተማሪ መለያ ቁጥር
                       </Text>
-                      <Text fontSize="10.5pt" fontWeight="900" color="#1E1B4B" letterSpacing="1px" lineHeight="1.15">
+                      <Text fontSize="9.5pt" fontWeight="900" color="#1E1B4B" letterSpacing="0.8px" lineHeight="1.1">
                         {student.studentId || 'TSB-PENDING'}
                       </Text>
                     </Box>
-                    <Text fontSize="5.8pt" color="#475569" textAlign="center">
+                    <Text fontSize="5.4pt" color="#475569" textAlign="center">
                       Date Issued / ቀን: <b>{issueDate}</b>
                     </Text>
                   </Box>
@@ -188,9 +284,9 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                       </>
                     ) : (
                       <Flex direction="column" align="center" justify="center" p={1} color="#64748B" textAlign="center">
-                        <Icon as={FiCamera} boxSize="16px" mb={1} opacity={0.6} />
-                        <Text fontSize="5.5pt" fontWeight="800">AFFIX 3×4</Text>
-                        <Text fontSize="5pt">PHOTO HERE</Text>
+                        <Icon as={FiCamera} boxSize="14px" mb={0.5} opacity={0.6} />
+                        <Text fontSize="5pt" fontWeight="800">AFFIX 3×4</Text>
+                        <Text fontSize="4.5pt">PHOTO HERE</Text>
                       </Flex>
                     )}
                   </Box>
@@ -213,14 +309,14 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
               <Box className="tessbin-a4-section">
                 <Box className="tessbin-a4-section-title">
                   <Text>SECTION I: TRAINEE PERSONAL PARTICULARS / የአመልካች የግል መረጃ</Text>
-                  <Text fontSize="6pt" color="#CBD5E1">CONFIDENTIAL ARCHIVE</Text>
+                  <Text fontSize="5.5pt" color="#CBD5E1">CONFIDENTIAL ARCHIVE</Text>
                 </Box>
                 <table className="tessbin-a4-table">
                   <tbody>
                     <tr>
                       <td className="label-cell">Full Legal Name / ሙሉ ስም:</td>
                       <td className="value-cell" style={{ width: '38%' }}>
-                        <span style={{ fontSize: '8pt', fontWeight: '900', color: '#0F172A' }}>
+                        <span style={{ fontSize: '7.5pt', fontWeight: '900', color: '#0F172A' }}>
                           {student.fullName || 'N/A'}
                         </span>
                       </td>
@@ -230,7 +326,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                     <tr>
                       <td className="label-cell">Primary Mobile / ዋና ስልክ:</td>
                       <td className="value-cell">
-                        <span style={{ fontSize: '8pt', fontWeight: '800', color: '#0F172A' }}>
+                        <span style={{ fontSize: '7.5pt', fontWeight: '800', color: '#0F172A' }}>
                           {student.phone || 'N/A'}
                         </span>
                       </td>
@@ -261,20 +357,20 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
               <Box className="tessbin-a4-section">
                 <Box className="tessbin-a4-section-title">
                   <Text>SECTION II: ENROLLMENT & ACADEMIC STREAM / የትምህርት መርሃ-ግብር እና ፈረቃ</Text>
-                  <Text fontSize="6pt" color="#CBD5E1">CURRICULUM RECORD</Text>
+                  <Text fontSize="5.5pt" color="#CBD5E1">CURRICULUM RECORD</Text>
                 </Box>
                 <table className="tessbin-a4-table">
                   <tbody>
                     <tr>
                       <td className="label-cell">Training Department / ዘርፍ:</td>
                       <td className="value-cell" style={{ width: '38%' }}>
-                        <span style={{ fontSize: '8pt', fontWeight: '900', color: '#1E1B4B' }}>
+                        <span style={{ fontSize: '7.5pt', fontWeight: '900', color: '#1E1B4B' }}>
                           {student.learningDepartment || 'General International Trade'}
                         </span>
                       </td>
                       <td className="label-cell">Assigned Shift / ፈረቃ:</td>
                       <td className="value-cell">
-                        <span style={{ fontSize: '8pt', fontWeight: '900', color: '#0F172A' }}>
+                        <span style={{ fontSize: '7.5pt', fontWeight: '900', color: '#0F172A' }}>
                           {student.preferredTimeSlot || 'Morning Class'}
                         </span>
                       </td>
@@ -311,20 +407,20 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
               <Box className="tessbin-a4-section">
                 <Box className="tessbin-a4-section-title">
                   <Text>SECTION III: PAYMENT & FINANCIAL AUDIT / የክፍያ እና የሂሳብ ማረጋገጫ</Text>
-                  <Text fontSize="6pt" color="#CBD5E1">TREASURY AUDITED</Text>
+                  <Text fontSize="5.5pt" color="#CBD5E1">TREASURY AUDITED</Text>
                 </Box>
                 <table className="tessbin-a4-table">
                   <tbody>
                     <tr>
                       <td className="label-cell">Payment Plan / አማራጭ:</td>
                       <td className="value-cell" style={{ width: '38%' }}>
-                        <span style={{ fontSize: '8pt', fontWeight: '900', color: '#1E1B4B' }}>
+                        <span style={{ fontSize: '7.5pt', fontWeight: '900', color: '#1E1B4B' }}>
                           {student.paymentOption || 'Full Payment'}
                         </span>
                       </td>
                       <td className="label-cell">Bank / የከፈሉበት ባንክ:</td>
                       <td className="value-cell">
-                        <span style={{ fontSize: '8pt', fontWeight: '800', color: '#0F172A' }}>
+                        <span style={{ fontSize: '7.5pt', fontWeight: '800', color: '#0F172A' }}>
                           {student.paymentBank || 'Commercial Bank of Ethiopia'}
                         </span>
                       </td>
@@ -332,16 +428,16 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                     <tr>
                       <td className="label-cell">FS / Receipt Ref # / ደረሰኝ:</td>
                       <td className="value-cell">
-                        <span style={{ fontSize: '8.5pt', fontWeight: '900', color: '#4338CA', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: '8pt', fontWeight: '900', color: '#4338CA', fontFamily: 'monospace' }}>
                           {student.fsNumber || 'Verified Official Receipt'}
                         </span>
                       </td>
                       <td className="label-cell">COC Examination Fee:</td>
                       <td className="value-cell">
                         <span style={{
-                          padding: '1.5px 8px',
+                          padding: '1px 6px',
                           borderRadius: '3px',
-                          fontSize: '7.5pt',
+                          fontSize: '7pt',
                           fontWeight: '800',
                           backgroundColor: isCocPaid ? '#DCFCE7' : '#F1F5F9',
                           color: isCocPaid ? '#166534' : '#475569',
@@ -366,36 +462,31 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
 
               {/* ============================================================= */}
               {/* 5. SECTION IV: SUBMITTED CREDENTIALS & PAYMENT RECEIPTS       */}
-              {/* High-Clarity View for National ID Card & Bank Payment Slip   */}
               {/* ============================================================= */}
               <Box className="tessbin-a4-section">
                 <Box className="tessbin-a4-section-title">
                   <Text>SECTION IV: SUBMITTED CREDENTIALS & PAYMENT RECEIPTS / የቀረቡ ማስረጃዎች እና የባንክ ደረሰኝ</Text>
-                  <Text fontSize="6pt" color="#CBD5E1">OFFICIAL VERIFICATION PROOFS</Text>
+                  <Text fontSize="5.5pt" color="#CBD5E1">OFFICIAL VERIFICATION PROOFS</Text>
                 </Box>
 
-                <SimpleGrid columns={3} spacing={2} p={1.5} border="1px solid #1E293B" borderTop="none" bg="#FFFFFF">
-                  {/* 1. National ID / Kebele Card Front */}
-                  <Box border="1px solid #CBD5E1" borderRadius="md" p={1.5} bg="#F8FAFC">
-                    <Flex justify="space-between" align="center" mb={1}>
+                <SimpleGrid columns={3} spacing={1.5} p={1} border="1px solid #1E293B" borderTop="none" bg="#FFFFFF">
+                  {/* 1. National ID Front */}
+                  <Box border="1px solid #CBD5E1" borderRadius="md" p={1} bg="#F8FAFC">
+                    <Flex justify="space-between" align="center" mb={0.5}>
                       <HStack spacing={1}>
-                        <Icon as={FiCheckCircle} color={nationalIdFront ? '#16A34A' : '#94A3B8'} boxSize="12px" />
-                        <Text fontSize="7.2pt" fontWeight="800" color="#0F172A">
+                        <Icon as={FiCheckCircle} color={nationalIdFront ? '#16A34A' : '#94A3B8'} boxSize="10px" />
+                        <Text fontSize="6.5pt" fontWeight="800" color="#0F172A">
                           National ID Front
                         </Text>
                       </HStack>
-                      <Badge
-                        fontSize="5.8pt"
-                        colorScheme={nationalIdFront ? 'green' : 'gray'}
-                        px={1.5}
-                      >
+                      <Badge fontSize="5pt" colorScheme={nationalIdFront ? 'green' : 'gray'} px={1}>
                         {nationalIdFront ? 'ATTACHED' : 'NOT SUBMITTED'}
                       </Badge>
                     </Flex>
 
                     {nationalIdFront ? (
                       <Box
-                        h="88px"
+                        h="72px"
                         w="100%"
                         border="1px solid #94A3B8"
                         borderRadius="sm"
@@ -404,7 +495,6 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                         position="relative"
                         cursor={onOpenImage ? 'pointer' : 'default'}
                         onClick={() => onOpenImage && onOpenImage(nationalIdFront, 'National ID Front', student.fullName)}
-                        _hover={{ borderColor: '#4F46E5', boxShadow: 'sm' }}
                       >
                         <Image
                           src={nationalIdFront}
@@ -413,57 +503,29 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                           h="100%"
                           objectFit="contain"
                         />
-                        <Flex
-                          position="absolute"
-                          bottom="0"
-                          right="0"
-                          left="0"
-                          bg="rgba(15, 23, 42, 0.75)"
-                          color="white"
-                          fontSize="5.2pt"
-                          py={0.5}
-                          px={1}
-                          justify="space-between"
-                          align="center"
-                          className="no-print"
-                        >
-                          <Text>Click to zoom full view</Text>
-                          <Icon as={FiExternalLink} boxSize="8px" />
-                        </Flex>
                       </Box>
                     ) : (
-                      <Flex
-                        h="88px"
-                        w="100%"
-                        border="1px dashed #CBD5E1"
-                        borderRadius="sm"
-                        align="center"
-                        justify="center"
-                        direction="column"
-                        color="#94A3B8"
-                        bg="#FFFFFF"
-                      >
-                        <Icon as={FiFileText} boxSize="20px" mb={1} opacity={0.5} />
-                        <Text fontSize="6.5pt" fontWeight="700">No ID Front Uploaded</Text>
-                        <Text fontSize="5.5pt">ያልቀረበ መታወቂያ</Text>
+                      <Flex h="72px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
+                        <Icon as={FiFileText} boxSize="16px" mb={0.5} opacity={0.5} />
+                        <Text fontSize="5.8pt" fontWeight="700">No ID Front Uploaded</Text>
                       </Flex>
                     )}
                   </Box>
 
-                  {/* 2. National ID / Kebele Card Back */}
-                  <Box border="1px solid #CBD5E1" borderRadius="md" p={1.5} bg="#F8FAFC">
-                    <Flex justify="space-between" align="center" mb={1}>
+                  {/* 2. National ID Back */}
+                  <Box border="1px solid #CBD5E1" borderRadius="md" p={1} bg="#F8FAFC">
+                    <Flex justify="space-between" align="center" mb={0.5}>
                       <HStack spacing={1}>
-                        <Icon as={FiCheckCircle} color={nationalIdBack ? '#16A34A' : '#94A3B8'} boxSize="12px" />
-                        <Text fontSize="7.2pt" fontWeight="800" color="#0F172A">National ID Back</Text>
+                        <Icon as={FiCheckCircle} color={nationalIdBack ? '#16A34A' : '#94A3B8'} boxSize="10px" />
+                        <Text fontSize="6.5pt" fontWeight="800" color="#0F172A">National ID Back</Text>
                       </HStack>
-                      <Badge fontSize="5.8pt" colorScheme={nationalIdBack ? 'green' : 'gray'} px={1.5}>
+                      <Badge fontSize="5pt" colorScheme={nationalIdBack ? 'green' : 'gray'} px={1}>
                         {nationalIdBack ? 'ATTACHED' : 'NOT SUBMITTED'}
                       </Badge>
                     </Flex>
                     {nationalIdBack ? (
                       <Box
-                        h="88px"
+                        h="72px"
                         w="100%"
                         border="1px solid #94A3B8"
                         borderRadius="sm"
@@ -475,34 +537,30 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                         <Image src={nationalIdBack} alt="National ID Back" w="100%" h="100%" objectFit="contain" />
                       </Box>
                     ) : (
-                      <Flex h="88px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
-                        <Icon as={FiFileText} boxSize="20px" mb={1} opacity={0.5} />
-                        <Text fontSize="6.5pt" fontWeight="700">No ID Back Uploaded</Text>
+                      <Flex h="72px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
+                        <Icon as={FiFileText} boxSize="16px" mb={0.5} opacity={0.5} />
+                        <Text fontSize="5.8pt" fontWeight="700">No ID Back Uploaded</Text>
                       </Flex>
                     )}
                   </Box>
 
-                  {/* 3. Bank Deposit Receipt / Payment Slip */}
-                  <Box border="1px solid #CBD5E1" borderRadius="md" p={1.5} bg="#F8FAFC">
-                    <Flex justify="space-between" align="center" mb={1}>
+                  {/* 3. Bank Receipt */}
+                  <Box border="1px solid #CBD5E1" borderRadius="md" p={1} bg="#F8FAFC">
+                    <Flex justify="space-between" align="center" mb={0.5}>
                       <HStack spacing={1}>
-                        <Icon as={FiCheckCircle} color={student.paymentScreenshot ? '#16A34A' : '#94A3B8'} boxSize="12px" />
-                        <Text fontSize="7.2pt" fontWeight="800" color="#0F172A">
-                          Bank Deposit Slip / Receipt (የባንክ ደረሰኝ)
+                        <Icon as={FiCheckCircle} color={student.paymentScreenshot ? '#16A34A' : '#94A3B8'} boxSize="10px" />
+                        <Text fontSize="6.5pt" fontWeight="800" color="#0F172A">
+                          Bank Receipt (የባንክ ደረሰኝ)
                         </Text>
                       </HStack>
-                      <Badge
-                        fontSize="5.8pt"
-                        colorScheme={student.paymentScreenshot ? 'green' : 'gray'}
-                        px={1.5}
-                      >
-                        {student.paymentScreenshot ? 'ATTACHED & VERIFIED' : 'NOT SUBMITTED'}
+                      <Badge fontSize="5pt" colorScheme={student.paymentScreenshot ? 'green' : 'gray'} px={1}>
+                        {student.paymentScreenshot ? 'VERIFIED' : 'NOT SUBMITTED'}
                       </Badge>
                     </Flex>
 
                     {student.paymentScreenshot ? (
                       <Box
-                        h="88px"
+                        h="72px"
                         w="100%"
                         border="1px solid #94A3B8"
                         borderRadius="sm"
@@ -511,7 +569,6 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                         position="relative"
                         cursor={onOpenImage ? 'pointer' : 'default'}
                         onClick={() => onOpenImage && onOpenImage(student.paymentScreenshot, 'Bank Payment Receipt', student.fullName)}
-                        _hover={{ borderColor: '#4F46E5', boxShadow: 'sm' }}
                       >
                         <Image
                           src={student.paymentScreenshot}
@@ -520,39 +577,11 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                           h="100%"
                           objectFit="contain"
                         />
-                        <Flex
-                          position="absolute"
-                          bottom="0"
-                          right="0"
-                          left="0"
-                          bg="rgba(15, 23, 42, 0.75)"
-                          color="white"
-                          fontSize="5.2pt"
-                          py={0.5}
-                          px={1}
-                          justify="space-between"
-                          align="center"
-                          className="no-print"
-                        >
-                          <Text>Click to zoom full view</Text>
-                          <Icon as={FiExternalLink} boxSize="8px" />
-                        </Flex>
                       </Box>
                     ) : (
-                      <Flex
-                        h="88px"
-                        w="100%"
-                        border="1px dashed #CBD5E1"
-                        borderRadius="sm"
-                        align="center"
-                        justify="center"
-                        direction="column"
-                        color="#94A3B8"
-                        bg="#FFFFFF"
-                      >
-                        <Icon as={FiFileText} boxSize="20px" mb={1} opacity={0.5} />
-                        <Text fontSize="6.5pt" fontWeight="700">No Payment Receipt Uploaded</Text>
-                        <Text fontSize="5.5pt">ያልቀረበ የባንክ ደረሰኝ</Text>
+                      <Flex h="72px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
+                        <Icon as={FiFileText} boxSize="16px" mb={0.5} opacity={0.5} />
+                        <Text fontSize="5.8pt" fontWeight="700">No Receipt Uploaded</Text>
                       </Flex>
                     )}
                   </Box>
@@ -589,34 +618,33 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                 </Box>
 
                 {/* 3. Real Scannable QR Code Official Verification */}
-                <Box textAlign="center" p="2px">
+                <Box textAlign="center" p="1px">
                   <Box
                     display="inline-block"
                     textAlign="center"
                     as="a"
-                    href={typeof window !== 'undefined' ? `${window.location.origin}/verify/student/${student._id || student.id || student.studentId || 'REC'}` : `/verify/student/${student._id || student.id || student.studentId || 'REC'}`}
+                    href={verifyUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     textDecoration="none"
-                    p="3px 6px"
+                    p="2px 4px"
                     bg="#FFFFFF"
-                    border="1.2px solid #CBD5E1"
-                    borderRadius="4px"
-                    boxShadow="0 1px 3px rgba(0,0,0,0.04)"
+                    border="1px solid #CBD5E1"
+                    borderRadius="3px"
+                    boxShadow="0 1px 2px rgba(0,0,0,0.04)"
                     cursor="pointer"
-                    _hover={{ borderColor: '#2563EB', transform: 'scale(1.03)', boxShadow: '0 2px 6px rgba(37,99,235,0.15)' }}
-                    transition="all 0.15s"
+                    _hover={{ borderColor: '#2563EB', transform: 'scale(1.02)' }}
                     title="Scan with phone or click to verify authentic student record"
                   >
                     <QRCodeGenerator
-                      value={typeof window !== 'undefined' ? `${window.location.origin}/verify/student/${student._id || student.id || student.studentId || 'REC'}` : `/verify/student/${student._id || student.id || student.studentId || 'REC'}`}
-                      size={54}
+                      value={verifyUrl}
+                      size={46}
                       level="M"
                     />
-                    <Text fontSize="4.8pt" fontWeight="900" color="#1E40AF" lineHeight="1.1" mt="1px">
+                    <Text fontSize="4.5pt" fontWeight="900" color="#1E40AF" lineHeight="1.1" mt="1px">
                       SCAN TO VERIFY
                     </Text>
-                    <Text fontSize="4pt" color="#64748B">
+                    <Text fontSize="3.8pt" color="#64748B">
                       ትክክለኛነቱን ይቃኙ
                     </Text>
                   </Box>
@@ -628,7 +656,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
               {/* ============================================================= */}
               <Box className="tessbin-a4-hardcopy-footer">
                 <Text>
-                  RECORD ID: <b>TSB-ADM-{student.studentId || '2026'}-{student._id ? student._id.slice(-6).toUpperCase() : 'REC'}</b>
+                  RECORD ID: <b>TSB-ADM-{student.studentId || '2026'}-{student._id ? String(student._id).slice(-6).toUpperCase() : 'REC'}</b>
                 </Text>
                 <Text>
                   TESBINN • Trade Ethiopia School of Business & Innovation (ትሬድ ኢትዮጵያ የቢዝነስ እና ፈጠራ ት/ቤት)

@@ -7,6 +7,7 @@ const {
   updateStudentRegistration,
   deleteStudentRegistration,
   verifyStudentRegistration,
+  handleSyncAllFollowupStudents,
 } = require('../controllers/studentRegistrationController');
 
 const router = express.Router();
@@ -21,6 +22,7 @@ router.get('/public-verify/:id', verifyStudentRegistration);
 // Protected routes
 router.use(protect);
 
+router.post('/sync-all', handleSyncAllFollowupStudents);
 router.get('/', getStudentRegistrations);
 router.get('/:id', getStudentRegistrationById);
 router.post('/', createStudentRegistration);

@@ -301,9 +301,10 @@ exports.getExamRecords = async (req, res) => {
       ];
     }
 
+    const sortOrder = req.query.sortOrder === 'desc' || req.query.sort === 'desc' ? -1 : 1;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const records = await TessbinExamRecord.find(query)
-      .sort({ examDate: -1, createdAt: -1 })
+      .sort({ examDate: sortOrder, createdAt: sortOrder })
       .skip(skip)
       .limit(parseInt(limit));
 

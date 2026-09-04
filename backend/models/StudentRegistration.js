@@ -56,7 +56,7 @@ const StudentRegistrationSchema = new mongoose.Schema(
     },
     paymentScreenshot: {
       type: String,
-      required: [true, 'Payment receipt photo is required.'],
+      default: '',
       select: false,
     },
     learningDepartment: {
@@ -133,6 +133,34 @@ const StudentRegistrationSchema = new mongoose.Schema(
       enum: ['Active', 'Pending', 'Completed', 'Paused'],
       default: 'Active',
     },
+    salesCallStatus: {
+      type: String,
+      enum: ['Called', 'Not Called', 'Busy', 'No Answer', 'Callback', '2x Called'],
+      default: 'Not Called',
+    },
+    salesFollowupStatus: {
+      type: String,
+      enum: ['Prospect', 'Pending', 'Completed', 'Scheduled', 'Cancelled', 'Imported'],
+      default: 'Pending',
+    },
+    salesSchedulePreference: {
+      type: String,
+      enum: ['Regular', 'Morning', 'Afternoon', 'Night', 'Weekend', 'Online', 'VIP', ''],
+      default: 'Regular',
+    },
+    salesPackageScope: {
+      type: String,
+      enum: ['Local', 'International', ''],
+      default: 'Local',
+    },
+    salesFollowupDate: {
+      type: Date,
+    },
+    salesFollowupNote: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     notes: {
       type: String,
       default: '',
@@ -158,6 +186,16 @@ const StudentRegistrationSchema = new mongoose.Schema(
       default: '',
       trim: true,
       lowercase: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+    },
+    agentId: {
+      type: String,
+      default: null,
+      index: true,
     },
   },
   { timestamps: true }

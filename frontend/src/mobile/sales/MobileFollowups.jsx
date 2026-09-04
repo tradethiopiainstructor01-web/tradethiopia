@@ -99,13 +99,13 @@ const theme = {
 };
 
 const defaultCourses = [
-  { _id: 'external-seed-0', name: 'International Trade Import Export', price: 0 },
-  { _id: 'external-seed-1', name: 'Stock Market Trading', price: 0 },
-  { _id: 'external-seed-2', name: 'Data Science', price: 0 },
-  { _id: 'external-seed-3', name: 'Coffee Cupping', price: 0 },
-  { _id: 'external-seed-4', name: 'TradeEthiopia Business TV & Radio', price: 0 },
-  { _id: 'external-seed-5', name: 'Digital Marketing for International Trade', price: 0 },
-  { _id: 'external-seed-6', name: 'International Trade Brokerage', price: 0 }
+  { _id: 'external-seed-0', name: 'Logistic', price: 9917 },
+  { _id: 'external-seed-1', name: 'Stock market', price: 9917 },
+  { _id: 'external-seed-2', name: 'digital marketing', price: 9917 },
+  { _id: 'external-seed-3', name: 'International trade', price: 9917 },
+  { _id: 'external-seed-4', name: 'Barista', price: 19899.99 },
+  { _id: 'external-seed-5', name: 'Coffee cupping', price: 35000 },
+  { _id: 'external-seed-6', name: 'coldcall', price: 0 }
 ];
 
 const emptyTrainingForm = {

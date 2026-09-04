@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Badge,
   Box,
   Button,
@@ -21,6 +27,7 @@ import {
   Heading,
   HStack,
   Icon,
+  IconButton,
   Image,
   Input,
   InputGroup,
@@ -45,6 +52,7 @@ import {
   Textarea,
   Th,
   Thead,
+  Tooltip,
   Tr,
   useColorModeValue,
   useDisclosure,
@@ -65,9 +73,12 @@ import {
   FiCamera,
   FiUploadCloud,
   FiTrash2,
+  FiRefreshCw,
+  FiPhoneCall,
+  FiPrinter,
 } from "react-icons/fi";
-import * as XLSX from "xlsx";
 import { useUserStore } from "../../store/user";
+import { getAuthItem } from "../../utils/authStorage";
 import {
   createStudentRegistration,
   deleteStudentRegistration,
@@ -75,8 +86,12 @@ import {
   getStudentRegistrations,
   updateStudentRegistration,
 } from "../../services/studentRegistrationService";
+import { fetchExternalCourses } from "../../services/api";
 import Layout from "./Layout";
 import ETHIOPIAN_BANKS from "../../utils/ethiopianBanks";
+import { DEFAULT_TRAINING_TITLES, TRAINING_TO_DEPARTMENT_MAP } from "../../utils/trainingTitles";
+import TessbinStudentA4Dossier from "../tessbin/TessbinStudentA4Dossier";
+import TessbinStudentListA4Report from "../tessbin/TessbinStudentListA4Report";
 
 const learningDepartments = [
   "AI for Business",
@@ -93,6 +108,7 @@ const timeSlotOptions = ["Morning", "Afternoon", "Night", "Weekend", "VIP"];
 const paymentOptions = ["Full Payment", "Half Payment"];
 const classCompletionOptions = ["Completed", "Not Completed", "Stopped"];
 const cocPaymentOptions = ["Paid", "Unpaid"];
+const STUDENTS_PER_PAGE = 25;
 
 const isCoffeeCuppingCourse = (registration = {}) => {
   const normalizeCourseName = (value) =>
@@ -103,6 +119,7 @@ const isCoffeeCuppingCourse = (registration = {}) => {
 };
 
 const initialForm = {
+  clientLocalId: "",
   studentId: "",
   fullName: "",
   email: "",
@@ -128,23 +145,36 @@ const initialForm = {
   classCompletionStatus: "Not Completed",
   cocPaymentStatus: "Unpaid",
   status: "Active",
+  salesCallStatus: "Not Called",
+  salesFollowupStatus: "Pending",
+  salesSchedulePreference: "Regular",
+  salesPackageScope: "Local",
+  salesFollowupDate: "",
+  salesFollowupNote: "",
   registeredBy: "",
   registeredByEmail: "",
   notes: "",
 };
 
-const getStudentName = (student = {}) =>
-  student.fullName ||
-  student.studentName ||
-  student["Student Name"] ||
-  student["Full Name"] ||
-  student.student_name ||
-  student.full_name ||
-  student.learnerName ||
-  student.learner ||
-  student.name ||
-  [student.firstName, student.lastName].filter(Boolean).join(" ") ||
-  "";
+const getStudentName = (student = {}) => {
+  if (!student) return "";
+  const name =
+    student.fullName ||
+    student.studentName ||
+    student["Student Name"] ||
+    student["Full Name"] ||
+    student.student_name ||
+    student.full_name ||
+    student.learnerName ||
+    student.learner ||
+    student.name ||
+    [student.firstName, student.lastName].filter(Boolean).join(" ") ||
+    "";
+  if (typeof name === "object" && name !== null) {
+    return name.fullName || name.name || name.username || "";
+  }
+  return typeof name === "string" ? name : String(name || "");
+};
 
 const normalizePaymentStatus = (value) => {
   const normalized = (value || "").toString().trim().toLowerCase();
@@ -182,17 +212,23 @@ const normalizeClassCompletionStatus = (value, classCompleted = false) => {
   return classCompleted ? "Completed" : "Not Completed";
 };
 
-const generateUniqueStudentId = (records = []) => {
-  const prefix = "CS-STU-";
-  const usedIds = new Set(records.map((student) => student.studentId).filter(Boolean));
+const generateUniqueStudentId = (records = [], workspace = "Customer Service") => {
+  const prefix = workspace === "Sales" ? "SL-STU-" : "CS-STU-";
+  const usedIds = new Set(
+    records.map((student) => (student.studentId || "").trim().toLowerCase()).filter(Boolean)
+  );
+
+  // Scan across any prefix ending with digits to get highest counter
   const latestNumber = records.reduce((highest, student) => {
-    const match = (student.studentId || "").match(/^CS-STU-(\d+)$/);
+    const rawId = (student.studentId || "").trim();
+    const match = rawId.match(/(?:CS-STU-|SL-STU-|STU-)?(\d+)$/i);
     return match ? Math.max(highest, Number.parseInt(match[1], 10) || 0) : highest;
   }, 0);
+
   let nextNumber = latestNumber + 1;
   let nextId = `${prefix}${String(nextNumber).padStart(4, "0")}`;
 
-  while (usedIds.has(nextId)) {
+  while (usedIds.has(nextId.toLowerCase())) {
     nextNumber += 1;
     nextId = `${prefix}${String(nextNumber).padStart(4, "0")}`;
   }
@@ -200,52 +236,69 @@ const generateUniqueStudentId = (records = []) => {
   return nextId;
 };
 
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+};
+
+const safeString = (val, fallback = "") => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "object") return val.fullName || val.name || val.username || fallback;
+  return String(val);
+};
+
 const normalizeStudent = (student = {}, index = 0) => ({
   ...initialForm,
   ...student,
   id: student.id || student._id || `legacy-${index}-${Date.now()}`,
-  studentId: student.studentId || student.studentID || student.registrationNo || `CS-STU-${String(index + 1).padStart(4, "0")}`,
+  studentId: safeString(student.studentId || student.studentID || student.registrationNo, `CS-STU-${String(index + 1).padStart(4, "0")}`),
   fullName: getStudentName(student),
-  nationalIdImage: student.nationalIdFrontImage || student.nationalIdImage || "",
-  nationalIdFrontImage: student.nationalIdFrontImage || student.nationalIdImage || "",
-  nationalIdBackImage: student.nationalIdBackImage || "",
-  passportPhoto: student.passportPhoto || "",
-  paymentScreenshot: student.paymentScreenshot || "",
-  learningDepartment: student.learningDepartment || student.department || student.learningDept || "",
-  program: student.program || student.course || student.trainingProgram || "",
+  nationalIdImage: safeString(student.nationalIdFrontImage || student.nationalIdImage),
+  nationalIdFrontImage: safeString(student.nationalIdFrontImage || student.nationalIdImage),
+  nationalIdBackImage: safeString(student.nationalIdBackImage),
+  passportPhoto: safeString(student.passportPhoto),
+  paymentScreenshot: safeString(student.paymentScreenshot),
+  learningDepartment: safeString(student.learningDepartment || student.department || student.learningDept),
+  program: safeString(student.program || student.course || student.trainingProgram),
   examDate: formatDate(student.examDate || student.testDate),
   enrollmentDate: formatDate(student.enrollmentDate || student.registrationDate || student.createdAt),
   trainingEndDate: formatDate(student.trainingEndDate || student.endDate),
   preferredTimeSlot: normalizeTimeSlot(student.preferredTimeSlot || student.timeSlot || student.section),
-  readinessStatus: student.readinessStatus || student.readiness || "Not assessed",
+  readinessStatus: safeString(student.readinessStatus || student.readiness, "Not assessed"),
   paymentOption: normalizePaymentOption(student.paymentOption || student.paymentPlan),
   paymentStatus: normalizePaymentStatus(student.paymentStatus || student.payment),
-  paymentBank: student.paymentBank || student.bankName || "",
-  fsNumber: student.fsNumber || student.receiptFsNumber || student.receiptNumber || "",
+  paymentBank: safeString(student.paymentBank || student.bankName),
+  fsNumber: safeString(student.fsNumber || student.receiptFsNumber || student.receiptNumber),
   classCompleted: normalizeClassCompletionStatus(student.classCompletionStatus || student.classStatus, normalizeBoolean(student.classCompleted)) === "Completed",
   classCompletionStatus: normalizeClassCompletionStatus(student.classCompletionStatus || student.classStatus, normalizeBoolean(student.classCompleted)),
   cocPaymentStatus: student.cocPaymentStatus === "Paid" ? "Paid" : "Unpaid",
-  registeredBy:
+  salesCallStatus: safeString(student.salesCallStatus, "Not Called"),
+  salesFollowupStatus: safeString(student.salesFollowupStatus, "Pending"),
+  salesSchedulePreference: safeString(student.salesSchedulePreference, "Regular"),
+  salesPackageScope: safeString(student.salesPackageScope, "Local"),
+  salesFollowupDate: formatDate(student.salesFollowupDate),
+  salesFollowupNote: safeString(student.salesFollowupNote),
+  registeredBy: safeString(
     student.registeredBy ||
     student.registeredByName ||
     student.csMember ||
     student.createdByName ||
-    student.createdBy ||
-    "Unknown CS member",
-  registeredByEmail: student.registeredByEmail || student.registrarEmail || student.createdByEmail || "",
+    student.createdBy,
+    "Unknown CS member"
+  ),
+  registeredByEmail: safeString(student.registeredByEmail || student.registrarEmail || student.createdByEmail),
+  createdBy: (student.createdBy?._id || student.createdBy || "").toString(),
+  agentId: (student.agentId || "").toString(),
+  updatedBy: safeString(student.updatedBy),
+  updatedByEmail: safeString(student.updatedByEmail),
   createdAt: student.createdAt || student.registrationDate || new Date().toISOString(),
 });
-
-const formatDate = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toISOString().slice(0, 10);
-};
 
 const formatDateTime = (value) => {
   if (!value) return "";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 };
 
 const safeSheetName = (name) =>
@@ -255,6 +308,7 @@ const safeSheetName = (name) =>
     .trim() || "Unassigned";
 
 const getStateColor = (status) => {
+  if (typeof status !== "string") return "gray";
   if (status === "Completed" || status === "Ready" || status === "Paid" || status === "Full Payment" || status === "Morning") return "green";
   if (status === "Active" || status === "In preparation" || status === "Afternoon") return "blue";
   if (status === "Pending" || status === "Needs support" || status === "Waiting" || status === "Half Payment" || status === "Weekend") return "orange";
@@ -267,7 +321,8 @@ const getStateColor = (status) => {
 
 const getClassOutcome = (student) => {
   const record = student || {};
-  return record.classCompletionStatus || (record.classCompleted ? "Completed" : "Not Completed");
+  const outcome = record.classCompletionStatus || (record.classCompleted ? "Completed" : "Not Completed");
+  return typeof outcome === "string" ? outcome : "Not Completed";
 };
 
 const studentExportHeaders = [
@@ -298,17 +353,29 @@ const studentExportHeaders = [
   "Last Updated At",
 ];
 
-const DetailItem = ({ label, value }) => (
-  <Box>
-    <Text fontSize="xs" fontWeight="800" color="gray.500" textTransform="uppercase">
-      {label}
-    </Text>
-    <Text fontWeight="700">{value || "Not provided"}</Text>
-  </Box>
-);
+const DetailItem = ({ label, value }) => {
+  let displayValue = value;
+  if (displayValue && typeof displayValue === "object") {
+    displayValue = displayValue.fullName || displayValue.name || displayValue.username || "";
+  }
+  return (
+    <Box>
+      <Text fontSize="xs" fontWeight="800" color="gray.500" textTransform="uppercase">
+        {label}
+      </Text>
+      <Text fontWeight="700">{displayValue || "Not provided"}</Text>
+    </Box>
+  );
+};
 
-const StudentRegistrationPage = () => {
+const StudentRegistrationShell = ({ embedded, children }) => {
+  if (embedded) return children;
+  return <Layout activeSection="Student Registration">{children}</Layout>;
+};
+
+const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer Service" }) => {
   const toast = useToast();
+  const fullNameInputRef = useRef(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
     isOpen: isSectionCountsOpen,
@@ -325,10 +392,21 @@ const StudentRegistrationPage = () => {
     onOpen: onRegistrationOpen,
     onClose: onRegistrationClose,
   } = useDisclosure();
+  const {
+    isOpen: isA4DossierOpen,
+    onOpen: onA4DossierOpen,
+    onClose: onA4DossierClose,
+  } = useDisclosure();
+  const {
+    isOpen: isA4ReportOpen,
+    onOpen: onA4ReportOpen,
+    onClose: onA4ReportClose,
+  } = useDisclosure();
   const currentUser = useUserStore((state) => state.currentUser);
   const [students, setStudents] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState("");
+  const [trainingTitles, setTrainingTitles] = useState(DEFAULT_TRAINING_TITLES);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isSavingStudent, setIsSavingStudent] = useState(false);
@@ -345,6 +423,10 @@ const StudentRegistrationPage = () => {
   const [sortDirection, setSortDirection] = useState("desc");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("list");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [studentToDelete, setStudentToDelete] = useState(null);
+  const [isDeletingStudent, setIsDeletingStudent] = useState(false);
+  const cancelDeleteRef = useRef(null);
 
   const pageBg = useColorModeValue("#f8fafc", "#090d1a");
   const cardBg = useColorModeValue("white", "#0f172a");
@@ -354,55 +436,112 @@ const StudentRegistrationPage = () => {
   const borderColor = useColorModeValue("rgba(226,232,240,0.95)", "rgba(148,163,184,0.22)");
   const fieldBg = useColorModeValue("white", "whiteAlpha.50");
   const softPanelBg = useColorModeValue("rgba(240,253,244,0.72)", "rgba(22,101,52,0.16)");
+  const salesPanelBg = useColorModeValue("blue.50", "whiteAlpha.50");
   const rowHoverBg = useColorModeValue("green.50", "whiteAlpha.100");
 
+  const authUser = currentUser || useUserStore.getState().currentUser || {};
   const registrarName =
-    currentUser?.fullName ||
-    currentUser?.name ||
-    [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(" ") ||
+    authUser?.fullName ||
+    authUser?.name ||
+    authUser?.username ||
+    [authUser?.firstName, authUser?.lastName].filter(Boolean).join(" ") ||
+    getAuthItem("userName") ||
+    getAuthItem("userFullName") ||
     localStorage.getItem("userName") ||
-    "Customer Service Member";
+    localStorage.getItem("userFullName") ||
+    localStorage.getItem("fullName") ||
+    `${workspaceLabel} Member`;
 
-  const registrarEmail = currentUser?.email || localStorage.getItem("userEmail") || "";
+  const registrarEmail = authUser?.email || getAuthItem("userEmail") || localStorage.getItem("userEmail") || "";
+
+  const loadStudents = useCallback(async () => {
+    setIsLoadingStudents(true);
+
+    try {
+      const user = currentUser || useUserStore.getState().currentUser || {};
+      const userRole = (user?.role || getAuthItem("userRole") || localStorage.getItem("userRole") || "").toLowerCase();
+      const isSales = workspaceLabel === "Sales" || ["sales", "agent", "salesmanager", "sales manager", "sales_manager"].includes(userRole) || userRole.includes("sales") || userRole.includes("agent");
+      const databaseStudents = await getStudentRegistrations(isSales ? { workspace: "Sales" } : {});
+      let normalizedDatabaseStudents = Array.isArray(databaseStudents)
+        ? databaseStudents.map(normalizeStudent)
+        : [];
+
+      if (isSales) {
+        const currentUserId = (user?.id || user?._id || getAuthItem("userId") || localStorage.getItem("userId") || "").toString().trim().toLowerCase();
+        const currentEmail = (user?.email || getAuthItem("userEmail") || localStorage.getItem("userEmail") || "").trim().toLowerCase();
+        const rawNames = [
+          user?.fullName,
+          user?.name,
+          user?.username,
+          [user?.firstName, user?.lastName].filter(Boolean).join(" "),
+          getAuthItem("userName"),
+          getAuthItem("userFullName"),
+          localStorage.getItem("userName"),
+          localStorage.getItem("userFullName"),
+          localStorage.getItem("fullName"),
+        ]
+          .filter(Boolean)
+          .map((n) => n.trim().toLowerCase().replace(/\s+/g, ' '))
+          .filter((n) => n.length > 0 && n !== "null" && n !== "undefined" && !['customer success', 'sales followup team', 'customer service followup', 'cs followup', 'unknown cs member'].includes(n));
+        const userNames = Array.from(new Set(rawNames));
+
+        normalizedDatabaseStudents = normalizedDatabaseStudents.filter((student) => {
+          const studentCreatedBy = (student.createdBy?._id || student.createdBy || "").toString().trim().toLowerCase();
+          const studentAgentId = (student.agentId || "").toString().trim().toLowerCase();
+          const studentEmail = (student.registeredByEmail || "").toString().trim().toLowerCase();
+          const studentName = (student.registeredBy || "").toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
+          const matchesId = Boolean(currentUserId && (studentCreatedBy === currentUserId || studentAgentId === currentUserId));
+          const matchesEmail = Boolean(currentEmail && studentEmail && studentEmail === currentEmail);
+          const matchesName = Boolean(studentName && userNames.some((name) => name && (studentName === name || studentName.includes(name) || name.includes(studentName))));
+
+          return matchesId || matchesEmail || matchesName;
+        });
+      }
+
+      setStudents(normalizedDatabaseStudents);
+      setStudentLoadError("");
+    } catch (error) {
+      setStudents([]);
+      setStudentLoadError(error.response?.data?.message || error.message || "Database is not reachable.");
+      toast({
+        title: "Student database unavailable",
+        description: "Student registration only uses the database. Please check the backend and MongoDB connection.",
+        status: "error",
+        duration: 3500,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  }, [currentUser, workspaceLabel, toast]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadStudents = async () => {
-      if (isMounted) setIsLoadingStudents(true);
-
+    const loadCourses = async () => {
       try {
-        const databaseStudents = await getStudentRegistrations();
-        const normalizedDatabaseStudents = Array.isArray(databaseStudents)
-          ? databaseStudents.map(normalizeStudent)
-          : [];
-
-        if (isMounted) {
-          setStudents(normalizedDatabaseStudents);
-          setStudentLoadError("");
+        const data = await fetchExternalCourses();
+        const normalized = (Array.isArray(data) ? data : [])
+          .map((course) => course?.name || course?.title || course?.courseName)
+          .filter(Boolean);
+        if (isMounted && normalized.length) {
+          const combined = Array.from(new Set([...DEFAULT_TRAINING_TITLES, ...normalized]));
+          setTrainingTitles(combined);
         }
-      } catch (error) {
-        if (isMounted) {
-          setStudents([]);
-          setStudentLoadError(error.response?.data?.message || error.message || "Database is not reachable.");
-          toast({
-            title: "Student database unavailable",
-            description: "Student registration only uses the database. Please check the backend and MongoDB connection.",
-            status: "error",
-            duration: 3500,
-            isClosable: true,
-          });
-        }
-      } finally {
-        if (isMounted) setIsLoadingStudents(false);
+      } catch (err) {
+        // Keep DEFAULT_TRAINING_TITLES
       }
     };
 
     loadStudents();
+    loadCourses();
     return () => {
       isMounted = false;
     };
-  }, [toast]);
+  }, [loadStudents]);
+
+
 
   const groupedStudents = useMemo(() => {
     return students.reduce((groups, student) => {
@@ -491,17 +630,32 @@ const StudentRegistrationPage = () => {
     [selectedTimeSlotSection, students]
   );
 
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE));
+  const visibleStudents = useMemo(() => {
+    const start = (currentPage - 1) * STUDENTS_PER_PAGE;
+    return filteredStudents.slice(start, start + STUDENTS_PER_PAGE);
+  }, [currentPage, filteredStudents]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [classCompletionFilter, cocPaymentFilter, departmentFilter, paymentFilter, readinessFilter, searchQuery, sortBy, sortDirection, statusFilter, timeSlotFilter, viewMode]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const filteredGroups = useMemo(() => {
-    return filteredStudents.reduce((groups, student) => {
+    return visibleStudents.reduce((groups, student) => {
       const key = student.learningDepartment || "Unassigned";
       if (!groups[key]) groups[key] = [];
       groups[key].push(student);
       return groups;
     }, {});
-  }, [filteredStudents]);
+  }, [visibleStudents]);
 
   const handleChange = (event) => {
     const { checked, name, type, value } = event.target;
+    if (!name || type === "file") return;
     if (name === "classCompleted") {
       setForm((prev) => ({
         ...prev,
@@ -520,7 +674,10 @@ const StudentRegistrationPage = () => {
     }
     if (name === "learningDepartment" || name === "program") {
       setForm((prev) => {
-        const next = { ...prev, [name]: value };
+        let next = { ...prev, [name]: value };
+        if (name === "program" && value && !prev.learningDepartment && TRAINING_TO_DEPARTMENT_MAP[value]) {
+          next.learningDepartment = TRAINING_TO_DEPARTMENT_MAP[value];
+        }
         return isCoffeeCuppingCourse(next)
           ? next
           : { ...next, cocPaymentStatus: "Unpaid" };
@@ -536,11 +693,13 @@ const StudentRegistrationPage = () => {
   };
 
   const openRegistrationForm = () => {
-    const nextId = generateUniqueStudentId(students);
+    const nextId = generateUniqueStudentId(students, workspaceLabel);
     setForm({
       ...initialForm,
+      clientLocalId: `student-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       studentId: nextId,
       enrollmentDate: new Date().toISOString().split("T")[0],
+      salesFollowupDate: new Date().toISOString().split("T")[0],
       registeredBy: registrarName,
       registeredByEmail: registrarEmail,
     });
@@ -631,6 +790,7 @@ const StudentRegistrationPage = () => {
     if (editingId) {
       const updatedPayload = {
         ...form,
+        syncToSalesFollowup: workspaceLabel === "Sales",
         cocPaymentStatus,
         fullName: form.fullName.trim(),
         classCompleted: form.classCompletionStatus === "Completed",
@@ -642,9 +802,8 @@ const StudentRegistrationPage = () => {
       };
 
       try {
-        const updated = await updateStudentRegistration(editingId, updatedPayload);
-        const normalizedUpdated = normalizeStudent(updated);
-        setStudents((prev) => prev.map((student) => (student.id === editingId ? normalizedUpdated : student)));
+        await updateStudentRegistration(editingId, updatedPayload);
+        await loadStudents();
       } catch (error) {
         if (error.response?.status === 409) {
           toast({
@@ -687,8 +846,8 @@ const StudentRegistrationPage = () => {
     const newStudent = {
       ...form,
       cocPaymentStatus,
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      studentId: requestedStudentId || generateUniqueStudentId(students),
+      id: form.clientLocalId || `student-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      studentId: requestedStudentId || generateUniqueStudentId(students, workspaceLabel),
       fullName: form.fullName.trim(),
       classCompleted: form.classCompletionStatus === "Completed",
       registeredBy: form.registeredBy?.trim() || registrarName,
@@ -700,8 +859,9 @@ const StudentRegistrationPage = () => {
       const created = await createStudentRegistration({
         ...newStudent,
         clientLocalId: newStudent.id,
+        syncToSalesFollowup: workspaceLabel === "Sales",
       });
-      setStudents((prev) => [normalizeStudent(created), ...prev]);
+      await loadStudents();
     } catch (error) {
       if (error.response?.status === 409) {
         toast({
@@ -716,9 +876,9 @@ const StudentRegistrationPage = () => {
       }
       toast({
         title: "Database save failed",
-        description: error.response?.data?.message || "Student records are database-only. The student was not saved.",
+        description: error.response?.data?.error || error.response?.data?.message || "Student records are database-only. The student was not saved.",
         status: "error",
-        duration: 3500,
+        duration: 4000,
         isClosable: true,
       });
       setIsSavingStudent(false);
@@ -739,11 +899,16 @@ const StudentRegistrationPage = () => {
     setIsSavingStudent(false);
     toast({
       title: "Student registered",
-      description: `${newStudent.fullName} was added to ${newStudent.learningDepartment} and synced to TESBINN records.`,
+      description: workspaceLabel === "Sales"
+        ? `${newStudent.fullName} was registered and added to the Sales Customer Followup table.`
+        : `${newStudent.fullName} was added to ${newStudent.learningDepartment} and synced to TESBINN records.`,
       status: "success",
       duration: 3500,
       isClosable: true,
     });
+    if (workspaceLabel === "Sales") {
+      window.dispatchEvent(new CustomEvent("navigateToSection", { detail: { section: "Followup" } }));
+    }
   };
 
   const handleEdit = async (student) => {
@@ -772,27 +937,52 @@ const StudentRegistrationPage = () => {
       enrollmentDate: formatDate(fullStudent.enrollmentDate),
       trainingEndDate: formatDate(fullStudent.trainingEndDate || fullStudent.endDate),
       examDate: formatDate(fullStudent.examDate),
+      salesFollowupDate: formatDate(fullStudent.salesFollowupDate),
+      salesCallStatus: fullStudent.salesCallStatus || "Not Called",
+      salesFollowupStatus: fullStudent.salesFollowupStatus || "Pending",
+      salesSchedulePreference: fullStudent.salesSchedulePreference || "Regular",
+      salesPackageScope: fullStudent.salesPackageScope || "Local",
+      salesFollowupNote: fullStudent.salesFollowupNote || "",
     });
     onRegistrationOpen();
   };
 
-  const handleDelete = async (student) => {
-    const confirmed = window.confirm(`Delete ${student.fullName}'s registration?`);
-    if (!confirmed) return;
+  const handleDelete = (student) => {
+    if (!student) return;
+    setStudentToDelete(student);
+  };
+
+  const confirmDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    const targetId = studentToDelete.id || studentToDelete._id;
 
     try {
-      await deleteStudentRegistration(student.id);
-      setStudents((prev) => prev.filter((item) => item.id !== student.id));
-      if (editingId === student.id) resetForm();
-      toast({ title: "Student deleted", status: "info", duration: 2500, isClosable: true });
+      setIsDeletingStudent(true);
+      await deleteStudentRegistration(targetId);
+      await loadStudents();
+      if (editingId === targetId) resetForm();
+      if (selectedStudent && (selectedStudent.id || selectedStudent._id) === targetId) {
+        onClose();
+        setSelectedStudent(null);
+      }
+      toast({
+        title: "Student deleted",
+        description: `${studentToDelete.fullName || "Student"} registration was deleted successfully.`,
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+      setStudentToDelete(null);
     } catch (error) {
       toast({
         title: "Delete failed",
-        description: "The student could not be deleted from the database.",
+        description: error.response?.data?.message || "The student could not be deleted from the database.",
         status: "error",
         duration: 3500,
         isClosable: true,
       });
+    } finally {
+      setIsDeletingStudent(false);
     }
   };
 
@@ -836,7 +1026,7 @@ const StudentRegistrationPage = () => {
     "Last Updated At": formatDateTime(student.updatedAt),
   });
 
-  const makeWorksheet = (rows, columns = []) => {
+  const makeWorksheet = (XLSX, rows, columns = []) => {
     const worksheet = XLSX.utils.json_to_sheet(rows, {
       header: rows.length && "Student Name" in rows[0] ? studentExportHeaders : undefined,
     });
@@ -872,16 +1062,17 @@ const StudentRegistrationPage = () => {
     return worksheet;
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!filteredStudents.length) {
       toast({ title: "No student data to export for the selected filters.", status: "info", duration: 2500, isClosable: true });
       return;
     }
 
+    const XLSX = await import("xlsx");
     const workbook = XLSX.utils.book_new();
     const detailRows = filteredStudents.map(toExportRow);
 
-    XLSX.utils.book_append_sheet(workbook, makeWorksheet(detailRows), "Student Details");
+    XLSX.utils.book_append_sheet(workbook, makeWorksheet(XLSX, detailRows), "Student Details");
 
     const exportGroups = filteredStudents.reduce((groups, student) => {
       const key = student.learningDepartment || "Unassigned";
@@ -902,14 +1093,14 @@ const StudentRegistrationPage = () => {
 
     XLSX.utils.book_append_sheet(
       workbook,
-      makeWorksheet(summaryRows, [{ wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 24 }]),
+      makeWorksheet(XLSX, summaryRows, [{ wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 24 }]),
       "Department Summary"
     );
 
     Object.entries(exportGroups)
       .sort(([a], [b]) => a.localeCompare(b))
       .forEach(([department, records]) => {
-        XLSX.utils.book_append_sheet(workbook, makeWorksheet(records.map(toExportRow)), safeSheetName(department));
+        XLSX.utils.book_append_sheet(workbook, makeWorksheet(XLSX, records.map(toExportRow)), safeSheetName(department));
       });
 
     const label = departmentFilter === "All" ? "All_Departments" : departmentFilter.replace(/\s+/g, "_");
@@ -933,7 +1124,21 @@ const StudentRegistrationPage = () => {
   };
 
   const renderActions = (student) => (
-    <ButtonGroup size="xs" variant="outline" spacing={2}>
+    <ButtonGroup size="xs" variant="outline" spacing={1.5}>
+      {workspaceLabel !== "Sales" && (
+        <Tooltip label="Print Official A4 Registration Dossier">
+          <IconButton
+            icon={<FiPrinter />}
+            colorScheme="blue"
+            variant="solid"
+            aria-label="Print A4 Dossier"
+            onClick={() => {
+              setSelectedStudent(student);
+              onA4DossierOpen();
+            }}
+          />
+        </Tooltip>
+      )}
       <Button
         leftIcon={<ViewIcon />}
         colorScheme="green"
@@ -948,29 +1153,43 @@ const StudentRegistrationPage = () => {
   );
 
   return (
-    <Layout activeSection="Student Registration">
+    <StudentRegistrationShell embedded={embedded}>
+      {!isRegistrationOpen && (
       <Box minH="100vh" bg={pageBg} p={{ base: 4, md: 6 }}>
         <VStack spacing={6} align="stretch">
           <Flex justify="space-between" align={{ base: "flex-start", lg: "center" }} gap={4} direction={{ base: "column", lg: "row" }}>
             <Box>
               <HStack spacing={2} mb={2} flexWrap="wrap">
-                <Badge colorScheme="green" borderRadius="full" px={3} py={1}>Customer Service</Badge>
-                <Badge colorScheme="blue" borderRadius="full" px={3} py={1}>Learning Registry</Badge>
+                <Badge colorScheme={workspaceLabel === "Sales" ? "teal" : "green"} borderRadius="full" px={3} py={1}>
+                  {workspaceLabel === "Sales" ? "My Sales Registrations" : workspaceLabel}
+                </Badge>
+                <Badge colorScheme="blue" borderRadius="full" px={3} py={1}>
+                  {workspaceLabel === "Sales" ? "Registered By Me" : "Learning Registry"}
+                </Badge>
                 <Badge colorScheme="purple" borderRadius="full" px={3} py={1}>{filteredStudents.length} visible</Badge>
               </HStack>
-              <Heading size="lg" color={headingColor}>Student Registration</Heading>
-              <Text color={mutedText} mt={1}>Register, review, edit, and export students by assigned Learning Department.</Text>
+              <Heading size="lg" color={headingColor}>
+                {workspaceLabel === "Sales" ? "My Registered Students" : "Student Registration"}
+              </Heading>
+              <Text color={mutedText} mt={1}>
+                {workspaceLabel === "Sales"
+                  ? `Viewing students registered by you (${registrarName}). Records from other sales reps or departments are restricted.`
+                  : "Register, review, edit, and export students by assigned Learning Department."}
+              </Text>
             </Box>
-            <ButtonGroup>
+            <ButtonGroup flexWrap="wrap" spacing={2}>
               <Button leftIcon={<FiUserPlus />} colorScheme="green" onClick={openRegistrationForm}>Register Student</Button>
+              {workspaceLabel !== "Sales" && (
+                <Button leftIcon={<FiPrinter />} colorScheme="blue" onClick={onA4ReportOpen}>Print Directory (A4)</Button>
+              )}
               <Button leftIcon={<FiClock />} colorScheme="blue" variant="outline" onClick={onSectionCountsOpen}>View Sections</Button>
-              <Button leftIcon={<DownloadIcon />} colorScheme="green" onClick={handleExcelPreview}>Preview Excel</Button>
+              <Button leftIcon={<DownloadIcon />} colorScheme="green" variant="outline" onClick={handleExcelPreview}>Preview Excel</Button>
             </ButtonGroup>
           </Flex>
 
           <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
             <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px">
-              <CardBody><HStack justify="space-between"><Stat><StatLabel color={mutedText}>Registered Students</StatLabel><StatNumber color={headingColor}>{students.length}</StatNumber></Stat><Icon as={FiUsers} boxSize={6} color="green.500" /></HStack></CardBody>
+              <CardBody><HStack justify="space-between"><Stat><StatLabel color={mutedText}>{workspaceLabel === "Sales" ? "My Registered Students" : "Registered Students"}</StatLabel><StatNumber color={headingColor}>{students.length}</StatNumber></Stat><Icon as={FiUsers} boxSize={6} color="green.500" /></HStack></CardBody>
             </Card>
             <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px">
               <CardBody><HStack justify="space-between"><Stat><StatLabel color={mutedText}>Visible Records</StatLabel><StatNumber color={headingColor}>{filteredStudents.length}</StatNumber></Stat><Icon as={FiList} boxSize={6} color="blue.500" /></HStack></CardBody>
@@ -988,7 +1207,9 @@ const StudentRegistrationPage = () => {
               <CardBody py={3}>
                 <HStack justify="space-between" gap={3} flexWrap="wrap">
                   <Text fontWeight="800" color={headingColor}>Loading student registrations...</Text>
-                  <Text fontSize="sm" color={mutedText}>Reading student records from the database.</Text>
+                  <Text fontSize="sm" color={mutedText}>
+                    {workspaceLabel === "Sales" ? "Loading your registered students..." : "Reading student records from the database."}
+                  </Text>
                 </HStack>
               </CardBody>
             </Card>
@@ -1121,7 +1342,7 @@ const StudentRegistrationPage = () => {
                         </Tr>
                       </Thead>
                       <Tbody>
-                        {filteredStudents.length ? filteredStudents.map((student) => (
+                        {visibleStudents.length ? visibleStudents.map((student) => (
                           <Tr key={student.id} _hover={{ bg: rowHoverBg }}>
                             <Td>
                               <Text fontWeight="800" color={headingColor}>{student.fullName}</Text>
@@ -1139,17 +1360,43 @@ const StudentRegistrationPage = () => {
                     </Table>
                   </TableContainer>
                 )}
+
+                {filteredStudents.length > STUDENTS_PER_PAGE && (
+                  <Flex justify="space-between" align="center" gap={3} mt={5} flexWrap="wrap">
+                    <Text fontSize="sm" color={mutedText}>
+                      Showing {(currentPage - 1) * STUDENTS_PER_PAGE + 1}-{Math.min(currentPage * STUDENTS_PER_PAGE, filteredStudents.length)} of {filteredStudents.length}
+                    </Text>
+                    <ButtonGroup size="sm" variant="outline">
+                      <Button onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} isDisabled={currentPage === 1}>Previous</Button>
+                      <Button pointerEvents="none" variant="ghost">Page {currentPage} of {totalPages}</Button>
+                      <Button onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} isDisabled={currentPage === totalPages}>Next</Button>
+                    </ButtonGroup>
+                  </Flex>
+                )}
               </CardBody>
             </Card>
           </Box>
         </VStack>
       </Box>
+      )}
 
-      <Drawer isOpen={isRegistrationOpen} placement="right" onClose={closeRegistrationForm} size="xl">
+      <Drawer
+        isOpen={isRegistrationOpen}
+        placement="right"
+        onClose={closeRegistrationForm}
+        size="xl"
+        initialFocusRef={fullNameInputRef}
+      >
         <DrawerOverlay />
-        <DrawerContent bg={pageBg} h="100dvh" maxH="100dvh" maxW={{ base: "100vw", md: "760px", xl: "860px" }}>
+        <DrawerContent
+          bg={pageBg}
+          h="100dvh"
+          maxH="100dvh"
+          maxW={{ base: "100vw", md: "760px", xl: "860px" }}
+          pointerEvents="auto"
+        >
           <DrawerCloseButton />
-          <DrawerHeader borderBottomWidth="1px" borderColor={borderColor} bg={cardBg} flexShrink={0} pr={12}>
+          <DrawerHeader borderBottomWidth="1px" borderColor={borderColor} bg={cardBg} flexShrink={0} pr={12} zIndex={2}>
             <HStack spacing={3}>
               <Box p={3} borderRadius="14px" bg={softPanelBg}>
                 <Icon as={FiUserPlus} boxSize={5} color="green.600" />
@@ -1160,16 +1407,46 @@ const StudentRegistrationPage = () => {
               </Box>
             </HStack>
           </DrawerHeader>
-          <Box as="form" onSubmit={handleSubmit} display="flex" flexDirection="column" flex="1" minH={0}>
-            <DrawerBody py={5} flex="1" minH={0} overflowY="auto">
+          <Box
+            as="form"
+            onSubmit={handleSubmit}
+            onKeyDown={(event) => event.stopPropagation()}
+            display="flex"
+            flexDirection="column"
+            flex="1"
+            minH={0}
+            overflow="hidden"
+            pointerEvents="auto"
+          >
+            <DrawerBody py={5} pb={8} flex="1" minH={0} overflowY="auto" overscrollBehavior="contain">
               <VStack spacing={4} align="stretch">
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
                   <FormControl>
                     <Flex justify="space-between" align="center" mb={1}>
                       <FormLabel mb={0}>Student ID</FormLabel>
-                      <Badge colorScheme="purple" fontSize="10px" px={2} py={0.5} borderRadius="full">
-                        Auto-Generated
-                      </Badge>
+                      <HStack spacing={1}>
+                        <Badge colorScheme={workspaceLabel === "Sales" ? "blue" : "purple"} fontSize="10px" px={2} py={0.5} borderRadius="full">
+                          {workspaceLabel === "Sales" ? "Sales Unique ID" : "Auto-Generated"}
+                        </Badge>
+                        {!editingId && (
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="blue"
+                            leftIcon={<FiRefreshCw />}
+                            onClick={() => {
+                              const freshId = generateUniqueStudentId(students, workspaceLabel);
+                              setForm((prev) => ({ ...prev, studentId: freshId }));
+                            }}
+                            title="Regenerate unique ID"
+                            fontSize="10px"
+                            h="20px"
+                            px={1.5}
+                          >
+                            Refresh
+                          </Button>
+                        )}
+                      </HStack>
                     </Flex>
                     <Input
                       name="studentId"
@@ -1179,14 +1456,33 @@ const StudentRegistrationPage = () => {
                       bg={softPanelBg}
                       fontWeight="700"
                       cursor="not-allowed"
+                      borderColor={borderColor}
                     />
                   </FormControl>
-                  <FormControl isRequired><FormLabel>Full Name</FormLabel><Input name="fullName" value={form.fullName} onChange={handleChange} placeholder="Student full name" bg={fieldBg} /></FormControl>
+                  <FormControl isRequired><FormLabel>Full Name</FormLabel><Input ref={fullNameInputRef} name="fullName" value={form.fullName} onChange={handleChange} placeholder="Student full name" bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Email (Optional)</FormLabel><Input name="email" type="email" value={form.email} onChange={handleChange} placeholder="student@example.com" bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Phone</FormLabel><Input name="phone" value={form.phone} onChange={handleChange} placeholder="+251..." bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Gender</FormLabel><Select name="gender" value={form.gender} onChange={handleChange} bg={fieldBg} placeholder="Select gender"><option value="Female">Female</option><option value="Male">Male</option></Select></FormControl>
                   <FormControl isRequired><FormLabel>Learning Department</FormLabel><Select name="learningDepartment" value={form.learningDepartment} onChange={handleChange} bg={fieldBg} placeholder="Assign department">{form.learningDepartment && !learningDepartments.includes(form.learningDepartment) && <option value={form.learningDepartment}>{form.learningDepartment}</option>}{learningDepartments.map((department) => <option key={department} value={department}>{department}</option>)}</Select></FormControl>
-                  <FormControl><FormLabel>Program / Course</FormLabel><Input name="program" value={form.program} onChange={handleChange} placeholder="Course or program name" bg={fieldBg} /></FormControl>
+                  <FormControl>
+                    <FormLabel>Training Title</FormLabel>
+                    <Select
+                      name="program"
+                      value={form.program}
+                      onChange={handleChange}
+                      placeholder="Select training title"
+                      bg={fieldBg}
+                    >
+                      {form.program && !trainingTitles.includes(form.program) && (
+                        <option value={form.program}>{form.program}</option>
+                      )}
+                      {trainingTitles.map((title) => (
+                        <option key={title} value={title}>
+                          {title}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
                   <FormControl><FormLabel>Enrollment Date</FormLabel><Input name="enrollmentDate" type="date" value={form.enrollmentDate} onChange={handleChange} bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Training End Date</FormLabel><Input name="trainingEndDate" type="date" value={form.trainingEndDate} onChange={handleChange} bg={fieldBg} /></FormControl>
                   <FormControl><FormLabel>Exam Date</FormLabel><Input name="examDate" type="date" value={form.examDate} onChange={handleChange} bg={fieldBg} /></FormControl>
@@ -1224,6 +1520,164 @@ const StudentRegistrationPage = () => {
                     </FormControl>
                   )}
                   <FormControl><FormLabel>Registration Status</FormLabel><Select name="status" value={form.status} onChange={handleChange} bg={fieldBg}><option value="Active">Active</option><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="Paused">Paused</option></Select></FormControl>
+                  {workspaceLabel === "Sales" && (
+                    <Box
+                      gridColumn={{ base: "auto", md: "1 / -1" }}
+                      border="2px solid"
+                      borderColor="blue.300"
+                      borderRadius="20px"
+                      p={{ base: 4, md: 5 }}
+                      bg={salesPanelBg}
+                      boxShadow="0 4px 14px rgba(59, 130, 246, 0.08)"
+                      position="relative"
+                      overflow="hidden"
+                    >
+                      <Box
+                        position="absolute"
+                        top={0}
+                        left={0}
+                        right={0}
+                        h="4px"
+                        bgGradient="linear(to-r, blue.400, teal.400)"
+                      />
+                      <Flex justify="space-between" align={{ base: "flex-start", sm: "center" }} mb={3} flexWrap="wrap" gap={2}>
+                        <HStack spacing={2.5}>
+                          <Box p={2} borderRadius="10px" bg="blue.500" color="white">
+                            <Icon as={FiPhoneCall} boxSize={4} />
+                          </Box>
+                          <Box>
+                            <HStack spacing={2}>
+                              <Heading size="sm" color={headingColor}>
+                                Customer Follow-up Integration
+                              </Heading>
+                              <Badge colorScheme="blue" borderRadius="full" px={2} py={0.5} fontSize="10px">
+                                Sales CRM Sync
+                              </Badge>
+                            </HStack>
+                            <Text fontSize="xs" color={mutedText} mt={0.5}>
+                              Customer contact details and assigned program sync seamlessly to the Sales Customer Followup table.
+                            </Text>
+                          </Box>
+                        </HStack>
+                        <Badge colorScheme="teal" variant="subtle" px={2.5} py={1} borderRadius="md" fontSize="xs">
+                          {form.program || form.learningDepartment || "Course Linked"}
+                        </Badge>
+                      </Flex>
+                      <Divider borderColor="blue.200" mb={4} />
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                        <FormControl>
+                          <FormLabel fontSize="xs" fontWeight="700" textTransform="uppercase" color={mutedText}>
+                            Call Status
+                          </FormLabel>
+                          <Select
+                            name="salesCallStatus"
+                            value={form.salesCallStatus}
+                            onChange={handleChange}
+                            bg={fieldBg}
+                            borderColor="blue.200"
+                            _focus={{ borderColor: "blue.500", boxShadow: "0 0 0 1px #3182ce" }}
+                          >
+                            {['Not Called', 'Called', 'Busy', 'No Answer', 'Callback', '2x Called'].map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel fontSize="xs" fontWeight="700" textTransform="uppercase" color={mutedText}>
+                            Follow-up Status
+                          </FormLabel>
+                          <Select
+                            name="salesFollowupStatus"
+                            value={form.salesFollowupStatus}
+                            onChange={handleChange}
+                            bg={fieldBg}
+                            borderColor="blue.200"
+                            _focus={{ borderColor: "blue.500", boxShadow: "0 0 0 1px #3182ce" }}
+                          >
+                            {['Prospect', 'Pending', 'Scheduled', 'Completed', 'Cancelled', 'Imported'].map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel fontSize="xs" fontWeight="700" textTransform="uppercase" color={mutedText}>
+                            Schedule / Shift Preference
+                          </FormLabel>
+                          <Select
+                            name="salesSchedulePreference"
+                            value={form.salesSchedulePreference}
+                            onChange={handleChange}
+                            bg={fieldBg}
+                            borderColor="blue.200"
+                            _focus={{ borderColor: "blue.500", boxShadow: "0 0 0 1px #3182ce" }}
+                          >
+                            {['Regular', 'Morning', 'Afternoon', 'Night', 'Weekend', 'Online', 'VIP'].map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel fontSize="xs" fontWeight="700" textTransform="uppercase" color={mutedText}>
+                            Package Scope
+                          </FormLabel>
+                          <Select
+                            name="salesPackageScope"
+                            value={form.salesPackageScope}
+                            onChange={handleChange}
+                            bg={fieldBg}
+                            borderColor="blue.200"
+                            _focus={{ borderColor: "blue.500", boxShadow: "0 0 0 1px #3182ce" }}
+                          >
+                            <option value="Local">Local</option>
+                            <option value="International">International</option>
+                          </Select>
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel fontSize="xs" fontWeight="700" textTransform="uppercase" color={mutedText}>
+                            Next Follow-up Date
+                          </FormLabel>
+                          <Input
+                            name="salesFollowupDate"
+                            type="date"
+                            value={form.salesFollowupDate}
+                            onChange={handleChange}
+                            bg={fieldBg}
+                            borderColor="blue.200"
+                            _focus={{ borderColor: "blue.500", boxShadow: "0 0 0 1px #3182ce" }}
+                          />
+                        </FormControl>
+                        <FormControl>
+                          <FormLabel fontSize="xs" fontWeight="700" textTransform="uppercase" color={mutedText}>
+                            Linked Training Title
+                          </FormLabel>
+                          <Input
+                            isReadOnly
+                            value={form.program || form.learningDepartment || "Select Training Title above"}
+                            bg={softPanelBg}
+                            fontWeight="700"
+                            color="teal.700"
+                            cursor="not-allowed"
+                            borderColor="blue.200"
+                          />
+                        </FormControl>
+                        <FormControl gridColumn={{ base: "auto", md: "1 / -1" }}>
+                          <FormLabel fontSize="xs" fontWeight="700" textTransform="uppercase" color={mutedText}>
+                            Customer Follow-up Note & Discussion
+                          </FormLabel>
+                          <Textarea
+                            name="salesFollowupNote"
+                            value={form.salesFollowupNote}
+                            onChange={handleChange}
+                            placeholder="Record conversation details, customer preferences, promised follow-up schedule, or next actions..."
+                            bg={fieldBg}
+                            borderColor="blue.200"
+                            _focus={{ borderColor: "blue.500", boxShadow: "0 0 0 1px #3182ce" }}
+                            rows={3}
+                          />
+                        </FormControl>
+                      </SimpleGrid>
+                    </Box>
+                  )}
                   <Box gridColumn={{ base: "auto", md: "1 / -1" }} border="1px solid" borderColor={form.classCompleted ? "green.300" : borderColor} borderRadius="18px" px={5} py={4} bg={form.classCompleted ? softPanelBg : cardAltBg}>
                     <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} alignItems="center">
                       <FormControl>
@@ -1535,6 +1989,8 @@ const StudentRegistrationPage = () => {
               borderColor={borderColor}
               bg={cardBg}
               flexShrink={0}
+              zIndex={2}
+              boxShadow="0 -8px 20px rgba(15, 23, 42, 0.08)"
               gap={3}
               flexWrap="wrap"
               justifyContent="flex-end"
@@ -1611,7 +2067,7 @@ const StudentRegistrationPage = () => {
                       <Tr>
                         <Th>Student</Th>
                         <Th>Learning Department</Th>
-                        <Th>Program</Th>
+                        <Th>Training Title</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -1622,7 +2078,7 @@ const StudentRegistrationPage = () => {
                             <Text fontSize="xs" color={mutedText}>{student.studentId || "No student ID"}</Text>
                           </Td>
                           <Td><Badge colorScheme="green" variant="subtle">{student.learningDepartment || "Unassigned"}</Badge></Td>
-                          <Td>{student.program || "Not specified"}</Td>
+                          <Td>{student.program || student.learningDepartment || "Not specified"}</Td>
                         </Tr>
                       )) : (
                         <Tr>
@@ -1741,61 +2197,22 @@ const StudentRegistrationPage = () => {
                           )}
                         </HStack>
                         <Heading size="md" color={headingColor}>{selectedStudent.fullName}</Heading>
-                        <Text fontSize="sm" color={mutedText}>{selectedStudent.studentId || "No student ID"} - {selectedStudent.program || "No program assigned"}</Text>
+                        <Text fontSize="sm" color={mutedText}>{selectedStudent.studentId || "No student ID"} - {selectedStudent.program || selectedStudent.learningDepartment || "No training assigned"}</Text>
                       </Box>
-                      <ButtonGroup size="sm">
-                        <Button leftIcon={<EditIcon />} colorScheme="blue" onClick={() => { handleEdit(selectedStudent); onClose(); }}>Edit</Button>
-                        <Button leftIcon={<DeleteIcon />} colorScheme="red" variant="outline" onClick={() => { handleDelete(selectedStudent); onClose(); }}>Delete</Button>
-                      </ButtonGroup>
+                      {workspaceLabel !== "Sales" && (
+                        <Button
+                          leftIcon={<FiPrinter />}
+                          colorScheme="blue"
+                          size="sm"
+                          borderRadius="xl"
+                          fontSize="12px"
+                          fontWeight="700"
+                          onClick={() => onA4DossierOpen()}
+                        >
+                          Print A4 Dossier
+                        </Button>
+                      )}
                     </Flex>
-                  </CardBody>
-                </Card>
-
-                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-                  <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px">
-                    <CardBody>
-                      <Stat>
-                        <StatLabel color={mutedText}>Registration Date</StatLabel>
-                        <StatNumber fontSize="lg" color={headingColor}>{formatDate(selectedStudent.createdAt) || "Not set"}</StatNumber>
-                      </Stat>
-                    </CardBody>
-                  </Card>
-                  <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px">
-                    <CardBody>
-                      <Stat>
-                        <StatLabel color={mutedText}>Exam Date</StatLabel>
-                        <StatNumber fontSize="lg" color={headingColor}>{formatDate(selectedStudent.examDate) || "Not set"}</StatNumber>
-                      </Stat>
-                    </CardBody>
-                  </Card>
-                  <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px">
-                    <CardBody>
-                      <Stat>
-                        <StatLabel color={mutedText}>Registered By</StatLabel>
-                        <StatNumber fontSize="md" color={headingColor}>{selectedStudent.registeredBy || "Unknown CS member"}</StatNumber>
-                      </Stat>
-                    </CardBody>
-                  </Card>
-                </SimpleGrid>
-
-                <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
-                  <CardBody>
-                    <HStack mb={4} spacing={3}>
-                      <Box p={2.5} borderRadius="12px" bg={softPanelBg}>
-                        <Icon as={FiUsers} boxSize={4} color="green.600" />
-                      </Box>
-                      <Box>
-                        <Heading size="sm" color={headingColor}>Student Information</Heading>
-                        <Text fontSize="sm" color={mutedText}>Identity and contact details.</Text>
-                      </Box>
-                    </HStack>
-                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                      <DetailItem label="Student ID" value={selectedStudent.studentId} />
-                      <DetailItem label="Full Name" value={selectedStudent.fullName} />
-                      <DetailItem label="Email" value={selectedStudent.email} />
-                      <DetailItem label="Phone" value={selectedStudent.phone} />
-                      <DetailItem label="Gender" value={selectedStudent.gender} />
-                    </SimpleGrid>
                   </CardBody>
                 </Card>
 
@@ -1812,7 +2229,7 @@ const StudentRegistrationPage = () => {
                     </HStack>
                     <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                       <DetailItem label="Learning Department" value={selectedStudent.learningDepartment} />
-                      <DetailItem label="Program / Course" value={selectedStudent.program} />
+                      <DetailItem label="Training Title" value={selectedStudent.program || selectedStudent.learningDepartment || "Not specified"} />
                       <DetailItem label="Enrollment Date" value={formatDate(selectedStudent.enrollmentDate)} />
                       <DetailItem label="Exam Date" value={formatDate(selectedStudent.examDate)} />
                       <DetailItem label="Preferred Time Slot" value={selectedStudent.preferredTimeSlot || "Morning"} />
@@ -1872,6 +2289,40 @@ const StudentRegistrationPage = () => {
                   </Card>
                 )}
 
+                {workspaceLabel === "Sales" && (
+                  <Card bg={cardBg} border="1px solid" borderColor="blue.200" borderRadius="18px" shadow="sm">
+                    <CardBody>
+                      <HStack mb={4} spacing={3}>
+                        <Box p={2.5} borderRadius="12px" bg="blue.50">
+                          <Icon as={FiPhoneCall} boxSize={4} color="blue.600" />
+                        </Box>
+                        <Box>
+                          <Heading size="sm" color={headingColor}>Sales Customer Follow-up Details</Heading>
+                          <Text fontSize="sm" color={mutedText}>CRM lead status, call schedule, and sales conversation logs.</Text>
+                        </Box>
+                      </HStack>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                        <DetailItem label="Call Status" value={selectedStudent.salesCallStatus || "Not Called"} />
+                        <DetailItem label="Follow-up Status" value={selectedStudent.salesFollowupStatus || "Pending"} />
+                        <DetailItem label="Schedule Preference" value={selectedStudent.salesSchedulePreference || "Regular"} />
+                        <DetailItem label="Package Scope" value={selectedStudent.salesPackageScope || "Local"} />
+                        <DetailItem label="Follow-up Date" value={formatDate(selectedStudent.salesFollowupDate)} />
+                        <DetailItem label="Course Linked" value={selectedStudent.program || selectedStudent.learningDepartment || "Not specified"} />
+                      </SimpleGrid>
+                      {selectedStudent.salesFollowupNote && (
+                        <Box mt={4} pt={3} borderTopWidth="1px" borderColor={borderColor}>
+                          <Text fontSize="xs" fontWeight="800" color="gray.500" textTransform="uppercase" mb={1}>
+                            Customer Follow-up Note
+                          </Text>
+                          <Box p={3} bg={salesPanelBg} borderRadius="md" border="1px solid" borderColor="blue.100">
+                            <Text fontSize="sm" whiteSpace="pre-wrap">{selectedStudent.salesFollowupNote}</Text>
+                          </Box>
+                        </Box>
+                      )}
+                    </CardBody>
+                  </Card>
+                )}
+
                 <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
                   <CardBody>
                     <HStack mb={4} spacing={3}>
@@ -1905,7 +2356,110 @@ const StudentRegistrationPage = () => {
           </DrawerBody>
         </DrawerContent>
       </Drawer>
-    </Layout>
+
+      {/* Modern Student Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={Boolean(studentToDelete)}
+        leastDestructiveRef={cancelDeleteRef}
+        onClose={() => !isDeletingStudent && setStudentToDelete(null)}
+        isCentered
+        motionPreset="slideInBottom"
+      >
+        <AlertDialogOverlay bg="blackAlpha.700" backdropFilter="blur(5px)">
+          <AlertDialogContent
+            bg={cardBg}
+            border="1px solid"
+            borderColor={borderColor}
+            borderRadius="20px"
+            shadow="2xl"
+            p={2}
+          >
+            <AlertDialogHeader fontSize="lg" fontWeight="bold" color={headingColor} pb={2}>
+              <HStack spacing={3}>
+                <Box p={2.5} borderRadius="12px" bg="red.50" color="red.500">
+                  <Icon as={FiTrash2} boxSize={5} />
+                </Box>
+                <Box>
+                  <Text fontSize="md" fontWeight="800">Delete Student Registration</Text>
+                  <Text fontSize="xs" fontWeight="normal" color={mutedText}>
+                    This action will remove the record from the database.
+                  </Text>
+                </Box>
+              </HStack>
+            </AlertDialogHeader>
+
+            <AlertDialogBody py={3}>
+              <Text fontSize="sm" color={headingColor}>
+                Are you sure you want to delete registration for{" "}
+                <Text as="span" fontWeight="800" color="red.500">
+                  {studentToDelete?.fullName || "this student"}
+                </Text>{" "}
+                {studentToDelete?.studentId ? `(${studentToDelete.studentId})` : ""}?
+              </Text>
+              <Text fontSize="xs" color={mutedText} mt={2}>
+                All learning assignments, department associations, and uploaded documents linked to this student record will be permanently deleted.
+              </Text>
+            </AlertDialogBody>
+
+            <AlertDialogFooter pt={3} borderTopWidth="1px" borderColor={borderColor}>
+              <Button
+                ref={cancelDeleteRef}
+                onClick={() => setStudentToDelete(null)}
+                isDisabled={isDeletingStudent}
+                variant="outline"
+                size="sm"
+                borderRadius="lg"
+              >
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={confirmDeleteStudent}
+                isLoading={isDeletingStudent}
+                loadingText="Deleting..."
+                size="sm"
+                borderRadius="lg"
+                ml={3}
+                leftIcon={<FiTrash2 />}
+              >
+                Delete Student
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* ── A4 SINGLE STUDENT DOSSIER MODAL ── */}
+      <Modal isOpen={isA4DossierOpen} onClose={onA4DossierClose} size="6xl" scrollBehavior="inside">
+        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(4px)" />
+        <ModalContent bg="#0B0F19" maxW="920px" p={0} borderRadius="2xl" overflow="hidden">
+          <ModalBody p={0} bg="#0B0F19">
+            {selectedStudent && (
+              <TessbinStudentA4Dossier
+                student={selectedStudent}
+                onClose={onA4DossierClose}
+              />
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* ── A4 STUDENT DIRECTORY ROSTER REPORT MODAL ── */}
+      <Modal isOpen={isA4ReportOpen} onClose={onA4ReportClose} size="6xl" scrollBehavior="inside">
+        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(4px)" />
+        <ModalContent bg="#0B0F19" maxW="960px" p={0} borderRadius="2xl" overflow="hidden">
+          <ModalBody p={0} bg="#0B0F19">
+            <TessbinStudentListA4Report
+              students={filteredStudents}
+              departmentFilter={departmentFilter}
+              timePeriodLabel={statusFilter === "All" ? "All Registered Records" : `Status: ${statusFilter}`}
+              reportTitle="STUDENT REGISTRATION DIRECTORY & ENROLLMENT ROSTER"
+              onClose={onA4ReportClose}
+            />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+    </StudentRegistrationShell>
   );
 };
 

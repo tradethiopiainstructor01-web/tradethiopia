@@ -187,7 +187,7 @@ const getCustomers = asyncHandler(async (req, res) => {
   // Attach agentName by looking up user records
   const agentIds = [...new Set(customers.map((c) => c.agentId).filter(Boolean))];
   const users = agentIds.length
-    ? await User.find({ _id: { $in: agentIds } }).select('username name fullName')
+    ? await User.find({ _id: { $in: agentIds } }).select('username name fullName').lean()
     : [];
   const userMap = users.reduce((acc, u) => {
     acc[u._id.toString()] = u.username || u.name || u.fullName || '';
@@ -364,40 +364,44 @@ const updateCustomer = asyncHandler(async (req, res) => {
 
   const customer = await SalesCustomer.findById(req.params.id);
 
-  const normalizedRole = normalizeRoleValue(req.user.role);
+  const normalizedRole = normalizeRoleValue(req.user?.role);
   if (normalizedRole === 'reception') {
     res.status(403);
     throw new Error('Reception cannot modify sales data');
   }
 
-  if (customer && customer.agentId && customer.agentId.toString() === req.user.id.toString()) {
-    if (!customer.createdBy) {
-      customer.createdBy = req.user._id;
-    }
-    customer.customerName = customerName || customer.customerName;
-    customer.contactTitle = contactTitle || customer.contactTitle;
-    customer.phone = phone || customer.phone;
-    customer.callStatus = callStatus || customer.callStatus;
-    customer.followupStatus = followupStatus || customer.followupStatus;
-    customer.schedulePreference = schedulePreference || customer.schedulePreference;
-    customer.email = email || customer.email;
-    customer.note = note || customer.note;
-    customer.supervisorComment = supervisorComment || customer.supervisorComment;
-    customer.courseName = courseName || customer.courseName || contactTitle || customer.contactTitle;
-    customer.courseId = courseId || customer.courseId;
-    const finalCoursePrice = coursePrice !== undefined && coursePrice !== null
-      ? Number(coursePrice)
-      : customer.coursePrice;
-    customer.coursePrice = finalCoursePrice || 0;
-    customer.commission = calculateCommission(customer.coursePrice);
-    customer.packageScope = packageScope || customer.packageScope || '';
-
-    const updatedCustomer = await customer.save();
-    res.json(updatedCustomer);
-  } else {
+  if (!customer) {
     res.status(404);
     throw new Error('Customer not found');
   }
+
+  if (!canAccessCustomer(customer, req.user)) {
+    res.status(403);
+    throw new Error('Not authorized to modify this customer');
+  }
+
+  if (!customer.createdBy) {
+    customer.createdBy = req.user._id;
+  }
+  if (customerName !== undefined) customer.customerName = customerName;
+  if (contactTitle !== undefined) customer.contactTitle = contactTitle;
+  if (phone !== undefined) customer.phone = phone;
+  if (callStatus !== undefined) customer.callStatus = callStatus;
+  if (followupStatus !== undefined) customer.followupStatus = followupStatus;
+  if (schedulePreference !== undefined) customer.schedulePreference = schedulePreference;
+  if (email !== undefined) customer.email = email;
+  if (note !== undefined) customer.note = note;
+  if (supervisorComment !== undefined) customer.supervisorComment = supervisorComment;
+  if (courseName !== undefined) customer.courseName = courseName;
+  if (courseId !== undefined) customer.courseId = courseId;
+  if (coursePrice !== undefined && coursePrice !== null) {
+    customer.coursePrice = Number(coursePrice) || 0;
+    customer.commission = calculateCommission(customer.coursePrice);
+  }
+  if (packageScope !== undefined) customer.packageScope = packageScope;
+
+  const updatedCustomer = await customer.save();
+  res.json(updatedCustomer);
 });
 
 // @desc    Send email to a sales customer from inside the portal
@@ -584,13 +588,18 @@ const assignCustomer = asyncHandler(async (req, res) => {
 const deleteCustomer = asyncHandler(async (req, res) => {
   const customer = await SalesCustomer.findById(req.params.id);
 
-  if (customer && customer.agentId.toString() === req.user.id.toString()) {
-    await customer.remove();
-    res.json({ message: 'Customer removed' });
-  } else {
+  if (!customer) {
     res.status(404);
     throw new Error('Customer not found');
   }
+
+  if (!canAccessCustomer(customer, req.user)) {
+    res.status(403);
+    throw new Error('Not authorized to delete this customer');
+  }
+
+  await SalesCustomer.findByIdAndDelete(req.params.id);
+  res.json({ message: 'Customer removed', id: req.params.id });
 });
 
 // @desc    Get sales stats for logged in agent
@@ -598,39 +607,38 @@ const deleteCustomer = asyncHandler(async (req, res) => {
 // @access  Private
 const getSalesStats = asyncHandler(async (req, res) => {
   try {
-    // Total customers for this agent
-    const total = await SalesCustomer.countDocuments({ agentId: req.user.id });
-    
-    // New customers (created in the last 30 days)
-    const newCount = await SalesCustomer.countDocuments({
-      agentId: req.user.id,
-      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-    });
-    
-    // Active customers (called in the last 30 days)
-    const activeCount = await SalesCustomer.countDocuments({
-      agentId: req.user.id,
-      lastCalled: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-    });
-    
-    // Completed deals (followupStatus = 'Completed')
-    const completedDeals = await SalesCustomer.countDocuments({
-      agentId: req.user.id,
-      followupStatus: 'Completed'
-    });
-    
-    // Called customers (callStatus = 'Called')
-    const calledCustomers = await SalesCustomer.countDocuments({
-      agentId: req.user.id,
-      callStatus: 'Called'
-    });
+    const agentId = req.user.id.toString();
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [summary = {}] = await SalesCustomer.aggregate([
+      { $match: { agentId } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          newCount: { $sum: { $cond: [{ $gte: ['$createdAt', thirtyDaysAgo] }, 1, 0] } },
+          activeCount: { $sum: { $cond: [{ $gte: ['$lastCalled', thirtyDaysAgo] }, 1, 0] } },
+          completedDeals: { $sum: { $cond: [{ $eq: ['$followupStatus', 'Completed'] }, 1, 0] } },
+          calledCustomers: { $sum: { $cond: [{ $eq: ['$callStatus', 'Called'] }, 1, 0] } },
+          totalCommission: {
+            $sum: {
+              $cond: [
+                { $eq: ['$followupStatus', 'Completed'] },
+                { $ifNull: ['$commission.netCommission', 0] },
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
     
     res.json({
-      total,
-      new: newCount,
-      active: activeCount,
-      completedDeals,
-      calledCustomers
+      total: summary.total || 0,
+      new: summary.newCount || 0,
+      active: summary.activeCount || 0,
+      completedDeals: summary.completedDeals || 0,
+      calledCustomers: summary.calledCustomers || 0,
+      totalCommission: summary.totalCommission || 0
     });
   } catch (error) {
     res.status(500).json({ 

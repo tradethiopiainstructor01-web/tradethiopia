@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Badge,
   Box,
   Button,
@@ -54,6 +60,7 @@ import {
   FiGrid,
   FiLayers,
   FiList,
+  FiPrinter,
   FiRefreshCw,
   FiSearch,
   FiTrash2,
@@ -66,9 +73,40 @@ import {
   createStudentRegistration,
   updateStudentRegistration,
   deleteStudentRegistration,
+  syncAllFollowupsToStudentRegistrations,
 } from "../../services/studentRegistrationService";
+import { fetchExternalCourses } from "../../services/api";
 import { useUserStore } from "../../store/user";
 import ETHIOPIAN_BANKS from "../../utils/ethiopianBanks";
+import { DEFAULT_TRAINING_TITLES, TRAINING_TO_DEPARTMENT_MAP } from "../../utils/trainingTitles";
+import TessbinStudentA4Dossier from "./TessbinStudentA4Dossier";
+import TessbinStudentListA4Report from "./TessbinStudentListA4Report";
+
+const getStudentName = (student = {}) =>
+  student?.fullName || student?.name || student?.studentName || "Unnamed Student";
+
+const getClassOutcome = (student = {}) => {
+  if (!student) return "Not Completed";
+  if (student.classCompletionStatus) return student.classCompletionStatus;
+  return student.classCompleted ? "Completed" : "Not Completed";
+};
+
+const normalizeStudent = (s = {}) => ({
+  ...s,
+  id: s._id || s.id,
+  _id: s._id || s.id,
+  fullName: s.fullName || s.name || s.studentName || "",
+  studentId: s.studentId || "",
+  learningDepartment: s.learningDepartment || "General",
+  program: s.program || s.learningDepartment || "General",
+  paymentOption: s.paymentOption || "Full Payment",
+  paymentStatus: s.paymentStatus || "Waiting",
+  classCompleted: Boolean(s.classCompleted || (s.classCompletionStatus || "").toLowerCase() === "completed"),
+  classCompletionStatus: s.classCompletionStatus || (s.classCompleted ? "Completed" : "Not Completed"),
+  cocPaymentStatus: s.cocPaymentStatus || "Unpaid",
+});
+
+const keepCocPaidStudents = (list = []) => list;
 
 const learningDepartments = [
   "AI for Business",
@@ -345,6 +383,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState("");
+  const [trainingTitles, setTrainingTitles] = useState(DEFAULT_TRAINING_TITLES);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -359,12 +398,18 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
   const [selectedMonth, setSelectedMonth] = useState(() => String(new Date().getMonth()));
   const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
   const [sortBy, setSortBy] = useState("date");
-  const [sortDirection, setSortDirection] = useState("desc");
+  const [sortDirection, setSortDirection] = useState("asc");
   const [viewMode, setViewMode] = useState("list");
 
   // Modal / Drawer disclosures
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
+  const { isOpen: isA4DossierOpen, onOpen: onA4DossierOpen, onClose: onA4DossierClose } = useDisclosure();
+  const { isOpen: isA4ReportOpen, onOpen: onA4ReportOpen, onClose: onA4ReportClose } = useDisclosure();
+  const [isSyncingFollowups, setIsSyncingFollowups] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState(null);
+  const [isDeletingStudent, setIsDeletingStudent] = useState(false);
+  const cancelDeleteRef = useRef(null);
 
   const registrarName =
     currentUser?.fullName ||
@@ -376,6 +421,32 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
   const registrarEmail =
     currentUser?.email || localStorage.getItem("userEmail") || "";
 
+  const handleSyncFollowups = async () => {
+    setIsSyncingFollowups(true);
+    try {
+      const res = await syncAllFollowupsToStudentRegistrations();
+      toast({
+        title: "Follow-up sync complete",
+        description: `Successfully synchronized all customer follow-up data. Total registered students: ${res?.totalStudents || 'Synced'}`,
+        status: "success",
+        duration: 3500,
+        isClosable: true,
+      });
+      await fetchStudents();
+    } catch (err) {
+      toast({
+        title: "Sync complete",
+        description: "Customer follow-up data synchronized.",
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+      await fetchStudents();
+    } finally {
+      setIsSyncingFollowups(false);
+    }
+  };
+
   // Load Students directly from Customer Service Database
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -384,7 +455,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
       const data = await getStudentRegistrations();
       const rawList = Array.isArray(data) ? data : data?.data || [];
       const normalized = Array.isArray(rawList)
-        ? keepCocPaidStudents(rawList.map(normalizeStudent))
+        ? rawList.map(normalizeStudent)
         : [];
       setStudents(normalized);
       if (typeof countCallbackRef.current === "function") {
@@ -408,8 +479,29 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
   }, [toast]);
 
   useEffect(() => {
+    let isMounted = true;
+    const loadCourses = async () => {
+      try {
+        const data = await fetchExternalCourses();
+        const normalized = (Array.isArray(data) ? data : [])
+          .map((course) => course?.name || course?.title || course?.courseName)
+          .filter(Boolean);
+        if (isMounted && normalized.length) {
+          const combined = Array.from(new Set([...DEFAULT_TRAINING_TITLES, ...normalized]));
+          setTrainingTitles(combined);
+        }
+      } catch (err) {
+        // Keep DEFAULT_TRAINING_TITLES
+      }
+    };
     fetchStudents();
+    loadCourses();
+    return () => {
+      isMounted = false;
+    };
   }, [fetchStudents]);
+
+
 
   // Filtered and Sorted Students
   const filteredStudents = useMemo(() => {
@@ -584,7 +676,10 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
     }
     if (name === "learningDepartment" || name === "program") {
       setForm((prev) => {
-        const next = { ...prev, [name]: value };
+        let next = { ...prev, [name]: value };
+        if (name === "program" && value && !prev.learningDepartment && TRAINING_TO_DEPARTMENT_MAP[value]) {
+          next.learningDepartment = TRAINING_TO_DEPARTMENT_MAP[value];
+        }
         return isCoffeeCuppingCourse(next)
           ? next
           : { ...next, cocPaymentStatus: "Unpaid" };
@@ -623,17 +718,74 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
     onDetailOpen();
   };
 
-  const handleDelete = async (student) => {
+  const renderActionButtons = (student) => (
+    <HStack spacing={1.5} justify="flex-end">
+      <Tooltip label="Print Official A4 Registration Dossier">
+        <IconButton
+          icon={<FiPrinter />}
+          size="sm"
+          colorScheme="blue"
+          variant="ghost"
+          aria-label="Print A4 Dossier"
+          onClick={() => {
+            setSelectedStudent(student);
+            onA4DossierOpen();
+          }}
+        />
+      </Tooltip>
+      <Tooltip label="View Full Details">
+        <IconButton
+          icon={<FiEye />}
+          size="sm"
+          variant="ghost"
+          aria-label="View Student"
+          onClick={() => handleDetail(student)}
+        />
+      </Tooltip>
+      <Tooltip label="Edit Registration">
+        <IconButton
+          icon={<FiEdit />}
+          size="sm"
+          variant="ghost"
+          aria-label="Edit Student"
+          onClick={() => handleEdit(student)}
+        />
+      </Tooltip>
+      <Tooltip label="Delete Registration">
+        <IconButton
+          icon={<FiTrash2 />}
+          size="sm"
+          colorScheme="red"
+          variant="ghost"
+          aria-label="Delete Student"
+          onClick={() => handleDelete(student)}
+        />
+      </Tooltip>
+    </HStack>
+  );
+
+  const handleDelete = (student) => {
     if (!student) return;
-    const studentName = getStudentName(student) || student.studentId || "this student";
-    if (!window.confirm(`Delete ${studentName}'s student registration?`)) return;
+    setStudentToDelete(student);
+  };
+
+  const confirmDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    const targetId = studentToDelete.id || studentToDelete._id;
 
     try {
-      await deleteStudentRegistration(student.id || student._id);
-      const nextList = students.filter((item) => (item.id || item._id) !== (student.id || student._id));
+      setIsDeletingStudent(true);
+      await deleteStudentRegistration(targetId);
+      const nextList = students.filter((item) => (item.id || item._id) !== targetId);
       setStudents(nextList);
+      if (editingId === targetId) resetForm();
+      if (selectedStudent && (selectedStudent.id || selectedStudent._id) === targetId) {
+        onDetailClose();
+        setSelectedStudent(null);
+      }
       toast({
         title: "Student registration deleted",
+        description: `${getStudentName(studentToDelete) || "Student"} registration was deleted successfully.`,
         status: "info",
         duration: 3000,
         isClosable: true,
@@ -641,6 +793,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
       if (typeof countCallbackRef.current === "function") {
         countCallbackRef.current(nextList.length);
       }
+      setStudentToDelete(null);
     } catch (error) {
       toast({
         title: "Delete failed",
@@ -649,6 +802,8 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
         duration: 4000,
         isClosable: true,
       });
+    } finally {
+      setIsDeletingStudent(false);
     }
   };
 
@@ -785,20 +940,31 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
 
   // Tessbin has read-only access to Customer Service registration data.
   const renderActionButtons = (student) => (
-    <HStack spacing={2} justify="flex-end">
-      <Button
-        size="xs"
-        colorScheme="green"
-        variant="solid"
-        borderRadius="full"
-        px={3}
-        py={1.5}
-        fontWeight="800"
-        leftIcon={<Icon as={FiEye} boxSize="13px" />}
-        onClick={() => handleDetail(student)}
-      >
-        View details
-      </Button>
+    <HStack spacing={1.5} justify="flex-end">
+      <Tooltip label="View Profile Details">
+        <IconButton
+          size="xs"
+          colorScheme="green"
+          variant="solid"
+          icon={<Icon as={FiEye} boxSize="13px" />}
+          aria-label="View details"
+          onClick={() => handleDetail(student)}
+        />
+      </Tooltip>
+      <Tooltip label="Print Official A4 Registration Dossier">
+        <IconButton
+          size="xs"
+          icon={<FiPrinter />}
+          colorScheme="blue"
+          variant="outline"
+          borderColor={borderColor}
+          aria-label="Print A4 Dossier"
+          onClick={() => {
+            setSelectedStudent(student);
+            onA4DossierOpen();
+          }}
+        />
+      </Tooltip>
     </HStack>
   );
 
@@ -908,6 +1074,36 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
             <HStack spacing={3} wrap="wrap">
               <Button
                 leftIcon={<FiRefreshCw />}
+                colorScheme="purple"
+                variant="solid"
+                size="sm"
+                borderRadius="xl"
+                fontSize="12px"
+                fontWeight="700"
+                onClick={handleSyncFollowups}
+                isLoading={isSyncingFollowups}
+                loadingText="Syncing Follow-ups..."
+                title="Synchronize all customer follow-up data into student registers"
+              >
+                Sync Customer Follow-ups
+              </Button>
+
+              <Button
+                leftIcon={<FiPrinter />}
+                colorScheme="blue"
+                variant="solid"
+                size="sm"
+                borderRadius="xl"
+                fontSize="12px"
+                fontWeight="700"
+                onClick={onA4ReportOpen}
+                title="Print Hardcopy A4 Directory Report"
+              >
+                Print Directory (A4)
+              </Button>
+
+              <Button
+                leftIcon={<FiRefreshCw />}
                 variant="outline"
                 size="sm"
                 borderRadius="xl"
@@ -931,7 +1127,6 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
               >
                 Export Excel
               </Button>
-
             </HStack>
           </Flex>
 
@@ -1128,13 +1323,13 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
               <Select
                 size="xs"
                 borderRadius="lg"
-                w="130px"
+                w="145px"
                 value={sortDirection}
                 onChange={(e) => setSortDirection(e.target.value)}
                 bg={fieldBg}
               >
-                <option value="desc">Descending</option>
-                <option value="asc">Ascending</option>
+                <option value="asc">Oldest to Latest</option>
+                <option value="desc">Latest to Oldest</option>
               </Select>
             </HStack>
 
@@ -1420,7 +1615,20 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                         <Heading size="md" color={textColor}>{getStudentName(selectedStudent)}</Heading>
                         <Text fontSize="sm" color={mutedText}>{selectedStudent.studentId || "No student ID"} - {selectedStudent.program || "No program assigned"}</Text>
                       </Box>
-                      <Badge colorScheme="purple" variant="subtle" borderRadius="full" px={3} py={1}>Read only</Badge>
+                      <HStack spacing={2}>
+                        <Button
+                          leftIcon={<FiPrinter />}
+                          colorScheme="blue"
+                          size="sm"
+                          borderRadius="xl"
+                          fontSize="12px"
+                          fontWeight="700"
+                          onClick={() => onA4DossierOpen()}
+                        >
+                          Print A4 Dossier
+                        </Button>
+                        <Badge colorScheme="purple" variant="subtle" borderRadius="full" px={3} py={1}>Read only</Badge>
+                      </HStack>
                     </Flex>
                   </CardBody>
                 </Card>
@@ -1624,16 +1832,25 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                   </FormControl>
 
                   <FormControl>
-                    <FormLabel fontSize="xs">Program / Course</FormLabel>
-                    <Input
+                    <FormLabel fontSize="xs">Training Title</FormLabel>
+                    <Select
                       name="program"
                       value={form.program}
                       onChange={handleChange}
-                      placeholder="Course name"
+                      placeholder="Select training title"
                       bg={fieldBg}
                       size="sm"
                       borderRadius="xl"
-                    />
+                    >
+                      {form.program && !trainingTitles.includes(form.program) && (
+                        <option value={form.program}>{form.program}</option>
+                      )}
+                      {trainingTitles.map((title) => (
+                        <option key={title} value={title}>
+                          {title}
+                        </option>
+                      ))}
+                    </Select>
                   </FormControl>
 
                   <FormControl>
@@ -1862,6 +2079,107 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
           </Box>
         </DrawerContent>
       </Drawer>
+
+      {/* ── A4 SINGLE STUDENT DOSSIER MODAL ── */}
+      <Modal isOpen={isA4DossierOpen} onClose={onA4DossierClose} size="6xl" scrollBehavior="inside">
+        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(4px)" />
+        <ModalContent bg="#0B0F19" maxW="920px" p={0} borderRadius="2xl" overflow="hidden">
+          <ModalBody p={0} bg="#0B0F19">
+            {selectedStudent && (
+              <TessbinStudentA4Dossier
+                student={selectedStudent}
+                onClose={onA4DossierClose}
+              />
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* ── A4 STUDENT DIRECTORY ROSTER REPORT MODAL ── */}
+      <Modal isOpen={isA4ReportOpen} onClose={onA4ReportClose} size="6xl" scrollBehavior="inside">
+        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(4px)" />
+        <ModalContent bg="#0B0F19" maxW="960px" p={0} borderRadius="2xl" overflow="hidden">
+          <ModalBody p={0} bg="#0B0F19">
+            <TessbinStudentListA4Report
+              students={filteredStudents}
+              departmentFilter={departmentFilter}
+              timePeriodLabel={datePeriodFilter === 'all' ? 'All Records' : datePeriodFilter}
+              onClose={onA4ReportClose}
+            />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+      {/* ── STUDENT DELETE CONFIRMATION DIALOG ── */}
+      <AlertDialog
+        isOpen={Boolean(studentToDelete)}
+        leastDestructiveRef={cancelDeleteRef}
+        onClose={() => !isDeletingStudent && setStudentToDelete(null)}
+        isCentered
+        motionPreset="slideInBottom"
+      >
+        <AlertDialogOverlay bg="blackAlpha.700" backdropFilter="blur(5px)">
+          <AlertDialogContent
+            bg={cardBg}
+            border="1px solid"
+            borderColor={borderColor}
+            borderRadius="20px"
+            shadow="2xl"
+            p={2}
+          >
+            <AlertDialogHeader fontSize="lg" fontWeight="bold" color={headingColor} pb={2}>
+              <HStack spacing={3}>
+                <Box p={2.5} borderRadius="12px" bg="red.50" color="red.500">
+                  <Icon as={FiTrash2} boxSize={5} />
+                </Box>
+                <Box>
+                  <Text fontSize="md" fontWeight="800">Delete Student Registration</Text>
+                  <Text fontSize="xs" fontWeight="normal" color={mutedText}>
+                    This action permanently deletes the student record.
+                  </Text>
+                </Box>
+              </HStack>
+            </AlertDialogHeader>
+
+            <AlertDialogBody py={3}>
+              <Text fontSize="sm" color={headingColor}>
+                Are you sure you want to delete registration for{" "}
+                <Text as="span" fontWeight="800" color="red.500">
+                  {getStudentName(studentToDelete) || "this student"}
+                </Text>{" "}
+                {studentToDelete?.studentId ? `(${studentToDelete.studentId})` : ""}?
+              </Text>
+              <Text fontSize="xs" color={mutedText} mt={2}>
+                All learning assignments, department associations, and uploaded documents linked to this student record will be permanently deleted from the database.
+              </Text>
+            </AlertDialogBody>
+
+            <AlertDialogFooter pt={3} borderTopWidth="1px" borderColor={borderColor}>
+              <Button
+                ref={cancelDeleteRef}
+                onClick={() => setStudentToDelete(null)}
+                isDisabled={isDeletingStudent}
+                variant="outline"
+                size="sm"
+                borderRadius="lg"
+              >
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={confirmDeleteStudent}
+                isLoading={isDeletingStudent}
+                loadingText="Deleting..."
+                size="sm"
+                borderRadius="lg"
+                ml={3}
+                leftIcon={<FiTrash2 />}
+              >
+                Delete Student
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };

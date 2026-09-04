@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Flex,
@@ -9,7 +9,6 @@ import {
   Text,
   Spinner,
   Icon,
-  useColorMode,
   Badge,
   Modal,
   ModalOverlay,
@@ -25,7 +24,7 @@ import { Bar } from 'react-chartjs-2';
 import { MdPeople, MdCheckCircle, MdPendingActions, MdError, MdNote } from 'react-icons/md';
 import { FiCheckCircle, FiCheck, FiClock } from 'react-icons/fi';
 import axiosInstance from '../../services/axiosInstance';
-import { getMyTasks, getTaskStats } from '../../services/taskService';
+import { getTaskStats } from '../../services/taskService';
 import { Chart, registerables } from 'chart.js';
 
 // Register Chart.js components
@@ -37,7 +36,7 @@ const formatNumber = (value) => {
 };
 
 const formatCurrency = (value) => {
-  return new Intl.NumberFormat('en-US', {
+  return new globalThis.Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'ETB'
   }).format(Number(value) || 0);
@@ -54,11 +53,9 @@ const Dashboard = () => {
   });
   const [deliveredOrders, setDeliveredOrders] = useState(0);
   const [totalCommission, setTotalCommission] = useState(0);
-  const { colorMode } = useColorMode();
   const [notes, setNotes] = useState([]);
   const [selectedNote, setSelectedNote] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [tasks, setTasks] = useState([]);
   const [taskStats, setTaskStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
@@ -73,16 +70,18 @@ const Dashboard = () => {
   const textColor = useColorModeValue('gray.700', 'gray.200');
 
   useEffect(() => {
+    let isMounted = true;
     const fetchNotes = async () => {
       try {
-        const response = await axiosInstance.get('/notes');
-        setNotes(response.data);
+        const response = await axiosInstance.get('/notes', { timeout: 8000 });
+        if (isMounted) setNotes(Array.isArray(response.data) ? response.data : []);
       } catch (error) {
         console.error('Error fetching notes:', error);
       }
     };
 
     fetchNotes();
+    return () => { isMounted = false; };
   }, []);
 
   const openNote = async (noteId) => {
@@ -96,48 +95,40 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
     const fetchData = async () => {
-      try {
-        setLoading(true);
-      const [followupStatsRes, tasksRes, taskStatsRes, ordersStatsRes, completedCustomersRes] = await Promise.all([
-        axiosInstance.get('/followups/stats'),
-        getMyTasks(),
-        getTaskStats(),
-        axiosInstance.get('/orders/stats'),
-        axiosInstance.get('/sales-customers', { params: { followupStatus: 'Completed' } })
+      setLoading(true);
+      setError(null);
+      const requestOptions = { timeout: 8000 };
+      const results = await Promise.allSettled([
+        axiosInstance.get('/followups/stats', requestOptions),
+        getTaskStats(requestOptions),
+        axiosInstance.get('/orders/stats', requestOptions),
+        axiosInstance.get('/sales-customers/stats', requestOptions)
       ]);
+      if (!isMounted) return;
 
-        const followupStats = followupStatsRes.data || {};
-        const orderStats = ordersStatsRes.data || {};
-
+      const [followupsResult, tasksResult, ordersResult, salesResult] = results;
+      if (followupsResult.status === 'fulfilled') {
+        const followupStats = followupsResult.value.data || {};
         setFollowupMetrics({
           total: followupStats.total || 0,
           completed: followupStats.completed || 0,
           pending: followupStats.pending || 0,
           overdue: followupStats.overdue || 0,
         });
-
-        setDeliveredOrders(orderStats.deliveredOrders || 0);
-
-      const completedCustomers = Array.isArray(completedCustomersRes.data) ? completedCustomersRes.data : [];
-      const commissionSum = completedCustomers.reduce((sum, customer) => {
-        const netCommission = Number(customer?.commission?.netCommission ?? 0);
-        return sum + (Number.isFinite(netCommission) ? netCommission : 0);
-      }, 0);
-      setTotalCommission(commissionSum);
-
-        // Set task data
-        setTasks(tasksRes);
-        setTaskStats(taskStatsRes);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError('Failed to fetch data');
-      } finally {
-        setLoading(false);
       }
+      if (tasksResult.status === 'fulfilled') setTaskStats(tasksResult.value || {});
+      if (ordersResult.status === 'fulfilled') setDeliveredOrders(ordersResult.value.data?.deliveredOrders || 0);
+      if (salesResult.status === 'fulfilled') setTotalCommission(salesResult.value.data?.totalCommission || 0);
+
+      const failedCount = results.filter((result) => result.status === 'rejected').length;
+      if (failedCount) setError(`${failedCount} dashboard section${failedCount > 1 ? 's are' : ' is'} temporarily unavailable.`);
+      setLoading(false);
     };
 
     fetchData();
+    return () => { isMounted = false; };
   }, []);
 
   const chartData = {
@@ -183,14 +174,13 @@ const Dashboard = () => {
         Sales Dashboard
       </Heading>
 
-      {loading ? (
-        <Flex justify="center" align="center" minH="300px">
-          <Spinner size="xl" />
+      {loading && (
+        <Flex align="center" gap={3} mb={4} color={textColor}>
+          <Spinner size="sm" />
+          <Text fontSize="sm">Loading the latest dashboard totals...</Text>
         </Flex>
-      ) : (
-        <>
-          {error && <Text color="red.500">{error}</Text>
-}
+      )}
+          {error && <Text color="orange.600" mb={4}>{error}</Text>}
           <SimpleGrid columns={{ base: 1, md: 3, lg: 4 }} spacing={3} mb={6}>
             {[
               {
@@ -409,8 +399,6 @@ const Dashboard = () => {
               </ModalFooter>
             </ModalContent>
           </Modal>
-        </>
-      )}
     </Box>
   );
 };

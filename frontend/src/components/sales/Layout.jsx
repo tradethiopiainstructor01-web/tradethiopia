@@ -1,31 +1,28 @@
-import React, { useState, useEffect } from "react";
-import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure, Text } from "@chakra-ui/react";
+import { lazy, Suspense, useState, useEffect } from "react";
+import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure, Text, Spinner, Flex } from "@chakra-ui/react";
 import SSidebar from "./Ssidebar";
 import SNavbar from "./Snavbar";
 import FollowupPage from "./FollowupPage";
 import PackageSalesPage from "./PackageSalesPage";
-import Training from "./Training.jsx";
 import PDFList from '../PDFList';
 import Dashboard from './SalesDashboard.jsx';
-// import FinanceDashboard from './FinanceDashboard.jsx'; // Replaced with dedicated page
 import OrderFollowup from './OrderFollowup.jsx';
 import SalesTargetsPage from './SalesTargetsPage.jsx';
 import TaskDashboard from './TaskDashboard.jsx';
 import MonthlyReport from './MonthlyReport.jsx';
 import SalesMessagesPage from '../../pages/SalesMessagesPage';
 import EmployeeRequestsPage from '../../pages/EmployeeRequestsPage';
-import EmployeeInfoPage from '../../pages/EmployeeInfoPage';
 import EmployeeFileUploadForm from '../../pages/EmployeeFileUploadForm';
 import EmployeeWarningsPage from '../../pages/EmployeeWarningsPage';
 import ContentTrackerPage from './ContentTrackerPage.jsx';
-import { useUserStore } from '../../store/user';
-import { getUserDepartment } from '../../utils/department';
 import useIsMobile from '../../hooks/useIsMobile';
 import MobileSalesShell from '../../mobile/sales/MobileSalesShell';
+import ErrorBoundary from '../ErrorBoundary';
 
 const DESKTOP_NAV_HEIGHT = '80px';
+const StudentRegistrationPage = lazy(() => import('../customer/StudentRegistrationPage.jsx'));
 
-const Layout = ({ children, initialActiveItem }) => {
+const Layout = ({ initialActiveItem }) => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
 
   // Load initial state from localStorage or default to 'Home'
@@ -50,8 +47,14 @@ const Layout = ({ children, initialActiveItem }) => {
     localStorage.setItem('salesActiveItem', activeItem);
   }, [activeItem]);
 
-  const currentUser = useUserStore((state) => state.currentUser);
-  const userDepartment = getUserDepartment(currentUser) || 'sales';
+  useEffect(() => {
+    const handleSectionNavigation = (event) => {
+      const section = event.detail?.section;
+      if (section) setActiveItem(section);
+    };
+    window.addEventListener('navigateToSection', handleSectionNavigation);
+    return () => window.removeEventListener('navigateToSection', handleSectionNavigation);
+  }, []);
 
   const renderContent = () => {
     switch (activeItem) {
@@ -59,6 +62,8 @@ const Layout = ({ children, initialActiveItem }) => {
         return <Dashboard />;
       case 'Followup':
         return <FollowupPage />;
+      case 'Student Registration':
+        return <StudentRegistrationPage embedded workspaceLabel="Sales" />;
       case 'Package Sales':
         return <PackageSalesPage />;
       case 'Resources':
@@ -96,7 +101,7 @@ const Layout = ({ children, initialActiveItem }) => {
   };
 
   if (isMobile) {
-    return <MobileSalesShell activeItem={activeItem} setActiveItem={setActiveItem} />;
+    return <MobileSalesShell activeItem={activeItem} />;
   }
 
   return (
@@ -152,7 +157,11 @@ const Layout = ({ children, initialActiveItem }) => {
           flex="1"
           width="100%" // Ensure it takes up the remaining space
         >
-          {renderContent()}
+          <ErrorBoundary>
+            <Suspense fallback={<Flex minH="240px" align="center" justify="center" gap={3}><Spinner size="sm" /><Text>Loading section...</Text></Flex>}>
+              {renderContent()}
+            </Suspense>
+          </ErrorBoundary>
         </Box>
       </Box>
     </Box>

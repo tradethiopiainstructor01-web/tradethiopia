@@ -9,6 +9,13 @@ const commissionSchema = new mongoose.Schema({
 const WORKFLOW_STATUSES = ['New', 'Pending Assignment', 'Assigned', 'In Progress', 'Closed'];
 
 const salesCustomerSchema = new mongoose.Schema({
+  studentRegistrationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'StudentRegistration',
+    unique: true,
+    sparse: true,
+    index: true
+  },
   agentId: {
     type: String,
     default: null,
@@ -74,7 +81,7 @@ const salesCustomerSchema = new mongoose.Schema({
   },
   schedulePreference: {
     type: String,
-    enum: ['Regular', 'Weekend', 'Night', 'Online'],
+    enum: ['Regular', 'Morning', 'Afternoon', 'Night', 'Weekend', 'Online', 'VIP', ''],
     default: 'Regular'
   },
   email: {
@@ -118,9 +125,13 @@ const salesCustomerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Support the most common paginated follow-up queries without scanning the
-// complete sales-customer collection.
+// Support high-speed querying and sorting without collection scans
+salesCustomerSchema.index({ createdAt: -1, _id: -1 });
 salesCustomerSchema.index({ agentId: 1, createdAt: -1 });
+salesCustomerSchema.index({ agentId: 1, followupStatus: 1, createdAt: -1 });
 salesCustomerSchema.index({ followupStatus: 1, packageScope: 1, createdAt: -1 });
+salesCustomerSchema.index({ customerName: 1 });
+salesCustomerSchema.index({ phone: 1 });
+salesCustomerSchema.index({ email: 1 });
 
 module.exports = mongoose.model('SalesCustomer', salesCustomerSchema);

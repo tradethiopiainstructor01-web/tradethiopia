@@ -303,38 +303,36 @@ const getOrdersByCustomerId = asyncHandler(async (req, res) => {
 // @access  Private
 const getOrderStats = asyncHandler(async (req, res) => {
   try {
-    const totalOrders = await Order.countDocuments();
-    const pendingOrders = await Order.countDocuments({ status: 'Pending' });
-    const confirmedOrders = await Order.countDocuments({ status: 'Confirmed' });
-    const processingOrders = await Order.countDocuments({ status: 'Processing' });
-    const shippedOrders = await Order.countDocuments({ status: 'Shipped' });
-    const deliveredOrders = await Order.countDocuments({ status: 'Delivered' });
-    const cancelledOrders = await Order.countDocuments({ status: 'Cancelled' });
-    
-    // Calculate total revenue
-    const revenueResult = await Order.aggregate([
+    const [summary = {}] = await Order.aggregate([
       {
         $group: {
           _id: null,
-          totalRevenue: { $sum: "$totalAmount" }
+          totalOrders: { $sum: 1 },
+          pendingOrders: { $sum: { $cond: [{ $eq: ['$status', 'Pending'] }, 1, 0] } },
+          confirmedOrders: { $sum: { $cond: [{ $eq: ['$status', 'Confirmed'] }, 1, 0] } },
+          processingOrders: { $sum: { $cond: [{ $eq: ['$status', 'Processing'] }, 1, 0] } },
+          shippedOrders: { $sum: { $cond: [{ $eq: ['$status', 'Shipped'] }, 1, 0] } },
+          deliveredOrders: { $sum: { $cond: [{ $eq: ['$status', 'Delivered'] }, 1, 0] } },
+          cancelledOrders: { $sum: { $cond: [{ $eq: ['$status', 'Cancelled'] }, 1, 0] } },
+          totalRevenue: { $sum: { $ifNull: ['$totalAmount', 0] } }
         }
       }
     ]);
-    
-    const totalRevenue = revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0;
+
+    const totalRevenue = summary.totalRevenue || 0;
     
     // For profit calculation, we would ideally join with stock items to get cost
     // For now, we'll use a simplified approach with a 20% profit margin
     const totalProfit = totalRevenue * 0.2;
     
     res.json({
-      totalOrders,
-      pendingOrders,
-      confirmedOrders,
-      processingOrders,
-      shippedOrders,
-      deliveredOrders,
-      cancelledOrders,
+      totalOrders: summary.totalOrders || 0,
+      pendingOrders: summary.pendingOrders || 0,
+      confirmedOrders: summary.confirmedOrders || 0,
+      processingOrders: summary.processingOrders || 0,
+      shippedOrders: summary.shippedOrders || 0,
+      deliveredOrders: summary.deliveredOrders || 0,
+      cancelledOrders: summary.cancelledOrders || 0,
       totalRevenue,
       totalProfit
     });

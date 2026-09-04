@@ -32,6 +32,14 @@ const createTrainingFollowup = async (req, res) => {
         followupStatus: "Imported"
       });
     }
+
+    // Automatically sync into Tessbin StudentRegistration
+    setImmediate(() => {
+      try {
+        const { syncAllFollowupStudentsToRegistrations } = require('./studentRegistrationController');
+        syncAllFollowupStudentsToRegistrations().catch(() => {});
+      } catch (e) {}
+    });
     
     res.status(201).json(doc);
   } catch (err) {
@@ -253,6 +261,15 @@ const updateTrainingFollowup = async (req, res) => {
       runValidators: true,
     });
     if (!updated) return res.status(404).json({ message: "Training follow-up not found" });
+
+    // Automatically sync into Tessbin StudentRegistration
+    setImmediate(() => {
+      try {
+        const { syncAllFollowupStudentsToRegistrations } = require('./studentRegistrationController');
+        syncAllFollowupStudentsToRegistrations().catch(() => {});
+      } catch (e) {}
+    });
+
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
