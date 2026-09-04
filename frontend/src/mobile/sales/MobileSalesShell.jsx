@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Box, useDisclosure } from '@chakra-ui/react';
+import { lazy, Suspense, useState } from 'react';
+import { Box, Center, Spinner, useDisclosure } from '@chakra-ui/react';
 import MobileSalesTopBar from '../../components/mobile/navigation/MobileSalesTopBar';
 import MobileBottomNav from '../../components/mobile/navigation/MobileBottomNav';
 import MobileSalesSidebar from '../../components/mobile/navigation/MobileSalesSidebar';
@@ -8,12 +8,14 @@ import MobileProfile from './MobileProfile';
 import MobileSalesHome from './MobileSalesHome';
 import MobileSalesPlaceholder from './MobileSalesPlaceholder';
 import MobileTasks from './MobileTasks';
+const StudentRegistrationPage = lazy(() => import('../../components/customer/StudentRegistrationPage'));
 
 const titleByItem = {
   Home: 'Sales',
   Followup: 'Followup',
   'Package Sales': 'Deals',
   Tasks: 'My Tasks',
+  'Student Registration': 'Student Registration',
   Search: 'Search',
   More: 'Profile',
   Meetings: 'Meetings',
@@ -26,7 +28,7 @@ const titleByItem = {
   Help: 'Help & Support'
 };
 
-const MobileSalesShell = ({ activeItem, setActiveItem }) => {
+const MobileSalesShell = ({ activeItem }) => {
   const sidebarDisclosure = useDisclosure();
   const [mobileItem, setMobileItem] = useState(() => (
     ['Home', 'Followup', 'Package Sales', 'Tasks'].includes(activeItem) ? activeItem : 'Home'
@@ -55,6 +57,8 @@ const MobileSalesShell = ({ activeItem, setActiveItem }) => {
         return <MobileSalesPlaceholder title="Deals" description="Mobile deal and package sales views will live here." />;
       case 'Tasks':
         return <MobileTasks openAddSignal={taskAddSignal} />;
+      case 'Student Registration':
+        return <StudentRegistrationPage embedded workspaceLabel="Sales" />;
       case 'Search':
         return <MobileSalesPlaceholder title="Search" description="Mobile global search for contacts, tasks, deals, and resources will live here." />;
       case 'More':
@@ -90,7 +94,9 @@ const MobileSalesShell = ({ activeItem, setActiveItem }) => {
         </Box>
       )}
       <Box px={3} py={currentItem === 'Home' ? 5 : 4}>
-        {renderMobileContent()}
+        <Suspense fallback={<Center minH="220px"><Spinner size="sm" /></Center>}>
+          {renderMobileContent()}
+        </Suspense>
       </Box>
       <MobileBottomNav activeItem={currentItem} onChange={setMobileItem} onAdd={handleAdd} />
       <MobileSalesSidebar

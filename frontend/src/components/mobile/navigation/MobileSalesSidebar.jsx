@@ -31,6 +31,7 @@ import {
   FiSettings,
   FiUser,
   FiUsers,
+  FiUserPlus,
   FiX
 } from 'react-icons/fi';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -48,6 +49,7 @@ const theme = {
 const primaryItems = [
   { label: 'Dashboard', value: 'Home', icon: FiGrid },
   { label: 'Followup', value: 'Followup', icon: FiUsers },
+  { label: 'Student Registration', value: 'Student Registration', icon: FiUserPlus },
   { label: 'Tasks', value: 'Tasks', icon: FiCheckSquare },
   { label: 'Meetings', value: 'Meetings', icon: FiBriefcase },
   { label: 'Performance', value: 'Performance', icon: FiBarChart2 },

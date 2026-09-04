@@ -5,6 +5,7 @@ import {
   Button,
   Flex,
   HStack,
+  IconButton,
   Input,
   Select,
   Spinner,
@@ -16,8 +17,29 @@ import {
   Th,
   Thead,
   Tr,
+  Tooltip,
+  useToast,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Textarea,
+  SimpleGrid,
+  VStack,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
 } from "@chakra-ui/react";
-import { RepeatIcon, SearchIcon } from "@chakra-ui/icons";
+import { RepeatIcon, SearchIcon, EditIcon, DeleteIcon } from "@chakra-ui/icons";
+import { updateCustomer, deleteCustomer } from "../../../services/customerService";
 
 const statusColor = (status = "") => {
   const s = String(status || "").toLowerCase();
@@ -61,6 +83,16 @@ const SalesFollowupsTabPage = ({
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const onRefreshRef = useRef(onRefresh);
+  const toast = useToast();
+
+  const [editCustomer, setEditCustomer] = useState(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const [deleteCustomerTarget, setDeleteCustomerTarget] = useState(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleteCancelRef = useRef(null);
 
   useEffect(() => {
     onRefreshRef.current = onRefresh;
@@ -97,6 +129,101 @@ const SalesFollowupsTabPage = ({
     dateFrom,
     dateTo,
   });
+
+  const handleOpenEdit = (customer) => {
+    setEditCustomer({
+      ...customer,
+      customerName: customer.customerName || '',
+      contactTitle: customer.contactTitle || customer.courseName || customer.trainingType || '',
+      phone: customer.phone || customer.phoneNumber || '',
+      email: customer.email || '',
+      callStatus: customer.callStatus || 'Called',
+      followupStatus: customer.followupStatus || 'Completed',
+      schedulePreference: customer.schedulePreference || customer.scheduleShift || 'Regular',
+      packageScope: customer.packageScope || 'Local',
+      note: customer.note || '',
+      assignedInstructor: customer.assignedInstructor || customer.instructorName || '',
+      batch: customer.batch || customer.group || customer.batchGroup || '',
+      idInfo: customer.idInfo || customer.studentId || '',
+      startDate: customer.startDate || customer.trainingStartDate ? new Date(customer.startDate || customer.trainingStartDate).toISOString().slice(0, 10) : '',
+      endDate: customer.endDate || customer.trainingEndDate ? new Date(customer.endDate || customer.trainingEndDate).toISOString().slice(0, 10) : '',
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleCloseEdit = () => {
+    setIsEditOpen(false);
+    setEditCustomer(null);
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditCustomer(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editCustomer) return;
+    const targetId = editCustomer._id || editCustomer.id;
+    if (!targetId) return;
+
+    setIsSavingEdit(true);
+    try {
+      await updateCustomer(targetId, editCustomer);
+      toast({
+        title: "Follow-up updated",
+        status: "success",
+        duration: 2500,
+        isClosable: true,
+      });
+      handleCloseEdit();
+      refreshCurrentPage();
+    } catch (err) {
+      toast({
+        title: "Failed to update",
+        description: err.message || "An error occurred while updating.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteClick = (customer) => {
+    setDeleteCustomerTarget(customer);
+    setIsDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteCustomerTarget) return;
+    const targetId = deleteCustomerTarget._id || deleteCustomerTarget.id;
+    if (!targetId) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteCustomer(targetId);
+      toast({
+        title: "Follow-up deleted",
+        status: "info",
+        duration: 2500,
+        isClosable: true,
+      });
+      setIsDeleteOpen(false);
+      setDeleteCustomerTarget(null);
+      refreshCurrentPage();
+    } catch (err) {
+      toast({
+        title: "Failed to delete",
+        description: err.message || "An error occurred while deleting.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="xl" p={4}>
@@ -242,7 +369,7 @@ const SalesFollowupsTabPage = ({
                     </Td>
                     <Td>{valueOrDash(customer.idInfo, customer.studentId)}</Td>
                     <Td>
-                      <HStack spacing={2}>
+                      <HStack spacing={1}>
                         <Button
                           as="a"
                           href={customer.phone ? `tel:${customer.phone}` : undefined}
@@ -263,6 +390,26 @@ const SalesFollowupsTabPage = ({
                         >
                           Email
                         </Button>
+                        <Tooltip label="Edit follow-up" hasArrow>
+                          <IconButton
+                            icon={<EditIcon />}
+                            size="xs"
+                            colorScheme="teal"
+                            variant="outline"
+                            onClick={() => handleOpenEdit(customer)}
+                            aria-label="Edit follow-up"
+                          />
+                        </Tooltip>
+                        <Tooltip label="Delete follow-up" hasArrow>
+                          <IconButton
+                            icon={<DeleteIcon />}
+                            size="xs"
+                            colorScheme="red"
+                            variant="outline"
+                            onClick={() => handleDeleteClick(customer)}
+                            aria-label="Delete follow-up"
+                          />
+                        </Tooltip>
                       </HStack>
                     </Td>
                   </Tr>
@@ -298,6 +445,175 @@ const SalesFollowupsTabPage = ({
           </Flex>
         </>
       )}
+
+      {/* Edit Customer Follow-up Modal */}
+      <Modal isOpen={isEditOpen} onClose={handleCloseEdit} size="xl" isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader bg="teal.500" color="white">
+            Edit Sales Customer Follow-up
+          </ModalHeader>
+          <ModalCloseButton color="white" />
+          <ModalBody py={4}>
+            {editCustomer && (
+              <VStack spacing={4} align="stretch">
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl isRequired>
+                    <FormLabel fontSize="xs" fontWeight="bold">Customer Name</FormLabel>
+                    <Input
+                      name="customerName"
+                      size="sm"
+                      value={editCustomer.customerName || ''}
+                      onChange={handleEditChange}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Course / Training Title</FormLabel>
+                    <Input
+                      name="contactTitle"
+                      size="sm"
+                      value={editCustomer.contactTitle || ''}
+                      onChange={handleEditChange}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Phone</FormLabel>
+                    <Input
+                      name="phone"
+                      size="sm"
+                      value={editCustomer.phone || ''}
+                      onChange={handleEditChange}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Email</FormLabel>
+                    <Input
+                      name="email"
+                      type="email"
+                      size="sm"
+                      value={editCustomer.email || ''}
+                      onChange={handleEditChange}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Follow-up Status</FormLabel>
+                    <Select
+                      name="followupStatus"
+                      size="sm"
+                      value={editCustomer.followupStatus || 'Completed'}
+                      onChange={handleEditChange}
+                    >
+                      <option value="Prospect">Prospect</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Scheduled">Scheduled</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Schedule Preference</FormLabel>
+                    <Select
+                      name="schedulePreference"
+                      size="sm"
+                      value={editCustomer.schedulePreference || 'Regular'}
+                      onChange={handleEditChange}
+                    >
+                      <option value="Regular">Regular</option>
+                      <option value="Weekend">Weekend</option>
+                      <option value="Night">Night</option>
+                      <option value="Online">Online</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Package Scope</FormLabel>
+                    <Select
+                      name="packageScope"
+                      size="sm"
+                      value={editCustomer.packageScope || 'Local'}
+                      onChange={handleEditChange}
+                    >
+                      <option value="Local">Local</option>
+                      <option value="International">International</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">ID / Student Info</FormLabel>
+                    <Input
+                      name="idInfo"
+                      size="sm"
+                      value={editCustomer.idInfo || ''}
+                      onChange={handleEditChange}
+                    />
+                  </FormControl>
+                </SimpleGrid>
+
+                <FormControl>
+                  <FormLabel fontSize="xs" fontWeight="bold">Notes</FormLabel>
+                  <Textarea
+                    name="note"
+                    size="sm"
+                    rows={3}
+                    value={editCustomer.note || ''}
+                    onChange={handleEditChange}
+                  />
+                </FormControl>
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter bg="gray.50">
+            <Button variant="outline" mr={3} size="sm" onClick={handleCloseEdit}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="teal"
+              size="sm"
+              isLoading={isSavingEdit}
+              onClick={handleSaveEdit}
+            >
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Delete Confirmation Alert */}
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={deleteCancelRef}
+        onClose={() => setIsDeleteOpen(false)}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Sales Follow-up
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to delete the follow-up record for <strong>{deleteCustomerTarget?.customerName || 'this customer'}</strong>? This action cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={deleteCancelRef} onClick={() => setIsDeleteOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                isLoading={isDeleting}
+                onClick={handleConfirmDelete}
+                ml={3}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };

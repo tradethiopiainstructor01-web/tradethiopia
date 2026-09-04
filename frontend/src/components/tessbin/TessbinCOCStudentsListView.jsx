@@ -62,9 +62,12 @@ import {
   FiShield,
   FiX,
   FiBookOpen,
+  FiPrinter,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { getStudentRegistrations, getStudentRegistrationById } from '../../services/studentRegistrationService';
+import TessbinStudentA4Dossier from './TessbinStudentA4Dossier';
+import TessbinStudentListA4Report from './TessbinStudentListA4Report';
 
 export default function TessbinCOCStudentsListView() {
   const toast = useToast();
@@ -79,12 +82,17 @@ export default function TessbinCOCStudentsListView() {
   const [departmentFilter, setDepartmentFilter] = useState('ALL');
   const [shiftFilter, setShiftFilter] = useState('ALL');
 
+  // Sort State
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' = oldest to latest
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
 
   // Modals
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isA4DossierOpen, onOpen: onA4DossierOpen, onClose: onA4DossierClose } = useDisclosure();
+  const { isOpen: isA4ReportOpen, onOpen: onA4ReportOpen, onClose: onA4ReportClose } = useDisclosure();
   const [selectedStudent, setSelectedStudent] = useState(null);
 
   // Lightbox Modal for Full View Images
@@ -153,8 +161,12 @@ export default function TessbinCOCStudentsListView() {
         return isCoffeeCupping &&
           (s.cocPaymentStatus || '').toString().trim().toLowerCase() === 'paid';
       });
-      // Sort latest to oldest
-      paidOnly.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      // Sort oldest to latest
+      paidOnly.sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.enrollmentDate || 0).getTime();
+        const dateB = new Date(b.createdAt || b.enrollmentDate || 0).getTime();
+        return dateA - dateB;
+      });
       setStudents(paidOnly);
     } catch (error) {
       toast({
@@ -276,8 +288,12 @@ export default function TessbinCOCStudentsListView() {
       }
 
       return true;
+    }).sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.enrollmentDate || 0).getTime();
+      const dateB = new Date(b.createdAt || b.enrollmentDate || 0).getTime();
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
-  }, [students, searchQuery, timePeriodFilter, customStartDate, customEndDate, departmentFilter, shiftFilter]);
+  }, [students, searchQuery, timePeriodFilter, customStartDate, customEndDate, departmentFilter, shiftFilter, sortOrder]);
 
   // Pagination slice
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
@@ -361,6 +377,7 @@ export default function TessbinCOCStudentsListView() {
     setCustomEndDate('');
     setDepartmentFilter('ALL');
     setShiftFilter('ALL');
+    setSortOrder('asc');
   };
 
   const hasActiveFilters =
@@ -439,7 +456,19 @@ export default function TessbinCOCStudentsListView() {
             </Box>
           </HStack>
 
-          <HStack spacing={2} alignSelf={{ base: 'stretch', md: 'auto' }} justify={{ base: 'flex-end', md: 'flex-start' }}>
+          <HStack spacing={2} alignSelf={{ base: 'stretch', md: 'auto' }} justify={{ base: 'flex-end', md: 'flex-start' }} wrap="wrap">
+            <Button
+              size="sm"
+              leftIcon={<FiPrinter />}
+              bg="white"
+              color="#0F172A"
+              _hover={{ bg: 'gray.100' }}
+              fontWeight="800"
+              onClick={onA4ReportOpen}
+              isDisabled={filteredStudents.length === 0}
+            >
+              Print COC Roster (A4)
+            </Button>
             <Button
               size="sm"
               leftIcon={<FiRefreshCw />}
@@ -454,10 +483,22 @@ export default function TessbinCOCStudentsListView() {
             </Button>
             <Button
               size="sm"
+              leftIcon={<FiPrinter />}
+              bg="#2563EB"
+              color="white"
+              _hover={{ bg: '#1D4ED8' }}
+              fontWeight="800"
+              onClick={onA4ReportOpen}
+              isDisabled={filteredStudents.length === 0}
+            >
+              Print COC Roster (A4)
+            </Button>
+            <Button
+              size="sm"
               leftIcon={<FiDownload />}
-              bg="white"
-              color="#065F46"
-              _hover={{ bg: 'gray.100' }}
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: 'whiteAlpha.300' }}
               fontWeight="800"
               onClick={handleExportExcel}
               isDisabled={filteredStudents.length === 0}
@@ -727,6 +768,18 @@ export default function TessbinCOCStudentsListView() {
                   </Tag>
                 )}
               </HStack>
+
+              <HStack spacing={2}>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  borderColor={borderColor}
+                  borderRadius="lg"
+                  onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                >
+                  Sort: {sortOrder === 'asc' ? 'Oldest to Latest' : 'Latest to Oldest'}
+                </Button>
+              </HStack>
             </Flex>
           </VStack>
         </CardBody>
@@ -922,18 +975,42 @@ export default function TessbinCOCStudentsListView() {
 
                       {/* Actions */}
                       <Td py={3} textAlign="right">
-                        <Button
-                          size="xs"
-                          colorScheme="green"
-                          bg="#059669"
-                          _hover={{ bg: '#047857' }}
-                          color="white"
-                          leftIcon={<FiMaximize2 />}
-                          onClick={() => handleOpenStudentDetail(student)}
-                          fontWeight="700"
-                        >
-                          Full View
-                        </Button>
+                        <HStack spacing={1.5} justify="flex-end">
+                          <Tooltip label="Full Profile & Verification Details">
+                            <IconButton
+                              size="xs"
+                              icon={<FiEye />}
+                              colorScheme="green"
+                              bg="#059669"
+                              _hover={{ bg: '#047857' }}
+                              color="white"
+                              aria-label="Full Profile View"
+                              onClick={() => handleOpenStudentDetail(student)}
+                            />
+                          </Tooltip>
+                          <Tooltip label="Print Official A4 Registration Dossier">
+                            <IconButton
+                              size="xs"
+                              icon={<FiPrinter />}
+                              colorScheme="blue"
+                              variant="outline"
+                              borderColor={borderColor}
+                              aria-label="Print A4 Dossier"
+                              onClick={async () => {
+                                setSelectedStudent(student);
+                                onA4DossierOpen();
+                                if (student?._id || student?.id) {
+                                  try {
+                                    const fullStudent = await getStudentRegistrationById(student._id || student.id);
+                                    if (fullStudent) setSelectedStudent(fullStudent);
+                                  } catch (err) {
+                                    console.warn('Could not load full student details for dossier:', err);
+                                  }
+                                }
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       </Td>
                     </Tr>
                   );
@@ -1502,7 +1579,21 @@ export default function TessbinCOCStudentsListView() {
             )}
           </ModalBody>
 
-          <ModalFooter borderTop="1px solid" borderColor={borderColor}>
+          <ModalFooter borderTop="1px solid" borderColor={borderColor} justifyContent="space-between">
+            <Button
+              size="sm"
+              leftIcon={<FiPrinter />}
+              colorScheme="blue"
+              bg="#2563EB"
+              color="white"
+              _hover={{ bg: '#1D4ED8' }}
+              onClick={() => {
+                onClose();
+                onA4DossierOpen();
+              }}
+            >
+              Print Official A4 Dossier
+            </Button>
             <Button size="sm" variant="ghost" onClick={onClose}>
               Close
             </Button>
@@ -1622,6 +1713,38 @@ export default function TessbinCOCStudentsListView() {
               Close Preview
             </Button>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* ── A4 SINGLE STUDENT DOSSIER MODAL ── */}
+      <Modal isOpen={isA4DossierOpen} onClose={onA4DossierClose} size="6xl" scrollBehavior="inside">
+        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(4px)" />
+        <ModalContent bg="#0B0F19" maxW="920px" p={0} borderRadius="2xl" overflow="hidden">
+          <ModalBody p={0} bg="#0B0F19">
+            {selectedStudent && (
+              <TessbinStudentA4Dossier
+                student={selectedStudent}
+                onClose={onA4DossierClose}
+                onOpenImage={handleOpenFullImage}
+              />
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* ── A4 COC ROSTER REPORT MODAL ── */}
+      <Modal isOpen={isA4ReportOpen} onClose={onA4ReportClose} size="6xl" scrollBehavior="inside">
+        <ModalOverlay bg="blackAlpha.800" backdropFilter="blur(4px)" />
+        <ModalContent bg="#0B0F19" maxW="960px" p={0} borderRadius="2xl" overflow="hidden">
+          <ModalBody p={0} bg="#0B0F19">
+            <TessbinStudentListA4Report
+              students={filteredStudents}
+              departmentFilter={departmentFilter}
+              timePeriodLabel={timePeriodFilter}
+              reportTitle="OFFICIAL COFFEE CUPPING COC CANDIDATE ROSTER & REPORT"
+              onClose={onA4ReportClose}
+            />
+          </ModalBody>
         </ModalContent>
       </Modal>
     </Box>

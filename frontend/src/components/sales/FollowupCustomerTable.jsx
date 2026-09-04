@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   Box,
   Table,
@@ -26,7 +26,16 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
-  Checkbox
+  Checkbox,
+  FormControl,
+  FormLabel,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon, SettingsIcon, DragHandleIcon } from '@chakra-ui/icons';
 import {
@@ -60,7 +69,7 @@ const DEFAULT_COLUMNS = [
   { key: 'date', label: 'Date', width: 120 },
   { key: 'email', label: 'Email', width: 190 },
   { key: 'note', label: 'Notes', width: 220 },
-  { key: 'actions', label: 'Actions', width: 110, required: true }
+  { key: 'actions', label: 'Actions', width: 130, required: true }
 ];
 
 const getDefaultColumnPrefs = () => ({
@@ -118,6 +127,12 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const newCustomerRef = useRef(createEmptyCustomer());
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const [drawerCustomer, setDrawerCustomer] = useState(null);
+  const [editModalCustomer, setEditModalCustomer] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState(null);
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const deleteCancelRef = useRef(null);
+
   const [columnPrefs, setColumnPrefs] = useState(readColumnPrefs);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_PREF_KEY) || 'list');
   const [draggedColumn, setDraggedColumn] = useState(null);
@@ -129,6 +144,111 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const userToken = localStorage.getItem('userToken');
   const userRole = localStorage.getItem('userRole') || 'agent';
   const headerColor = useColorModeValue('teal.800', 'teal.200');
+
+  // Pagination state for ultra-fast rendering with large customer datasets
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [customers?.length]);
+
+  const totalItems = customers?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedCustomers = useMemo(() => {
+    if (!Array.isArray(customers)) return [];
+    const start = (safeCurrentPage - 1) * pageSize;
+    return customers.slice(start, start + pageSize);
+  }, [customers, safeCurrentPage, pageSize]);
+
+  const handleOpenEditModal = (customer) => {
+    if (!customer) return;
+    setEditModalCustomer({
+      ...customer,
+      customerName: customer.customerName || '',
+      contactTitle: customer.contactTitle || customer.courseName || '',
+      phone: customer.phone || '',
+      email: customer.email || '',
+      callStatus: customer.callStatus || 'Not Called',
+      followupStatus: customer.followupStatus || 'Pending',
+      schedulePreference: customer.schedulePreference || 'Regular',
+      packageScope: customer.packageScope || 'Local',
+      note: customer.note || '',
+      supervisorComment: customer.supervisorComment || '',
+      date: customer.date ? new Date(customer.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditModalCustomer(null);
+  };
+
+  const handleEditModalInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditModalCustomer(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, [name]: value };
+      if (name === 'contactTitle') {
+        const courseDetails = getCourseDetails(value);
+        if (courseDetails) {
+          next.courseId = courseDetails.id;
+          next.coursePrice = courseDetails.price;
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleSaveEditModal = () => {
+    if (!editModalCustomer) return;
+    const targetId = editModalCustomer._id || editModalCustomer.id;
+    if (!targetId) return;
+
+    const payload = { ...editModalCustomer };
+    if (payload.contactTitle) {
+      const courseDetails = getCourseDetails(payload.contactTitle, payload.courseId);
+      if (courseDetails) {
+        payload.coursePrice = courseDetails.price;
+        payload.courseId = courseDetails.id;
+        if (payload.followupStatus === 'Completed') {
+          payload.commission = calculateCommission(courseDetails.name, courseDetails.price);
+        }
+      }
+    }
+
+    onUpdate(targetId, payload);
+    setUpdatedCustomers(prev => new Set(prev).add(targetId));
+    setTimeout(() => {
+      setUpdatedCustomers(prev => {
+        const nextSet = new Set(prev);
+        nextSet.delete(targetId);
+        return nextSet;
+      });
+    }, 2000);
+    handleCloseEditModal();
+  };
+
+  const handleDeleteClick = (customer) => {
+    setCustomerToDelete(customer);
+    setIsDeleteAlertOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (customerToDelete) {
+      onDelete(customerToDelete._id || customerToDelete.id);
+    }
+    setIsDeleteAlertOpen(false);
+    setCustomerToDelete(null);
+  };
+
+  const handleCancelDelete = () => {
+    setIsDeleteAlertOpen(false);
+    setCustomerToDelete(null);
+  };
 
   useEffect(() => {
     localStorage.setItem(TABLE_PREF_KEY, JSON.stringify(columnPrefs));
@@ -839,25 +959,39 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               />
             )}
             <HStack spacing={1} justify="flex-end">
-              <IconButton
-                icon={<DeleteIcon />}
-                colorScheme="red"
-                size="xs"
-                onClick={() => onDelete(customer._id)}
-                aria-label="Delete customer"
-                variant="outline"
-              />
-              <IconButton
-                icon={<InfoIcon />}
-                colorScheme="blue"
-                size="xs"
-                onClick={() => {
-                  setDrawerCustomer(customer);
-                  onOpen();
-                }}
-                aria-label="View details"
-                variant="outline"
-              />
+              <Tooltip label="Edit customer" hasArrow>
+                <IconButton
+                  icon={<EditIcon />}
+                  colorScheme="teal"
+                  size="xs"
+                  onClick={() => handleOpenEditModal(customer)}
+                  aria-label="Edit customer"
+                  variant="outline"
+                />
+              </Tooltip>
+              <Tooltip label="Delete customer" hasArrow>
+                <IconButton
+                  icon={<DeleteIcon />}
+                  colorScheme="red"
+                  size="xs"
+                  onClick={() => handleDeleteClick(customer)}
+                  aria-label="Delete customer"
+                  variant="outline"
+                />
+              </Tooltip>
+              <Tooltip label="View details" hasArrow>
+                <IconButton
+                  icon={<InfoIcon />}
+                  colorScheme="blue"
+                  size="xs"
+                  onClick={() => {
+                    setDrawerCustomer(customer);
+                    onOpen();
+                  }}
+                  aria-label="View details"
+                  variant="outline"
+                />
+              </Tooltip>
             </HStack>
           </Td>
         );
@@ -943,25 +1077,39 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             </Text>
           </Box>
           <HStack spacing={1}>
-            <IconButton
-              icon={<InfoIcon />}
-              colorScheme="blue"
-              size="xs"
-              onClick={() => {
-                setDrawerCustomer(customer);
-                onOpen();
-              }}
-              aria-label="View details"
-              variant="outline"
-            />
-            <IconButton
-              icon={<DeleteIcon />}
-              colorScheme="red"
-              size="xs"
-              onClick={() => onDelete(customer._id)}
-              aria-label="Delete customer"
-              variant="outline"
-            />
+            <Tooltip label="Edit customer" hasArrow>
+              <IconButton
+                icon={<EditIcon />}
+                colorScheme="teal"
+                size="xs"
+                onClick={() => handleOpenEditModal(customer)}
+                aria-label="Edit customer"
+                variant="outline"
+              />
+            </Tooltip>
+            <Tooltip label="Delete customer" hasArrow>
+              <IconButton
+                icon={<DeleteIcon />}
+                colorScheme="red"
+                size="xs"
+                onClick={() => handleDeleteClick(customer)}
+                aria-label="Delete customer"
+                variant="outline"
+              />
+            </Tooltip>
+            <Tooltip label="View details" hasArrow>
+              <IconButton
+                icon={<InfoIcon />}
+                colorScheme="blue"
+                size="xs"
+                onClick={() => {
+                  setDrawerCustomer(customer);
+                  onOpen();
+                }}
+                aria-label="View details"
+                variant="outline"
+              />
+            </Tooltip>
           </HStack>
         </Flex>
 
@@ -1165,7 +1313,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             </Tr>
           )}
 
-          {customers && customers.map(customer => (
+          {paginatedCustomers && paginatedCustomers.map(customer => (
             <Tr 
               key={customer._id} 
               _hover={{ bg: 'gray.50' }}
@@ -1175,109 +1323,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               borderColor="gray.200"
             >
               {visibleColumns.map(column => renderCustomerColumnCell(customer, column))}
-              {false && <>
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'contactTitle' 
-                ? renderEditableCell(customer, 'contactTitle', customer.contactTitle, 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'contactTitle')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="120px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                    <Tooltip
-                      label={`${customer.contactTitle || 'No course selected'} • ${formatPrice(getCustomerCoursePrice(customer))}`}
-                      hasArrow
-                      placement="top"
-                      openDelay={250}
-                    >
-                      <Text as="span">{customer.contactTitle || 'Select course'}</Text>
-                    </Tooltip>
-                  </Td>
-                )}
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'phone' 
-                ? renderEditableCell(customer, 'phone', customer.phone)
-                : <Td onClick={() => handleCellClick(customer, 'phone')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">{customer.phone}</Td>}
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'callStatus' 
-                ? renderEditableCell(customer, 'callStatus', customer.callStatus, 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'callStatus')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} fontSize="xs" px={2} py={1}>
-                      {customer.callStatus}
-                    </Badge>
-                  </Td>
-                )}
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'followupStatus' 
-                ? renderEditableCell(customer, 'followupStatus', customer.followupStatus, 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'followupStatus')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} fontSize="xs" px={2} py={1}>
-                      {customer.followupStatus}
-                    </Badge>
-                  </Td>
-                )}
-
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'schedulePreference' 
-                ? renderEditableCell(customer, 'schedulePreference', customer.schedulePreference || 'Regular', 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'schedulePreference')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    {customer.schedulePreference || 'Regular'}
-                  </Td>
-                )}
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'packageScope'
-                ? renderEditableCell(customer, 'packageScope', customer.packageScope || 'Local', 'select')
-                : (
-                  <Td onClick={() => handleCellClick(customer, 'packageScope')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm">
-                    <Badge variant="subtle" colorScheme={getScopeBadgeVariant(customer.packageScope || 'Local')} fontSize="xs" px={2} py={1}>
-                      {customer.packageScope || 'Local'}
-                    </Badge>
-                  </Td>
-                )}
-              
-              <Td p={2} fontSize="xs">{customer.date ? formatDate(customer.date) : 'N/A'}</Td>
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'email' 
-                ? renderEditableCell(customer, 'email', customer.email)
-                : <Td onClick={() => handleCellClick(customer, 'email')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="150px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">{customer.email}</Td>}
-              
-              {editingCell && editingCell.id === customer._id && editingCell.field === 'note' 
-                ? renderEditableCell(customer, 'note', customer.note, 'textarea')
-                : <Td onClick={() => handleCellClick(customer, 'note')} _hover={{ cursor: 'pointer', bg: 'teal.50' }} p={2} fontSize="sm" maxWidth="150px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">{customer.note}</Td>}
-              
-              <Td p={2} position="relative">
-                {updatedCustomers.has(customer._id) && (
-                  <Box 
-                    position="absolute" 
-                    top="-2px" 
-                    left="-2px" 
-                    w="8px" 
-                    h="8px" 
-                    bg="green.500" 
-                    borderRadius="50%" 
-                    zIndex="1"
-                  />
-                )}
-                <HStack spacing={1} justify="flex-end">
-                  <IconButton
-                    icon={<DeleteIcon />}
-                    colorScheme="red"
-                    size="xs"
-                    onClick={() => onDelete(customer._id)}
-                    aria-label="Delete customer"
-                    variant="outline"
-                  />
-                  <IconButton
-                    icon={<InfoIcon />}
-                    colorScheme="blue"
-                    size="xs"
-                    onClick={() => {
-                      setDrawerCustomer(customer);
-                      onOpen();
-                    }}
-                    aria-label="View details"
-                    variant="outline"
-                  />
-                </HStack>
-              </Td>
-              </>}
             </Tr>
           ))}
         </Tbody>
@@ -1285,10 +1330,128 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       </Box>
       ) : (
         <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={3}>
-          {customers && customers.map(renderGridCard)}
+          {paginatedCustomers && paginatedCustomers.map(renderGridCard)}
         </SimpleGrid>
       )}
 
+      {/* Pagination Controls */}
+      {totalItems > 0 && (
+        <Flex
+          direction={{ base: 'column', md: 'row' }}
+          justify="space-between"
+          align="center"
+          p={3}
+          mt={3}
+          bg={useColorModeValue('white', 'gray.800')}
+          borderRadius="lg"
+          border="1px solid"
+          borderColor={useColorModeValue('gray.200', 'gray.700')}
+          shadow="sm"
+          gap={3}
+        >
+          <HStack spacing={3} flexWrap="wrap">
+            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+              Showing <Text as="span" fontWeight="bold" color="teal.600">{((safeCurrentPage - 1) * pageSize) + 1}</Text> - <Text as="span" fontWeight="bold" color="teal.600">{Math.min(safeCurrentPage * pageSize, totalItems)}</Text> of <Text as="span" fontWeight="bold">{totalItems}</Text> entries
+            </Text>
+            <HStack spacing={1}>
+              <Text fontSize="xs" color="gray.500">Rows per page:</Text>
+              <Select
+                size="sm"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                w="75px"
+                borderRadius="md"
+              >
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </Select>
+            </HStack>
+          </HStack>
+
+          <HStack spacing={1}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCurrentPage(1)}
+              isDisabled={safeCurrentPage === 1}
+              title="First Page"
+              px={2}
+            >
+              «
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              isDisabled={safeCurrentPage === 1}
+              px={3}
+            >
+              ‹ Prev
+            </Button>
+
+            <HStack spacing={1} px={2}>
+              <Text fontSize="sm" fontWeight="semibold">
+                Page {safeCurrentPage} of {totalPages}
+              </Text>
+            </HStack>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              isDisabled={safeCurrentPage >= totalPages}
+              px={3}
+            >
+              Next ›
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCurrentPage(totalPages)}
+              isDisabled={safeCurrentPage >= totalPages}
+              title="Last Page"
+              px={2}
+            >
+              »
+            </Button>
+          </HStack>
+        </Flex>
+      )}
+
+      {/* Delete Confirmation AlertDialog */}
+      <AlertDialog
+        isOpen={isDeleteAlertOpen}
+        leastDestructiveRef={deleteCancelRef}
+        onClose={handleCancelDelete}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Customer Follow-up
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to delete <strong>{customerToDelete?.customerName || 'this customer'}</strong>? This action cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={deleteCancelRef} onClick={handleCancelDelete}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleConfirmDelete} ml={3}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Completed Status Warning Dialog */}
       <AlertDialog
         isOpen={isStatusWarningOpen}
         leastDestructiveRef={warningCancelRef}
@@ -1315,6 +1478,181 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+
+      {/* Edit Customer Modal */}
+      <Modal isOpen={isEditModalOpen} onClose={handleCloseEditModal} size="xl" isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader bg="teal.500" color="white">
+            Edit Customer Follow-up
+          </ModalHeader>
+          <ModalCloseButton color="white" />
+          <ModalBody py={4}>
+            {editModalCustomer && (
+              <VStack spacing={4} align="stretch">
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl isRequired>
+                    <FormLabel fontSize="xs" fontWeight="bold">Customer Name</FormLabel>
+                    <Input
+                      name="customerName"
+                      size="sm"
+                      value={editModalCustomer.customerName || ''}
+                      onChange={handleEditModalInputChange}
+                      placeholder="Customer Name"
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Training Title</FormLabel>
+                    <Select
+                      name="contactTitle"
+                      size="sm"
+                      value={editModalCustomer.contactTitle || ''}
+                      onChange={handleEditModalInputChange}
+                    >
+                      <option value="">Select a course</option>
+                      {(Array.isArray(courses) ? courses : []).map(course => (
+                        <option key={course._id} value={course.name}>
+                          {course.name} - {formatPrice(Number(course.price) || 0)}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Phone</FormLabel>
+                    <Input
+                      name="phone"
+                      size="sm"
+                      value={editModalCustomer.phone || ''}
+                      onChange={handleEditModalInputChange}
+                      placeholder="Phone Number"
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Email</FormLabel>
+                    <Input
+                      name="email"
+                      type="email"
+                      size="sm"
+                      value={editModalCustomer.email || ''}
+                      onChange={handleEditModalInputChange}
+                      placeholder="Email Address"
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Call Status</FormLabel>
+                    <Select
+                      name="callStatus"
+                      size="sm"
+                      value={editModalCustomer.callStatus || 'Not Called'}
+                      onChange={handleEditModalInputChange}
+                    >
+                      <option value="Called">Called</option>
+                      <option value="Not Called">Not Called</option>
+                      <option value="Busy">Busy</option>
+                      <option value="No Answer">No Answer</option>
+                      <option value="Callback">Callback</option>
+                      <option value="2x Called">2x Called</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Follow-up Status</FormLabel>
+                    <Select
+                      name="followupStatus"
+                      size="sm"
+                      value={editModalCustomer.followupStatus || 'Pending'}
+                      onChange={handleEditModalInputChange}
+                    >
+                      <option value="Prospect">Prospect</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Scheduled">Scheduled</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Schedule Preference</FormLabel>
+                    <Select
+                      name="schedulePreference"
+                      size="sm"
+                      value={editModalCustomer.schedulePreference || 'Regular'}
+                      onChange={handleEditModalInputChange}
+                    >
+                      <option value="Regular">Regular</option>
+                      <option value="Weekend">Weekend</option>
+                      <option value="Night">Night</option>
+                      <option value="Online">Online</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Package Scope</FormLabel>
+                    <Select
+                      name="packageScope"
+                      size="sm"
+                      value={editModalCustomer.packageScope || 'Local'}
+                      onChange={handleEditModalInputChange}
+                    >
+                      <option value="Local">Local</option>
+                      <option value="International">International</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Date</FormLabel>
+                    <Input
+                      name="date"
+                      type="date"
+                      size="sm"
+                      value={editModalCustomer.date ? editModalCustomer.date.slice(0, 10) : ''}
+                      onChange={handleEditModalInputChange}
+                    />
+                  </FormControl>
+                </SimpleGrid>
+
+                <FormControl>
+                  <FormLabel fontSize="xs" fontWeight="bold">Customer Notes</FormLabel>
+                  <Textarea
+                    name="note"
+                    size="sm"
+                    rows={3}
+                    value={editModalCustomer.note || ''}
+                    onChange={handleEditModalInputChange}
+                    placeholder="Enter follow-up notes..."
+                  />
+                </FormControl>
+
+                {canUserEditField('supervisorComment', userRole) && (
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">Supervisor Comment</FormLabel>
+                    <Textarea
+                      name="supervisorComment"
+                      size="sm"
+                      rows={2}
+                      value={editModalCustomer.supervisorComment || ''}
+                      onChange={handleEditModalInputChange}
+                      placeholder="Supervisor feedback or comments..."
+                    />
+                  </FormControl>
+                )}
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter bg="gray.50">
+            <Button variant="outline" mr={3} size="sm" onClick={handleCloseEditModal}>
+              Cancel
+            </Button>
+            <Button colorScheme="teal" size="sm" onClick={handleSaveEditModal}>
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Customer Details Drawer */}
       <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="lg">
@@ -1463,8 +1801,20 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               </VStack>
             )}
           </DrawerBody>
-          <DrawerFooter bg="gray.50">
-            <Button variant="outline" mr={3} onClick={onClose}>
+          <DrawerFooter bg="gray.50" justify="space-between">
+            <Button
+              leftIcon={<EditIcon />}
+              colorScheme="teal"
+              size="sm"
+              onClick={() => {
+                const target = drawerCustomer;
+                onClose();
+                handleOpenEditModal(target);
+              }}
+            >
+              Edit Customer
+            </Button>
+            <Button variant="outline" size="sm" onClick={onClose}>
               Close
             </Button>
           </DrawerFooter>

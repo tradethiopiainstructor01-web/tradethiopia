@@ -24,12 +24,13 @@ import {
   FaIdCard,
   FaExclamationTriangle,
 } from 'react-icons/fa';
-import { FiCheckCircle, FiMessageSquare, FiUploadCloud } from 'react-icons/fi';
+import { FiCheckCircle, FiMessageSquare, FiUploadCloud, FiUserPlus } from 'react-icons/fi';
 import { getNotifications } from '../../services/notificationService';
 
 const sidebarItems = [
   { label: 'Home', icon: FaHome },
   { label: 'Followup', icon: FaMoneyBillWave },
+  { label: 'Student Registration', icon: FiUserPlus },
   { label: 'Orders', icon: FaShoppingCart },
   { label: 'Tasks', icon: FiCheckCircle },
   { label: 'Content Tracker', icon: FaRegCalendarAlt },

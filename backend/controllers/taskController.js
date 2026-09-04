@@ -221,62 +221,43 @@ const getTaskStats = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const userRole = req.user.role;
 
-  let stats = {};
-
   // Create a date object for today at midnight for consistent date comparison
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  if (userRole === 'salesmanager') {
-    // For sales managers, get stats for tasks they assigned
-    const totalTasks = await Task.countDocuments({ assignedBy: userId });
-    const completedTasks = await Task.countDocuments({ 
-      assignedBy: userId, 
-      status: 'Completed' 
-    });
-    const pendingTasks = await Task.countDocuments({ 
-      assignedBy: userId, 
-      status: { $in: ['Pending', 'In Progress'] } 
-    });
-    const overdueTasks = await Task.countDocuments({ 
-      assignedBy: userId, 
-      dueDate: { $lt: today },
-      status: { $ne: 'Completed' }
-    });
-
-    stats = {
-      totalTasks,
-      completedTasks,
-      pendingTasks,
-      overdueTasks
-    };
-  } else if (userRole === 'sales') {
-    // For sales representatives, get stats for tasks assigned to them
-    const totalTasks = await Task.countDocuments({ assignedTo: userId });
-    const completedTasks = await Task.countDocuments({ 
-      assignedTo: userId, 
-      status: 'Completed' 
-    });
-    const pendingTasks = await Task.countDocuments({ 
-      assignedTo: userId, 
-      status: { $in: ['Pending', 'In Progress'] } 
-    });
-    const overdueTasks = await Task.countDocuments({ 
-      assignedTo: userId, 
-      dueDate: { $lt: today },
-      status: { $ne: 'Completed' }
-    });
-
-    stats = {
-      totalTasks,
-      completedTasks,
-      pendingTasks,
-      overdueTasks
-    };
-  } else {
+  const ownerField = userRole === 'salesmanager' ? 'assignedBy' : userRole === 'sales' ? 'assignedTo' : null;
+  if (!ownerField) {
     res.status(403);
     throw new Error('Not authorized to access task statistics');
   }
+
+  const [summary = {}] = await Task.aggregate([
+    { $match: { [ownerField]: userId } },
+    {
+      $group: {
+        _id: null,
+        totalTasks: { $sum: 1 },
+        completedTasks: { $sum: { $cond: [{ $eq: ['$status', 'Completed'] }, 1, 0] } },
+        pendingTasks: { $sum: { $cond: [{ $in: ['$status', ['Pending', 'In Progress']] }, 1, 0] } },
+        overdueTasks: {
+          $sum: {
+            $cond: [
+              { $and: [{ $lt: ['$dueDate', today] }, { $ne: ['$status', 'Completed'] }] },
+              1,
+              0
+            ]
+          }
+        }
+      }
+    }
+  ]);
+
+  const stats = {
+    totalTasks: summary.totalTasks || 0,
+    completedTasks: summary.completedTasks || 0,
+    pendingTasks: summary.pendingTasks || 0,
+    overdueTasks: summary.overdueTasks || 0
+  };
 
   res.json(stats);
 });

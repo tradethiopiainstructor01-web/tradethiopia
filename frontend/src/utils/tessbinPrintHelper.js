@@ -1,38 +1,42 @@
 /**
  * Tessbin Academy - Bulletproof A4 Hardcopy Print Helper
- * Fixes the blank/empty print bug caused by zero-sized or visibility:hidden iframes.
- * Provides both isolated off-screen iframe printing and new-tab preview printing.
+ * High-fidelity printing supporting both isolated off-screen iframe print and clean popup preview.
  */
 
 const getPrintStyles = (title) => {
-  // Collect all active stylesheets and style tags from current document
   let stylesHtml = '';
   document.querySelectorAll('style, link[rel="stylesheet"]').forEach((el) => {
-    stylesHtml += el.outerHTML + '\n';
+    try {
+      stylesHtml += el.outerHTML + '\n';
+    } catch {
+      // Ignore cross-origin stylesheet read restrictions if any
+    }
   });
 
   const printOverrides = `
     <style>
       @page {
         size: A4 portrait;
-        margin: 6mm 8mm;
+        margin: 4mm 5mm;
       }
       * {
         box-sizing: border-box !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+        color-adjust: exact !important;
       }
       html, body {
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
         color: #000000 !important;
-        font-family: 'Segoe UI', Arial, Helvetica, sans-serif !important;
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, Helvetica, sans-serif !important;
         width: 100% !important;
         height: auto !important;
         min-height: 100% !important;
         display: block !important;
         visibility: visible !important;
+        -webkit-font-smoothing: antialiased !important;
       }
       .tessbin-a4-screen-wrapper {
         padding: 0 !important;
@@ -43,7 +47,9 @@ const getPrintStyles = (title) => {
         width: 100% !important;
       }
       .tessbin-a4-sheet {
-        display: block !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
         visibility: visible !important;
         background: #ffffff !important;
         color: #000000 !important;
@@ -62,19 +68,35 @@ const getPrintStyles = (title) => {
         visibility: visible !important;
       }
       .tessbin-a4-frame {
-        display: block !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
         visibility: visible !important;
         border: 1.5px solid #0f172a !important;
         outline: 0.5px solid #0f172a !important;
         outline-offset: 1px !important;
-        padding: 4mm 6mm !important;
+        padding: 3.5mm 5mm 2.5mm !important;
         box-sizing: border-box !important;
         height: auto !important;
+        min-height: 270mm !important;
+        max-height: 284mm !important;
         background: #ffffff !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .no-print {
         display: none !important;
         visibility: hidden !important;
+      }
+      table thead {
+        display: table-header-group !important;
+      }
+      tr, .tessbin-a4-section, .tessbin-a4-sign-grid, .tessbin-a4-doc-grid {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      img {
+        max-width: 100% !important;
       }
     </style>
   `;
@@ -82,28 +104,48 @@ const getPrintStyles = (title) => {
   return { stylesHtml, printOverrides };
 };
 
+/**
+ * Smart DOM element resolver for A4 containers
+ */
+const resolveA4Element = (elementId) => {
+  if (!elementId) {
+    return document.querySelector('.tessbin-a4-sheet') || document.querySelector('.tessbin-a4-frame');
+  }
+
+  // Exact ID
+  let el = document.getElementById(elementId);
+  if (el) return el;
+
+  // Prefix matching ID
+  el = document.querySelector(`[id^="${elementId}"]`);
+  if (el) return el;
+
+  // Generic class matches
+  el = document.querySelector('.tessbin-a4-sheet') || document.querySelector('.tessbin-a4-frame');
+  return el;
+};
+
 export const printA4Element = (elementId, title = 'TESBINN_Trade_Ethiopia_School_of_Business_and_Innovation') => {
-  const element = document.getElementById(elementId);
+  const element = resolveA4Element(elementId);
   if (!element) {
     console.warn(`Element #${elementId} not found, falling back to window.print()`);
     window.print();
     return;
   }
 
-  // Remove any previously created print iframe
+  // Remove previous iframe if present
   const oldFrame = document.getElementById('tessbin-print-frame');
   if (oldFrame) {
     oldFrame.remove();
   }
 
-  // Create an off-screen iframe with REAL positive layout dimensions (NOT visibility:hidden or 0x0)
   const iframe = document.createElement('iframe');
   iframe.id = 'tessbin-print-frame';
   iframe.style.position = 'fixed';
   iframe.style.left = '-10000px';
   iframe.style.top = '-10000px';
-  iframe.style.width = '794px'; // standard A4 96 DPI pixel width
-  iframe.style.height = '1123px'; // standard A4 96 DPI pixel height
+  iframe.style.width = '794px';
+  iframe.style.height = '1123px';
   iframe.style.border = '0';
   iframe.style.opacity = '0';
   iframe.style.pointerEvents = 'none';
@@ -132,7 +174,6 @@ export const printA4Element = (elementId, title = 'TESBINN_Trade_Ethiopia_School
   `);
   doc.close();
 
-  // Ensure all images are loaded before invoking print
   const images = Array.from(doc.images);
   const imagePromises = images.map((img) => {
     if (img.complete) return Promise.resolve();
@@ -147,8 +188,8 @@ export const printA4Element = (elementId, title = 'TESBINN_Trade_Ethiopia_School
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     } catch (err) {
-      console.error('Iframe print failed, falling back to window.print():', err);
-      window.print();
+      console.error('Iframe print failed, falling back to new window:', err);
+      openA4InNewWindow(elementId, title);
     }
   };
 
@@ -157,11 +198,8 @@ export const printA4Element = (elementId, title = 'TESBINN_Trade_Ethiopia_School
   });
 };
 
-/**
- * Alternative fallback: opens the hardcopy in a dedicated clean window for viewing and printing
- */
 export const openA4InNewWindow = (elementId, title = 'Tessbin_Official_A4_Registration_Dossier') => {
-  const element = document.getElementById(elementId);
+  const element = resolveA4Element(elementId);
   if (!element) return;
 
   const { stylesHtml, printOverrides } = getPrintStyles(title);
@@ -181,9 +219,9 @@ export const openA4InNewWindow = (elementId, title = 'Tessbin_Official_A4_Regist
         ${stylesHtml}
         ${printOverrides}
       </head>
-      <body>
-        <div class="tessbin-a4-screen-wrapper" style="padding: 20px 0;">
-          <div class="tessbin-a4-sheet" style="box-shadow: 0 4px 16px rgba(0,0,0,0.15); border: 1px solid #cbd5e1;">
+      <body style="background: #0b0f19; padding: 20px 0;">
+        <div class="tessbin-a4-screen-wrapper">
+          <div class="tessbin-a4-sheet" style="box-shadow: 0 4px 20px rgba(0,0,0,0.4); border: 1px solid #cbd5e1;">
             ${element.innerHTML}
           </div>
         </div>
@@ -192,7 +230,7 @@ export const openA4InNewWindow = (elementId, title = 'Tessbin_Official_A4_Regist
             setTimeout(function() {
               window.focus();
               window.print();
-            }, 300);
+            }, 350);
           };
         </script>
       </body>

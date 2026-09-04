@@ -8,8 +8,8 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 20px 12px 36px;
-  background-color: #0f172a;
+  padding: 16px 8px 32px;
+  background-color: #0b0f19;
   min-height: 100%;
   width: 100%;
   box-sizing: border-box;
@@ -21,15 +21,15 @@
   color: #0a0f1d !important;
   width: 210mm;
   max-width: 100%;
-  min-height: 297mm;
+  min-height: 290mm;
   height: auto;
   margin: 0 auto;
-  padding: 8mm 10mm 6mm;
+  padding: 6mm 8mm 5mm;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.25);
   border: 1px solid #94a3b8;
   border-radius: 2px;
   box-sizing: border-box;
-  font-family: 'Segoe UI', Arial, Helvetica, 'Times New Roman', sans-serif;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, Helvetica, 'Times New Roman', sans-serif;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -40,9 +40,9 @@
 .tessbin-a4-frame {
   border: 1.5px solid #0f172a;
   outline: 0.5px solid #0f172a;
-  outline-offset: 1.5px;
-  padding: 6mm 7mm 4mm;
-  min-height: 279mm;
+  outline-offset: 1px;
+  padding: 4.5mm 5.5mm 3.5mm;
+  min-height: 276mm;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -57,9 +57,9 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(-12deg);
-  width: 380px;
-  height: 380px;
-  opacity: 0.032;
+  width: 320px;
+  height: 320px;
+  opacity: 0.035;
   pointer-events: none;
   background-size: contain;
   background-repeat: no-repeat;
@@ -79,17 +79,17 @@
 /* Header: Official Academy Letterhead & Photo */
 .tessbin-a4-header {
   border-bottom: 2px solid #0f172a;
-  padding-bottom: 5px;
-  margin-bottom: 4px;
+  padding-bottom: 3.5px;
+  margin-bottom: 3px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .tessbin-a4-logo {
-  width: 52px;
-  height: 52px;
+  width: 46px;
+  height: 46px;
   object-fit: contain;
 }
 
@@ -104,7 +104,7 @@
 }
 
 .tessbin-a4-org-title-am {
-  font-size: 10.5pt;
+  font-size: 9.5pt;
   font-weight: 800;
   color: #1e1b4b;
   letter-spacing: 0.2px;
@@ -112,14 +112,14 @@
 }
 
 .tessbin-a4-org-subtitle {
-  font-size: 6.8pt;
+  font-size: 6.5pt;
   font-weight: 700;
   color: #475569;
   letter-spacing: 0.2px;
 }
 
 .tessbin-a4-org-contact {
-  font-size: 6.5pt;
+  font-size: 6.2pt;
   color: #64748b;
   margin-top: 1px;
 }
@@ -128,10 +128,10 @@
 .tessbin-a4-meta-box {
   border: 1px solid #0f172a;
   background: #f8fafc;
-  padding: 3px 6px;
-  font-size: 6.5pt;
-  line-height: 1.25;
-  min-width: 44mm;
+  padding: 2.5px 5px;
+  font-size: 6.2pt;
+  line-height: 1.2;
+  min-width: 42mm;
 }
 
 /* Title Bar: High-Contrast Official Banner */
@@ -139,42 +139,42 @@
   background: #0f172a !important;
   color: #ffffff !important;
   text-align: center;
-  padding: 4px 6px;
-  margin: 3px 0 6px;
+  padding: 3px 5px;
+  margin: 2px 0 4.5px;
   border-radius: 2px;
   border: 1px solid #000;
 }
 
 .tessbin-a4-title-text-en {
-  font-size: 9pt;
+  font-size: 8.5pt;
   font-weight: 900;
-  letter-spacing: 1.2px;
+  letter-spacing: 1px;
   text-transform: uppercase;
   margin: 0;
   color: #ffffff !important;
 }
 
 .tessbin-a4-title-text-am {
-  font-size: 7.5pt;
+  font-size: 7.2pt;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   margin: 1px 0 0;
   color: #cbd5e1 !important;
 }
 
 /* Section Container & Section Headings */
 .tessbin-a4-section {
-  margin-bottom: 4px;
+  margin-bottom: 3.5px;
 }
 
 .tessbin-a4-section-title {
   background: #1e293b;
   color: #ffffff !important;
-  font-size: 7pt;
+  font-size: 6.8pt;
   font-weight: 800;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
-  padding: 2px 6px;
+  padding: 2px 5px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -186,14 +186,14 @@
 .tessbin-a4-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 7pt;
+  font-size: 6.8pt;
   margin: 0;
 }
 
 .tessbin-a4-table th,
 .tessbin-a4-table td {
   border: 1px solid #1e293b;
-  padding: 2.5px 5px;
+  padding: 2px 4.5px;
   text-align: left;
   vertical-align: middle;
 }
@@ -202,7 +202,7 @@
   background-color: #f1f5f9 !important;
   color: #0f172a !important;
   font-weight: 800;
-  font-size: 6.8pt;
+  font-size: 6.5pt;
   text-transform: uppercase;
 }
 
@@ -211,19 +211,19 @@
   color: #334155 !important;
   font-weight: 700;
   width: 24%;
-  font-size: 6.8pt;
+  font-size: 6.5pt;
 }
 
 .tessbin-a4-table td.value-cell {
   color: #000000 !important;
   font-weight: 700;
-  font-size: 7.2pt;
+  font-size: 7pt;
 }
 
-/* Passport Photo Box (Standard 30mm x 38mm Hardcopy Format) */
+/* Passport Photo Box (Standard 28mm x 35mm Hardcopy Format) */
 .tessbin-a4-photo-frame {
-  width: 28mm;
-  height: 35mm;
+  width: 26mm;
+  height: 32mm;
   border: 1.5px solid #0f172a;
   background: #f8fafc;
   overflow: hidden;
@@ -249,36 +249,36 @@
   right: 0;
   background: #0f172a !important;
   color: #ffffff !important;
-  font-size: 5pt;
+  font-size: 4.8pt;
   font-weight: 900;
   text-align: center;
   padding: 1px;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
 }
 
 /* Attachment Document Preview Cards */
 .tessbin-a4-doc-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
+  gap: 4px;
   border: 1px solid #1e293b;
   border-top: none;
-  padding: 4px;
+  padding: 3px;
   background: #ffffff;
 }
 
 .tessbin-a4-doc-item {
   border: 1px solid #cbd5e1;
-  padding: 3px;
+  padding: 2.5px;
   background: #f8fafc;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
 .tessbin-a4-doc-thumb {
-  width: 40px;
-  height: 30px;
+  width: 36px;
+  height: 28px;
   border: 1px solid #94a3b8;
   object-fit: cover;
   background: #fff;
@@ -286,18 +286,18 @@
 }
 
 .tessbin-a4-doc-info {
-  font-size: 6.2pt;
-  line-height: 1.2;
+  font-size: 6pt;
+  line-height: 1.15;
 }
 
 /* Student Pledge & Declaration */
 .tessbin-a4-pledge-box {
   border: 1px solid #1e293b;
   background: #fafafa;
-  padding: 3px 6px;
-  margin-top: 3px;
-  font-size: 6.2pt;
-  line-height: 1.25;
+  padding: 2.5px 5px;
+  margin-top: 2.5px;
+  font-size: 5.8pt;
+  line-height: 1.2;
   color: #1e293b;
   text-align: justify;
 }
@@ -306,85 +306,85 @@
 .tessbin-a4-sign-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   border: 1px solid #1e293b;
-  padding: 4px 8px;
+  padding: 3px 6px;
   background: #ffffff;
-  margin-top: 3px;
+  margin-top: 2.5px;
 }
 
 .tessbin-a4-sign-col {
   text-align: center;
-  font-size: 6.5pt;
+  font-size: 6.2pt;
 }
 
 .tessbin-a4-sign-line {
   border-bottom: 1px solid #0f172a;
-  width: 90%;
-  margin: 18px auto 2px;
+  width: 88%;
+  margin: 14px auto 2px;
 }
 
 /* Circular Official Academy Stamp */
 .tessbin-a4-wet-stamp {
-  width: 26mm;
-  height: 26mm;
+  width: 24mm;
+  height: 24mm;
   display: block;
-  transform: rotate(-4deg);
+  transform: rotate(-3deg);
   margin: 0 auto;
   overflow: visible;
   color: #2563eb;
 }
 
 .tessbin-a4-stamp-ring {
-  fill: rgba(53, 56, 212, 0.025);
+  fill: rgba(37, 99, 235, 0.03);
   stroke: currentColor;
-  stroke-width: 2.3;
-  stroke-dasharray: 5 3;
+  stroke-width: 2;
+  stroke-dasharray: 4 2.5;
 }
 
 .tessbin-a4-stamp-arc-text {
   fill: currentColor;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 900;
-  letter-spacing: 0.7px;
+  letter-spacing: 0.6px;
 }
 
 .tessbin-a4-stamp-am {
   fill: currentColor;
   font-family: Arial, "Noto Sans Ethiopic", sans-serif;
-  font-size: 7px;
+  font-size: 6.5px;
   font-weight: 700;
 }
 
 .tessbin-a4-stamp-center {
   fill: currentColor;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 900;
   letter-spacing: 0.25px;
 }
 
 .tessbin-a4-stamp-rule {
   stroke: currentColor;
-  stroke-width: 1.4;
+  stroke-width: 1.2;
 }
 
 .tessbin-a4-stamp-verified {
   fill: currentColor;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 7.2px;
+  font-size: 6.8px;
   font-weight: 900;
-  letter-spacing: 0.45px;
+  letter-spacing: 0.4px;
 }
 
 /* Official Footer */
 .tessbin-a4-hardcopy-footer {
   border-top: 1px solid #0f172a;
   padding-top: 2px;
-  margin-top: 4px;
-  font-size: 5.8pt;
+  margin-top: 3px;
+  font-size: 5.5pt;
   color: #475569;
   display: flex;
   justify-content: space-between;
@@ -392,16 +392,15 @@
 }
 
 /* ==========================================================================
-   PRINT RULES: STRICT 1-PAGE A4 PORTRAIT EXECUTION
+   PRINT RULES: STRICT 1-PAGE A4 PORTRAIT EXECUTION & MULTI-PAGE ROSTER
    ========================================================================== */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 6mm 8mm;
+    margin: 5mm 6mm;
   }
 
-  /* Completely suppress dashboard, sidebars, modal controls */
-  #root,
+  /* Suppress navigation bars, floating buttons, non-printable UI */
   .no-print,
   .chakra-modal__header,
   .chakra-modal__close-btn,
@@ -409,8 +408,7 @@
   header,
   nav,
   aside,
-  button,
-  .chakra-button {
+  .chakra-button:not(.allow-print) {
     display: none !important;
   }
 
@@ -427,7 +425,7 @@
     print-color-adjust: exact !important;
   }
 
-  /* Reset all modal containers so they never clip or wrap onto page 2 */
+  /* Reset modal containers so they never clip or wrap onto unintended pages */
   .chakra-portal,
   .chakra-modal__overlay,
   .chakra-modal__content-container,
@@ -458,18 +456,18 @@
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
-    max-height: 285mm !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 
   .tessbin-a4-frame {
-    padding: 4mm 6mm !important;
+    padding: 3.5mm 5mm 2.5mm !important;
     height: auto !important;
-    min-height: 275mm !important;
+    min-height: 270mm !important;
+    max-height: 282mm !important;
     box-sizing: border-box !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   * {
@@ -477,8 +475,12 @@
     print-color-adjust: exact !important;
   }
 
-  tr, .tessbin-a4-section, .tessbin-a4-sign-grid {
+  tr, .tessbin-a4-section, .tessbin-a4-sign-grid, .tessbin-a4-doc-grid {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  table thead {
+    display: table-header-group !important;
   }
 }

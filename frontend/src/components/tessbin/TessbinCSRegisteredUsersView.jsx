@@ -132,7 +132,7 @@ export default function TessbinCSRegisteredUsersView() {
   const [departmentFilter, setDepartmentFilter] = useState('All Departments');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('All');
   const [completionFilter, setCompletionFilter] = useState('All');
-  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = latest to old
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' = oldest to latest
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -178,11 +178,11 @@ export default function TessbinCSRegisteredUsersView() {
       const data = await getStudentRegistrations();
       let studentList = Array.isArray(data) ? data : [];
 
-      // Sort by newest first
+      // Sort by oldest first
       studentList.sort((a, b) => {
         const dateA = new Date(a.createdAt || a.enrollmentDate || 0).getTime();
         const dateB = new Date(b.createdAt || b.enrollmentDate || 0).getTime();
-        return dateB - dateA;
+        return dateA - dateB;
       });
 
       setStudents(studentList);
@@ -380,7 +380,7 @@ export default function TessbinCSRegisteredUsersView() {
     setDepartmentFilter('All Departments');
     setPaymentStatusFilter('All');
     setCompletionFilter('All');
-    setSortOrder('desc');
+    setSortOrder('asc');
     setCurrentPage(1);
   };
 
@@ -923,9 +923,9 @@ export default function TessbinCSRegisteredUsersView() {
                 variant="outline"
                 borderColor={borderColor}
                 borderRadius="lg"
-                onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
               >
-                Sort: {sortOrder === 'desc' ? 'Latest to Old' : 'Oldest to Latest'}
+                Sort: {sortOrder === 'asc' ? 'Oldest to Latest' : 'Latest to Oldest'}
               </Button>
             </HStack>
           </Flex>
@@ -1115,20 +1115,20 @@ export default function TessbinCSRegisteredUsersView() {
                         </Td>
                         <Td py={3} textAlign="center">
                           <HStack spacing={1.5} justify="center">
-                            <Button
-                              leftIcon={<FiEye />}
-                              size="xs"
-                              variant="solid"
-                              colorScheme="indigo"
-                              bg="#4F46E5"
-                              _hover={{ bg: '#4338CA' }}
-                              color="white"
-                              borderRadius="lg"
-                              fontWeight="700"
-                              onClick={() => handleOpenDetail(s)}
-                            >
-                              Full View (A4)
-                            </Button>
+                            <Tooltip label="Full View (A4 Dossier)">
+                              <IconButton
+                                icon={<FiEye />}
+                                size="xs"
+                                variant="solid"
+                                colorScheme="indigo"
+                                bg="#4F46E5"
+                                _hover={{ bg: '#4338CA' }}
+                                color="white"
+                                borderRadius="lg"
+                                aria-label="Full View A4 Dossier"
+                                onClick={() => handleOpenDetail(s)}
+                              />
+                            </Tooltip>
                             <Tooltip label="Print Official A4 Dossier">
                               <IconButton
                                 icon={<FiPrinter />}
@@ -1140,8 +1140,9 @@ export default function TessbinCSRegisteredUsersView() {
                                 onClick={() => {
                                   handleOpenDetail(s);
                                   setTimeout(() => {
+                                    const docId = `tessbin-student-a4-document-${s._id || s.id || s.studentId || 'preview'}`;
                                     printA4Element(
-                                      'tessbin-student-a4-document',
+                                      docId,
                                       `Tessbin_Registration_${(s.fullName || 'Student').replace(/\s+/g, '_')}`
                                     );
                                   }, 350);
@@ -1278,12 +1279,13 @@ export default function TessbinCSRegisteredUsersView() {
                   bgGradient="linear(to-r, #4F46E5, #6366F1)"
                   color="white"
                   _hover={{ bgGradient: 'linear(to-r, #4338CA, #4F46E5)' }}
-                  onClick={() =>
+                  onClick={() => {
+                    const docId = `tessbin-student-a4-document-${selectedStudent?._id || selectedStudent?.id || selectedStudent?.studentId || 'preview'}`;
                     printA4Element(
-                      'tessbin-student-a4-document',
+                      docId,
                       `Tessbin_Registration_${(selectedStudent?.fullName || 'Student').replace(/\s+/g, '_')}`
-                    )
-                  }
+                    );
+                  }}
                   fontWeight="800"
                   borderRadius="lg"
                   px={3}
@@ -1299,12 +1301,13 @@ export default function TessbinCSRegisteredUsersView() {
                     borderColor={borderColor}
                     color={textColor}
                     aria-label="Open print preview tab"
-                    onClick={() =>
+                    onClick={() => {
+                      const docId = `tessbin-student-a4-document-${selectedStudent?._id || selectedStudent?.id || selectedStudent?.studentId || 'preview'}`;
                       openA4InNewWindow(
-                        'tessbin-student-a4-document',
+                        docId,
                         `Tessbin_Registration_${(selectedStudent?.fullName || 'Student').replace(/\s+/g, '_')}`
-                      )
-                    }
+                      );
+                    }}
                   />
                 </Tooltip>
               </HStack>
@@ -1846,12 +1849,13 @@ export default function TessbinCSRegisteredUsersView() {
                   bg="#4F46E5"
                   color="white"
                   _hover={{ bg: '#4338CA' }}
-                  onClick={() =>
+                  onClick={() => {
+                    const docId = `tessbin-student-a4-document-${selectedStudent?._id || selectedStudent?.id || selectedStudent?.studentId || 'preview'}`;
                     printA4Element(
-                      'tessbin-student-a4-document',
+                      docId,
                       `Tessbin_Registration_${(selectedStudent?.fullName || 'Student').replace(/\s+/g, '_')}`
-                    )
-                  }
+                    );
+                  }}
                 >
                   Print / Save PDF (A4)
                 </Button>

@@ -43,7 +43,6 @@ import AdminTrainingUpload from "./pages/AdminTrainingUpload";
 import AdminCustomerReport from './components/AdminCSReport.jsx';
 import CustomerSettings from "./components/customer/CustomerSettings";
 import CustomerUserManagement from "./components/customer/CustomerUserManagement";
-import StudentRegistrationPage from "./components/customer/StudentRegistrationPage";
 import StudentVerificationPage from "./pages/StudentVerificationPage";
 import ReceptionDashboard from './pages/ReceptionDashboard';
 import CooTwoDashboard from "./pages/coo2/CooTwoDashboard";
@@ -88,6 +87,7 @@ import SupervisorAccountPage from "./pages/supervisor/SupervisorAccountPage.jsx"
 
 const CandidatePoolPage = lazy(() => import('./pages/CandidatePoolPage.jsx'));
 const AwardsPage = lazy(() => import('./pages/AwardsPage.jsx'));
+const StudentRegistrationPage = lazy(() => import('./components/customer/StudentRegistrationPage.jsx'));
 const CSManagerTaskMonitor = lazy(() => import("./components/customer/CSManagerTaskMonitor"));
 const FinanceERPPage = lazy(() => import("./pages/sales/FinanceERPPage.jsx"));
 const FinanceDashboardPage = lazy(() => import("./pages/sales/FinanceDashboardPage.jsx"));

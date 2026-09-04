@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Box, 
   Heading, 
@@ -52,13 +52,13 @@ import { fetchExternalCourses as fetchCoursesApi } from '../../services/api';
 import axios from '../../services/axiosInstance';
 
 const defaultCourses = [
-  { _id: 'external-seed-0', name: 'International Trade Import Export', price: 0 },
-  { _id: 'external-seed-1', name: 'Stock Market Trading', price: 0 },
-  { _id: 'external-seed-2', name: 'Data Science', price: 0 },
-  { _id: 'external-seed-3', name: 'Coffee Cupping', price: 0 },
-  { _id: 'external-seed-4', name: 'TradeEthiopia Business TV & Radio', price: 0 },
-  { _id: 'external-seed-5', name: 'Digital Marketing for International Trade', price: 0 },
-  { _id: 'external-seed-6', name: 'International Trade Brokerage', price: 0 },
+  { _id: 'external-seed-0', name: 'Logistic', price: 9917 },
+  { _id: 'external-seed-1', name: 'Stock market', price: 9917 },
+  { _id: 'external-seed-2', name: 'digital marketing', price: 9917 },
+  { _id: 'external-seed-3', name: 'International trade', price: 9917 },
+  { _id: 'external-seed-4', name: 'Barista', price: 19899.99 },
+  { _id: 'external-seed-5', name: 'Coffee cupping', price: 35000 },
+  { _id: 'external-seed-6', name: 'coldcall', price: 0 },
 ];
 
 const FollowupPage = () => {
@@ -272,30 +272,39 @@ const FollowupPage = () => {
   const handleUpdate = async (id, customerData) => {
     // Optimistic update: apply change locally immediately
     let previousCustomers;
+    const targetId = id || customerData?._id || customerData?.id;
+    if (!targetId) return;
+
     try {
       setCustomers(prev => {
         previousCustomers = prev;
-        const next = prev.map(cust => cust.id === id ? { ...cust, ...customerData } : cust);
+        const next = prev.map(cust => (cust.id === targetId || cust._id === targetId) ? { ...cust, ...customerData } : cust);
         try {
-              const prospectCount = next.filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
-              setStats(prevS => ({ ...prevS, new: prospectCount }));
+          const prospectCount = next.filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
+          setStats(prevS => ({ ...prevS, new: prospectCount }));
         } catch (err) {}
         return next;
       });
 
       // Fire the API update in background
-      const updatedCustomer = await updateCustomer(id, customerData);
+      const updatedCustomer = await updateCustomer(targetId, customerData);
       // Reconcile with server response (ensure ids and dates are normalized)
       const mappedCustomer = {
         ...updatedCustomer,
-        _id: updatedCustomer._id,
-        id: updatedCustomer._id,
+        _id: updatedCustomer._id || targetId,
+        id: updatedCustomer._id || targetId,
         date: updatedCustomer.date || updatedCustomer.createdAt || new Date().toISOString(),
         schedulePreference: updatedCustomer.schedulePreference || updatedCustomer.schedule || 'Regular'
       };
-      setCustomers(prev => prev.map(cust => cust.id === id ? mappedCustomer : cust));
+      setCustomers(prev => prev.map(cust => (cust.id === targetId || cust._id === targetId) ? mappedCustomer : cust));
       // Refresh stats after successful save
       fetchStats();
+      toast({
+        title: "Customer updated",
+        status: "success",
+        duration: 2500,
+        isClosable: true,
+      });
     } catch (err) {
       // Revert optimistic update on error
       if (previousCustomers) setCustomers(previousCustomers);
@@ -310,19 +319,25 @@ const FollowupPage = () => {
   };
 
   const handleDelete = async (id) => {
+    if (!id) return;
     try {
       await deleteCustomer(id);
       setCustomers(prev => {
-        const next = prev.filter(cust => cust.id !== id);
+        const next = prev.filter(cust => cust.id !== id && cust._id !== id);
         try {
-              const prospectCount = next.filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
-              setStats(prevS => ({ ...prevS, new: prospectCount }));
+          const prospectCount = next.filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
+          setStats(prevS => ({ ...prevS, new: prospectCount }));
         } catch (err) {}
         return next;
       });
       // Refresh stats
       fetchStats();
-      // No success toast - handled with visual indicator in table
+      toast({
+        title: "Customer deleted",
+        status: "info",
+        duration: 2500,
+        isClosable: true,
+      });
     } catch (err) {
       toast({
         title: "Error deleting customer",
@@ -365,45 +380,47 @@ const FollowupPage = () => {
     return value.toString().trim().toLowerCase();
   };
 
-  const filteredCustomers = customers.filter(customer => {
-    // Search filter
-    if (filters.search) {
-      const searchTerm = filters.search.toLowerCase();
-      const matchesSearch = 
-        (customer.customerName && customer.customerName.toLowerCase().includes(searchTerm)) ||
-        (customer.contactTitle && customer.contactTitle.toLowerCase().includes(searchTerm)) ||
-        (customer.phone && customer.phone.toLowerCase().includes(searchTerm)) ||
-        (customer.email && customer.email.toLowerCase().includes(searchTerm));
-      if (!matchesSearch) return false;
-    }
-    const followupStatusNormalized = normalizeStatus(customer.followupStatus);
-    if (followupStatusNormalized === 'imported') {
-      return false;
-    }
-
-    // Call status filter
-    if (filters.callStatus && customer.callStatus !== filters.callStatus) {
-      return false;
-    }
-    
-    // Follow-up status filter
-    if (filters.followupStatus) {
-      const filterStatusNormalized = normalizeStatus(filters.followupStatus);
-      if (filterStatusNormalized === 'not imported') {
-        if (followupStatusNormalized === 'imported') {
-          return false;
-        }
-      } else if (followupStatusNormalized !== filterStatusNormalized) {
+  const filteredCustomers = useMemo(() => {
+    return (customers || []).filter(customer => {
+      // Search filter
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const matchesSearch = 
+          (customer.customerName && customer.customerName.toLowerCase().includes(searchTerm)) ||
+          (customer.contactTitle && customer.contactTitle.toLowerCase().includes(searchTerm)) ||
+          (customer.phone && customer.phone.toLowerCase().includes(searchTerm)) ||
+          (customer.email && customer.email.toLowerCase().includes(searchTerm));
+        if (!matchesSearch) return false;
+      }
+      const followupStatusNormalized = normalizeStatus(customer.followupStatus);
+      if (followupStatusNormalized === 'imported') {
         return false;
       }
-    }
-    // Schedule filter
-    if (scheduleFilter && (customer.schedulePreference || '') !== scheduleFilter) {
-      return false;
-    }
-    
-    return true;
-  });
+
+      // Call status filter
+      if (filters.callStatus && customer.callStatus !== filters.callStatus) {
+        return false;
+      }
+      
+      // Follow-up status filter
+      if (filters.followupStatus) {
+        const filterStatusNormalized = normalizeStatus(filters.followupStatus);
+        if (filterStatusNormalized === 'not imported') {
+          if (followupStatusNormalized === 'imported') {
+            return false;
+          }
+        } else if (followupStatusNormalized !== filterStatusNormalized) {
+          return false;
+        }
+      }
+      // Schedule filter
+      if (scheduleFilter && (customer.schedulePreference || '') !== scheduleFilter) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [customers, filters.search, filters.callStatus, filters.followupStatus, scheduleFilter]);
 
   // Apply optional date-based filtering on top of the current filters
   const normalizeDate = (d) => {
@@ -433,10 +450,10 @@ const FollowupPage = () => {
     return [start, end];
   };
 
-  const applyDateFilter = (items) => {
-    if (!items) return [];
-    if (dateFilterType === 'All') return items;
-    return items.filter(item => {
+  const dateFilteredCustomers = useMemo(() => {
+    if (!filteredCustomers) return [];
+    if (dateFilterType === 'All') return filteredCustomers;
+    return filteredCustomers.filter(item => {
       const itemDate = normalizeDate(item.date || item.createdAt || item.updatedAt);
       if (!itemDate) return false;
       if (dateFilterType === 'DateRange') {
@@ -462,25 +479,25 @@ const FollowupPage = () => {
       }
       return true;
     });
-  };
-
-  const dateFilteredCustomers = applyDateFilter(filteredCustomers);
+  }, [filteredCustomers, dateFilterType, startDate, endDate, weekValue, yearValue]);
 
   // Sort customers
-  const sortedCustomers = [...dateFilteredCustomers].sort((a, b) => {
-    if (filters.sortBy === 'name') {
-      return a.customerName.localeCompare(b.customerName);
-    } else if (filters.sortBy === 'callStatus') {
-      return a.callStatus.localeCompare(b.callStatus);
-    } else if (filters.sortBy === 'followupStatus') {
-      return a.followupStatus.localeCompare(b.followupStatus);
-    } else {
-      // Default sort by date (newest first)
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      return dateB - dateA;
-    }
-  });
+  const sortedCustomers = useMemo(() => {
+    return [...dateFilteredCustomers].sort((a, b) => {
+      if (filters.sortBy === 'name') {
+        return (a.customerName || '').localeCompare(b.customerName || '');
+      } else if (filters.sortBy === 'callStatus') {
+        return (a.callStatus || '').localeCompare(b.callStatus || '');
+      } else if (filters.sortBy === 'followupStatus') {
+        return (a.followupStatus || '').localeCompare(b.followupStatus || '');
+      } else {
+        // Default sort by date (newest first)
+        const dateA = new Date(a.date || a.createdAt || 0);
+        const dateB = new Date(b.date || b.createdAt || 0);
+        return dateB - dateA;
+      }
+    });
+  }, [dateFilteredCustomers, filters.sortBy]);
 
   const handleFilterChange = (filterName, value) => {
     setFilters(prev => ({

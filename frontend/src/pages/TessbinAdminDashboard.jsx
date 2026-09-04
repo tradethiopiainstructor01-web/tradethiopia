@@ -244,47 +244,64 @@ const TessbinAdminDashboard = () => {
   const [editingKpiId, setEditingKpiId] = useState(null);
 
   // Fetch Dashboard Stats, Exam Records & KPI Targets
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      // Stats API
-      const statsRes = await axiosInstance.get('/tessbin/dashboard-stats');
-      if (statsRes.data?.success) {
-        setStats(statsRes.data.data);
+      // Parallel fetch without blocking
+      const promises = [
+        axiosInstance.get('/tessbin/dashboard-stats'),
+        axiosInstance.get('/tessbin/kpis', {
+          params: { timeframe: kpiTimeframe === 'all' ? undefined : kpiTimeframe },
+        }),
+      ];
+
+      const [statsRes, kpiRes] = await Promise.allSettled(promises);
+      if (statsRes.status === 'fulfilled' && statsRes.value?.data?.success) {
+        setStats(statsRes.value.data.data);
+      }
+      if (kpiRes.status === 'fulfilled' && kpiRes.value?.data?.success) {
+        setKpiList(kpiRes.value.data.data);
       }
 
-      // Records API
-      let effectiveTypeFilter = examTypeFilter;
-      if (activeTab === 'coc_exams') effectiveTypeFilter = 'COC Exam';
-      if (activeTab === 'online_exams') effectiveTypeFilter = 'Online Final Exam';
+      // Fetch exams table only when relevant
+      if (['coc_exams', 'online_exams', 'all_records'].includes(activeTab) || searchQuery) {
+        let effectiveTypeFilter = examTypeFilter;
+        if (activeTab === 'coc_exams') effectiveTypeFilter = 'COC Exam';
+        if (activeTab === 'online_exams') effectiveTypeFilter = 'Online Final Exam';
 
-      const params = {
-        q: searchQuery,
-        examType: effectiveTypeFilter,
-        status: statusFilter,
-      };
-      const recordsRes = await axiosInstance.get('/tessbin/exams', { params });
-      if (recordsRes.data?.success) {
-        setRecords(recordsRes.data.data);
-      }
-
-      // KPI Targets API
-      const kpiRes = await axiosInstance.get('/tessbin/kpis', {
-        params: { timeframe: kpiTimeframe === 'all' ? undefined : kpiTimeframe },
-      });
-      if (kpiRes.data?.success) {
-        setKpiList(kpiRes.data.data);
+        const params = {
+          q: searchQuery,
+          examType: effectiveTypeFilter,
+          status: statusFilter,
+          sortOrder: 'asc',
+        };
+        const recordsRes = await axiosInstance.get('/tessbin/exams', { params });
+        if (recordsRes.data?.success) {
+          const examList = Array.isArray(recordsRes.data.data) ? recordsRes.data.data : [];
+          examList.sort((a, b) => {
+            const dateA = new Date(a.examDate || a.createdAt || 0).getTime();
+            const dateB = new Date(b.examDate || b.createdAt || 0).getTime();
+            return dateA - dateB;
+          });
+          setRecords(examList);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch Tessbin data:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, [searchQuery, examTypeFilter, statusFilter, activeTab, kpiTimeframe]);
+    fetchData(true);
+  }, [kpiTimeframe]);
+
+  useEffect(() => {
+    if (['coc_exams', 'online_exams', 'all_records'].includes(activeTab) || searchQuery || examTypeFilter !== 'All' || statusFilter !== 'All') {
+      fetchData(true);
+    }
+  }, [searchQuery, examTypeFilter, statusFilter, activeTab]);
 
   // Keep Tessbin course choices synchronized with the shared external-course API.
   useEffect(() => {
@@ -885,6 +902,57 @@ const TessbinAdminDashboard = () => {
               </Button>
             </HStack>
           </Flex>
+
+          {/* Quick Access Top Bar for Fast 1-Click Navigation */}
+          <HStack
+            spacing={2}
+            mt={4}
+            pt={3}
+            borderTop="1px solid"
+            borderColor={borderColor}
+            overflowX="auto"
+            py={1}
+            css={{
+              '&::-webkit-scrollbar': { display: 'none' },
+              scrollbarWidth: 'none',
+            }}
+          >
+            {[
+              { id: 'overview', label: 'Overall Analytics', icon: FiPieChart, color: '#6366F1' },
+              { id: 'cs_registered_users', label: 'Student Registers', icon: FiUserCheck, color: '#10B981' },
+              { id: 'coc_students_list', label: 'COC Students (Paid)', icon: FiAward, color: '#F59E0B' },
+              { id: 'data_analysis', label: 'Online Exam Results', icon: FiTrendingUp, color: '#2563EB' },
+              { id: 'kpi_metrics', label: 'KPI Targets & Scorecard', icon: FiBarChart2, color: '#8B5CF6' },
+              { id: 'coc_exams', label: 'COC Exam Records', icon: FiCheckCircle, color: '#EC4899' },
+              { id: 'all_records', label: 'All Exam Records', icon: FiLayers, color: '#64748B' },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <Button
+                  key={tab.id}
+                  size="sm"
+                  leftIcon={<Icon as={tab.icon} />}
+                  variant={isActive ? 'solid' : 'ghost'}
+                  bg={isActive ? tab.color : 'transparent'}
+                  color={isActive ? 'white' : mutedText}
+                  _hover={{
+                    bg: isActive ? tab.color : useColorModeValue('gray.100', 'whiteAlpha.100'),
+                    color: isActive ? 'white' : textColor,
+                  }}
+                  borderRadius="xl"
+                  fontSize="12px"
+                  fontWeight="800"
+                  px={3.5}
+                  py={1.5}
+                  flexShrink={0}
+                  onClick={() => setActiveTab(tab.id)}
+                  boxShadow={isActive ? `0 2px 8px ${tab.color}40` : 'none'}
+                >
+                  {tab.label}
+                </Button>
+              );
+            })}
+          </HStack>
         </Box>
 
         {/* Dynamic View Workspace */}

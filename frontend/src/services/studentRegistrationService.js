@@ -30,3 +30,8 @@ export const deleteStudentRegistration = async (id) => {
   const response = await axiosInstance.delete(`/student-registrations/${id}`, requestConfig);
   return unwrap(response);
 };
+
+export const syncAllFollowupsToStudentRegistrations = async () => {
+  const response = await axiosInstance.post("/student-registrations/sync-all", {}, requestConfig);
+  return unwrap(response);
+};
