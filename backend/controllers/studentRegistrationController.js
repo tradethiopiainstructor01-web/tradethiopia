@@ -740,7 +740,7 @@ const getStudentRegistrations = async (req, res) => {
     }
 
     const includeDocuments = req.query.includeDocuments === 'true';
-    const sortOrder = req.query.sortOrder === 'desc' || req.query.sort === 'desc' ? -1 : 1;
+    const sortOrder = req.query.sortOrder === 'asc' || req.query.sort === 'asc' ? 1 : -1;
     let studentQuery = StudentRegistration.find(query).sort({ createdAt: sortOrder });
     if (includeDocuments) {
       studentQuery = studentQuery.select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot');

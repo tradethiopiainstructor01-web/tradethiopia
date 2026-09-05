@@ -132,10 +132,11 @@ export default function TessbinCSRegisteredUsersView() {
   const [departmentFilter, setDepartmentFilter] = useState('All Departments');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('All');
   const [completionFilter, setCompletionFilter] = useState('All');
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' = oldest to latest
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = latest to oldest (Default)
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15); // Options: 10, 15, 30 rows
 
   // Detail Modal
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -178,11 +179,11 @@ export default function TessbinCSRegisteredUsersView() {
       const data = await getStudentRegistrations();
       let studentList = Array.isArray(data) ? data : [];
 
-      // Sort by oldest first
+      // Sort by latest first
       studentList.sort((a, b) => {
         const dateA = new Date(a.createdAt || a.enrollmentDate || 0).getTime();
         const dateB = new Date(b.createdAt || b.enrollmentDate || 0).getTime();
-        return dateA - dateB;
+        return dateB - dateA;
       });
 
       setStudents(studentList);
@@ -380,7 +381,7 @@ export default function TessbinCSRegisteredUsersView() {
     setDepartmentFilter('All Departments');
     setPaymentStatusFilter('All');
     setCompletionFilter('All');
-    setSortOrder('asc');
+    setSortOrder('desc');
     setCurrentPage(1);
   };
 
@@ -418,11 +419,26 @@ export default function TessbinCSRegisteredUsersView() {
   };
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
   const paginatedStudents = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredStudents.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredStudents, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    return filteredStudents.slice(start, start + pageSize);
+  }, [filteredStudents, currentPage, pageSize]);
+
+  // Helper: compute up to 5 visible page numbers
+  const getVisiblePages = (curPage, totalPgs) => {
+    const maxVisible = 5;
+    if (totalPgs <= maxVisible) {
+      return Array.from({ length: totalPgs }, (_, i) => i + 1);
+    }
+    let start = Math.max(1, curPage - Math.floor(maxVisible / 2));
+    let end = start + maxVisible - 1;
+    if (end > totalPgs) {
+      end = totalPgs;
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  };
 
   // Export to Excel
   const exportToExcel = () => {
@@ -1168,34 +1184,81 @@ export default function TessbinCSRegisteredUsersView() {
               wrap="wrap"
               gap={3}
             >
-              <Text fontSize="12px" color={mutedColor}>
-                Showing <b>{Math.min(filteredStudents.length, (currentPage - 1) * ITEMS_PER_PAGE + 1)}</b> to{' '}
-                <b>{Math.min(filteredStudents.length, currentPage * ITEMS_PER_PAGE)}</b> of{' '}
-                <b>{filteredStudents.length}</b> registrations
-              </Text>
+              {/* Left: Entries Counter & Rows Selection */}
+              <Flex align="center" gap={4} wrap="wrap">
+                <Text fontSize="12px" color={mutedColor}>
+                  Showing <b>{filteredStudents.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}</b> to{' '}
+                  <b>{Math.min(filteredStudents.length, currentPage * pageSize)}</b> of{' '}
+                  <b>{filteredStudents.length}</b> {filteredStudents.length === 1 ? 'registration' : 'registrations'}
+                </Text>
 
-              <HStack spacing={2}>
-                <IconButton
-                  icon={<FiChevronLeft />}
-                  size="sm"
+                <HStack spacing={2} align="center">
+                  <Text fontSize="12px" color={mutedColor} fontWeight="600">
+                    Rows:
+                  </Text>
+                  <Select
+                    size="xs"
+                    w="100px"
+                    borderRadius="lg"
+                    borderColor={borderColor}
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    fontWeight="700"
+                  >
+                    <option value={10}>10 rows</option>
+                    <option value={15}>15 rows</option>
+                    <option value={30}>30 rows</option>
+                  </Select>
+                </HStack>
+              </Flex>
+
+              {/* Right: Page Navigation (Prev, up to 5 page numbers, Next) */}
+              <HStack spacing={1}>
+                <Button
+                  size="xs"
                   variant="outline"
                   borderColor={borderColor}
+                  leftIcon={<FiChevronLeft />}
                   isDisabled={currentPage <= 1}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  aria-label="Previous page"
-                />
-                <Text fontSize="12px" fontWeight="700" color={textColor} px={2}>
-                  Page {currentPage} of {totalPages}
-                </Text>
-                <IconButton
-                  icon={<FiChevronRight />}
-                  size="sm"
+                  fontWeight="700"
+                >
+                  Prev
+                </Button>
+
+                {getVisiblePages(currentPage, totalPages).map((pageNum) => (
+                  <Button
+                    key={pageNum}
+                    size="xs"
+                    minW="28px"
+                    px={2.5}
+                    borderRadius="md"
+                    variant={currentPage === pageNum ? 'solid' : 'outline'}
+                    colorScheme={currentPage === pageNum ? 'green' : 'gray'}
+                    bg={currentPage === pageNum ? '#059669' : undefined}
+                    color={currentPage === pageNum ? 'white' : undefined}
+                    borderColor={currentPage === pageNum ? '#059669' : borderColor}
+                    fontWeight={currentPage === pageNum ? '900' : '600'}
+                    onClick={() => setCurrentPage(pageNum)}
+                  >
+                    {pageNum}
+                  </Button>
+                ))}
+
+                <Button
+                  size="xs"
                   variant="outline"
                   borderColor={borderColor}
+                  rightIcon={<FiChevronRight />}
                   isDisabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  aria-label="Next page"
-                />
+                  fontWeight="700"
+                >
+                  Next
+                </Button>
               </HStack>
             </Flex>
           </>
