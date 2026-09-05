@@ -486,7 +486,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
 
                     {nationalIdFront ? (
                       <Box
-                        h="72px"
+                        h="60px"
                         w="100%"
                         border="1px solid #94A3B8"
                         borderRadius="sm"
@@ -505,9 +505,9 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                         />
                       </Box>
                     ) : (
-                      <Flex h="72px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
-                        <Icon as={FiFileText} boxSize="16px" mb={0.5} opacity={0.5} />
-                        <Text fontSize="5.8pt" fontWeight="700">No ID Front Uploaded</Text>
+                      <Flex h="60px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
+                        <Icon as={FiFileText} boxSize="14px" mb={0.5} opacity={0.5} />
+                        <Text fontSize="5.5pt" fontWeight="700">No ID Front Uploaded</Text>
                       </Flex>
                     )}
                   </Box>
@@ -525,7 +525,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                     </Flex>
                     {nationalIdBack ? (
                       <Box
-                        h="72px"
+                        h="60px"
                         w="100%"
                         border="1px solid #94A3B8"
                         borderRadius="sm"
@@ -537,9 +537,9 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                         <Image src={nationalIdBack} alt="National ID Back" w="100%" h="100%" objectFit="contain" />
                       </Box>
                     ) : (
-                      <Flex h="72px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
-                        <Icon as={FiFileText} boxSize="16px" mb={0.5} opacity={0.5} />
-                        <Text fontSize="5.8pt" fontWeight="700">No ID Back Uploaded</Text>
+                      <Flex h="60px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
+                        <Icon as={FiFileText} boxSize="14px" mb={0.5} opacity={0.5} />
+                        <Text fontSize="5.5pt" fontWeight="700">No ID Back Uploaded</Text>
                       </Flex>
                     )}
                   </Box>
@@ -560,7 +560,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
 
                     {student.paymentScreenshot ? (
                       <Box
-                        h="72px"
+                        h="60px"
                         w="100%"
                         border="1px solid #94A3B8"
                         borderRadius="sm"
@@ -579,9 +579,9 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                         />
                       </Box>
                     ) : (
-                      <Flex h="72px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
-                        <Icon as={FiFileText} boxSize="16px" mb={0.5} opacity={0.5} />
-                        <Text fontSize="5.8pt" fontWeight="700">No Receipt Uploaded</Text>
+                      <Flex h="60px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
+                        <Icon as={FiFileText} boxSize="14px" mb={0.5} opacity={0.5} />
+                        <Text fontSize="5.5pt" fontWeight="700">No Receipt Uploaded</Text>
                       </Flex>
                     )}
                   </Box>

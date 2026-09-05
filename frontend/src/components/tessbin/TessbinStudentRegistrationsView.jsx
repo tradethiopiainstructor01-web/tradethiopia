@@ -66,6 +66,8 @@ import {
   FiTrash2,
   FiUserPlus,
   FiUsers,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 import * as XLSX from "xlsx";
 import {
@@ -398,8 +400,10 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
   const [selectedMonth, setSelectedMonth] = useState(() => String(new Date().getMonth()));
   const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
   const [sortBy, setSortBy] = useState("date");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const [sortDirection, setSortDirection] = useState("desc");
   const [viewMode, setViewMode] = useState("list");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15); // Options: 10, 15, 30 rows
 
   // Modal / Drawer disclosures
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
@@ -654,6 +658,42 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
       return groups;
     }, {});
   }, [filteredStudents]);
+
+  // Pagination slice & calculations
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredStudents.slice(start, start + pageSize);
+  }, [filteredStudents, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchQuery,
+    departmentFilter,
+    classCompletionFilter,
+    paymentFilter,
+    timeSlotFilter,
+    datePeriodFilter,
+    dateAnchor,
+    selectedMonth,
+    selectedYear,
+    pageSize,
+  ]);
+
+  const getVisiblePages = (curPage, totalPgs) => {
+    const maxVisible = 5;
+    if (totalPgs <= maxVisible) {
+      return Array.from({ length: totalPgs }, (_, i) => i + 1);
+    }
+    let start = Math.max(1, curPage - Math.floor(maxVisible / 2));
+    let end = start + maxVisible - 1;
+    if (end > totalPgs) {
+      end = totalPgs;
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  };
 
   // Form Handlers
   const handleChange = (e) => {
@@ -1482,7 +1522,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                 </Thead>
                 <Tbody>
                   {filteredStudents.length ? (
-                    filteredStudents.map((student) => {
+                    paginatedStudents.map((student) => {
                       const classOutcome = getClassOutcome(student);
                       return (
                         <Tr
@@ -1574,6 +1614,95 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
               </Table>
             </TableContainer>
           )}
+
+          {/* Pagination Controls */}
+          <Flex
+            p={4}
+            mt={3}
+            borderTop="1px solid"
+            borderColor={borderColor}
+            justify="space-between"
+            align="center"
+            wrap="wrap"
+            gap={3}
+          >
+            {/* Left: Entries Counter & Rows Selection */}
+            <Flex align="center" gap={4} wrap="wrap">
+              <Text fontSize="12px" color={mutedText}>
+                Showing <b>{filteredStudents.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}</b> to{' '}
+                <b>{Math.min(filteredStudents.length, currentPage * pageSize)}</b> of{' '}
+                <b>{filteredStudents.length}</b> {filteredStudents.length === 1 ? 'registration' : 'registrations'}
+              </Text>
+
+              <HStack spacing={2} align="center">
+                <Text fontSize="12px" color={mutedText} fontWeight="600">
+                  Rows:
+                </Text>
+                <Select
+                  size="xs"
+                  w="100px"
+                  borderRadius="lg"
+                  borderColor={borderColor}
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  fontWeight="700"
+                >
+                  <option value={10}>10 rows</option>
+                  <option value={15}>15 rows</option>
+                  <option value={30}>30 rows</option>
+                </Select>
+              </HStack>
+            </Flex>
+
+            {/* Right: Page Navigation (Prev, up to 5 page numbers, Next) */}
+            <HStack spacing={1}>
+              <Button
+                size="xs"
+                variant="outline"
+                borderColor={borderColor}
+                leftIcon={<FiChevronLeft />}
+                isDisabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                fontWeight="700"
+              >
+                Prev
+              </Button>
+
+              {getVisiblePages(currentPage, totalPages).map((pageNum) => (
+                <Button
+                  key={pageNum}
+                  size="xs"
+                  minW="28px"
+                  px={2.5}
+                  borderRadius="md"
+                  variant={currentPage === pageNum ? 'solid' : 'outline'}
+                  colorScheme={currentPage === pageNum ? 'green' : 'gray'}
+                  bg={currentPage === pageNum ? '#059669' : undefined}
+                  color={currentPage === pageNum ? 'white' : undefined}
+                  borderColor={currentPage === pageNum ? '#059669' : borderColor}
+                  fontWeight={currentPage === pageNum ? '900' : '600'}
+                  onClick={() => setCurrentPage(pageNum)}
+                >
+                  {pageNum}
+                </Button>
+              ))}
+
+              <Button
+                size="xs"
+                variant="outline"
+                borderColor={borderColor}
+                rightIcon={<FiChevronRight />}
+                isDisabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                fontWeight="700"
+              >
+                Next
+              </Button>
+            </HStack>
+          </Flex>
         </CardBody>
       </Card>
 

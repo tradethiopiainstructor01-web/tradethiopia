@@ -397,35 +397,40 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 5mm 6mm;
+    margin: 4mm 5mm;
   }
 
-  /* Suppress navigation bars, floating buttons, non-printable UI */
-  .no-print,
-  .chakra-modal__header,
-  .chakra-modal__close-btn,
-  .chakra-modal__footer,
-  header,
-  nav,
-  aside,
-  .chakra-button:not(.allow-print) {
-    display: none !important;
-  }
-
-  html, body {
+  /* 1. Global Reset - Hide EVERYTHING on the dashboard/app by default */
+  body, html {
     background: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
     height: auto !important;
-    min-height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
-  /* Reset modal containers so they never clip or wrap onto unintended pages */
+  /* Hide root app UI, navigation, sidebars, modals wrappers */
+  #root > *:not(.chakra-portal),
+  header,
+  nav,
+  aside,
+  .no-print,
+  .chakra-modal__header,
+  .chakra-modal__close-btn,
+  .chakra-modal__footer,
+  .chakra-button,
+  button {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Un-nest modal containers so they never clip or add scrollbars */
   .chakra-portal,
   .chakra-modal__overlay,
   .chakra-modal__content-container,
@@ -436,7 +441,7 @@
     display: block !important;
     width: 100% !important;
     height: auto !important;
-    min-height: auto !important;
+    min-height: 0 !important;
     max-height: none !important;
     max-width: none !important;
     overflow: visible !important;
@@ -446,9 +451,17 @@
     border: none !important;
     box-shadow: none !important;
     background: #ffffff !important;
+    visibility: visible !important;
   }
 
+  /* Make sure the A4 sheet is visible, crisp, and properly positioned */
   .tessbin-a4-sheet {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    visibility: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
     box-shadow: none !important;
     border: none !important;
     margin: 0 !important;
@@ -456,16 +469,29 @@
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
+    min-height: 0 !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
   }
 
+  .tessbin-a4-sheet * {
+    visibility: visible !important;
+  }
+
   .tessbin-a4-frame {
-    padding: 3.5mm 5mm 2.5mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    visibility: visible !important;
+    border: 1.5px solid #0f172a !important;
+    outline: 0.5px solid #0f172a !important;
+    outline-offset: 1px !important;
+    padding: 3mm 4.5mm 2.5mm !important;
+    box-sizing: border-box !important;
     height: auto !important;
     min-height: 270mm !important;
     max-height: 282mm !important;
-    box-sizing: border-box !important;
+    background: #ffffff !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
@@ -473,6 +499,8 @@
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    box-sizing: border-box !important;
   }
 
   tr, .tessbin-a4-section, .tessbin-a4-sign-grid, .tessbin-a4-doc-grid {
@@ -482,5 +510,9 @@
 
   table thead {
     display: table-header-group !important;
+  }
+
+  img {
+    max-width: 100% !important;
   }
 }
