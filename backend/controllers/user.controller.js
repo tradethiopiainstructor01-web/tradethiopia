@@ -133,10 +133,11 @@ const createuser = async (req, res) => {
     const { 
         username, email, password, role, status, 
         fullName, altEmail, altPhone, gender, 
-        jobTitle, hireDate, employmentType, 
+        department, jobTitle, hireDate, employmentType, 
         education, location, phone, additionalLanguages, 
         notes,digitalId,photo,infoStatus,trainingStatus,examStatus,examBypass,guarantorFile,
-        salary, managerId
+        salary, managerId, personalInformation,
+        salaryBankAccountNumber, tinNumber, transportAllowance
     } = req.body;
 
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -165,10 +166,21 @@ const createuser = async (req, res) => {
             return res.status(400).json({ success: false, message: "Username already exists" });
         }
 
-        // Set default status if not provided
+        // Set default status: active for salaried registrations and core staff roles
         const normalizedRole = String(role || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
         const activeRoles = new Set(['admin', 'hr', 'coo', 'coo2', '2coo', 'ceo']);
-        const userStatus = status || (activeRoles.has(normalizedRole) ? "active" : "inactive");
+        const hasSalary = salary !== undefined && salary !== null && Number(salary) > 0;
+        const userStatus = status || (hasSalary || activeRoles.has(normalizedRole) ? "active" : "inactive");
+
+        const resolvedBankAccount = String(salaryBankAccountNumber || personalInformation?.salaryBankAccountNumber || '').trim();
+        const resolvedTin = String(tinNumber || personalInformation?.tinNumber || '').trim();
+        const resolvedTransportAllowance = Number(transportAllowance) || 0;
+
+        const mergedPersonalInfo = {
+            ...(personalInformation || {}),
+            salaryBankAccountNumber: resolvedBankAccount,
+            tinNumber: resolvedTin
+        };
 
         const newUser = new User({ 
             username: normalizedUsername,
@@ -176,12 +188,13 @@ const createuser = async (req, res) => {
             password, 
             role, 
             status: userStatus,
-            fullName,
+            fullName: fullName || normalizedUsername,
             altEmail,
             altPhone,
             gender,
+            department: department || (/tessbin/i.test(role) ? 'Tessbin' : (jobTitle || '')),
             jobTitle,
-            hireDate,
+            hireDate: hireDate || new Date(),
             employmentType,
             education,
             location,
@@ -196,9 +209,26 @@ const createuser = async (req, res) => {
             examBypass: Boolean(examBypass),
             guarantorFile,
             managerId: managerId || null,
-            salary: salary !== undefined && salary !== null ? Number(salary) : undefined
+            salary: salary !== undefined && salary !== null ? Number(salary) : undefined,
+            salaryBankAccountNumber: resolvedBankAccount,
+            tinNumber: resolvedTin,
+            transportAllowance: resolvedTransportAllowance,
+            personalInformation: mergedPersonalInfo
         });
         await newUser.save();
+
+        // Automatically establish current month's payroll for salaried staff in accordance with Ethiopian regulations
+        if (hasSalary) {
+            try {
+                const payrollController = require('./payrollController');
+                if (typeof payrollController.establishEmployeePayroll === 'function') {
+                    await payrollController.establishEmployeePayroll(newUser, req.user);
+                }
+            } catch (payrollErr) {
+                console.error("Warning: Automatic payroll establishment encountered an error:", payrollErr.message);
+            }
+        }
+
         res.status(201).json({ success: true, data: newUser });
 
     } catch (error) {
@@ -421,11 +451,46 @@ const updateuser = async (req, res) => {
         } else {
             delete userUpdates.password;
         }
+
+        if (userUpdates.salary !== undefined && userUpdates.salary !== null) {
+            userUpdates.salary = Number(userUpdates.salary) || 0;
+            if (userUpdates.salary > 0 && !userUpdates.status) {
+                userUpdates.status = 'active';
+            }
+        }
+
+        if (userUpdates.salaryBankAccountNumber !== undefined) {
+            userUpdates.salaryBankAccountNumber = String(userUpdates.salaryBankAccountNumber).trim();
+            userUpdates['personalInformation.salaryBankAccountNumber'] = userUpdates.salaryBankAccountNumber;
+        }
+
+        if (userUpdates.tinNumber !== undefined) {
+            userUpdates.tinNumber = String(userUpdates.tinNumber).trim();
+            userUpdates['personalInformation.tinNumber'] = userUpdates.tinNumber;
+        }
+
+        if (userUpdates.transportAllowance !== undefined) {
+            userUpdates.transportAllowance = Math.max(0, Number(userUpdates.transportAllowance) || 0);
+        }
+
         // Update user and return the updated user
         const updatedUser = await User.findByIdAndUpdate(id, userUpdates, { new: true, runValidators: true }).select('-password');
         if (!updatedUser) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
+
+        // If employee has a salary, sync their draft payroll record to reflect the updated salary and employment data
+        if (updatedUser.salary && Number(updatedUser.salary) > 0) {
+            try {
+                const payrollController = require('./payrollController');
+                if (typeof payrollController.establishEmployeePayroll === 'function') {
+                    await payrollController.establishEmployeePayroll(updatedUser, req.user);
+                }
+            } catch (payrollErr) {
+                console.error("Warning: Syncing payroll on user update encountered an error:", payrollErr.message);
+            }
+        }
+
         const userObj = updatedUser.toObject();
         res.status(200).json({
             success: true,

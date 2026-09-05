@@ -103,6 +103,7 @@ import {
 import axiosInstance from '../services/axiosInstance';
 import { normalizeRole, useUserStore } from '../store/user';
 import { buildEmployeeExportData, exportEmployeePdf, exportEmployeeWord } from '../utils/employeeExport';
+import { calculateNetSalary, formatETB } from '../utils/ethiopianTax';
 
 const isTrainingEnabled = (value) =>
   ['on', 'active', 'approved', 'enabled', 'true'].includes(
@@ -350,6 +351,9 @@ const UserDetailDrawer = ({ isOpen, onClose, user: summaryUser, initialTab = 0, 
     fullName: '',
     role: 'employee',
     status: 'active',
+    salary: 0,
+    salaryBankAccountNumber: '',
+    tinNumber: '',
   });
 
   const handleOpenEditModal = () => {
@@ -361,6 +365,9 @@ const UserDetailDrawer = ({ isOpen, onClose, user: summaryUser, initialTab = 0, 
       fullName: currentEmp.fullName || '',
       role: currentEmp.role || 'employee',
       status: currentEmp.status || 'active',
+      salary: currentEmp.salary ?? (currentEmp.personalInformation?.salary || 0),
+      salaryBankAccountNumber: currentEmp.salaryBankAccountNumber || currentEmp.personalInformation?.salaryBankAccountNumber || currentEmp.bankAccountNumber || '',
+      tinNumber: currentEmp.tinNumber || currentEmp.personalInformation?.tinNumber || '',
     });
     setShowPassword(false);
     setIsEditModalOpen(true);
@@ -377,6 +384,9 @@ const UserDetailDrawer = ({ isOpen, onClose, user: summaryUser, initialTab = 0, 
         fullName: editForm.fullName,
         role: editForm.role,
         status: editForm.status,
+        salary: Number(editForm.salary) || 0,
+        salaryBankAccountNumber: editForm.salaryBankAccountNumber,
+        tinNumber: editForm.tinNumber,
       };
       if (editForm.password && editForm.password.trim() !== '') {
         payload.password = editForm.password;
@@ -384,7 +394,13 @@ const UserDetailDrawer = ({ isOpen, onClose, user: summaryUser, initialTab = 0, 
       const response = await axiosInstance.put(`/users/${currentEmp._id}`, payload);
       const updatedUser = response.data?.data || payload;
       setProfile((prev) => ({ ...prev, ...updatedUser }));
-      toast({ title: 'Account credentials updated successfully!', status: 'success' });
+      toast({ 
+        title: 'Account & Basic Salary updated successfully!', 
+        description: 'Monthly payroll draft synchronized with updated Basic Salary according to Ethiopian regulations.',
+        status: 'success',
+        duration: 4000,
+        isClosable: true
+      });
       setIsEditModalOpen(false);
       if (onUserUpdated) onUserUpdated(updatedUser);
     } catch (err) {
@@ -2187,8 +2203,8 @@ const UserDetailDrawer = ({ isOpen, onClose, user: summaryUser, initialTab = 0, 
           </HStack>
         </DrawerFooter>
       </DrawerContent>
-      {/* Edit Account Credentials Modal */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} isCentered size="md">
+      {/* Edit Account Credentials & Basic Salary Modal */}
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} isCentered size="lg">
         <ModalOverlay backdropFilter="blur(3px)" />
         <ModalContent borderRadius="2xl" shadow="2xl">
           <ModalHeader borderBottom="1px solid" borderColor="gray.100" pb={3}>
@@ -2197,82 +2213,86 @@ const UserDetailDrawer = ({ isOpen, onClose, user: summaryUser, initialTab = 0, 
                 <Icon as={FiKey} boxSize={5} />
               </Flex>
               <Box>
-                <Heading size="sm" color="gray.800">Edit Account Credentials</Heading>
-                <Text fontSize="xs" color="gray.500">Update username, login email, password, role & status</Text>
+                <Heading size="sm" color="gray.800">Edit Account & Basic Salary</Heading>
+                <Text fontSize="xs" color="gray.500">Update credentials, security role, and employee Basic Salary</Text>
               </Box>
             </HStack>
           </ModalHeader>
           <ModalCloseButton top={4} right={4} />
           <ModalBody py={5}>
             <Stack spacing={4}>
-              <FormControl isRequired>
-                <FormLabel fontSize="xs" fontWeight="700" color="gray.700">Full Name</FormLabel>
-                <Input
-                  borderRadius="xl"
-                  size="sm"
-                  placeholder="Enter full name"
-                  value={editForm.fullName}
-                  onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                />
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel fontSize="xs" fontWeight="700" color="gray.700">Username</FormLabel>
-                <InputGroup size="sm">
-                  <InputLeftElement pointerEvents="none">
-                    <Icon as={FiUser} color="gray.400" />
-                  </InputLeftElement>
+              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
+                <FormControl isRequired>
+                  <FormLabel fontSize="xs" fontWeight="700" color="gray.700">Full Name</FormLabel>
                   <Input
                     borderRadius="xl"
-                    placeholder="Enter username"
-                    value={editForm.username}
-                    onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                    size="sm"
+                    placeholder="Enter full name"
+                    value={editForm.fullName}
+                    onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
                   />
-                </InputGroup>
-              </FormControl>
+                </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel fontSize="xs" fontWeight="700" color="gray.700">Login Email</FormLabel>
-                <InputGroup size="sm">
-                  <InputLeftElement pointerEvents="none">
-                    <Icon as={FiMail} color="gray.400" />
-                  </InputLeftElement>
-                  <Input
-                    type="email"
-                    borderRadius="xl"
-                    placeholder="Enter login email address"
-                    value={editForm.email}
-                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  />
-                </InputGroup>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="700" color="gray.700">
-                  New Password <Text as="span" color="gray.400" fontWeight="normal">(Leave blank to keep unchanged)</Text>
-                </FormLabel>
-                <InputGroup size="sm">
-                  <InputLeftElement pointerEvents="none">
-                    <Icon as={FiLock} color="gray.400" />
-                  </InputLeftElement>
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    borderRadius="xl"
-                    placeholder="Type new password"
-                    value={editForm.password}
-                    onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                  />
-                  <InputRightElement>
-                    <IconButton
-                      size="xs"
-                      variant="ghost"
-                      icon={<Icon as={showPassword ? FiEyeOff : FiEye} />}
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label="Toggle password visibility"
+                <FormControl isRequired>
+                  <FormLabel fontSize="xs" fontWeight="700" color="gray.700">Username</FormLabel>
+                  <InputGroup size="sm">
+                    <InputLeftElement pointerEvents="none">
+                      <Icon as={FiUser} color="gray.400" />
+                    </InputLeftElement>
+                    <Input
+                      borderRadius="xl"
+                      placeholder="Enter username"
+                      value={editForm.username}
+                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
                     />
-                  </InputRightElement>
-                </InputGroup>
-              </FormControl>
+                  </InputGroup>
+                </FormControl>
+              </SimpleGrid>
+
+              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
+                <FormControl isRequired>
+                  <FormLabel fontSize="xs" fontWeight="700" color="gray.700">Login Email</FormLabel>
+                  <InputGroup size="sm">
+                    <InputLeftElement pointerEvents="none">
+                      <Icon as={FiMail} color="gray.400" />
+                    </InputLeftElement>
+                    <Input
+                      type="email"
+                      borderRadius="xl"
+                      placeholder="Enter login email address"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    />
+                  </InputGroup>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="xs" fontWeight="700" color="gray.700">
+                    New Password <Text as="span" color="gray.400" fontWeight="normal">(Optional)</Text>
+                  </FormLabel>
+                  <InputGroup size="sm">
+                    <InputLeftElement pointerEvents="none">
+                      <Icon as={FiLock} color="gray.400" />
+                    </InputLeftElement>
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      borderRadius="xl"
+                      placeholder="Leave blank to keep"
+                      value={editForm.password}
+                      onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                    />
+                    <InputRightElement>
+                      <IconButton
+                        size="xs"
+                        variant="ghost"
+                        icon={<Icon as={showPassword ? FiEyeOff : FiEye} />}
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label="Toggle password visibility"
+                      />
+                    </InputRightElement>
+                  </InputGroup>
+                </FormControl>
+              </SimpleGrid>
 
               <SimpleGrid columns={2} spacing={3}>
                 <FormControl>
@@ -2308,6 +2328,112 @@ const UserDetailDrawer = ({ isOpen, onClose, user: summaryUser, initialTab = 0, 
                   </Select>
                 </FormControl>
               </SimpleGrid>
+
+              {/* Compensation & Basic Salary Section */}
+              <Box bg="teal.50" p={3.5} borderRadius="xl" border="1px solid" borderColor="teal.200">
+                <HStack justify="space-between" mb={2.5}>
+                  <HStack spacing={2}>
+                    <Icon as={FiDollarSign} color="teal.700" boxSize={4} />
+                    <Text fontSize="xs" fontWeight="700" color="teal.900">
+                      Compensation & Basic Salary (HR)
+                    </Text>
+                  </HStack>
+                  <Badge colorScheme="green" fontSize="10px" borderRadius="full" px={2}>
+                    Ethiopian Labor & Tax Compliant
+                  </Badge>
+                </HStack>
+
+                <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={3} mb={3}>
+                  <FormControl isRequired>
+                    <FormLabel fontSize="xs" fontWeight="700" color="teal.900" mb={1}>
+                      Monthly Basic Salary (ETB)
+                    </FormLabel>
+                    <InputGroup size="sm">
+                      <InputLeftElement pointerEvents="none" fontSize="xs" fontWeight="bold" color="teal.600">
+                        ETB
+                      </InputLeftElement>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="100"
+                        bg="white"
+                        borderRadius="lg"
+                        fontWeight="semibold"
+                        placeholder="e.g. 15000"
+                        value={editForm.salary}
+                        onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })}
+                      />
+                    </InputGroup>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="700" color="teal.900" mb={1}>
+                      Salary Bank Account (CBE)
+                    </FormLabel>
+                    <Input
+                      size="sm"
+                      bg="white"
+                      borderRadius="lg"
+                      placeholder="1000..."
+                      value={editForm.salaryBankAccountNumber}
+                      onChange={(e) => setEditForm({ ...editForm, salaryBankAccountNumber: e.target.value })}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="700" color="teal.900" mb={1}>
+                      TIN Number
+                    </FormLabel>
+                    <Input
+                      size="sm"
+                      bg="white"
+                      borderRadius="lg"
+                      placeholder="TIN..."
+                      value={editForm.tinNumber}
+                      onChange={(e) => setEditForm({ ...editForm, tinNumber: e.target.value })}
+                    />
+                  </FormControl>
+                </SimpleGrid>
+
+                {/* Real-time Ethiopian Tax & Pension Breakdown Preview */}
+                {Number(editForm.salary) > 0 ? (() => {
+                  const est = calculateNetSalary({ basicSalary: editForm.salary });
+                  return (
+                    <Box bg="white" p={3} borderRadius="lg" border="1px dashed" borderColor="teal.300" shadow="xs">
+                      <Flex justify="space-between" align="center" mb={2} pb={1.5} borderBottom="1px solid" borderColor="gray.100">
+                        <Text fontSize="xs" fontWeight="bold" color="gray.700">
+                          Estimated Monthly Statutory Deductions
+                        </Text>
+                        <Badge colorScheme="teal" fontSize="9px" borderRadius="md" px={1.5}>
+                          Draft Payroll Auto-Sync
+                        </Badge>
+                      </Flex>
+                      <SimpleGrid columns={4} spacing={2} textAlign="center">
+                        <Box bg="gray.50" p={2} borderRadius="md">
+                          <Text fontSize="10px" color="gray.500" mb={0.5}>Income Tax</Text>
+                          <Text fontSize="xs" fontWeight="bold" color="orange.600">{formatETB(est.incomeTax)}</Text>
+                        </Box>
+                        <Box bg="gray.50" p={2} borderRadius="md">
+                          <Text fontSize="10px" color="gray.500" mb={0.5}>Pension (7%)</Text>
+                          <Text fontSize="xs" fontWeight="bold" color="purple.600">{formatETB(est.pension)}</Text>
+                        </Box>
+                        <Box bg="gray.50" p={2} borderRadius="md">
+                          <Text fontSize="10px" color="gray.500" mb={0.5}>Employer (11%)</Text>
+                          <Text fontSize="xs" fontWeight="bold" color="pink.600">{formatETB(est.employerPension)}</Text>
+                        </Box>
+                        <Box bg="teal.50" p={2} borderRadius="md">
+                          <Text fontSize="10px" color="teal.800" fontWeight="semibold" mb={0.5}>Est. Take-Home</Text>
+                          <Text fontSize="xs" fontWeight="extrabold" color="teal.700">{formatETB(est.netSalary)}</Text>
+                        </Box>
+                      </SimpleGrid>
+                    </Box>
+                  );
+                })() : (
+                  <Text fontSize="xs" color="teal.700" fontStyle="italic">
+                    💡 Enter a monthly basic salary above to see statutory tax brackets and automatically establish monthly payroll.
+                  </Text>
+                )}
+              </Box>
             </Stack>
           </ModalBody>
           <ModalFooter borderTop="1px solid" borderColor="gray.100" pt={3}>
@@ -2322,7 +2448,7 @@ const UserDetailDrawer = ({ isOpen, onClose, user: summaryUser, initialTab = 0, 
                 loadingText="Saving"
                 onClick={handleSaveAccountEdit}
               >
-                Save Account Changes
+                Save Account & Salary Changes
               </Button>
             </HStack>
           </ModalFooter>

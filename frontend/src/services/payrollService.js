@@ -260,3 +260,9 @@ export const fetchSalesDataForCommission = async (agentId, month, year, startDat
     throw error;
   }
 };
+
+// Update employee basic salary & establish payroll
+export const updateEmployeeSalary = async (userId, data) => {
+  const response = await axiosInstance.put(`/users/${userId}`, data);
+  return response.data;
+};

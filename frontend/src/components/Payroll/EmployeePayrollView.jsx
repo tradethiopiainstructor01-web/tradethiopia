@@ -99,14 +99,17 @@ const EmployeePayrollView = () => {
       <Box p={{ base: 4, md: 6 }} bg={bgColor} minHeight="100vh">
         {/* Back Button and Heading */}
         <Box display="flex" alignItems="center" mb={6}>
-          <ArrowBackIcon 
-            onClick={() => navigate(-1)} 
-            cursor="pointer" 
+          <Button 
+            variant="ghost" 
+            colorScheme="blue" 
+            size="sm" 
             mr={3} 
-            boxSize={6} 
-            color="blue.500"
-          />
-          <Heading as="h1" size="lg" color={textColor}> {/* Changed from headerColor to textColor */}
+            leftIcon={<ArrowBackIcon />} 
+            onClick={() => navigate('/payroll/sheet')}
+          >
+            Back to Payroll Sheet
+          </Button>
+          <Heading as="h1" size="lg" color={textColor}>
             Payroll Details for {payrollData?.employeeName || 'Employee'}
           </Heading>
         </Box>

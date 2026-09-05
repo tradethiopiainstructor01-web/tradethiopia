@@ -635,6 +635,7 @@ function App() {
         <Route path="request" element={<ENISRARequestEmbedded />} />
       </Route>
       <Route path="/payroll" element={<LayoutWrapper><PayrollPage /></LayoutWrapper>} />
+      <Route path="/payroll/*" element={<LayoutWrapper><PayrollPage /></LayoutWrapper>} />
       <Route path="/my-payroll" element={<EmployeePayrollView />} />
       <Route path="/messages" element={<RedirectMessagesPage />} />
       <Route path="/sales/messages" element={<SalesMessagesPage />} />

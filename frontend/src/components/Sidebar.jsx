@@ -173,12 +173,14 @@ const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
   const isStaffPath = location.pathname.startsWith("/users") || location.pathname.startsWith("/attendance") || location.pathname.startsWith("/leave-management") || location.pathname.startsWith("/employee-requests") || location.pathname.startsWith("/warnings");
   const isTrainingPath = location.pathname.startsWith("/candidate-pool") || location.pathname.startsWith("/hr-training") || location.pathname.startsWith("/course") || location.pathname.startsWith("/quiz") || location.pathname.startsWith("/awards");
   const isAssetPath = location.pathname.startsWith("/assets") || location.pathname.startsWith("/assetcategory");
+  const isPayrollPath = location.pathname.startsWith("/payroll") || location.pathname.startsWith("/my-payroll");
 
   // Subcategories are collapsed initially (false) unless the user is on a route in that section
   const [isDocOpen, setIsDocOpen] = useState(isDocPath);
   const [isStaffOpen, setIsStaffOpen] = useState(isStaffPath);
   const [isTrainingOpen, setIsTrainingOpen] = useState(isTrainingPath);
   const [isAssetOpen, setIsAssetOpen] = useState(isAssetPath);
+  const [isPayrollOpen, setIsPayrollOpen] = useState(isPayrollPath);
 
   const effectiveIsCollapsed = controlledIsCollapsed !== undefined ? controlledIsCollapsed : isCollapsed;
 
@@ -194,7 +196,8 @@ const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
     if (isStaffPath) setIsStaffOpen(true);
     if (isTrainingPath) setIsTrainingOpen(true);
     if (isAssetPath) setIsAssetOpen(true);
-  }, [isDocPath, isStaffPath, isTrainingPath, isAssetPath]);
+    if (isPayrollPath) setIsPayrollOpen(true);
+  }, [isDocPath, isStaffPath, isTrainingPath, isAssetPath, isPayrollPath]);
 
   const toggleCollapse = () => {
     if (onToggleCollapse) {
@@ -460,7 +463,45 @@ const Sidebar = ({ isCollapsed: controlledIsCollapsed, onToggleCollapse }) => {
         </SidebarExpandableItem>
 
         <SectionLabel label="Finance" isCollapsed={effectiveIsCollapsed} />
-        <SidebarItem to="/payroll" icon={FiDollarSign} label="Payroll" isCollapsed={effectiveIsCollapsed} isActive={isActive("/payroll")} />
+        <SidebarExpandableItem
+          icon={FiDollarSign}
+          label="Payroll Management"
+          isCollapsed={effectiveIsCollapsed}
+          isParentActive={isPayrollPath}
+          isOpen={isPayrollOpen}
+          onToggle={() => setIsPayrollOpen((prev) => !prev)}
+        >
+          <SidebarSubItem
+            to="/payroll"
+            label="Overview & Dashboard"
+            isCollapsed={effectiveIsCollapsed}
+            isActive={location.pathname === "/payroll" || location.pathname === "/payroll/overview"}
+          />
+          <SidebarSubItem
+            to="/payroll/sheet"
+            label="Employee Payroll Sheet"
+            isCollapsed={effectiveIsCollapsed}
+            isActive={isActive("/payroll/sheet")}
+          />
+          <SidebarSubItem
+            to="/payroll/commissions"
+            label="Commissions & Bonuses"
+            isCollapsed={effectiveIsCollapsed}
+            isActive={isActive("/payroll/commissions")}
+          />
+          <SidebarSubItem
+            to="/payroll/disbursements"
+            label="Bank & Disbursements"
+            isCollapsed={effectiveIsCollapsed}
+            isActive={isActive("/payroll/disbursements")}
+          />
+          <SidebarSubItem
+            to="/payroll/history"
+            label="Payroll History"
+            isCollapsed={effectiveIsCollapsed}
+            isActive={isActive("/payroll/history")}
+          />
+        </SidebarExpandableItem>
 
         <SectionLabel label="Communication" isCollapsed={effectiveIsCollapsed} />
         <SidebarItem to="/chat" icon={FiMessageSquare} label="Announcements" isCollapsed={effectiveIsCollapsed} isActive={isActive("/chat")} />
