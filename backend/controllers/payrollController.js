@@ -8,75 +8,17 @@ const SalesCustomer = require('../models/SalesCustomer');
 const PackageSale = require('../models/PackageSale');
 const { resolveSaleCommission } = require('../utils/commission');
 const asyncHandler = require('express-async-handler');
+const {
+  TAX_BRACKETS,
+  calculateEthiopianIncomeTax,
+  calculatePension,
+  calculateEmployerPension,
+  calculateHourlyWage,
+  calculateOvertimePay,
+  calculateLateDeduction,
+  calculateAbsenceDeduction
+} = require('../utils/ethiopianPayroll');
 
-// Ethiopian Income Tax (2017 EC / 2025 GC)
-const calculateEthiopianIncomeTax = (grossSalary) => {
-  if (grossSalary <= 2000) {
-    return 0;
-  } 
-  else if (grossSalary <= 4000) {
-    return grossSalary * 0.15 - 300;
-  } 
-  else if (grossSalary <= 7000) {
-    return grossSalary * 0.20 - 500;
-  } 
-  else if (grossSalary <= 10000) {
-    return grossSalary * 0.25 - 850;
-  } 
-  else if (grossSalary <= 14000) {
-    return grossSalary * 0.30 - 1350;
-  } 
-  else {
-    return grossSalary * 0.35 - 2050;
-  }
-};
-
-
-// Calculate pension contribution (7% of basic salary)
-const calculatePension = (basicSalary) => {
-  return basicSalary * 0.07;
-};
-
-// Calculate hourly wage from monthly salary
-const calculateHourlyWage = (monthlySalary) => {
-  if (!monthlySalary) return 0;
-  const dailySalary = monthlySalary / 30;
-  const hourlyWage = dailySalary / 8;
-  return hourlyWage;
-};
-
-// Calculate overtime pay based on Ethiopian labor law
-const calculateOvertimePay = (hourlyWage, overtimeData) => {
-  if (!overtimeData) return 0;
-  
-  let totalOvertimePay = 0;
-  
-  // Daytime Overtime (6am–10pm): 1.5x hourly rate
-  if (overtimeData.daytimeOvertimeHours) {
-    const daytimeRate = hourlyWage * 1.5;
-    totalOvertimePay += overtimeData.daytimeOvertimeHours * daytimeRate;
-  }
-  
-  // Night Overtime (10pm–6am): 1.75x hourly rate
-  if (overtimeData.nightOvertimeHours) {
-    const nightRate = hourlyWage * 1.75;
-    totalOvertimePay += overtimeData.nightOvertimeHours * nightRate;
-  }
-  
-  // Rest Day Overtime: 2.0x hourly rate
-  if (overtimeData.restDayOvertimeHours) {
-    const restDayRate = hourlyWage * 2.0;
-    totalOvertimePay += overtimeData.restDayOvertimeHours * restDayRate;
-  }
-  
-  // Public Holiday Overtime: 2.5x hourly rate
-  if (overtimeData.holidayOvertimeHours) {
-    const holidayRate = hourlyWage * 2.5;
-    totalOvertimePay += overtimeData.holidayOvertimeHours * holidayRate;
-  }
-  
-  return totalOvertimePay;
-};
 
 const getMonthDateRange = (month) => {
   const [yearStr, monthStr] = String(month || new Date().toISOString().slice(0, 7)).split('-');
@@ -122,15 +64,6 @@ const selectLatestAttendanceRecord = (records = []) => {
   }, null);
 };
 
-// Calculate late deduction (3000 ETB per day)
-const calculateLateDeduction = (lateDays) => {
-  return (lateDays || 0) * 300;
-};
-
-// Calculate absence deduction (3000 ETB per day)
-const calculateAbsenceDeduction = (absenceDays) => {
-  return (absenceDays || 0) * 3000;
-};
 
 const buildCommissionSnapshot = (sales = []) => {
   let totalGross = 0;
@@ -147,7 +80,7 @@ const buildCommissionSnapshot = (sales = []) => {
       customerId: sale._id || sale.customerId,
       customerName: sale.customerName || 'Unknown',
       saleAmount: Number(sale.coursePrice) || 0,
-      commissionRate: 0.07,
+      commissionRate: 0.075,
       commissionAmount: resolved.netCommission,
       grossCommission: resolved.grossCommission,
       commissionTax: resolved.commissionTax,
@@ -264,16 +197,19 @@ const mergeCommissionRecords = (userId, userData = {}, month, year, records = []
   });
 };
 
-const hasCommissionValue = (record = {}) => (
-  Number(record.totalCommission) > 0
-  || Number(record.grossCommission) > 0
-  || Number(record.netCommission) > 0
-  || (Array.isArray(record.commissionDetails) && record.commissionDetails.some((detail) => (
-    Number(detail.netCommission) > 0
-    || Number(detail.grossCommission) > 0
-    || Number(detail.commissionAmount) > 0
-  )))
-);
+const hasCommissionValue = (record) => {
+  if (!record) return false;
+  return Boolean(
+    Number(record.totalCommission) > 0
+    || Number(record.grossCommission) > 0
+    || Number(record.netCommission) > 0
+    || (Array.isArray(record.commissionDetails) && record.commissionDetails.some((detail) => (
+      Number(detail?.netCommission) > 0
+      || Number(detail?.grossCommission) > 0
+      || Number(detail?.commissionAmount) > 0
+    )))
+  );
+};
 
 const uniqueRecordsById = (records = []) => {
   const seen = new Set();
@@ -400,20 +336,19 @@ const applyDerivedFinanceAdjustmentsForDisplay = (payrollRecord = {}) => {
   };
 };
 
-// Enhanced payroll calculation function
-const calculatePayrollForEmployee = (userData, attendanceData, commissionData, period = {}) => {
+const calculatePayrollForEmployee = (userData, attendanceData, commissionData, period = {}, existingRecord = null) => {
   try {
     const currentDate = new Date();
     const month = period.month || currentDate.toISOString().slice(0, 7);
     const year = parseInt(period.year, 10) || currentDate.getFullYear();
     
-    // Base salary from user data
     const basicSalary = userData.salary || 0;
+
+    const daysWorked = Number(attendanceData?.daysWorked ?? existingRecord?.daysWorked ?? period.daysWorked ?? 30);
+    const proratedSalary = (basicSalary / 30) * daysWorked;
     
-    // Calculate hourly wage for overtime calculations
     const hourlyWage = calculateHourlyWage(basicSalary);
     
-    // Calculate overtime pay
     let overtimePay = 0;
     let totalOvertimeHours = 0;
     if (attendanceData) {
@@ -426,21 +361,18 @@ const calculatePayrollForEmployee = (userData, attendanceData, commissionData, p
       );
     }
     
-    // Calculate late deduction
     let lateDeduction = 0;
-    const lateDays = attendanceData?.lateDays || 0;
+    const lateDays = attendanceData?.lateDays ?? existingRecord?.lateDays ?? 0;
     if (lateDays) {
       lateDeduction = calculateLateDeduction(lateDays);
     }
     
-    // Calculate absence deduction
-    let absenceDeduction = 0;
-    const absenceDays = attendanceData?.absenceDays || 0;
-    if (absenceDays) {
-      absenceDeduction = calculateAbsenceDeduction(absenceDays);
-    }
+    const absenceDays = attendanceData?.absenceDays ?? existingRecord?.absenceDays ?? 0;
+    const manualAbsenceDeduction = attendanceData?.absenceDeduction ?? existingRecord?.absenceDeduction;
+    const absenceDeduction = calculateAbsenceDeduction(absenceDays, manualAbsenceDeduction);
     
-    // Calculate commission
+    const loan = Number(attendanceData?.loan ?? existingRecord?.loan ?? 0);
+
     let salesCommission = 0;
     let numberOfSales = 0;
     let commissionGross = 0;
@@ -452,24 +384,23 @@ const calculatePayrollForEmployee = (userData, attendanceData, commissionData, p
       commissionTax = commissionData.commissionTax || 0;
     }
     
-    // Calculate allowances
-    const hrAllowances = attendanceData?.hrAllowances || 0;
-    const financeAllowances = attendanceData?.financeAllowances || 0;
-    const financeDeductions = attendanceData?.financeDeductions || 0;
+    const transportAllowance = Number(attendanceData?.transportAllowance ?? existingRecord?.transportAllowance ?? userData?.transportAllowance ?? 0);
+    const taxableAllowance = Number(attendanceData?.taxableAllowance ?? existingRecord?.taxableAllowance ?? 0);
+    const hrAllowances = Number(attendanceData?.hrAllowances ?? existingRecord?.hrAllowances ?? 0);
+    const financeAllowances = Number(attendanceData?.financeAllowances ?? existingRecord?.financeAllowances ?? 0);
+    const financeDeductions = Number(attendanceData?.financeDeductions ?? existingRecord?.financeDeductions ?? 0);
     
-    // Calculate gross salary (basic + overtime + commission + allowances)
-    const grossSalary = basicSalary + overtimePay + salesCommission + hrAllowances + financeAllowances;
+    const grossSalary = proratedSalary + salesCommission + taxableAllowance + hrAllowances + financeAllowances + overtimePay;
     
-    // Calculate income tax on gross salary
     const incomeTax = calculateEthiopianIncomeTax(grossSalary);
     
-    // Calculate pension (7% of basic salary only)
     const pension = calculatePension(basicSalary);
+    const employerPension = basicSalary * 0.11;
     
-    // Calculate net salary
-    const netSalary = grossSalary - incomeTax - pension - lateDeduction - absenceDeduction - financeDeductions;
+    const totalDeductions = incomeTax + pension + lateDeduction + absenceDeduction + loan + financeDeductions;
+
+    const netSalary = grossSalary - totalDeductions + transportAllowance;
     
-    // Prepare payroll record
     const payrollRecord = {
       userId: userData._id,
       employeeName: userData.fullName || userData.username,
@@ -477,24 +408,31 @@ const calculatePayrollForEmployee = (userData, attendanceData, commissionData, p
       month,
       year,
       basicSalary,
+      daysWorked,
       grossSalary,
       incomeTax,
       pension,
+      employerPension,
       overtimeHours: totalOvertimeHours,
       overtimePay,
       lateDays,
       lateDeduction,
       absenceDays,
       absenceDeduction,
+      loan,
       numberOfSales,
       salesCommission,
       commissionGross,
       commissionTax,
+      transportAllowance,
+      taxableAllowance,
       hrAllowances,
       financeAllowances,
       financeDeductions,
       netSalary,
-      status: 'draft'
+      salaryBankAccountNumber: userData.personalInformation?.salaryBankAccountNumber || userData.salaryBankAccountNumber || userData.bankAccountNumber || existingRecord?.salaryBankAccountNumber || '',
+      tinNumber: userData.personalInformation?.tinNumber || userData.tinNumber || existingRecord?.tinNumber || '',
+      status: existingRecord?.status || 'draft'
     };
     
     return payrollRecord;
@@ -504,11 +442,10 @@ const calculatePayrollForEmployee = (userData, attendanceData, commissionData, p
   }
 };
 
-// GET /payroll/:month → full payroll list
 const getPayrollList = async (req, res) => {
   try {
     const { month } = req.params;
-    const { year, department, role } = req.query;
+    const { year, department, role, status } = req.query;
     const [monthYear] = String(month || '').split('-');
     const payrollYear = parseInt(year, 10) || parseInt(monthYear, 10) || new Date().getFullYear();
     const { start: monthStart, end: monthEnd } = getMonthDateRange(month);
@@ -523,10 +460,22 @@ const getPayrollList = async (req, res) => {
     
     // Get existing payroll records
     const existingPayrollRecords = await Payroll.find(query)
-      .populate('userId', 'username fullName role salary jobTitle');
+      .populate('userId', 'username fullName role salary jobTitle personalInformation status');
     
-    // Get all active users matching the filters
-    let userQuery = { status: 'active' };
+    // Filter users by account status (active, inactive, or all) with established salary
+    let userQuery = { salary: { $gt: 0 } };
+    if (status === 'inactive') {
+      userQuery.status = 'inactive';
+    } else if (status === 'all') {
+      // allow both active and inactive
+    } else {
+      // default: active
+      userQuery.status = 'active';
+    }
+
+    if (req.query.includeAll === 'true') {
+      delete userQuery.salary;
+    }
     if (department) {
       userQuery.$or = [
         { jobTitle: { $regex: new RegExp(department, 'i') } },
@@ -633,10 +582,14 @@ const getPayrollList = async (req, res) => {
         Object.assign(record, {
           ...recalculatedRecord,
           _id: record._id,
+          userId: user,
+          salaryBankAccountNumber: user.personalInformation?.salaryBankAccountNumber || user.bankAccountNumber || record.salaryBankAccountNumber || '',
+          tinNumber: user.personalInformation?.tinNumber || record.tinNumber || '',
           financeAllowances: financeAdjustmentSnapshot.financeAllowances,
           financeDeductions: financeAdjustmentSnapshot.financeDeductions,
           netSalary: financeAdjustmentSnapshot.netSalary,
           status: record.status,
+          userStatus: user.status || 'active',
           auditLog: record.auditLog,
           createdAt: record.createdAt,
           updatedAt: record.updatedAt,
@@ -674,7 +627,10 @@ const getPayrollList = async (req, res) => {
         const placeholderRecord = {
           ...calculatedRecord,
           _id: `placeholder-${userIdStr}`, // Add a temporary ID for frontend use
-          userId: user._id,
+          userId: user,
+          userStatus: user.status || 'active',
+          salaryBankAccountNumber: user.personalInformation?.salaryBankAccountNumber || user.bankAccountNumber || '',
+          tinNumber: user.personalInformation?.tinNumber || '',
           department: calculatedRecord.department && calculatedRecord.department !== 'general'
             ? calculatedRecord.department
             : user.jobTitle || user.role || 'general',
@@ -693,48 +649,123 @@ const getPayrollList = async (req, res) => {
   }
 };
 
-// POST /payroll/calculate → run payroll engine
+// POST /payroll/calculate → run payroll engine exclusively for salaried employees
 const calculatePayrollForAll = async (req, res) => {
   try {
     const { month: requestedMonth, year: requestedYear } = req.body;
     const month = requestedMonth || new Date().toISOString().slice(0, 7);
     const year = parseInt(requestedYear, 10) || new Date().getFullYear();
-    
-    // Get all active users
-    const users = await User.find({ status: 'active' });
-    
+    const { start: monthStart, end: monthEnd } = getMonthDateRange(month);
+
+    // Get all active users with registered salary data (exclusive to salaried employees)
+    const users = await User.find({ status: 'active', salary: { $gt: 0 } });
+    const userIds = users.map((u) => u._id);
+
+    // Batch fetch attendance, commissions, existing payroll records, and sales in parallel
+    const [attendanceRecords, commissionRecords, existingRecords, monthlySales, monthlyPackageSales] = await Promise.all([
+      Attendance.find({
+        userId: { $in: userIds },
+        date: { $gte: monthStart, $lt: monthEnd }
+      }).lean(),
+      Commission.find({
+        userId: { $in: userIds },
+        month,
+        year
+      }).lean(),
+      Payroll.find({
+        userId: { $in: userIds },
+        month,
+        year
+      }),
+      SalesCustomer.find({
+        coursePrice: { $gt: 0 },
+        ...buildMonthlyActivityDateFilter(monthStart, monthEnd)
+      }).lean(),
+      PackageSale.find({
+        agentId: { $exists: true, $ne: null },
+        packageType: { $exists: true, $nin: [null, ''] },
+        ...buildMonthlyActivityDateFilter(monthStart, monthEnd)
+      }).lean()
+    ]);
+
+    // Build lookup maps for instant in-memory resolution
+    const attendanceByUser = {};
+    attendanceRecords.forEach((record) => {
+      const key = record.userId.toString();
+      attendanceByUser[key] = attendanceByUser[key] || [];
+      attendanceByUser[key].push(record);
+    });
+
+    const attendanceMap = {};
+    Object.entries(attendanceByUser).forEach(([uid, recs]) => {
+      attendanceMap[uid] = selectLatestAttendanceRecord(recs);
+    });
+
+    const commissionMap = {};
+    commissionRecords.forEach((rec) => {
+      commissionMap[rec.userId.toString()] = rec;
+    });
+
+    const existingMap = {};
+    existingRecords.forEach((rec) => {
+      existingMap[rec.userId.toString()] = rec;
+    });
+
+    const salesByAgent = {};
+    monthlySales.forEach((sale) => {
+      [sale.agentId, sale.createdBy].forEach((agentKey) => {
+        const key = normalizeSalesAgentKey(agentKey);
+        if (!key) return;
+        salesByAgent[key] = salesByAgent[key] || [];
+        salesByAgent[key].push(sale);
+      });
+    });
+
+    const packageSalesByAgent = {};
+    monthlyPackageSales.forEach((sale) => {
+      const key = normalizeSalesAgentKey(sale.agentId);
+      if (!key) return;
+      packageSalesByAgent[key] = packageSalesByAgent[key] || [];
+      packageSalesByAgent[key].push(sale);
+    });
+
+    const actorId = req.user?._id || (users[0] ? users[0]._id : null);
+    const actorRole = req.user?.role || 'admin';
+
     let payrollRecords = [];
-    
+
     for (const user of users) {
       try {
-        // Get attendance data for the user
-        const attendanceRecords = await Attendance.find({
-          userId: user._id,
-          date: {
-            $gte: new Date(`${month}-01`),
-            $lt: new Date(new Date(`${month}-01`).setMonth(new Date(`${month}-01`).getMonth() + 1))
+        const userIdStr = user._id.toString();
+        const attendanceData = attendanceMap[userIdStr] || null;
+
+        // Resolve commission from map or calculate
+        let commissionData = commissionMap[userIdStr] || null;
+        if (!hasCommissionValue(commissionData)) {
+          const agentKeys = getUserSalesAgentKeys(user).map(normalizeSalesAgentKey);
+          const matchedSales = uniqueRecordsById(
+            agentKeys.flatMap((key) => salesByAgent[key] || [])
+          );
+          const matchedPackageSales = uniqueRecordsById(
+            agentKeys.flatMap((key) => packageSalesByAgent[key] || [])
+          );
+          const calculated = mergeCommissionRecords(user._id, user, month, year, [
+            buildCommissionRecordFromSales(user._id, user, month, year, matchedSales),
+            buildCommissionRecordFromPackageSales(user._id, user, month, year, matchedPackageSales)
+          ]);
+          if (hasCommissionValue(calculated)) {
+            commissionData = calculated;
           }
-        });
-        const attendanceData = selectLatestAttendanceRecord(attendanceRecords);
-        
-        // Get commission data for the user
-        const commissionData = await resolveCommissionForPeriod(user._id, month, year);
-        
-        // Calculate payroll for the employee
-        const payrollData = calculatePayrollForEmployee(user, attendanceData, commissionData, { month, year });
-        
-        // Check if payroll record already exists
-        const existingRecord = await Payroll.findOne({
-          userId: user._id,
-          month,
-          year
-        });
-        
+        }
+
+        const existingRecord = existingMap[userIdStr] || null;
+        const payrollData = calculatePayrollForEmployee(user, attendanceData, commissionData, { month, year }, existingRecord);
+
         let payrollRecord;
         if (existingRecord) {
           const payrollDataWithStoredCommission = reapplyStoredCommission(payrollData, existingRecord);
           const financeAdjustmentSnapshot = reapplyFinanceAdjustments(payrollDataWithStoredCommission.netSalary, existingRecord);
-          // Update existing record
+
           payrollRecord = await Payroll.findByIdAndUpdate(
             existingRecord._id,
             {
@@ -742,47 +773,119 @@ const calculatePayrollForAll = async (req, res) => {
               financeAllowances: financeAdjustmentSnapshot.financeAllowances,
               financeDeductions: financeAdjustmentSnapshot.financeDeductions,
               netSalary: financeAdjustmentSnapshot.netSalary,
+              salaryBankAccountNumber: user.personalInformation?.salaryBankAccountNumber || user.salaryBankAccountNumber || existingRecord.salaryBankAccountNumber || '',
+              tinNumber: user.personalInformation?.tinNumber || user.tinNumber || existingRecord.tinNumber || '',
               auditLog: [...existingRecord.auditLog, {
-                changedBy: req.user._id,
+                changedBy: actorId,
                 changedAt: new Date(),
                 fieldName: 'Payroll Recalculation',
                 oldValue: null,
                 newValue: 'Recalculated',
-                role: req.user.role
+                role: actorRole
               }]
             },
             { new: true }
           );
         } else {
-          // Create new record
           payrollRecord = new Payroll({
             ...payrollData,
             auditLog: [{
-              changedBy: req.user._id,
+              changedBy: actorId,
               changedAt: new Date(),
               fieldName: 'Payroll Creation',
               oldValue: null,
               newValue: 'Created',
-              role: req.user.role
+              role: actorRole
             }]
           });
           await payrollRecord.save();
         }
-        
+
         payrollRecords.push(payrollRecord);
-      } catch (error) {
-        console.error(`Error calculating payroll for user ${user._id}:`, error);
-        // Continue with other users even if one fails
+      } catch (userErr) {
+        console.error(`Error calculating payroll for user ${user._id}:`, userErr);
       }
     }
-    
+
     res.json({
       success: true,
       message: `Payroll calculated for ${payrollRecords.length} employees`,
       data: payrollRecords
     });
   } catch (error) {
+    console.error('Error in calculatePayrollForAll:', error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Automatically establish a draft payroll record for an employee upon registration or salary update
+ */
+const establishEmployeePayroll = async (user, actor = null, requestedPeriod = null) => {
+  try {
+    if (!user || !user._id || !user.salary || Number(user.salary) <= 0) {
+      return null;
+    }
+
+    const currentDate = new Date();
+    const month = requestedPeriod?.month || currentDate.toISOString().slice(0, 7);
+    const year = parseInt(requestedPeriod?.year, 10) || currentDate.getFullYear();
+
+    const existingRecord = await Payroll.findOne({
+      userId: user._id,
+      month,
+      year
+    });
+
+    const payrollData = calculatePayrollForEmployee(user, null, null, { month, year }, existingRecord);
+
+    const auditActorId = actor?._id || user._id;
+    const auditRole = actor?.role || 'admin';
+
+    let payrollRecord;
+    if (existingRecord) {
+      if (['approved', 'locked'].includes(existingRecord.status)) {
+        return existingRecord;
+      }
+      payrollRecord = await Payroll.findByIdAndUpdate(
+        existingRecord._id,
+        {
+          ...payrollData,
+          auditLog: [
+            ...existingRecord.auditLog,
+            {
+              changedBy: auditActorId,
+              changedAt: new Date(),
+              fieldName: 'Salary Registration Sync',
+              oldValue: String(existingRecord.basicSalary),
+              newValue: String(user.salary),
+              role: auditRole
+            }
+          ]
+        },
+        { new: true }
+      );
+    } else {
+      payrollRecord = new Payroll({
+        ...payrollData,
+        auditLog: [
+          {
+            changedBy: auditActorId,
+            changedAt: new Date(),
+            fieldName: 'Payroll Creation',
+            oldValue: null,
+            newValue: 'Established upon employee registration',
+            role: auditRole
+          }
+        ]
+      });
+      await payrollRecord.save();
+    }
+
+    return payrollRecord;
+  } catch (err) {
+    console.error(`Error establishing payroll for employee ${user?._id}:`, err);
+    return null;
   }
 };
 
@@ -1086,7 +1189,10 @@ const finalizePayrollForFinance = asyncHandler(async (req, res) => {
     finalizedAt: new Date()
   });
 
-  await Payroll.findByIdAndDelete(payrollRecord._id);
+  payrollRecord.status = 'locked';
+  payrollRecord.lockedBy = req.user._id;
+  payrollRecord.lockedAt = new Date();
+  await payrollRecord.save();
 
   res.json({
     success: true,
@@ -1462,5 +1568,7 @@ module.exports = {
   deletePayrollRecord,
   selectLatestAttendanceRecord,
   deriveHrNetFromRecord,
-  reapplyFinanceAdjustments
+  reapplyFinanceAdjustments,
+  calculatePayrollForEmployee,
+  establishEmployeePayroll
 };

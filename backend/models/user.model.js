@@ -74,6 +74,20 @@ const userSchema = new mongoose.Schema({
         required: false,
         default: 0,
     },
+    salaryBankAccountNumber: {
+        type: String,
+        trim: true,
+        default: '',
+    },
+    tinNumber: {
+        type: String,
+        trim: true,
+        default: '',
+    },
+    transportAllowance: {
+        type: Number,
+        default: 0,
+    },
 
     education: {
         type: String,

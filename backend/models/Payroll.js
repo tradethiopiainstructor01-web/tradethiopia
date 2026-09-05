@@ -28,6 +28,10 @@ const payrollSchema = new mongoose.Schema({
     required: true,
     default: 0
   },
+  daysWorked: {
+    type: Number,
+    default: 30
+  },
   grossSalary: {
     type: Number,
     required: true,
@@ -46,6 +50,10 @@ const payrollSchema = new mongoose.Schema({
     default: 0
   },
   pension: {
+    type: Number,
+    default: 0
+  },
+  employerPension: {
     type: Number,
     default: 0
   },
@@ -75,6 +83,10 @@ const payrollSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  loan: {
+    type: Number,
+    default: 0
+  },
   // Sales Commissions
   numberOfSales: {
     type: Number,
@@ -86,6 +98,14 @@ const payrollSchema = new mongoose.Schema({
   },
   // Allowances
   hrAllowances: {
+    type: Number,
+    default: 0
+  },
+  transportAllowance: {
+    type: Number,
+    default: 0
+  },
+  taxableAllowance: {
     type: Number,
     default: 0
   },
@@ -111,6 +131,16 @@ const payrollSchema = new mongoose.Schema({
     type: Number,
     required: true,
     default: 0
+  },
+  salaryBankAccountNumber: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  tinNumber: {
+    type: String,
+    trim: true,
+    default: ''
   },
   // Status and Metadata
   status: {
@@ -162,7 +192,7 @@ const payrollSchema = new mongoose.Schema({
       newValue: mongoose.Schema.Types.Mixed,
       role: {
         type: String,
-        enum: ['HR', 'Finance', 'Admin']
+        default: 'Admin'
       }
     }
   ]
