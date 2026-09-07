@@ -1,3 +1,4 @@
+import PageNumberButtons from "./PageNumberButtons";
 import React, { useEffect, useRef, useState, memo } from "react";
 import {
   Badge,
@@ -329,7 +330,7 @@ const SalesFollowupsTabPage = ({
                   {[
                     "Training Start Date",
                     "Training End Date",
-                    "Customer Services",
+                    "Agent",
                     "Assigned Instructor",
                     "Customer Name",
                     "Email",
@@ -433,6 +434,7 @@ const SalesFollowupsTabPage = ({
               >
                 Previous
               </Button>
+              <PageNumberButtons page={currentPage} totalPages={totalPages} onChange={setPage} isDisabled={loading} />
               <Button
                 size="sm"
                 colorScheme="teal"

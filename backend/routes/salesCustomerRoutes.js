@@ -4,6 +4,7 @@ const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleAuth');
 const {
   getCustomers,
+  getDocumentReminders,
   getCustomerById,
   createCustomer,
   updateCustomer,
@@ -21,6 +22,8 @@ router.route('/')
 
 router.route('/stats')
   .get(protect, getSalesStats);
+
+router.get('/document-reminders', protect, getDocumentReminders);
 
 router.post('/:id/email', protect, sendCustomerEmail);
 router.post('/:id/sms', protect, sendCustomerSms);

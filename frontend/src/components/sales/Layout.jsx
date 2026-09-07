@@ -18,11 +18,13 @@ import ContentTrackerPage from './ContentTrackerPage.jsx';
 import useIsMobile from '../../hooks/useIsMobile';
 import MobileSalesShell from '../../mobile/sales/MobileSalesShell';
 import ErrorBoundary from '../ErrorBoundary';
+import useSalesDocumentReminder from '../../hooks/useSalesDocumentReminder';
 
 const DESKTOP_NAV_HEIGHT = '80px';
 const StudentRegistrationPage = lazy(() => import('../customer/StudentRegistrationPage.jsx'));
 
 const Layout = ({ initialActiveItem }) => {
+  useSalesDocumentReminder();
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
 
   // Load initial state from localStorage or default to 'Home'

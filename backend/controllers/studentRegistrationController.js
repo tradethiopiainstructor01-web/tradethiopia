@@ -222,67 +222,16 @@ const syncAllFollowupStudentsToRegistrations = async () => {
       }
     }
 
-    // 2. Sync from SalesCustomer (Completed, Imported, or training-interested customers)
-    const salesCustomers = await SalesCustomer.find({
-      $or: [
-        { followupStatus: { $in: ['Completed', 'Imported'] } },
-        { courseName: { $exists: true, $ne: '' } },
-        { productInterest: { $exists: true, $ne: '' } },
-      ],
-    }).lean();
-
-    for (const sc of salesCustomers) {
+    // Use the same identity-safe matching as the sales completion endpoint.
+    const salesCustomers = await SalesCustomer.find({ followupStatus: /^completed$/i });
+    const { syncSalesCustomerToStudentRegistration } = require('./salesCustomerController');
+    for (const sale of salesCustomers) {
       totalProcessed++;
-      const customerName = (sc.customerName || '').trim();
-      if (!customerName) continue;
-      const email = (sc.email || '').trim().toLowerCase();
-      const phone = (sc.phone || '').trim();
-
-      const query = [];
-      if (email && email.includes('@')) query.push({ email });
-      if (customerName && phone) query.push({ fullName: new RegExp(`^${escapeRegExp(customerName)}$`, 'i'), phone });
-      if (customerName) query.push({ fullName: new RegExp(`^${escapeRegExp(customerName)}$`, 'i') });
-
-      const existing = await StudentRegistration.findOne({ $or: query });
-      if (!existing) {
-        const studentId = await generateStudentId();
-        const learningDept = sc.courseName || sc.productInterest || sc.contactTitle || 'General';
-        const isPaid = (sc.followupStatus || '').toLowerCase() === 'completed';
-
-        let scAgent = null;
-        const targetAgentId = sc.agentId || sc.assignedTo || sc.createdBy;
-        if (targetAgentId && mongoose.Types.ObjectId.isValid(targetAgentId)) {
-          try {
-            const User = require('../models/user.model');
-            scAgent = await User.findById(targetAgentId).select('fullName name username email').lean();
-          } catch (_) {}
-        }
-        const agentName = scAgent?.fullName || scAgent?.name || scAgent?.username || sc.agentName || 'Sales Followup Team';
-        const agentEmail = scAgent?.email || '';
-
-        await StudentRegistration.create({
-          studentId,
-          fullName: customerName,
-          email: email || undefined,
-          phone: phone || '',
-          learningDepartment: learningDept,
-          program: learningDept,
-          enrollmentDate: parseDate(sc.date) || sc.createdAt || new Date(),
-          preferredTimeSlot: normalizeTimeSlot(sc.schedulePreference),
-          paymentOption: 'Full Payment',
-          paymentStatus: isPaid ? 'Paid' : 'Waiting',
-          classCompleted: false,
-          classCompletionStatus: 'Not Completed',
-          cocPaymentStatus: 'Unpaid',
-          status: 'Active',
-          notes: sc.note || '',
-          registeredBy: agentName,
-          registeredByEmail: agentEmail,
-          createdBy: targetAgentId && mongoose.Types.ObjectId.isValid(targetAgentId) ? new mongoose.Types.ObjectId(targetAgentId) : undefined,
-          agentId: targetAgentId ? targetAgentId.toString() : undefined,
-          paymentScreenshot: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="100%" height="100%" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="sans-serif" font-size="16">Sales Followup Receipt</text></svg>',
-        });
-        createdCount++;
+      const hadRegistration = Boolean(sale.studentRegistrationId);
+      const student = await syncSalesCustomerToStudentRegistration(sale);
+      if (student) {
+        if (hadRegistration) updatedCount++;
+        else createdCount++;
       }
     }
 
@@ -637,28 +586,69 @@ const canAccessStudentRecord = (student, user) => {
 
 const getStudentRegistrations = async (req, res) => {
   try {
-    const { department, status, readiness, payment, paymentOption, timeSlot, classCompletionStatus, cocPaymentStatus, search, autoSync } = req.query;
+    const { department, status, readiness, payment, paymentOption, timeSlot, classCompletionStatus, cocPaymentStatus, search, startDate, endDate, dateField, autoSync } = req.query;
 
-    // Run sync in non-blocking background task if needed
-    if (autoSync === 'force' || autoSync === true) {
-      setImmediate(() => {
-        syncAllFollowupStudentsToRegistrations().catch((err) => {
-          console.warn('Background followup sync warning:', err.message);
-        });
-      });
+    // Send existing records first. Repair stale sales links using an identifier-only
+    // scan after the response, so missing registrations return on the next refresh.
+    if (autoSync !== 'false') {
+      res.once('finish', () => require('../services/completedSalesSync').scheduleCompletedSalesSync());
     }
 
     const query = {};
     const andConditions = [];
 
-    // Sales dashboard ownership logic: In Sales workspace or for Sales reps, users ONLY see students registered by themselves
-    const normalizedUserRole = normalizeRoleValue(req.user?.role);
-    const isSalesUser = ['sales', 'agent', 'salesmanager', 'sales manager', 'sales_manager'].includes(normalizedUserRole) ||
-      normalizedUserRole.includes('sales') ||
-      normalizedUserRole.includes('agent');
-    const isSalesWorkspace = (req.query.workspace || '').toString().toLowerCase() === 'sales';
+    // Date range calendar filtering
+    if (startDate || endDate) {
+      const targetDateField = ['enrollmentDate', 'examDate', 'trainingEndDate', 'salesFollowupDate', 'createdAt', 'updatedAt'].includes(dateField) ? dateField : 'enrollmentDate';
+      const dateRange = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        if (!Number.isNaN(start.getTime())) {
+          dateRange.$gte = start;
+        }
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        if (!Number.isNaN(end.getTime())) {
+          dateRange.$lte = end;
+        }
+      }
+      if (Object.keys(dateRange).length > 0) {
+        if (targetDateField === 'enrollmentDate') {
+          andConditions.push({
+            $or: [
+              { enrollmentDate: dateRange },
+              { enrollmentDate: { $in: [null, undefined] }, createdAt: dateRange }
+            ]
+          });
+        } else {
+          query[targetDateField] = dateRange;
+        }
+      }
+    }
 
-    if (isSalesUser || isSalesWorkspace) {
+    // Sales dashboard ownership logic: In Sales workspace, users ONLY see students registered by themselves.
+    // In Customer Service (or general view), all registered and completed students are displayed.
+    const normalizedUserRole = normalizeRoleValue(req.user?.role);
+    const isSalesWorkspace = (req.query.workspace || '').toString().toLowerCase() === 'sales';
+    const isCustomerServiceOrAdmin = [
+      'customerservice',
+      'customersuccessmanager',
+      'admin',
+      'supervisor',
+      'leader',
+      'coo',
+      'coo2',
+      'ceo',
+      'tessbinadmin',
+      'tessbin',
+      'instructor',
+      'finance',
+    ].includes(normalizedUserRole);
+
+    if (isSalesWorkspace && !isCustomerServiceOrAdmin) {
       const currentUserId = req.user?._id || req.user?.id;
       const userEmail = (req.user?.email || '').toString().trim().toLowerCase();
       const userNames = [
@@ -739,15 +729,14 @@ const getStudentRegistrations = async (req, res) => {
       query.$and = andConditions;
     }
 
-    const includeDocuments = req.query.includeDocuments === 'true';
     const sortOrder = req.query.sortOrder === 'asc' || req.query.sort === 'asc' ? 1 : -1;
-    let studentQuery = StudentRegistration.find(query).sort({ createdAt: sortOrder });
-    if (includeDocuments) {
-      studentQuery = studentQuery.select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot');
-    }
-    const students = await studentQuery.lean();
+    const students = await StudentRegistration.aggregate([
+      { $match: query },
+      ...require('../utils/studentListProjection').studentListProjection,
+      { $sort: { createdAt: sortOrder } },
+    ]);
 
-    res.json({ success: true, data: students.map((student) => normalizeStudent(student, includeDocuments)) });
+    res.json({ success: true, data: students.map((student) => normalizeStudent(student)) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch student registrations', error: error.message });
   }
