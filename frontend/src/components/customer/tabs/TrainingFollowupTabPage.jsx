@@ -1,3 +1,4 @@
+import PageNumberButtons from "./PageNumberButtons";
 import React, { useEffect, useMemo, useState, memo } from "react";
 import {
   Badge,
@@ -406,9 +407,7 @@ const TrainingFollowupTabPage = ({
                 >
                   Previous
                 </Button>
-                <Text fontSize="xs" fontWeight="medium">
-                  Page {safePage} of {totalPages}
-                </Text>
+                <PageNumberButtons page={safePage} totalPages={totalPages} onChange={setPage} />
                 <Button
                   size="xs"
                   colorScheme="teal"

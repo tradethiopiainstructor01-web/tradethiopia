@@ -6,6 +6,7 @@ import TrainingTabPage from "./tabs/TrainingTabPage";
 import TrainingFollowupTabPage from "./tabs/TrainingFollowupTabPage";
 import TrainingFollowupGrouped from "./tabs/TrainingFollowupGrouped";
 import TesbinnTabPage from "./tabs/TesbinnTabPage";
+import { startVisibleRefresh } from "../../utils/visibleRefresh";
 import EnsraTabPage from "./tabs/EnsraTabPage";
 import ConsultancyTabPage from "./tabs/ConsultancyTabPage";
 import TradexTvTabPage from "./tabs/TradexTvTabPage";
@@ -139,7 +140,6 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const salesRequestId = useRef(0);
   const [activeFollowupTab, setActiveFollowupTab] = useState(0);
   const completedSalesLoadedRef = useRef(false);
-  const trainingFollowupsLoadedRef = useRef(false);
   const ensraFollowupsLoadedRef = useRef(false);
   const [loadingTraining, setLoadingTraining] = useState(false);
   const [trainingError, setTrainingError] = useState("");
@@ -1044,15 +1044,20 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     }
   };
 
-  const loadTrainingFollowups = useCallback(async () => {
+  const loadTrainingFollowups = useCallback(async ({ background = false } = {}) => {
     try {
       const result = await fetchTrainingFollowups();
       setTrainingFollowups(Array.isArray(result) ? result : []);
     } catch (err) {
       console.error("Failed to load training follow-ups", err);
-      setTrainingFollowups([]);
+      if (!background) setTrainingFollowups([]);
     }
   }, []);
+
+  useEffect(() => {
+    if (activeFollowupTab !== 4 && activeFollowupTab !== 5) return;
+    return startVisibleRefresh(() => loadTrainingFollowups({ background: true }));
+  }, [activeFollowupTab, loadTrainingFollowups]);
 
   const handleApplyTrainingDates = async () => {
     if (selectedTrainingFollowupIds.length === 0) {
@@ -1498,7 +1503,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       );
     })
     .filter((item) => {
-      if (trainingProgressFilter === "all") return true;
+      if (activeFollowupTab === 5 || trainingProgressFilter === "all") return true;
       return (item.progress || "").toLowerCase() === trainingProgressFilter.toLowerCase();
     })
     .filter((item) => {
@@ -1521,7 +1526,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       return (item.trainingType || "").toLowerCase() === trainingCourseFilter.toLowerCase();
     })
     .filter((item) => {
-      if (!isCustomerSuccessAgent || !normalizedUserDisplayName) return true;
+      if (activeFollowupTab === 5 || !isCustomerSuccessAgent || !normalizedUserDisplayName) return true;
       const agentIdentifier = normalizeDisplayName(item.agentName || "");
       return agentIdentifier.includes(normalizedUserDisplayName);
     })
@@ -1928,8 +1933,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       completedSalesLoadedRef.current = true;
       fetchCompletedSales();
     }
-    if ((index === 4 || index === 5) && !trainingFollowupsLoadedRef.current) {
-      trainingFollowupsLoadedRef.current = true;
+    if (index === 4 || index === 5) {
       loadTrainingFollowups();
     }
     if (index === 6 && !ensraFollowupsLoadedRef.current) {
@@ -2477,7 +2481,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     { key: "select", label: "Select" },
     { key: "startDate", label: "Training Start Date" },
     { key: "endDate", label: "Training End Date" },
-    { key: "salesAgent", label: "Customer Services" },
+    { key: "salesAgent", label: "Agent" },
     { key: "assignedInstructor", label: "Assigned Instructor" },
     { key: "customerName", label: "Customer Name" },
     { key: "email", label: "Email" },
@@ -2947,7 +2951,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     {
       key: "salesAgent",
       visible: visibleColumns.trainingFollowup.salesAgent,
-      header: "Customer Services",
+      header: "Agent",
       render: (item) => (
         <CompactCell>
           <Input

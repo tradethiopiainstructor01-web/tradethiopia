@@ -50,6 +50,9 @@ const createTrainingFollowup = async (req, res) => {
 // Get Training follow-ups with basic filtering/sorting
 const getTrainingFollowups = async (req, res) => {
   try {
+    if (req.query.autoSync === 'true') {
+      require('../services/completedSalesSync').scheduleCompletedSalesSync();
+    }
     const { q, progress, sort = "asc", batch } = req.query;
     const filter = {};
 

@@ -1,6 +1,8 @@
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const Notification = require('../models/Notification');
+const StudentRegistration = require('../models/StudentRegistration');
+const TrainingFollowup = require('../models/TrainingFollowup');
 const asyncHandler = require('express-async-handler');
 const { calculateCommission } = require('../utils/commission');
 const nodemailer = require('nodemailer');
@@ -22,6 +24,195 @@ const PRIVILEGED_ROLES = new Set([
 ]);
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const generateStudentRegistrationId = async () => {
+  const prefix = 'CS-STU-';
+  const latestStudent = await StudentRegistration.findOne({
+    studentId: new RegExp(`^${escapeRegex(prefix)}\\d+$`),
+  })
+    .sort({ studentId: -1 })
+    .select('studentId')
+    .lean();
+
+  const latestNumber = Number.parseInt((latestStudent?.studentId || '').replace(prefix, ''), 10) || 0;
+  let nextNumber = latestNumber + 1;
+  let nextId = `${prefix}${String(nextNumber).padStart(4, '0')}`;
+
+  while (await StudentRegistration.exists({ studentId: nextId })) {
+    nextNumber += 1;
+    nextId = `${prefix}${String(nextNumber).padStart(4, '0')}`;
+  }
+
+  return nextId;
+};
+
+const normalizeTimeSlot = (value) => {
+  const normalized = (value || '').toString().trim().toLowerCase();
+  if (normalized === 'afternoon') return 'Afternoon';
+  if (normalized === 'night') return 'Night';
+  if (normalized === 'weekend') return 'Weekend';
+  if (normalized === 'vip') return 'VIP';
+  return 'Morning';
+};
+
+const normalizePaymentOption = (value) => {
+  const normalized = (value || '').toString().trim().toLowerCase();
+  if (normalized.includes('half') || normalized === 'partial') return 'Half Payment';
+  return 'Full Payment';
+};
+
+const syncSalesCustomerToStudentRegistration = async (salesCustomer, authUser) => {
+  if (!salesCustomer) return null;
+  const isCompleted = (salesCustomer.followupStatus || '').toLowerCase() === 'completed';
+  if (!isCompleted && !salesCustomer.studentRegistrationId) {
+    return null;
+  }
+
+  try {
+    const customerName = (salesCustomer.customerName || '').trim();
+    if (!customerName) return null;
+
+    const email = (salesCustomer.email || '').trim().toLowerCase();
+    const phone = (salesCustomer.phone || '').trim();
+    const courseDept = salesCustomer.courseName || salesCustomer.productInterest || salesCustomer.contactTitle || 'General';
+
+    const existingStudent = await require('../services/salesRegistrationMatch').findSalesRegistration(salesCustomer);
+
+    // Resolve agent identity
+    let agentName = '';
+    let agentEmail = '';
+    const agentUserId = salesCustomer.agentId || salesCustomer.createdBy || authUser?._id || authUser?.id;
+    if (agentUserId) {
+      try {
+        const u = await User.findById(agentUserId).select('fullName name username email').lean();
+        if (u) {
+          agentName = u.fullName || u.name || u.username || '';
+          agentEmail = u.email || '';
+        }
+      } catch (_) {}
+    }
+    if (!agentName && authUser) {
+      agentName = authUser.fullName || authUser.name || authUser.username || 'Sales Followup Team';
+      agentEmail = authUser.email || '';
+    }
+    if (!agentName) {
+      agentName = 'Sales Followup Team';
+    }
+
+    const payload = {
+      fullName: customerName,
+      email: email || undefined,
+      phone: phone || '',
+      learningDepartment: courseDept,
+      program: salesCustomer.courseName || courseDept,
+      preferredTimeSlot: normalizeTimeSlot(salesCustomer.schedulePreference),
+      enrollmentDate: salesCustomer.date || salesCustomer.createdAt || new Date(),
+      paymentOption: normalizePaymentOption(salesCustomer.paymentOption),
+      paymentStatus: isCompleted ? 'Paid' : 'Waiting',
+      paymentBank: salesCustomer.paymentBank || '',
+      fsNumber: salesCustomer.fsNumber || '',
+      passportPhoto: salesCustomer.passportPhoto || '',
+      nationalIdFrontImage: salesCustomer.nationalIdFrontImage || '',
+      nationalIdImage: salesCustomer.nationalIdFrontImage || '',
+      nationalIdBackImage: salesCustomer.nationalIdBackImage || '',
+      paymentScreenshot: salesCustomer.paymentScreenshot || '',
+      salesCallStatus: salesCustomer.callStatus || 'Called',
+      salesFollowupStatus: salesCustomer.followupStatus || 'Completed',
+      salesSchedulePreference: salesCustomer.schedulePreference || 'Regular',
+      salesPackageScope: salesCustomer.packageScope || 'Local',
+      salesFollowupDate: salesCustomer.date || new Date(),
+      salesFollowupNote: salesCustomer.note || '',
+      notes: salesCustomer.note || '',
+      status: 'Active',
+      classCompleted: false,
+      classCompletionStatus: 'Not Completed',
+      cocPaymentStatus: 'Unpaid',
+      registeredBy: agentName,
+      registeredByEmail: agentEmail,
+      createdBy: salesCustomer.createdBy || (authUser?._id ? authUser._id : undefined),
+      agentId: salesCustomer.agentId ? salesCustomer.agentId.toString() : (authUser?.id ? authUser.id.toString() : undefined),
+    };
+
+    let targetStudent = null;
+    if (existingStudent) {
+      if (customerName) existingStudent.fullName = customerName;
+      if (phone) existingStudent.phone = phone;
+      if (email) existingStudent.email = email;
+      if (payload.passportPhoto) existingStudent.passportPhoto = payload.passportPhoto;
+      if (payload.nationalIdFrontImage) {
+        existingStudent.nationalIdFrontImage = payload.nationalIdFrontImage;
+        existingStudent.nationalIdImage = payload.nationalIdFrontImage;
+      }
+      if (payload.nationalIdBackImage) existingStudent.nationalIdBackImage = payload.nationalIdBackImage;
+      if (payload.paymentScreenshot) existingStudent.paymentScreenshot = payload.paymentScreenshot;
+      if (payload.paymentOption) existingStudent.paymentOption = payload.paymentOption;
+      if (payload.paymentBank) existingStudent.paymentBank = payload.paymentBank;
+      if (payload.fsNumber) existingStudent.fsNumber = payload.fsNumber;
+      if (isCompleted) existingStudent.paymentStatus = 'Paid';
+      if (payload.preferredTimeSlot) existingStudent.preferredTimeSlot = payload.preferredTimeSlot;
+      if (payload.learningDepartment) {
+        existingStudent.learningDepartment = payload.learningDepartment;
+        existingStudent.program = payload.program;
+      }
+      if (agentName && (!existingStudent.registeredBy || existingStudent.registeredBy === 'Customer Success' || existingStudent.registeredBy === 'Sales Followup Team')) {
+        existingStudent.registeredBy = agentName;
+        existingStudent.registeredByEmail = agentEmail;
+      }
+      existingStudent.salesCallStatus = payload.salesCallStatus;
+      existingStudent.salesFollowupStatus = payload.salesFollowupStatus;
+      existingStudent.salesSchedulePreference = payload.salesSchedulePreference;
+      existingStudent.salesPackageScope = payload.salesPackageScope;
+      existingStudent.salesFollowupDate = payload.salesFollowupDate;
+      if (payload.salesFollowupNote) existingStudent.salesFollowupNote = payload.salesFollowupNote;
+
+      targetStudent = await existingStudent.save();
+    } else {
+      payload.studentId = await generateStudentRegistrationId();
+      targetStudent = await StudentRegistration.create(payload);
+    }
+
+    if (targetStudent && (!salesCustomer.studentRegistrationId || salesCustomer.studentRegistrationId.toString() !== targetStudent._id.toString())) {
+      await SalesCustomer.findByIdAndUpdate(salesCustomer._id, {
+        $set: { studentRegistrationId: targetStudent._id }
+      });
+      salesCustomer.studentRegistrationId = targetStudent._id;
+    }
+
+    // Also sync to TrainingFollowup so it appears in TESBINN Users and Training reports
+    try {
+      const tfPayload = {
+        customerName,
+        email,
+        phoneNumber: phone,
+        trainingType: courseDept,
+        scheduleShift: payload.preferredTimeSlot,
+        startDate: payload.enrollmentDate,
+        progress: 'Completed',
+        idInfo: targetStudent.studentId,
+        agentName: agentName,
+        salesAgent: agentName,
+        paymentAmount: salesCustomer.coursePrice || 0,
+        totalAmount: salesCustomer.coursePrice || 0,
+        paymentOption: (salesCustomer.paymentOption || '').toLowerCase().includes('half') ? 'partial' : 'full',
+        materialStatus: 'Not Delivered',
+        packageStatus: 'Active',
+      };
+      await TrainingFollowup.findOneAndUpdate(
+        { idInfo: targetStudent.studentId },
+        { $set: tfPayload },
+        { upsert: true, new: true }
+      );
+    } catch (tfErr) {
+      console.warn('Error updating TrainingFollowup from Sales sync:', tfErr.message);
+    }
+
+    return targetStudent;
+  } catch (err) {
+    console.error('Error syncing SalesCustomer to StudentRegistration:', err);
+    return null;
+  }
+};
+
 const findUsersByRoles = async (roles) => {
   if (!roles || !roles.length) return [];
   const filters = roles.map((role) => ({ role: { $regex: `^${escapeRegex(role)}$`, $options: 'i' } }));
@@ -52,6 +243,17 @@ const canAccessCustomer = (customer, user) => {
   const normalizedUserRole = normalizeRoleValue(user?.role);
   if (PRIVILEGED_ROLES.has(normalizedUserRole)) return true;
   return customer?.agentId && customer.agentId.toString() === user.id.toString();
+};
+
+const notifyCompletionDocuments = async (customer, user) => {
+  try {
+    await createNotifications({
+      userIds: [customer.agentId || user._id || user.id],
+      text: `${customer.customerName}: Sales follow-up completed. Please make sure the bank slip, ID front, and ID back are submitted.`,
+    });
+  } catch (error) {
+    console.warn('Could not save completion document reminder:', error.message);
+  }
 };
 
 // @desc    Get all customers for logged in agent
@@ -291,7 +493,14 @@ const createCustomer = asyncHandler(async (req, res) => {
     productInterest,
     source,
     pipelineStatus,
-    packageScope
+    packageScope,
+    passportPhoto,
+    nationalIdFrontImage,
+    nationalIdBackImage,
+    paymentScreenshot,
+    paymentOption,
+    paymentBank,
+    fsNumber
   } = req.body;
   const resolvedCallStatus = callStatus || 'Not Called';
   const resolvedFollowupStatus = followupStatus || 'Pending';
@@ -323,6 +532,13 @@ const createCustomer = asyncHandler(async (req, res) => {
     email,
     note,
     supervisorComment,
+    passportPhoto: passportPhoto || '',
+    nationalIdFrontImage: nationalIdFrontImage || '',
+    nationalIdBackImage: nationalIdBackImage || '',
+    paymentScreenshot: paymentScreenshot || '',
+    paymentOption: paymentOption || 'Full Payment',
+    paymentBank: paymentBank || '',
+    fsNumber: fsNumber || '',
     courseName: courseName || contactTitle,
     courseId,
     coursePrice: normalizedPrice,
@@ -330,6 +546,15 @@ const createCustomer = asyncHandler(async (req, res) => {
   });
 
   const createdCustomer = await customer.save();
+
+  if (createdCustomer.followupStatus === 'Completed') {
+    await notifyCompletionDocuments(createdCustomer, req.user);
+    try {
+      await syncSalesCustomerToStudentRegistration(createdCustomer, req.user);
+    } catch (syncErr) {
+      console.error('Error auto-syncing created customer to StudentRegistration:', syncErr.message);
+    }
+  }
 
   if (isReception) {
     await createNotifications({
@@ -359,7 +584,14 @@ const updateCustomer = asyncHandler(async (req, res) => {
     courseName,
     courseId,
     coursePrice,
-    packageScope
+    packageScope,
+    passportPhoto,
+    nationalIdFrontImage,
+    nationalIdBackImage,
+    paymentScreenshot,
+    paymentOption,
+    paymentBank,
+    fsNumber
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -383,6 +615,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
   if (!customer.createdBy) {
     customer.createdBy = req.user._id;
   }
+  const wasCompleted = customer.followupStatus === 'Completed';
   if (customerName !== undefined) customer.customerName = customerName;
   if (contactTitle !== undefined) customer.contactTitle = contactTitle;
   if (phone !== undefined) customer.phone = phone;
@@ -394,6 +627,13 @@ const updateCustomer = asyncHandler(async (req, res) => {
   if (supervisorComment !== undefined) customer.supervisorComment = supervisorComment;
   if (courseName !== undefined) customer.courseName = courseName;
   if (courseId !== undefined) customer.courseId = courseId;
+  if (passportPhoto !== undefined) customer.passportPhoto = passportPhoto;
+  if (nationalIdFrontImage !== undefined) customer.nationalIdFrontImage = nationalIdFrontImage;
+  if (nationalIdBackImage !== undefined) customer.nationalIdBackImage = nationalIdBackImage;
+  if (paymentScreenshot !== undefined) customer.paymentScreenshot = paymentScreenshot;
+  if (paymentOption !== undefined) customer.paymentOption = paymentOption;
+  if (paymentBank !== undefined) customer.paymentBank = paymentBank;
+  if (fsNumber !== undefined) customer.fsNumber = fsNumber;
   if (coursePrice !== undefined && coursePrice !== null) {
     customer.coursePrice = Number(coursePrice) || 0;
     customer.commission = calculateCommission(customer.coursePrice);
@@ -401,6 +641,19 @@ const updateCustomer = asyncHandler(async (req, res) => {
   if (packageScope !== undefined) customer.packageScope = packageScope;
 
   const updatedCustomer = await customer.save();
+
+  if (!wasCompleted && updatedCustomer.followupStatus === 'Completed') {
+    await notifyCompletionDocuments(updatedCustomer, req.user);
+  }
+
+  if (updatedCustomer.followupStatus === 'Completed' || updatedCustomer.studentRegistrationId) {
+    try {
+      await syncSalesCustomerToStudentRegistration(updatedCustomer, req.user);
+    } catch (syncErr) {
+      console.error('Error auto-syncing updated customer to StudentRegistration:', syncErr.message);
+    }
+  }
+
   res.json(updatedCustomer);
 });
 
@@ -648,7 +901,29 @@ const getSalesStats = asyncHandler(async (req, res) => {
   }
 });
 
+const getDocumentReminders = asyncHandler(async (req, res) => {
+  const userId = String(req.user._id || req.user.id);
+  const fields = [['paymentScreenshot', 'Bank slip'], ['nationalIdFrontImage', 'ID front'], ['nationalIdBackImage', 'ID back']];
+  const rows = await SalesCustomer.aggregate([
+    { $match: { agentId: userId, followupStatus: 'Completed' } },
+    { $project: {
+      customerName: 1,
+      missingDocuments: { $filter: {
+        input: fields.map(([field, label]) => ({ $cond: [
+          { $eq: [{ $trim: { input: { $ifNull: [`$${field}`, ''] } } }, ''] }, label, null,
+        ] })),
+        as: 'label', cond: { $ne: ['$$label', null] },
+      } },
+    } },
+    { $match: { 'missingDocuments.0': { $exists: true } } },
+    { $sort: { _id: -1 } },
+    { $facet: { items: [{ $limit: 5 }], total: [{ $count: 'count' }] } },
+  ]);
+  res.json({ items: rows[0]?.items || [], total: rows[0]?.total[0]?.count || 0 });
+});
+
 module.exports = {
+  getDocumentReminders,
   getCustomers,
   getCustomerById,
   createCustomer,
@@ -657,5 +932,6 @@ module.exports = {
   sendCustomerSms,
   assignCustomer,
   deleteCustomer,
-  getSalesStats
+  getSalesStats,
+  syncSalesCustomerToStudentRegistration
 };

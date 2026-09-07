@@ -27,6 +27,7 @@ import {
   Icon,
   Text,
   HStack,
+  Badge,
   Tabs,
   TabList,
   TabPanels,
@@ -45,6 +46,7 @@ import {
   FiUpload
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
+import FollowupCompletedTable from './FollowupCompletedTable';
 import PackageSalesTable from './PackageSalesTable';
 import PackageSalesTab from './PackageSalesTab';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
@@ -246,7 +248,9 @@ const FollowupPage = () => {
       });
       // Refresh stats
       fetchStats();
-      // No success toast - handled with visual indicator in table
+      if (newCustomer.followupStatus === 'Completed') {
+        toast({ title: 'Follow-up completed — submit documents', description: 'Please make sure the bank slip, ID front, and ID back are submitted.', status: 'info', duration: 9000, isClosable: true });
+      }
     } catch (err) {
       setCustomers((previous) => previous.filter((customer) => customer.id !== temporaryId));
       toast({
@@ -300,9 +304,10 @@ const FollowupPage = () => {
       // Refresh stats after successful save
       fetchStats();
       toast({
-        title: "Customer updated",
-        status: "success",
-        duration: 2500,
+        title: customerData.followupStatus === 'Completed' ? "Follow-up completed — submit documents" : "Customer updated",
+        description: customerData.followupStatus === 'Completed' ? 'Please make sure the bank slip, ID front, and ID back are submitted.' : undefined,
+        status: customerData.followupStatus === 'Completed' ? "info" : "success",
+        duration: customerData.followupStatus === 'Completed' ? 9000 : 2500,
         isClosable: true,
       });
     } catch (err) {
@@ -498,6 +503,10 @@ const FollowupPage = () => {
       }
     });
   }, [dateFilteredCustomers, filters.sortBy]);
+
+  const completedCount = useMemo(() => {
+    return (customers || []).filter(c => (c.followupStatus || '').toString().trim().toLowerCase() === 'completed').length;
+  }, [customers]);
 
   const handleFilterChange = (filterName, value) => {
     setFilters(prev => ({
@@ -1065,10 +1074,20 @@ const FollowupPage = () => {
       </Box>
 
       <Box bg="white" p={0} borderRadius="lg" boxShadow="md" w="100%" maxW="100%">
-        <Tabs isFitted variant="enclosed">
+        <Tabs isFitted variant="enclosed" colorScheme="teal">
           <TabList mb="1em">
-            <Tab>Customer Followups</Tab>
-            <Tab>Package Sales</Tab>
+            <Tab fontWeight="semibold">Customer Followups</Tab>
+            <Tab fontWeight="semibold">
+              <HStack spacing={2} justify="center">
+                <Text>Followup Completed</Text>
+                {completedCount > 0 && (
+                  <Badge colorScheme="green" variant="solid" borderRadius="full" px={2} py={0.5} fontSize="xs">
+                    {completedCount}
+                  </Badge>
+                )}
+              </HStack>
+            </Tab>
+            <Tab fontWeight="semibold">Package Sales</Tab>
           </TabList>
           <TabPanels>
             <TabPanel p={0}>
@@ -1090,10 +1109,29 @@ const FollowupPage = () => {
                 />
               )}
             </TabPanel>
+            <TabPanel p={0}>
+              {loading ? (
+                <Flex justify="center" align="center" minH="300px">
+                  <Spinner size="xl" color="teal.500" thickness="4px" />
+                </Flex>
+              ) : error ? (
+                <Box bg="red.50" p={4} borderRadius="lg" mb={4}>
+                  <Text color="red.500" fontWeight="medium">{error}</Text>
+                </Box>
+              ) : (
+                <FollowupCompletedTable
+                  customers={customers}
+                  courses={courses}
+                  onUpdate={handleUpdate}
+                  onDelete={handleDelete}
+                />
+              )}
+            </TabPanel>
             <TabPanel p={4}>
               <PackageSalesTab />
             </TabPanel>
-          </TabPanels>        </Tabs>
+          </TabPanels>
+        </Tabs>
       </Box>
     </Box>
   );
