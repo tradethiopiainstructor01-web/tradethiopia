@@ -35,7 +35,13 @@ import {
   ModalHeader,
   ModalFooter,
   ModalBody,
-  ModalCloseButton
+  ModalCloseButton,
+  Image,
+  Icon,
+  useToast,
+  Tag,
+  TagLabel,
+  TagLeftIcon
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon, SettingsIcon, DragHandleIcon } from '@chakra-ui/icons';
 import {
@@ -54,6 +60,177 @@ import {
   AlertDialogContent,
   AlertDialogOverlay
 } from '@chakra-ui/react';
+import {
+  FiUploadCloud,
+  FiTrash2,
+  FiEye,
+  FiCreditCard,
+  FiCheckCircle,
+  FiAlertCircle,
+  FiDownload,
+  FiFileText,
+  FiAward
+} from 'react-icons/fi';
+import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
+
+const processImageFile = (file) => {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve('');
+    if (!file.type || !file.type.startsWith('image/')) {
+      return reject(new Error('Please upload a valid image file (JPEG, PNG, WEBP).'));
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const maxDim = 900;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => reject(new Error('Failed to parse image.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file.'));
+    reader.readAsDataURL(file);
+  });
+};
+
+const ImageUploadCard = ({
+  label,
+  subtitle = 'PNG, JPG or WEBP',
+  buttonLabel = 'Upload Photo',
+  value,
+  onChange,
+  onRemove,
+  onPreview,
+  isRequired = false
+}) => {
+  const fileInputRef = useRef(null);
+  const borderColor = useColorModeValue('gray.300', 'gray.600');
+  const bg = useColorModeValue('gray.50', 'gray.700');
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await processImageFile(file);
+      onChange(base64);
+    } catch (err) {
+      alert(err.message || 'Failed to upload image');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <Box borderWidth="1px" borderColor={value ? 'green.400' : borderColor} borderRadius="xl" p={3} bg={bg}>
+      <Flex justify="space-between" align="center" mb={2} gap={1}>
+        <Text fontSize="xs" fontWeight="bold" noOfLines={1} title={label}>
+          {label} {isRequired && <Text as="span" color="red.500">*</Text>}
+        </Text>
+        {value && (
+          <Badge colorScheme="green" fontSize="2xs" borderRadius="full" px={1.5} flexShrink={0}>
+            Uploaded
+          </Badge>
+        )}
+      </Flex>
+      {value ? (
+        <VStack spacing={2} align="center">
+          <Box
+            w="100%"
+            h="110px"
+            borderRadius="md"
+            overflow="hidden"
+            bg="blackAlpha.100"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            cursor="pointer"
+            onClick={() => onPreview && onPreview(value, label)}
+          >
+            <Image src={value} alt={label} maxH="100%" maxW="100%" objectFit="contain" />
+          </Box>
+          <HStack spacing={1.5} w="100%">
+            <Button
+              size="xs"
+              variant="outline"
+              colorScheme="teal"
+              leftIcon={<Icon as={FiUploadCloud} />}
+              onClick={() => fileInputRef.current?.click()}
+              flex="1"
+            >
+              Change
+            </Button>
+            <Button
+              size="xs"
+              variant="outline"
+              colorScheme="blue"
+              leftIcon={<Icon as={FiEye} />}
+              onClick={() => onPreview && onPreview(value, label)}
+              flex="1"
+            >
+              View
+            </Button>
+            <Button
+              size="xs"
+              variant="outline"
+              colorScheme="red"
+              leftIcon={<Icon as={FiTrash2} />}
+              onClick={onRemove}
+              flex="1"
+            >
+              Remove
+            </Button>
+          </HStack>
+        </VStack>
+      ) : (
+        <VStack
+          spacing={2}
+          py={4}
+          borderWidth="1px"
+          borderStyle="dashed"
+          borderColor={borderColor}
+          borderRadius="md"
+          cursor="pointer"
+          onClick={() => fileInputRef.current?.click()}
+          _hover={{ borderColor: 'teal.500', bg: 'teal.50' }}
+          transition="all 0.2s"
+        >
+          <Icon as={FiUploadCloud} boxSize={7} color="gray.400" />
+          <Text fontSize="2xs" color="gray.500" textAlign="center">
+            {subtitle}
+          </Text>
+          <Button size="xs" colorScheme="blue" variant="outline" pointerEvents="none">
+            {buttonLabel}
+          </Button>
+        </VStack>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+    </Box>
+  );
+};
 
 const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
 const TABLE_PREF_VERSION = 2;
@@ -89,7 +266,14 @@ const createEmptyCustomer = () => ({
   email: '',
   note: '',
   supervisorComment: '',
-  packageScope: 'Local'
+  packageScope: 'Local',
+  passportPhoto: '',
+  nationalIdFrontImage: '',
+  nationalIdBackImage: '',
+  paymentScreenshot: '',
+  paymentOption: 'Full Payment',
+  paymentBank: '',
+  fsNumber: ''
 });
 
 const readColumnPrefs = () => {
@@ -119,10 +303,14 @@ const readColumnPrefs = () => {
 };
 
 const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }) => {
+  const toast = useToast();
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [isStatusWarningOpen, setIsStatusWarningOpen] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState(null);
+  const [isCompletionProofOpen, setIsCompletionProofOpen] = useState(false);
+  const [completionProofData, setCompletionProofData] = useState(null);
+  const [fullImageModal, setFullImageModal] = useState({ isOpen: false, src: '', title: '', subtitle: '' });
   const [addingRow, setAddingRow] = useState(false);
   const newCustomerRef = useRef(createEmptyCustomer());
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
@@ -175,6 +363,13 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       followupStatus: customer.followupStatus || 'Pending',
       schedulePreference: customer.schedulePreference || 'Regular',
       packageScope: customer.packageScope || 'Local',
+      passportPhoto: customer.passportPhoto || '',
+      nationalIdFrontImage: customer.nationalIdFrontImage || '',
+      nationalIdBackImage: customer.nationalIdBackImage || '',
+      paymentScreenshot: customer.paymentScreenshot || '',
+      paymentOption: customer.paymentOption || 'Full Payment',
+      paymentBank: customer.paymentBank || '',
+      fsNumber: customer.fsNumber || '',
       note: customer.note || '',
       supervisorComment: customer.supervisorComment || '',
       date: customer.date ? new Date(customer.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
@@ -207,6 +402,29 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     if (!editModalCustomer) return;
     const targetId = editModalCustomer._id || editModalCustomer.id;
     if (!targetId) return;
+
+    if (editModalCustomer.followupStatus === 'Completed') {
+      if (!editModalCustomer.paymentBank || !editModalCustomer.paymentBank.trim()) {
+        toast({
+          title: 'Payment Bank Required',
+          description: 'Please select a bank for completed followups.',
+          status: 'warning',
+          duration: 3500,
+          isClosable: true
+        });
+        return;
+      }
+      if (!editModalCustomer.paymentScreenshot) {
+        toast({
+          title: 'Payment Screenshot Required',
+          description: 'Please upload payment bank slip / screenshot before marking as Completed.',
+          status: 'warning',
+          duration: 3500,
+          isClosable: true
+        });
+        return;
+      }
+    }
 
     const payload = { ...editModalCustomer };
     if (payload.contactTitle) {
@@ -428,17 +646,30 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     setEditValue(customer[field] || '');
   };
 
-  const handleSave = (customer, forcedValue = null) => {
+  const handleSave = (customer, forcedValue = null, completionProof = null) => {
     if (editingCell) {
       const value = forcedValue !== null ? forcedValue : editValue;
 
       if (editingCell.field === 'followupStatus' && value === 'Completed' && forcedValue === null) {
-        setPendingStatusChange({ customer, value });
-        setIsStatusWarningOpen(true);
+        setCompletionProofData({
+          customer,
+          passportPhoto: customer.passportPhoto || '',
+          nationalIdFrontImage: customer.nationalIdFrontImage || '',
+          nationalIdBackImage: customer.nationalIdBackImage || '',
+          paymentScreenshot: customer.paymentScreenshot || '',
+          paymentOption: customer.paymentOption || 'Full Payment',
+          paymentBank: customer.paymentBank || '',
+          fsNumber: customer.fsNumber || ''
+        });
+        setIsCompletionProofOpen(true);
         return;
       }
 
-      const updated = { ...customer, [editingCell.field]: value };
+      const updated = {
+        ...customer,
+        [editingCell.field]: value,
+        ...(completionProof || {})
+      };
 
       // If course selection changed, sync courseId/price
       if (editingCell.field === 'contactTitle') {
@@ -485,19 +716,60 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     setEditValue('');
   };
 
-  const cancelStatusWarning = () => {
-    setIsStatusWarningOpen(false);
-    setPendingStatusChange(null);
+  const cancelCompletionProof = () => {
+    setIsCompletionProofOpen(false);
+    setCompletionProofData(null);
     setEditingCell(null);
     setEditValue('');
   };
 
-  const confirmStatusChange = () => {
-    if (pendingStatusChange) {
-      handleSave(pendingStatusChange.customer, pendingStatusChange.value);
+  const handleConfirmCompletionProof = () => {
+    if (!completionProofData) return;
+    const {
+      customer,
+      passportPhoto,
+      nationalIdFrontImage,
+      nationalIdBackImage,
+      paymentScreenshot,
+      paymentOption,
+      paymentBank,
+      fsNumber
+    } = completionProofData;
+
+    if (!paymentBank || !paymentBank.trim()) {
+      toast({
+        title: 'Payment Bank Required',
+        description: 'Please select a bank for completed followups.',
+        status: 'warning',
+        duration: 3500,
+        isClosable: true
+      });
+      return;
     }
-    setPendingStatusChange(null);
-    setIsStatusWarningOpen(false);
+    if (!paymentScreenshot) {
+      toast({
+        title: 'Payment Screenshot Required',
+        description: 'Please upload payment bank slip / screenshot before marking as Completed.',
+        status: 'warning',
+        duration: 3500,
+        isClosable: true
+      });
+      return;
+    }
+
+    const proof = {
+      passportPhoto: passportPhoto || '',
+      nationalIdFrontImage: nationalIdFrontImage || '',
+      nationalIdBackImage: nationalIdBackImage || '',
+      paymentScreenshot: paymentScreenshot || '',
+      paymentOption: paymentOption || 'Full Payment',
+      paymentBank: paymentBank || '',
+      fsNumber: fsNumber || ''
+    };
+
+    handleSave(customer, 'Completed', proof);
+    setIsCompletionProofOpen(false);
+    setCompletionProofData(null);
   };
 
   const handleInputChange = (e) => setEditValue(e.target.value);
@@ -513,6 +785,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   };
 
   const openNewCustomerRow = () => {
+    window.dispatchEvent(new Event('sales:new-followup'));
     newCustomerRef.current = createEmptyCustomer();
     setViewMode('list');
     setAddingRow(true);
@@ -580,15 +853,14 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             <Select
               value={editValue}
               onChange={handleInputChange}
-              onKeyDown={(e) => handleKeyDown(e, customer)}
-              autoFocus
               onBlur={handleBlur}
+              autoFocus
               {...compactSelectProps}
             >
-              <option value="">Select a course</option>
+              <option value="">Select Course</option>
               {(Array.isArray(courses) ? courses : []).map(course => (
                 <option key={course._id} value={course.name}>
-                  {course.name} - {formatPrice(Number(course.price) || 0)}
+                  {course.name}
                 </option>
               ))}
             </Select>
@@ -596,9 +868,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             <Select
               value={editValue}
               onChange={handleInputChange}
-              onKeyDown={(e) => handleKeyDown(e, customer)}
-              autoFocus
               onBlur={handleBlur}
+              autoFocus
               {...compactSelectProps}
             >
               {field === 'callStatus' ? (
@@ -1451,43 +1722,189 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         </AlertDialogOverlay>
       </AlertDialog>
 
-      {/* Completed Status Warning Dialog */}
-      <AlertDialog
-        isOpen={isStatusWarningOpen}
-        leastDestructiveRef={warningCancelRef}
-        onClose={cancelStatusWarning}
+      {/* Completed Status Verification & Payment Modal */}
+      <Modal
+        isOpen={isCompletionProofOpen}
+        onClose={cancelCompletionProof}
+        size="2xl"
         isCentered
       >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Confirm Status Change
-            </AlertDialogHeader>
-            <AlertDialogBody>
-              Marking this follow-up as <strong>Completed</strong> will finalize the sale.
-              Please ensure all notes and payments are recorded before proceeding.
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button ref={warningCancelRef} onClick={cancelStatusWarning}>
-                Cancel
-              </Button>
-              <Button colorScheme="red" onClick={confirmStatusChange} ml={3}>
-                Confirm Completed
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+        <ModalOverlay />
+        <ModalContent borderRadius="xl" overflow="hidden">
+          <ModalHeader bg="teal.600" color="white" py={4}>
+            <Flex align="center" gap={2}>
+              <Icon as={FiCheckCircle} boxSize={5} />
+              <Box>
+                <Text fontSize="md" fontWeight="bold">Complete Sale & Verification Proof</Text>
+                <Text fontSize="xs" fontWeight="normal" color="teal.100">
+                  Please submit the bank slip, ID front, and ID back for this completed follow-up.
+                </Text>
+              </Box>
+            </Flex>
+          </ModalHeader>
+          <ModalCloseButton color="white" />
+          <ModalBody py={5} px={6} maxH="75vh" overflowY="auto">
+            {completionProofData && (
+              <VStack spacing={5} align="stretch">
+                <Box p={3} bg="teal.50" borderRadius="lg" border="1px solid" borderColor="teal.200">
+                  <Text fontSize="sm" fontWeight="bold" color="teal.800">
+                    Customer: {completionProofData.customer?.customerName || 'N/A'}
+                  </Text>
+                  <Text fontSize="xs" color="teal.700" mt={0.5}>
+                    Training: {completionProofData.customer?.contactTitle || 'General Training'}
+                  </Text>
+                </Box>
+
+                {/* Payment Option, Bank & FS Number row */}
+                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                  <FormControl isRequired>
+                    <FormLabel fontSize="xs" fontWeight="bold">
+                      Payment Option <Text as="span" color="red.500">*</Text>
+                    </FormLabel>
+                    <Select
+                      value={completionProofData.paymentOption || 'Full Payment'}
+                      onChange={(e) => setCompletionProofData(prev => ({ ...prev, paymentOption: e.target.value }))}
+                      size="sm"
+                      borderRadius="md"
+                    >
+                      <option value="Full Payment">Full Payment</option>
+                      <option value="Installment">Installment</option>
+                      <option value="Partial Payment">Partial Payment</option>
+                      <option value="Scholarship / Discounted">Scholarship / Discounted</option>
+                      <option value="Sponsored">Sponsored</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl isRequired>
+                    <FormLabel fontSize="xs" fontWeight="bold">
+                      Payment Bank <Text as="span" color="red.500">*</Text>
+                    </FormLabel>
+                    <Select
+                      value={completionProofData.paymentBank || ''}
+                      onChange={(e) => setCompletionProofData(prev => ({ ...prev, paymentBank: e.target.value }))}
+                      placeholder="Select Ethiopian Bank"
+                      size="sm"
+                      borderRadius="md"
+                    >
+                      {completionProofData.paymentBank && !ETHIOPIAN_BANKS.includes(completionProofData.paymentBank) && (
+                        <option value={completionProofData.paymentBank}>{completionProofData.paymentBank}</option>
+                      )}
+                      {ETHIOPIAN_BANKS.map(bank => (
+                        <option key={bank} value={bank}>{bank}</option>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">
+                      FS Number
+                    </FormLabel>
+                    <Input
+                      placeholder="e.g. FS-12345678"
+                      size="sm"
+                      borderRadius="md"
+                      value={completionProofData.fsNumber || ''}
+                      onChange={(e) => setCompletionProofData(prev => ({ ...prev, fsNumber: e.target.value }))}
+                    />
+                  </FormControl>
+                </SimpleGrid>
+
+                {/* 4 Image Upload Cards */}
+                <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={3}>
+                  <ImageUploadCard
+                    label="3×4 Passport Photo"
+                    subtitle="PNG, JPG or WEBP"
+                    buttonLabel="Upload Photo"
+                    value={completionProofData.passportPhoto}
+                    onChange={(val) => setCompletionProofData(prev => ({ ...prev, passportPhoto: val }))}
+                    onRemove={() => setCompletionProofData(prev => ({ ...prev, passportPhoto: '' }))}
+                    onPreview={(src, title) => setFullImageModal({
+                      isOpen: true,
+                      src,
+                      title,
+                      subtitle: completionProofData.customer?.customerName
+                    })}
+                  />
+
+                  <ImageUploadCard
+                    label="National ID Front (Optional)"
+                    subtitle="PNG, JPG or WEBP"
+                    buttonLabel="Upload Front"
+                    value={completionProofData.nationalIdFrontImage}
+                    onChange={(val) => setCompletionProofData(prev => ({ ...prev, nationalIdFrontImage: val }))}
+                    onRemove={() => setCompletionProofData(prev => ({ ...prev, nationalIdFrontImage: '' }))}
+                    onPreview={(src, title) => setFullImageModal({
+                      isOpen: true,
+                      src,
+                      title,
+                      subtitle: completionProofData.customer?.customerName
+                    })}
+                  />
+
+                  <ImageUploadCard
+                    label="National ID Back (Optional)"
+                    subtitle="PNG, JPG or WEBP"
+                    buttonLabel="Upload Back"
+                    value={completionProofData.nationalIdBackImage}
+                    onChange={(val) => setCompletionProofData(prev => ({ ...prev, nationalIdBackImage: val }))}
+                    onRemove={() => setCompletionProofData(prev => ({ ...prev, nationalIdBackImage: '' }))}
+                    onPreview={(src, title) => setFullImageModal({
+                      isOpen: true,
+                      src,
+                      title,
+                      subtitle: completionProofData.customer?.customerName
+                    })}
+                  />
+
+                  <ImageUploadCard
+                    label="Payment Receipt Screenshot (Required)"
+                    subtitle="Bank slip or screenshot"
+                    buttonLabel="Upload Receipt"
+                    isRequired
+                    value={completionProofData.paymentScreenshot}
+                    onChange={(val) => setCompletionProofData(prev => ({ ...prev, paymentScreenshot: val }))}
+                    onRemove={() => setCompletionProofData(prev => ({ ...prev, paymentScreenshot: '' }))}
+                    onPreview={(src, title) => setFullImageModal({
+                      isOpen: true,
+                      src,
+                      title,
+                      subtitle: `${completionProofData.customer?.customerName || 'Customer'} - ${completionProofData.paymentBank || 'Bank'}`
+                    })}
+                  />
+                </SimpleGrid>
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter bg="gray.50" borderTopWidth="1px" borderColor="gray.200">
+            <Button
+              variant="outline"
+              mr={3}
+              size="sm"
+              onClick={cancelCompletionProof}
+            >
+              Cancel
+            </Button>
+            <Button
+              colorScheme="green"
+              size="sm"
+              leftIcon={<Icon as={FiCheckCircle} />}
+              onClick={handleConfirmCompletionProof}
+            >
+              Confirm & Complete Sale
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Edit Customer Modal */}
-      <Modal isOpen={isEditModalOpen} onClose={handleCloseEditModal} size="xl" isCentered>
+      <Modal isOpen={isEditModalOpen} onClose={handleCloseEditModal} size="2xl" isCentered>
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent borderRadius="xl" overflow="hidden">
           <ModalHeader bg="teal.500" color="white">
             Edit Customer Follow-up
           </ModalHeader>
           <ModalCloseButton color="white" />
-          <ModalBody py={4}>
+          <ModalBody py={4} maxH="75vh" overflowY="auto">
             {editModalCustomer && (
               <VStack spacing={4} align="stretch">
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
@@ -1615,6 +2032,140 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   </FormControl>
                 </SimpleGrid>
 
+                {/* If Completed Status, require Bank, Payment details & Documents */}
+                {editModalCustomer.followupStatus === 'Completed' && (
+                  <Box p={4} borderRadius="lg" bg="teal.50" borderWidth="1px" borderColor="teal.200">
+                    <Flex align="center" gap={2} mb={3}>
+                      <Icon as={FiAward} color="teal.600" />
+                      <Text fontSize="sm" fontWeight="bold" color="teal.800">
+                        Completed Sale Verification & Payment Details
+                      </Text>
+                    </Flex>
+
+                    <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3} mb={4}>
+                      <FormControl isRequired>
+                        <FormLabel fontSize="xs" fontWeight="bold">
+                          Payment Option <Text as="span" color="red.500">*</Text>
+                        </FormLabel>
+                        <Select
+                          name="paymentOption"
+                          size="sm"
+                          value={editModalCustomer.paymentOption || 'Full Payment'}
+                          onChange={handleEditModalInputChange}
+                          bg="white"
+                          borderRadius="md"
+                        >
+                          <option value="Full Payment">Full Payment</option>
+                          <option value="Installment">Installment</option>
+                          <option value="Partial Payment">Partial Payment</option>
+                          <option value="Scholarship / Discounted">Scholarship / Discounted</option>
+                          <option value="Sponsored">Sponsored</option>
+                        </Select>
+                      </FormControl>
+
+                      <FormControl isRequired>
+                        <FormLabel fontSize="xs" fontWeight="bold">
+                          Payment Bank <Text as="span" color="red.500">*</Text>
+                        </FormLabel>
+                        <Select
+                          name="paymentBank"
+                          size="sm"
+                          value={editModalCustomer.paymentBank || ''}
+                          onChange={handleEditModalInputChange}
+                          placeholder="Select Ethiopian Bank"
+                          bg="white"
+                          borderRadius="md"
+                        >
+                          {editModalCustomer.paymentBank && !ETHIOPIAN_BANKS.includes(editModalCustomer.paymentBank) && (
+                            <option value={editModalCustomer.paymentBank}>{editModalCustomer.paymentBank}</option>
+                          )}
+                          {ETHIOPIAN_BANKS.map(bank => (
+                            <option key={bank} value={bank}>{bank}</option>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      <FormControl>
+                        <FormLabel fontSize="xs" fontWeight="bold">
+                          FS Number
+                        </FormLabel>
+                        <Input
+                          name="fsNumber"
+                          placeholder="e.g. FS-12345678"
+                          size="sm"
+                          borderRadius="md"
+                          bg="white"
+                          value={editModalCustomer.fsNumber || ''}
+                          onChange={handleEditModalInputChange}
+                        />
+                      </FormControl>
+                    </SimpleGrid>
+
+                    <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={3}>
+                      <ImageUploadCard
+                        label="3×4 Passport Photo"
+                        subtitle="PNG, JPG or WEBP"
+                        buttonLabel="Upload Photo"
+                        value={editModalCustomer.passportPhoto}
+                        onChange={(val) => setEditModalCustomer(prev => ({ ...prev, passportPhoto: val }))}
+                        onRemove={() => setEditModalCustomer(prev => ({ ...prev, passportPhoto: '' }))}
+                        onPreview={(src, title) => setFullImageModal({
+                          isOpen: true,
+                          src,
+                          title,
+                          subtitle: editModalCustomer.customerName
+                        })}
+                      />
+
+                      <ImageUploadCard
+                        label="National ID Front (Optional)"
+                        subtitle="PNG, JPG or WEBP"
+                        buttonLabel="Upload Front"
+                        value={editModalCustomer.nationalIdFrontImage}
+                        onChange={(val) => setEditModalCustomer(prev => ({ ...prev, nationalIdFrontImage: val }))}
+                        onRemove={() => setEditModalCustomer(prev => ({ ...prev, nationalIdFrontImage: '' }))}
+                        onPreview={(src, title) => setFullImageModal({
+                          isOpen: true,
+                          src,
+                          title,
+                          subtitle: editModalCustomer.customerName
+                        })}
+                      />
+
+                      <ImageUploadCard
+                        label="National ID Back (Optional)"
+                        subtitle="PNG, JPG or WEBP"
+                        buttonLabel="Upload Back"
+                        value={editModalCustomer.nationalIdBackImage}
+                        onChange={(val) => setEditModalCustomer(prev => ({ ...prev, nationalIdBackImage: val }))}
+                        onRemove={() => setEditModalCustomer(prev => ({ ...prev, nationalIdBackImage: '' }))}
+                        onPreview={(src, title) => setFullImageModal({
+                          isOpen: true,
+                          src,
+                          title,
+                          subtitle: editModalCustomer.customerName
+                        })}
+                      />
+
+                      <ImageUploadCard
+                        label="Payment Receipt Screenshot (Required)"
+                        subtitle="Bank slip or screenshot"
+                        buttonLabel="Upload Receipt"
+                        isRequired
+                        value={editModalCustomer.paymentScreenshot}
+                        onChange={(val) => setEditModalCustomer(prev => ({ ...prev, paymentScreenshot: val }))}
+                        onRemove={() => setEditModalCustomer(prev => ({ ...prev, paymentScreenshot: '' }))}
+                        onPreview={(src, title) => setFullImageModal({
+                          isOpen: true,
+                          src,
+                          title,
+                          subtitle: editModalCustomer.customerName
+                        })}
+                      />
+                    </SimpleGrid>
+                  </Box>
+                )}
+
                 <FormControl>
                   <FormLabel fontSize="xs" fontWeight="bold">Customer Notes</FormLabel>
                   <Textarea
@@ -1696,6 +2247,32 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                       <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Email</Text>
                       <Text fontSize="md">{drawerCustomer.email || 'N/A'}</Text>
                     </Box>
+                    {drawerCustomer.paymentOption && (
+                      <Box>
+                        <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Payment Option</Text>
+                        <Badge colorScheme="purple" fontSize="sm" px={2} py={0.5} borderRadius="md">
+                          {drawerCustomer.paymentOption}
+                        </Badge>
+                      </Box>
+                    )}
+                    {drawerCustomer.paymentBank && (
+                      <Box>
+                        <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Payment Bank</Text>
+                        <Tag size="md" colorScheme="teal" borderRadius="full">
+                          <TagLeftIcon as={FiCreditCard} />
+                          <TagLabel>{drawerCustomer.paymentBank}</TagLabel>
+                        </Tag>
+                      </Box>
+                    )}
+                    {drawerCustomer.fsNumber && (
+                      <Box>
+                        <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>FS Number</Text>
+                        <Tag size="md" colorScheme="blue" borderRadius="md">
+                          <TagLeftIcon as={FiFileText} />
+                          <TagLabel fontWeight="bold">{drawerCustomer.fsNumber}</TagLabel>
+                        </Tag>
+                      </Box>
+                    )}
                   </SimpleGrid>
                 </Box>
 
@@ -1727,6 +2304,120 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                     </Box>
                   </SimpleGrid>
                 </Box>
+
+                {/* Verification & Payment Documents Section */}
+                {(drawerCustomer.passportPhoto || drawerCustomer.nationalIdFrontImage || drawerCustomer.nationalIdBackImage || drawerCustomer.paymentScreenshot || drawerCustomer.paymentBank || drawerCustomer.fsNumber) && (
+                  <Box p={6}>
+                    <Heading as="h3" size="md" mb={4} color="teal.600" pb={2} borderBottom="1px" borderColor="gray.200">
+                      Verification & Payment Documents
+                    </Heading>
+                    <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={4}>
+                      <Box p={3} borderRadius="lg" borderWidth="1px" borderColor="gray.200" bg="gray.50">
+                        <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>3×4 Passport Photo</Text>
+                        {drawerCustomer.passportPhoto ? (
+                          <Box
+                            h="120px"
+                            borderRadius="md"
+                            overflow="hidden"
+                            cursor="pointer"
+                            bg="blackAlpha.100"
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            onClick={() => setFullImageModal({
+                              isOpen: true,
+                              src: drawerCustomer.passportPhoto,
+                              title: '3×4 Passport Photo',
+                              subtitle: drawerCustomer.customerName
+                            })}
+                          >
+                            <Image src={drawerCustomer.passportPhoto} alt="Passport Photo" maxH="100%" maxW="100%" objectFit="contain" />
+                          </Box>
+                        ) : (
+                          <Text fontSize="xs" color="gray.400" fontStyle="italic">Not uploaded</Text>
+                        )}
+                      </Box>
+
+                      <Box p={3} borderRadius="lg" borderWidth="1px" borderColor="gray.200" bg="gray.50">
+                        <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>National ID (Front)</Text>
+                        {drawerCustomer.nationalIdFrontImage ? (
+                          <Box
+                            h="120px"
+                            borderRadius="md"
+                            overflow="hidden"
+                            cursor="pointer"
+                            bg="blackAlpha.100"
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            onClick={() => setFullImageModal({
+                              isOpen: true,
+                              src: drawerCustomer.nationalIdFrontImage,
+                              title: 'National ID (Front)',
+                              subtitle: drawerCustomer.customerName
+                            })}
+                          >
+                            <Image src={drawerCustomer.nationalIdFrontImage} alt="National ID Front" maxH="100%" maxW="100%" objectFit="contain" />
+                          </Box>
+                        ) : (
+                          <Text fontSize="xs" color="gray.400" fontStyle="italic">Not uploaded</Text>
+                        )}
+                      </Box>
+
+                      <Box p={3} borderRadius="lg" borderWidth="1px" borderColor="gray.200" bg="gray.50">
+                        <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>National ID (Back)</Text>
+                        {drawerCustomer.nationalIdBackImage ? (
+                          <Box
+                            h="120px"
+                            borderRadius="md"
+                            overflow="hidden"
+                            cursor="pointer"
+                            bg="blackAlpha.100"
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            onClick={() => setFullImageModal({
+                              isOpen: true,
+                              src: drawerCustomer.nationalIdBackImage,
+                              title: 'National ID (Back)',
+                              subtitle: drawerCustomer.customerName
+                            })}
+                          >
+                            <Image src={drawerCustomer.nationalIdBackImage} alt="National ID Back" maxH="100%" maxW="100%" objectFit="contain" />
+                          </Box>
+                        ) : (
+                          <Text fontSize="xs" color="gray.400" fontStyle="italic">Not uploaded</Text>
+                        )}
+                      </Box>
+
+                      <Box p={3} borderRadius="lg" borderWidth="1px" borderColor="gray.200" bg="gray.50">
+                        <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>Payment Receipt</Text>
+                        {drawerCustomer.paymentScreenshot ? (
+                          <Box
+                            h="120px"
+                            borderRadius="md"
+                            overflow="hidden"
+                            cursor="pointer"
+                            bg="blackAlpha.100"
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            onClick={() => setFullImageModal({
+                              isOpen: true,
+                              src: drawerCustomer.paymentScreenshot,
+                              title: 'Payment Receipt',
+                              subtitle: `${drawerCustomer.customerName} - ${drawerCustomer.paymentBank || 'Bank'}`
+                            })}
+                          >
+                            <Image src={drawerCustomer.paymentScreenshot} alt="Payment Receipt" maxH="100%" maxW="100%" objectFit="contain" />
+                          </Box>
+                        ) : (
+                          <Text fontSize="xs" color="gray.400" fontStyle="italic">Not uploaded</Text>
+                        )}
+                      </Box>
+                    </SimpleGrid>
+                  </Box>
+                )}
 
                 {/* Commission Information Section - Only show if customer has completed status */}
                 {drawerCustomer.followupStatus === 'Completed' && (
@@ -1820,6 +2511,61 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      {/* Full Image Preview Modal */}
+      <Modal
+        isOpen={fullImageModal.isOpen}
+        onClose={() => setFullImageModal({ isOpen: false, src: '', title: '', subtitle: '' })}
+        size="2xl"
+        isCentered
+      >
+        <ModalOverlay />
+        <ModalContent bg="gray.900" color="white" borderRadius="xl" overflow="hidden">
+          <ModalHeader borderBottomWidth="1px" borderColor="whiteAlpha.200">
+            <Flex justify="space-between" align="center" pr={8}>
+              <Box>
+                <Text fontSize="md" fontWeight="bold">{fullImageModal.title}</Text>
+                {fullImageModal.subtitle && <Text fontSize="xs" color="gray.400">{fullImageModal.subtitle}</Text>}
+              </Box>
+            </Flex>
+          </ModalHeader>
+          <ModalCloseButton color="white" />
+          <ModalBody p={4} display="flex" justifyContent="center" alignItems="center" bg="blackAlpha.800">
+            {fullImageModal.src && (
+              <Image
+                src={fullImageModal.src}
+                alt={fullImageModal.title}
+                maxH="70vh"
+                maxW="100%"
+                objectFit="contain"
+                borderRadius="md"
+              />
+            )}
+          </ModalBody>
+          <ModalFooter borderTopWidth="1px" borderColor="whiteAlpha.200" justifyContent="space-between">
+            {fullImageModal.src && (
+              <Button
+                as="a"
+                href={fullImageModal.src}
+                download={`${(fullImageModal.title || 'document').replace(/\s+/g, '_')}.jpg`}
+                size="sm"
+                colorScheme="teal"
+                leftIcon={<Icon as={FiDownload} />}
+              >
+                Download
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              color="white"
+              onClick={() => setFullImageModal({ isOpen: false, src: '', title: '', subtitle: '' })}
+            >
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };

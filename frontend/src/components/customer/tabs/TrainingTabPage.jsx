@@ -1,3 +1,4 @@
+import PageNumberButtons from "./PageNumberButtons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -183,7 +184,7 @@ const TrainingTabPage = ({
                     >
                       Previous
                     </Button>
-                    <Text fontSize="sm">Page {safeCurrentPage} of {totalPages}</Text>
+                    <PageNumberButtons page={safeCurrentPage} totalPages={totalPages} onChange={setCurrentPage} />
                     <Button
                       size="sm"
                       variant="outline"

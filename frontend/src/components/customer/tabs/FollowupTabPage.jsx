@@ -1,3 +1,4 @@
+import PageNumberButtons from "./PageNumberButtons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Avatar,
@@ -766,18 +767,7 @@ const FollowupTabPage = ({
                 isDisabled={safeCurrentPage <= 1}
                 onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
               />
-              <Button
-                size="xs"
-                bg="#e0f2fe"
-                color="#0284c7"
-                fontSize="12px"
-                fontWeight="700"
-                h="30px"
-                minW="30px"
-                borderRadius="md"
-              >
-                {safeCurrentPage}
-              </Button>
+              <PageNumberButtons page={safeCurrentPage} totalPages={totalPages} onChange={setCurrentPage} />
               <IconButton
                 aria-label="Next page"
                 icon={<Text fontSize="xs">&gt;</Text>}

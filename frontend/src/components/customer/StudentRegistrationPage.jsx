@@ -1,3 +1,6 @@
+import StudentRegistrationHeader from "./StudentRegistrationHeader";
+import StudentDetailView from "./StudentDetailView";
+import StudentRegistryTable from "./StudentRegistryTable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertDialog,
@@ -62,6 +65,7 @@ import {
 import { DeleteIcon, DownloadIcon, EditIcon, ViewIcon } from "@chakra-ui/icons";
 import {
   FiBookOpen,
+  FiCalendar,
   FiCheckCircle,
   FiClock,
   FiGrid,
@@ -76,9 +80,11 @@ import {
   FiRefreshCw,
   FiPhoneCall,
   FiPrinter,
+  FiX,
 } from "react-icons/fi";
 import { useUserStore } from "../../store/user";
 import { getAuthItem } from "../../utils/authStorage";
+import { startVisibleRefresh } from "../../utils/visibleRefresh";
 import {
   createStudentRegistration,
   deleteStudentRegistration,
@@ -88,6 +94,7 @@ import {
 } from "../../services/studentRegistrationService";
 import { fetchExternalCourses } from "../../services/api";
 import Layout from "./Layout";
+import PageNumberButtons from "./tabs/PageNumberButtons";
 import ETHIOPIAN_BANKS from "../../utils/ethiopianBanks";
 import { DEFAULT_TRAINING_TITLES, TRAINING_TO_DEPARTMENT_MAP } from "../../utils/trainingTitles";
 import TessbinStudentA4Dossier from "../tessbin/TessbinStudentA4Dossier";
@@ -108,7 +115,6 @@ const timeSlotOptions = ["Morning", "Afternoon", "Night", "Weekend", "VIP"];
 const paymentOptions = ["Full Payment", "Half Payment"];
 const classCompletionOptions = ["Completed", "Not Completed", "Stopped"];
 const cocPaymentOptions = ["Paid", "Unpaid"];
-const STUDENTS_PER_PAGE = 25;
 
 const isCoffeeCuppingCourse = (registration = {}) => {
   const normalizeCourseName = (value) =>
@@ -404,6 +410,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
   } = useDisclosure();
   const currentUser = useUserStore((state) => state.currentUser);
   const [students, setStudents] = useState([]);
+  const studentRequestInFlight = useRef(false);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState("");
   const [trainingTitles, setTrainingTitles] = useState(DEFAULT_TRAINING_TITLES);
@@ -418,15 +425,87 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
   const [timeSlotFilter, setTimeSlotFilter] = useState("All");
   const [classCompletionFilter, setClassCompletionFilter] = useState("All");
   const [cocPaymentFilter, setCocPaymentFilter] = useState("All");
+  const [dateFieldFilter, setDateFieldFilter] = useState("salesFollowupDate");
+  const [startDateFilter, setStartDateFilter] = useState("");
+  const [endDateFilter, setEndDateFilter] = useState("");
+  const [quickDateFilter, setQuickDateFilter] = useState("all");
   const [selectedTimeSlotSection, setSelectedTimeSlotSection] = useState("");
   const [sortBy, setSortBy] = useState("date");
   const [sortDirection, setSortDirection] = useState("desc");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("list");
   const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState("20");
   const [studentToDelete, setStudentToDelete] = useState(null);
   const [isDeletingStudent, setIsDeletingStudent] = useState(false);
   const cancelDeleteRef = useRef(null);
+
+  const handleQuickDateSelect = (preset) => {
+    setQuickDateFilter(preset);
+    const now = new Date();
+    const formatDateStr = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    if (preset === "all") {
+      setStartDateFilter("");
+      setEndDateFilter("");
+      return;
+    }
+
+    if (preset === "today") {
+      const todayStr = formatDateStr(now);
+      setStartDateFilter(todayStr);
+      setEndDateFilter(todayStr);
+      return;
+    }
+
+    if (preset === "yesterday") {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const yStr = formatDateStr(y);
+      setStartDateFilter(yStr);
+      setEndDateFilter(yStr);
+      return;
+    }
+
+    if (preset === "thisWeek") {
+      const start = new Date(now);
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+      start.setDate(diff);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      setStartDateFilter(formatDateStr(start));
+      setEndDateFilter(formatDateStr(end));
+      return;
+    }
+
+    if (preset === "thisMonth") {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setStartDateFilter(formatDateStr(start));
+      setEndDateFilter(formatDateStr(end));
+      return;
+    }
+
+    if (preset === "lastMonth") {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      setStartDateFilter(formatDateStr(start));
+      setEndDateFilter(formatDateStr(end));
+      return;
+    }
+  };
+
+  const clearDateFilter = () => {
+    setQuickDateFilter("all");
+    setStartDateFilter("");
+    setEndDateFilter("");
+  };
 
   const pageBg = useColorModeValue("#f8fafc", "#090d1a");
   const cardBg = useColorModeValue("white", "#0f172a");
@@ -454,13 +533,14 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
 
   const registrarEmail = authUser?.email || getAuthItem("userEmail") || localStorage.getItem("userEmail") || "";
 
-  const loadStudents = useCallback(async () => {
-    setIsLoadingStudents(true);
+  const loadStudents = useCallback(async ({ background = false } = {}) => {
+    if (studentRequestInFlight.current) return;
+    studentRequestInFlight.current = true;
+    if (!background) setIsLoadingStudents(true);
 
     try {
       const user = currentUser || useUserStore.getState().currentUser || {};
-      const userRole = (user?.role || getAuthItem("userRole") || localStorage.getItem("userRole") || "").toLowerCase();
-      const isSales = workspaceLabel === "Sales" || ["sales", "agent", "salesmanager", "sales manager", "sales_manager"].includes(userRole) || userRole.includes("sales") || userRole.includes("agent");
+      const isSales = workspaceLabel === "Sales";
       const databaseStudents = await getStudentRegistrations(isSales ? { workspace: "Sales" } : {});
       let normalizedDatabaseStudents = Array.isArray(databaseStudents)
         ? databaseStudents.map(normalizeStudent)
@@ -502,17 +582,18 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
       setStudents(normalizedDatabaseStudents);
       setStudentLoadError("");
     } catch (error) {
-      setStudents([]);
+      if (background) return;
       setStudentLoadError(error.response?.data?.message || error.message || "Database is not reachable.");
       toast({
-        title: "Student database unavailable",
-        description: "Student registration only uses the database. Please check the backend and MongoDB connection.",
+        title: "Could not load student registrations",
+        description: "The request failed or took too long. Please try refreshing the page.",
         status: "error",
         duration: 3500,
         isClosable: true,
       });
     } finally {
-      setIsLoadingStudents(false);
+      studentRequestInFlight.current = false;
+      if (!background) setIsLoadingStudents(false);
     }
   }, [currentUser, workspaceLabel, toast]);
 
@@ -541,6 +622,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
     };
   }, [loadStudents]);
 
+  useEffect(() => startVisibleRefresh(() => loadStudents({ background: true })), [loadStudents]);
 
 
   const groupedStudents = useMemo(() => {
@@ -564,6 +646,35 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
       const matchesCocPayment = cocPaymentFilter === "All" || (
         isCoffeeCuppingCourse(student) && (student.cocPaymentStatus || "Unpaid") === cocPaymentFilter
       );
+      // Calendar date matching
+      let matchesDate = true;
+      if (startDateFilter || endDateFilter) {
+        let studentDateVal = "";
+        if (dateFieldFilter === "enrollmentDate") {
+          studentDateVal = student.enrollmentDate || student.registrationDate || (student.createdAt ? student.createdAt.slice(0, 10) : "");
+        } else if (dateFieldFilter === "createdAt") {
+          studentDateVal = student.createdAt ? student.createdAt.slice(0, 10) : (student.enrollmentDate || student.registrationDate || "");
+        } else if (dateFieldFilter === "examDate") {
+          studentDateVal = student.examDate || "";
+        } else if (dateFieldFilter === "trainingEndDate") {
+          studentDateVal = student.trainingEndDate || "";
+        } else if (dateFieldFilter === "salesFollowupDate") {
+          studentDateVal = student.salesFollowupDate || "";
+        }
+
+        if (studentDateVal) {
+          const dateOnly = String(studentDateVal).slice(0, 10);
+          if (startDateFilter && dateOnly < startDateFilter) {
+            matchesDate = false;
+          }
+          if (endDateFilter && dateOnly > endDateFilter) {
+            matchesDate = false;
+          }
+        } else {
+          matchesDate = false;
+        }
+      }
+
       const searchableText = [
         student.studentId,
         student.fullName,
@@ -585,7 +696,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-      return matchesDepartment && matchesStatus && matchesReadiness && matchesPayment && matchesTimeSlot && matchesClassCompletion && matchesCocPayment && (!search || searchableText.includes(search));
+      return matchesDepartment && matchesStatus && matchesReadiness && matchesPayment && matchesTimeSlot && matchesClassCompletion && matchesCocPayment && matchesDate && (!search || searchableText.includes(search));
     });
 
     const compareText = (first = "", second = "") =>
@@ -611,7 +722,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
     });
 
     return sortDirection === "asc" ? sorted : sorted.reverse();
-  }, [classCompletionFilter, cocPaymentFilter, departmentFilter, paymentFilter, readinessFilter, searchQuery, sortBy, sortDirection, statusFilter, students, timeSlotFilter]);
+  }, [classCompletionFilter, cocPaymentFilter, dateFieldFilter, departmentFilter, endDateFilter, paymentFilter, readinessFilter, searchQuery, sortBy, sortDirection, startDateFilter, statusFilter, students, timeSlotFilter]);
 
   const timeSlotCounts = useMemo(
     () =>
@@ -630,15 +741,32 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
     [selectedTimeSlotSection, students]
   );
 
-  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE));
+  const pageSize = rowsPerPage === "all" ? Math.max(1, filteredStudents.length) : Number(rowsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
   const visibleStudents = useMemo(() => {
-    const start = (currentPage - 1) * STUDENTS_PER_PAGE;
-    return filteredStudents.slice(start, start + STUDENTS_PER_PAGE);
-  }, [currentPage, filteredStudents]);
+    const start = (safePage - 1) * pageSize;
+    return filteredStudents.slice(start, start + pageSize);
+  }, [safePage, pageSize, filteredStudents]);
+
+  const showAllStudents = () => {
+    setSearchQuery("");
+    setDepartmentFilter("All");
+    setStatusFilter("All");
+    setReadinessFilter("All");
+    setPaymentFilter("All");
+    setTimeSlotFilter("All");
+    setClassCompletionFilter("All");
+    setCocPaymentFilter("All");
+    clearDateFilter();
+    setRowsPerPage("all");
+    setCurrentPage(1);
+    loadStudents();
+  };
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [classCompletionFilter, cocPaymentFilter, departmentFilter, paymentFilter, readinessFilter, searchQuery, sortBy, sortDirection, statusFilter, timeSlotFilter, viewMode]);
+  }, [classCompletionFilter, cocPaymentFilter, dateFieldFilter, departmentFilter, endDateFilter, paymentFilter, readinessFilter, searchQuery, sortBy, sortDirection, startDateFilter, statusFilter, timeSlotFilter, viewMode]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -1157,35 +1285,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
       {!isRegistrationOpen && (
       <Box minH="100vh" bg={pageBg} p={{ base: 4, md: 6 }}>
         <VStack spacing={6} align="stretch">
-          <Flex justify="space-between" align={{ base: "flex-start", lg: "center" }} gap={4} direction={{ base: "column", lg: "row" }}>
-            <Box>
-              <HStack spacing={2} mb={2} flexWrap="wrap">
-                <Badge colorScheme={workspaceLabel === "Sales" ? "teal" : "green"} borderRadius="full" px={3} py={1}>
-                  {workspaceLabel === "Sales" ? "My Sales Registrations" : workspaceLabel}
-                </Badge>
-                <Badge colorScheme="blue" borderRadius="full" px={3} py={1}>
-                  {workspaceLabel === "Sales" ? "Registered By Me" : "Learning Registry"}
-                </Badge>
-                <Badge colorScheme="purple" borderRadius="full" px={3} py={1}>{filteredStudents.length} visible</Badge>
-              </HStack>
-              <Heading size="lg" color={headingColor}>
-                {workspaceLabel === "Sales" ? "My Registered Students" : "Student Registration"}
-              </Heading>
-              <Text color={mutedText} mt={1}>
-                {workspaceLabel === "Sales"
-                  ? `Viewing students registered by you (${registrarName}). Records from other sales reps or departments are restricted.`
-                  : "Register, review, edit, and export students by assigned Learning Department."}
-              </Text>
-            </Box>
-            <ButtonGroup flexWrap="wrap" spacing={2}>
-              <Button leftIcon={<FiUserPlus />} colorScheme="green" onClick={openRegistrationForm}>Register Student</Button>
-              {workspaceLabel !== "Sales" && (
-                <Button leftIcon={<FiPrinter />} colorScheme="blue" onClick={onA4ReportOpen}>Print Directory (A4)</Button>
-              )}
-              <Button leftIcon={<FiClock />} colorScheme="blue" variant="outline" onClick={onSectionCountsOpen}>View Sections</Button>
-              <Button leftIcon={<DownloadIcon />} colorScheme="green" variant="outline" onClick={handleExcelPreview}>Preview Excel</Button>
-            </ButtonGroup>
-          </Flex>
+          <StudentRegistrationHeader workspaceLabel={workspaceLabel} registrarName={registrarName} visibleCount={filteredStudents.length} onRegister={openRegistrationForm} onPrint={onA4ReportOpen} onSections={onSectionCountsOpen} onExcel={handleExcelPreview} />
 
           <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
             <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px">
@@ -1219,7 +1319,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
             <Card bg="red.50" border="1px solid" borderColor="red.200" borderRadius="16px">
               <CardBody py={4}>
                 <VStack align="stretch" spacing={2}>
-                  <Text fontWeight="900" color="red.700">Student database is not reachable</Text>
+                  <Text fontWeight="900" color="red.700">Could not load student registrations</Text>
                   <Text fontSize="sm" color="red.700">
                     Student Registration is database-only. No local browser records are being used.
                   </Text>
@@ -1234,7 +1334,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
               <CardBody>
                 <Flex justify="space-between" align={{ base: "flex-start", lg: "center" }} gap={4} direction={{ base: "column", lg: "row" }} mb={4}>
                   <Box>
-                    <Heading size="md" color={headingColor}>Registered Students</Heading>
+                    <Heading size="md" color={headingColor}>Students</Heading>
                     <Text fontSize="sm" color={mutedText}>Search, filter, switch view style, and export the selected records.</Text>
                   </Box>
                   <ButtonGroup size="sm" isAttached variant="outline">
@@ -1285,6 +1385,156 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                     {cocPaymentOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                   </Select>
                 </SimpleGrid>
+
+                {/* Calendar & Date Filter Bar */}
+                <Box
+                  p={3.5}
+                  mb={4}
+                  borderRadius="14px"
+                  border="1px solid"
+                  borderColor={startDateFilter || endDateFilter ? "green.300" : borderColor}
+                  bg={startDateFilter || endDateFilter ? softPanelBg : cardAltBg}
+                  transition="all 0.2s ease"
+                >
+                  <Flex
+                    direction={{ base: "column", lg: "row" }}
+                    align={{ base: "stretch", lg: "center" }}
+                    justify="space-between"
+                    gap={3}
+                  >
+                    <HStack spacing={2} flexWrap="wrap">
+                      <HStack spacing={1.5}>
+                        <Icon as={FiCalendar} color={startDateFilter || endDateFilter ? "green.600" : "gray.500"} boxSize={4} />
+                        <Text fontSize="xs" fontWeight="800" textTransform="uppercase" color={headingColor}>
+                          Calendar Filter:
+                        </Text>
+                      </HStack>
+                      <Select
+                        size="xs"
+                        borderRadius="md"
+                        maxW="190px"
+                        bg={fieldBg}
+                        fontWeight="600"
+                        value={dateFieldFilter}
+                        onChange={(e) => setDateFieldFilter(e.target.value)}
+                      >
+                        <option value="enrollmentDate">📅 Enrollment Date</option>
+                        <option value="createdAt">📅 Registration (Created)</option>
+                        <option value="examDate">📅 Exam Date</option>
+                        <option value="trainingEndDate">📅 Training End Date</option>
+                        <option value="salesFollowupDate">📅 Sales Followup Date</option>
+                      </Select>
+
+                      <ButtonGroup size="xs" isAttached variant="outline">
+                        <Button
+                          colorScheme={quickDateFilter === "all" && !startDateFilter && !endDateFilter ? "green" : "gray"}
+                          variant={quickDateFilter === "all" && !startDateFilter && !endDateFilter ? "solid" : "outline"}
+                          onClick={() => handleQuickDateSelect("all")}
+                        >
+                          All
+                        </Button>
+                        <Button
+                          colorScheme={quickDateFilter === "today" ? "green" : "gray"}
+                          variant={quickDateFilter === "today" ? "solid" : "outline"}
+                          onClick={() => handleQuickDateSelect("today")}
+                        >
+                          Today
+                        </Button>
+                        <Button
+                          colorScheme={quickDateFilter === "yesterday" ? "green" : "gray"}
+                          variant={quickDateFilter === "yesterday" ? "solid" : "outline"}
+                          onClick={() => handleQuickDateSelect("yesterday")}
+                        >
+                          Yesterday
+                        </Button>
+                        <Button
+                          colorScheme={quickDateFilter === "thisWeek" ? "green" : "gray"}
+                          variant={quickDateFilter === "thisWeek" ? "solid" : "outline"}
+                          onClick={() => handleQuickDateSelect("thisWeek")}
+                        >
+                          This Week
+                        </Button>
+                        <Button
+                          colorScheme={quickDateFilter === "thisMonth" ? "green" : "gray"}
+                          variant={quickDateFilter === "thisMonth" ? "solid" : "outline"}
+                          onClick={() => handleQuickDateSelect("thisMonth")}
+                        >
+                          This Month
+                        </Button>
+                        <Button
+                          colorScheme={quickDateFilter === "lastMonth" ? "green" : "gray"}
+                          variant={quickDateFilter === "lastMonth" ? "solid" : "outline"}
+                          onClick={() => handleQuickDateSelect("lastMonth")}
+                        >
+                          Last Month
+                        </Button>
+                      </ButtonGroup>
+                    </HStack>
+
+                    <HStack spacing={2} align="center" flexWrap="wrap">
+                      <HStack spacing={1}>
+                        <Text fontSize="xs" fontWeight="700" color={mutedText}>From:</Text>
+                        <Input
+                          type="date"
+                          size="xs"
+                          w="135px"
+                          borderRadius="md"
+                          bg={fieldBg}
+                          value={startDateFilter}
+                          onChange={(e) => {
+                            setStartDateFilter(e.target.value);
+                            setQuickDateFilter("custom");
+                          }}
+                        />
+                      </HStack>
+                      <HStack spacing={1}>
+                        <Text fontSize="xs" fontWeight="700" color={mutedText}>To:</Text>
+                        <Input
+                          type="date"
+                          size="xs"
+                          w="135px"
+                          borderRadius="md"
+                          bg={fieldBg}
+                          value={endDateFilter}
+                          onChange={(e) => {
+                            setEndDateFilter(e.target.value);
+                            setQuickDateFilter("custom");
+                          }}
+                        />
+                      </HStack>
+                      {(startDateFilter || endDateFilter) && (
+                        <Tooltip label="Reset Calendar Filter">
+                          <Button
+                            size="xs"
+                            leftIcon={<FiX />}
+                            colorScheme="red"
+                            variant="ghost"
+                            onClick={clearDateFilter}
+                          >
+                            Clear
+                          </Button>
+                        </Tooltip>
+                      )}
+                    </HStack>
+                  </Flex>
+
+                  {(startDateFilter || endDateFilter) && (
+                    <Flex align="center" justify="space-between" mt={2} pt={2} borderTop="1px dashed" borderColor="green.200" fontSize="xs">
+                      <HStack spacing={2}>
+                        <Badge colorScheme="green" px={2} py={0.5} borderRadius="md">
+                          Active Calendar Filter: {startDateFilter || "Start"} ➔ {endDateFilter || "End"}
+                        </Badge>
+                        <Text color="green.800" fontWeight="700">
+                          {filteredStudents.length} student{filteredStudents.length === 1 ? "" : "s"} found in selected timeframe
+                        </Text>
+                      </HStack>
+                      <Button size="xs" variant="link" colorScheme="green" onClick={clearDateFilter}>
+                        Show all dates
+                      </Button>
+                    </Flex>
+                  )}
+                </Box>
+
                 <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3} mb={4} maxW={{ base: "full", lg: "520px" }}>
                   <Select value={sortBy} onChange={(event) => setSortBy(event.target.value)} bg={fieldBg}>
                     <option value="date">Sort by Date</option>
@@ -1299,77 +1549,114 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
 
                 <Divider mb={4} />
 
+                <Flex justify="space-between" align="center" gap={3} mb={4} flexWrap="wrap">
+                  <Text fontSize="sm" color={mutedText} aria-live="polite">
+                    Showing {visibleStudents.length} of {filteredStudents.length} matching students ({students.length} total)
+                  </Text>
+                  <HStack>
+
+                    <Button size="sm" variant="outline" colorScheme="green" onClick={showAllStudents}>
+                      Show all students
+                    </Button>
+                  </HStack>
+                </Flex>
+
                 {viewMode === "grid" ? (
                   <VStack align="stretch" spacing={5}>
                     {Object.entries(filteredGroups).length ? Object.entries(filteredGroups).map(([department, records]) => (
                       <Box key={department}>
                         <HStack mb={3}><Badge colorScheme="green">{department}</Badge><Text fontSize="sm" color={mutedText}>{records.length} students</Text></HStack>
                         <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={3}>
-                          {records.map((student) => (
-                            <Card key={student.id} border="1px solid" borderColor={borderColor} bg={cardAltBg} borderRadius="14px">
-                              <CardBody>
-                                <VStack align="stretch" spacing={3}>
-                                  <HStack align="flex-start" justify="space-between" gap={3}>
-                                    <Box>
-                                      <Text fontWeight="900" color={headingColor}>{student.fullName}</Text>
-                                      <Text fontSize="xs" color={mutedText}>{student.studentId}</Text>
-                                    </Box>
-                                    <Badge colorScheme="green" variant="subtle">{student.learningDepartment || "Unassigned"}</Badge>
-                                  </HStack>
-                                  <HStack flexWrap="wrap" spacing={2}>
-                                    <Badge colorScheme={getStateColor(getClassOutcome(student))}>{getClassOutcome(student)}</Badge>
-                                    <Badge colorScheme={getStateColor(student.paymentOption)}>{student.paymentOption || "Full Payment"}</Badge>
-                                  </HStack>
-                                  <Flex justify="flex-end">{renderActions(student)}</Flex>
-                                </VStack>
-                              </CardBody>
-                            </Card>
-                          ))}
+                          {records.map((student) => {
+                            const hasPhoto = Boolean(student.passportPhoto || student.hasPassportPhoto);
+                            const hasFront = Boolean(student.nationalIdFrontImage || student.nationalIdImage || student.hasNationalIdFrontImage || student.hasNationalIdImage);
+                            const hasBack = Boolean(student.nationalIdBackImage || student.hasNationalIdBackImage);
+                            const hasReceipt = Boolean(student.paymentScreenshot || student.hasPaymentScreenshot);
+
+                            return (
+                              <Card key={student.id} border="1px solid" borderColor={borderColor} bg={cardAltBg} borderRadius="14px">
+                                <CardBody>
+                                  <VStack align="stretch" spacing={3}>
+                                    <HStack align="flex-start" justify="space-between" gap={3}>
+                                      <Box>
+                                        <Text fontWeight="900" color={headingColor}>{student.fullName}</Text>
+                                        <HStack spacing={1.5} mt={0.5}>
+                                          <Text fontSize="xs" color={mutedText} fontWeight="700">{student.studentId}</Text>
+                                          {student.phone && <Text fontSize="xs" color={mutedText}>• {student.phone}</Text>}
+                                        </HStack>
+                                      </Box>
+                                      <Badge colorScheme="green" variant="subtle">{student.learningDepartment || "Unassigned"}</Badge>
+                                    </HStack>
+                                    {student.program && (
+                                      <Text fontSize="xs" color={mutedText} fontWeight="600" noOfLines={1}>
+                                        {student.program}
+                                      </Text>
+                                    )}
+                                    <HStack flexWrap="wrap" spacing={1.5}>
+                                      <Badge colorScheme={getStateColor(getClassOutcome(student))}>{getClassOutcome(student)}</Badge>
+                                      <Badge colorScheme={getStateColor(student.preferredTimeSlot)} variant="outline">{student.preferredTimeSlot || "Morning"}</Badge>
+                                      <Badge colorScheme={getStateColor(student.paymentStatus || "Waiting")}>{student.paymentStatus || "Waiting"}</Badge>
+                                      <Badge colorScheme={getStateColor(student.paymentOption)}>{student.paymentOption || "Full Payment"}</Badge>
+                                    </HStack>
+                                    {(student.paymentBank || student.fsNumber) && (
+                                      <Box p={2} bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor} fontSize="xs">
+                                        {student.paymentBank && (
+                                          <Text fontWeight="700" color={headingColor} noOfLines={1}>
+                                            🏦 {student.paymentBank}
+                                          </Text>
+                                        )}
+                                        {student.fsNumber && (
+                                          <Text color="blue.600" fontWeight="700" mt={0.5}>
+                                            FS#: {student.fsNumber}
+                                          </Text>
+                                        )}
+                                      </Box>
+                                    )}
+                                    <HStack spacing={1} flexWrap="wrap">
+                                      <Badge size="xs" fontSize="9px" px={1.5} py={0.5} borderRadius="full" colorScheme={hasPhoto ? "green" : "gray"} variant={hasPhoto ? "solid" : "subtle"}>
+                                        📷 3×4
+                                      </Badge>
+                                      <Badge size="xs" fontSize="9px" px={1.5} py={0.5} borderRadius="full" colorScheme={hasFront ? "green" : "gray"} variant={hasFront ? "solid" : "subtle"}>
+                                        🪪 Front
+                                      </Badge>
+                                      <Badge size="xs" fontSize="9px" px={1.5} py={0.5} borderRadius="full" colorScheme={hasBack ? "green" : "gray"} variant={hasBack ? "solid" : "subtle"}>
+                                        🪪 Back
+                                      </Badge>
+                                      <Badge size="xs" fontSize="9px" px={1.5} py={0.5} borderRadius="full" colorScheme={hasReceipt ? "green" : "gray"} variant={hasReceipt ? "solid" : "subtle"}>
+                                        🧾 Receipt
+                                      </Badge>
+                                    </HStack>
+                                    <Flex justify="flex-end">{renderActions(student)}</Flex>
+                                  </VStack>
+                                </CardBody>
+                              </Card>
+                            );
+                          })}
                         </SimpleGrid>
                       </Box>
                     )) : <Box py={10} textAlign="center"><Text fontWeight="800">No students match the selected filters.</Text></Box>}
                   </VStack>
                 ) : (
-                  <TableContainer>
-                    <Table size="sm">
-                      <Thead>
-                        <Tr>
-                          <Th>Student</Th>
-                          <Th>Learning Department</Th>
-                          <Th>Class</Th>
-                          <Th>Payment Option</Th>
-                          <Th textAlign="right">Actions</Th>
-                        </Tr>
-                      </Thead>
-                      <Tbody>
-                        {visibleStudents.length ? visibleStudents.map((student) => (
-                          <Tr key={student.id} _hover={{ bg: rowHoverBg }}>
-                            <Td>
-                              <Text fontWeight="800" color={headingColor}>{student.fullName}</Text>
-                              <Text fontSize="xs" color={mutedText}>{student.studentId}</Text>
-                            </Td>
-                            <Td><Badge colorScheme="green" variant="subtle">{student.learningDepartment || "Unassigned"}</Badge></Td>
-                            <Td><Badge colorScheme={getStateColor(getClassOutcome(student))}>{getClassOutcome(student)}</Badge></Td>
-                            <Td><Badge colorScheme={getStateColor(student.paymentOption)}>{student.paymentOption || "Full Payment"}</Badge></Td>
-                            <Td textAlign="right">{renderActions(student)}</Td>
-                          </Tr>
-                        )) : (
-                          <Tr><Td colSpan={5}><Box py={10} textAlign="center"><Text fontWeight="800" color={headingColor}>No students match the selected filters.</Text><Text fontSize="sm" color={mutedText}>Adjust search/filter settings or add a new student.</Text></Box></Td></Tr>
-                        )}
-                      </Tbody>
-                    </Table>
-                  </TableContainer>
+                  <StudentRegistryTable students={visibleStudents} onDetail={handleDetail} onEdit={handleEdit} onDelete={handleDelete} />
                 )}
 
-                {filteredStudents.length > STUDENTS_PER_PAGE && (
+                {(
+
                   <Flex justify="space-between" align="center" gap={3} mt={5} flexWrap="wrap">
+                    <HStack spacing={3} color={mutedText}>
+                      <Text fontSize="sm">Show</Text>
+                      <Select aria-label="Student rows per page" bg={fieldBg} width="90px" borderRadius="12px" value={rowsPerPage} onChange={(event) => { setRowsPerPage(event.target.value); setCurrentPage(1); }}>
+                        <option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="all">All</option>
+                      </Select>
+                      <Text fontSize="sm">per page</Text>
+                    </HStack>
                     <Text fontSize="sm" color={mutedText}>
-                      Showing {(currentPage - 1) * STUDENTS_PER_PAGE + 1}-{Math.min(currentPage * STUDENTS_PER_PAGE, filteredStudents.length)} of {filteredStudents.length}
+                      Showing {filteredStudents.length ? (safePage - 1) * pageSize + 1 : 0}-{Math.min(safePage * pageSize, filteredStudents.length)} of {filteredStudents.length}
                     </Text>
                     <ButtonGroup size="sm" variant="outline">
-                      <Button onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} isDisabled={currentPage === 1}>Previous</Button>
-                      <Button pointerEvents="none" variant="ghost">Page {currentPage} of {totalPages}</Button>
-                      <Button onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} isDisabled={currentPage === totalPages}>Next</Button>
+                      <Button onClick={() => setCurrentPage(Math.max(1, safePage - 1))} isDisabled={safePage === 1}>Previous</Button>
+                      <PageNumberButtons page={safePage} totalPages={totalPages} onChange={setCurrentPage} />
+                      <Button onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))} isDisabled={safePage === totalPages}>Next</Button>
                     </ButtonGroup>
                   </Flex>
                 )}
@@ -2156,206 +2443,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
         </ModalContent>
       </Modal>
 
-      <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="lg">
-        <DrawerOverlay />
-        <DrawerContent bg={pageBg}>
-          <DrawerCloseButton />
-          <DrawerHeader borderBottomWidth="1px" bg={cardBg}>
-            <HStack spacing={3} align="center">
-              <Box p={3} borderRadius="14px" bg={softPanelBg}>
-                <Icon as={FiBookOpen} boxSize={5} color="green.600" />
-              </Box>
-              <Box>
-                <HStack spacing={2} mb={1} flexWrap="wrap">
-                  <Badge colorScheme="green">{selectedStudent?.learningDepartment || "Unassigned"}</Badge>
-                  <Badge colorScheme={getStateColor(selectedStudent?.readinessStatus)}>{selectedStudent?.readinessStatus || "Not assessed"}</Badge>
-                  <Badge colorScheme={getStateColor(selectedStudent?.preferredTimeSlot)}>{selectedStudent?.preferredTimeSlot || "Morning"}</Badge>
-                  <Badge colorScheme={getStateColor(selectedStudent?.paymentOption)}>{selectedStudent?.paymentOption || "Full Payment"}</Badge>
-                  <Badge colorScheme={getStateColor(getClassOutcome(selectedStudent))}>Class {getClassOutcome(selectedStudent)}</Badge>
-                </HStack>
-                <Text color={headingColor}>Student Detail</Text>
-                <Text fontSize="sm" color={mutedText} fontWeight="600">{selectedStudent?.fullName}</Text>
-              </Box>
-            </HStack>
-          </DrawerHeader>
-          <DrawerBody py={6}>
-            {selectedStudent && (
-              <VStack align="stretch" spacing={5}>
-                <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
-                  <CardBody>
-                    <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={4} direction={{ base: "column", md: "row" }}>
-                      <Box>
-                        <HStack spacing={2} mb={2} flexWrap="wrap">
-                          <Badge colorScheme="green" borderRadius="full" px={3} py={1}>{selectedStudent.learningDepartment || "Unassigned"}</Badge>
-                          <Badge colorScheme={getStateColor(selectedStudent.status)} borderRadius="full" px={3} py={1}>{selectedStudent.status || "Active"}</Badge>
-                          <Badge colorScheme={getStateColor(selectedStudent.readinessStatus)} borderRadius="full" px={3} py={1}>{selectedStudent.readinessStatus || "Not assessed"}</Badge>
-                          <Badge colorScheme={getStateColor(selectedStudent.preferredTimeSlot)} borderRadius="full" px={3} py={1}>{selectedStudent.preferredTimeSlot || "Morning"}</Badge>
-                          <Badge colorScheme={getStateColor(selectedStudent.paymentOption)} borderRadius="full" px={3} py={1}>{selectedStudent.paymentOption || "Full Payment"}</Badge>
-                          <Badge colorScheme={getStateColor(getClassOutcome(selectedStudent))} borderRadius="full" px={3} py={1}>Class {getClassOutcome(selectedStudent)}</Badge>
-                          {isCoffeeCuppingCourse(selectedStudent) && (
-                            <Badge colorScheme={getStateColor(selectedStudent.cocPaymentStatus)} borderRadius="full" px={3} py={1}>CoC {selectedStudent.cocPaymentStatus || "Unpaid"}</Badge>
-                          )}
-                        </HStack>
-                        <Heading size="md" color={headingColor}>{selectedStudent.fullName}</Heading>
-                        <Text fontSize="sm" color={mutedText}>{selectedStudent.studentId || "No student ID"} - {selectedStudent.program || selectedStudent.learningDepartment || "No training assigned"}</Text>
-                      </Box>
-                      {workspaceLabel !== "Sales" && (
-                        <Button
-                          leftIcon={<FiPrinter />}
-                          colorScheme="blue"
-                          size="sm"
-                          borderRadius="xl"
-                          fontSize="12px"
-                          fontWeight="700"
-                          onClick={() => onA4DossierOpen()}
-                        >
-                          Print A4 Dossier
-                        </Button>
-                      )}
-                    </Flex>
-                  </CardBody>
-                </Card>
-
-                <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
-                  <CardBody>
-                    <HStack mb={4} spacing={3}>
-                      <Box p={2.5} borderRadius="12px" bg={softPanelBg}>
-                        <Icon as={FiBookOpen} boxSize={4} color="green.600" />
-                      </Box>
-                      <Box>
-                        <Heading size="sm" color={headingColor}>Learning Details</Heading>
-                        <Text fontSize="sm" color={mutedText}>Department, program, and readiness information.</Text>
-                      </Box>
-                    </HStack>
-                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                      <DetailItem label="Learning Department" value={selectedStudent.learningDepartment} />
-                      <DetailItem label="Training Title" value={selectedStudent.program || selectedStudent.learningDepartment || "Not specified"} />
-                      <DetailItem label="Enrollment Date" value={formatDate(selectedStudent.enrollmentDate)} />
-                      <DetailItem label="Exam Date" value={formatDate(selectedStudent.examDate)} />
-                      <DetailItem label="Preferred Time Slot" value={selectedStudent.preferredTimeSlot || "Morning"} />
-                      <DetailItem label="Readiness Status" value={selectedStudent.readinessStatus || "Not assessed"} />
-                      <DetailItem label="Payment Option" value={selectedStudent.paymentOption || "Full Payment"} />
-                      <DetailItem label="Payment Bank" value={selectedStudent.paymentBank} />
-                      <DetailItem label="FS Number" value={selectedStudent.fsNumber} />
-                      <DetailItem label="Class Completed" value={selectedStudent.classCompleted ? "Yes" : "No"} />
-                      <DetailItem label="Class Outcome" value={getClassOutcome(selectedStudent)} />
-                      {isCoffeeCuppingCourse(selectedStudent) && (
-                        <DetailItem label="CoC Payment Status" value={selectedStudent.cocPaymentStatus || "Unpaid"} />
-                      )}
-                      <DetailItem label="Registration Status" value={selectedStudent.status} />
-                    </SimpleGrid>
-                  </CardBody>
-                </Card>
-
-                {(selectedStudent.passportPhoto || selectedStudent.nationalIdFrontImage || selectedStudent.nationalIdBackImage || selectedStudent.nationalIdImage || selectedStudent.paymentScreenshot) && (
-                  <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
-                    <CardBody>
-                      <HStack mb={4} spacing={3}>
-                        <Box p={2.5} borderRadius="12px" bg={softPanelBg}>
-                          <Icon as={FiCamera} boxSize={4} color="green.600" />
-                        </Box>
-                        <Box>
-                          <Heading size="sm" color={headingColor}>Verification Documents & Photos</Heading>
-                          <Text fontSize="sm" color={mutedText}>Passport photo, optional National ID front/back, and payment screenshot.</Text>
-                        </Box>
-                      </HStack>
-                      <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
-                        {selectedStudent.passportPhoto ? (
-                          <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
-                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>3×4 Passport Photo</Text>
-                            <Image src={selectedStudent.passportPhoto} alt="Passport Photo" maxH="140px" mx="auto" borderRadius="md" objectFit="cover" />
-                          </Box>
-                        ) : null}
-                        {(selectedStudent.nationalIdFrontImage || selectedStudent.nationalIdImage) ? (
-                          <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
-                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>National ID Front</Text>
-                            <Image src={selectedStudent.nationalIdFrontImage || selectedStudent.nationalIdImage} alt="National ID Front" maxH="140px" mx="auto" borderRadius="md" objectFit="contain" />
-                          </Box>
-                        ) : null}
-                        {selectedStudent.nationalIdBackImage ? (
-                          <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
-                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>National ID Back</Text>
-                            <Image src={selectedStudent.nationalIdBackImage} alt="National ID Back" maxH="140px" mx="auto" borderRadius="md" objectFit="contain" />
-                          </Box>
-                        ) : null}
-                        {selectedStudent.paymentScreenshot ? (
-                          <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={3} bg={cardAltBg} textAlign="center">
-                            <Text fontSize="xs" fontWeight="700" color={headingColor} mb={2}>Payment Screenshot</Text>
-                            <Image src={selectedStudent.paymentScreenshot} alt="Payment Screenshot" maxH="140px" mx="auto" borderRadius="md" objectFit="contain" />
-                          </Box>
-                        ) : null}
-                      </SimpleGrid>
-                    </CardBody>
-                  </Card>
-                )}
-
-                {workspaceLabel === "Sales" && (
-                  <Card bg={cardBg} border="1px solid" borderColor="blue.200" borderRadius="18px" shadow="sm">
-                    <CardBody>
-                      <HStack mb={4} spacing={3}>
-                        <Box p={2.5} borderRadius="12px" bg="blue.50">
-                          <Icon as={FiPhoneCall} boxSize={4} color="blue.600" />
-                        </Box>
-                        <Box>
-                          <Heading size="sm" color={headingColor}>Sales Customer Follow-up Details</Heading>
-                          <Text fontSize="sm" color={mutedText}>CRM lead status, call schedule, and sales conversation logs.</Text>
-                        </Box>
-                      </HStack>
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <DetailItem label="Call Status" value={selectedStudent.salesCallStatus || "Not Called"} />
-                        <DetailItem label="Follow-up Status" value={selectedStudent.salesFollowupStatus || "Pending"} />
-                        <DetailItem label="Schedule Preference" value={selectedStudent.salesSchedulePreference || "Regular"} />
-                        <DetailItem label="Package Scope" value={selectedStudent.salesPackageScope || "Local"} />
-                        <DetailItem label="Follow-up Date" value={formatDate(selectedStudent.salesFollowupDate)} />
-                        <DetailItem label="Course Linked" value={selectedStudent.program || selectedStudent.learningDepartment || "Not specified"} />
-                      </SimpleGrid>
-                      {selectedStudent.salesFollowupNote && (
-                        <Box mt={4} pt={3} borderTopWidth="1px" borderColor={borderColor}>
-                          <Text fontSize="xs" fontWeight="800" color="gray.500" textTransform="uppercase" mb={1}>
-                            Customer Follow-up Note
-                          </Text>
-                          <Box p={3} bg={salesPanelBg} borderRadius="md" border="1px solid" borderColor="blue.100">
-                            <Text fontSize="sm" whiteSpace="pre-wrap">{selectedStudent.salesFollowupNote}</Text>
-                          </Box>
-                        </Box>
-                      )}
-                    </CardBody>
-                  </Card>
-                )}
-
-                <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
-                  <CardBody>
-                    <HStack mb={4} spacing={3}>
-                      <Box p={2.5} borderRadius="12px" bg={softPanelBg}>
-                        <Icon as={FiCheckCircle} boxSize={4} color="green.600" />
-                      </Box>
-                      <Box>
-                        <Heading size="sm" color={headingColor}>Registration Record</Heading>
-                        <Text fontSize="sm" color={mutedText}>CS member and update history.</Text>
-                      </Box>
-                    </HStack>
-                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                      <DetailItem label="Registering CS Member" value={selectedStudent.registeredBy || "Unknown CS member"} />
-                      <DetailItem label="Registrar Email" value={selectedStudent.registeredByEmail} />
-                      <DetailItem label="Registration Date" value={formatDateTime(selectedStudent.createdAt)} />
-                      <DetailItem label="Last Updated By" value={selectedStudent.updatedBy} />
-                      <DetailItem label="Last Updated At" value={formatDateTime(selectedStudent.updatedAt)} />
-                    </SimpleGrid>
-                  </CardBody>
-                </Card>
-                <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="18px" shadow="sm">
-                  <CardBody>
-                    <Text fontSize="xs" fontWeight="800" color="gray.500" textTransform="uppercase" mb={2}>Notes</Text>
-                    <Box border="1px solid" borderColor={borderColor} borderRadius="14px" p={4} bg={cardAltBg}>
-                      <Text whiteSpace="pre-wrap">{selectedStudent.notes || "No notes recorded."}</Text>
-                    </Box>
-                  </CardBody>
-                </Card>
-              </VStack>
-            )}
-          </DrawerBody>
-        </DrawerContent>
-      </Drawer>
+      <StudentDetailView student={selectedStudent} isOpen={isOpen} onClose={onClose} onEdit={handleEdit} onPrint={workspaceLabel !== "Sales" ? onA4DossierOpen : undefined} />
 
       {/* Modern Student Delete Confirmation Dialog */}
       <AlertDialog

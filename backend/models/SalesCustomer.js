@@ -99,6 +99,35 @@ const salesCustomerSchema = new mongoose.Schema({
   courseId: {
     type: String
   },
+  // Verification and payment proof fields for Completed sales
+  passportPhoto: {
+    type: String,
+    default: ''
+  },
+  nationalIdFrontImage: {
+    type: String,
+    default: ''
+  },
+  nationalIdBackImage: {
+    type: String,
+    default: ''
+  },
+  paymentScreenshot: {
+    type: String,
+    default: ''
+  },
+  paymentOption: {
+    type: String,
+    default: 'Full Payment'
+  },
+  paymentBank: {
+    type: String,
+    default: ''
+  },
+  fsNumber: {
+    type: String,
+    default: ''
+  },
   // Commission fields
   coursePrice: {
     type: Number,
