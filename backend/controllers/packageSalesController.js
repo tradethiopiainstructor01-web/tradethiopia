@@ -1,6 +1,7 @@
 const Buyer = require('../models/Buyer');
 const Seller = require('../models/Seller');
 const User = require('../models/user.model.js');
+const Package = require('../models/Package');
 const PackageSale = require('../models/PackageSale');
 const PackageSalesActivity = require('../models/PackageSalesActivity');
 
@@ -54,6 +55,12 @@ const buildPackageRows = (customers, customerType, agentLookup = {}) => {
 
 const buildPackageSaleRows = (sales = [], agentLookup = {}) => sales.map((sale) => {
   const resolvedAgentId = sale.agentId ? sale.agentId.toString() : null;
+  const packagePrice = Number(sale.packagePrice || sale.packageValue || (sale.packageType ? parseInt(sale.packageType) * 1000 : 0));
+  const commissionRate = sale.commissionRate || 0.075;
+  const totalCommission = Number(sale.totalCommission || (packagePrice * commissionRate).toFixed(2));
+  const firstCommissionAmount = Number(sale.firstCommissionAmount || (totalCommission / 2).toFixed(2));
+  const secondCommissionAmount = Number(sale.secondCommissionAmount || (totalCommission / 2).toFixed(2));
+
   return {
     id: `manual-${sale._id}`,
     customerId: sale._id,
@@ -67,12 +74,29 @@ const buildPackageSaleRows = (sales = [], agentLookup = {}) => sales.map((sale) 
     packageId: sale._id,
     packageName: sale.packageName || 'Not specified',
     packageType: sale.packageType || 'Not specified',
+    market: sale.market || 'Local',
+    packagePrice,
+    packageValue: packagePrice,
+    commissionRate,
+    totalCommission,
+    firstCommissionAmount,
+    secondCommissionAmount,
+    firstCommissionApproved: sale.firstCommissionApproved || false,
+    secondCommissionApproved: sale.secondCommissionApproved || false,
+    commissionApproved: sale.commissionApproved || false,
+    firstCommissionPaid: sale.firstCommissionPaid || false,
+    secondCommissionPaid: sale.secondCommissionPaid || false,
+    firstCommissionPaidAt: sale.firstCommissionPaidAt,
+    secondCommissionPaidAt: sale.secondCommissionPaidAt,
+    payrollMonth: sale.payrollMonth || '',
+    dealHistory: sale.dealHistory || [],
     country: sale.country || 'Not specified',
     industry: sale.industry || 'Not specified',
     purchaseDate: sale.purchaseDate || sale.createdAt,
     expiryDate: sale.expiryDate || null,
     status: sale.status || 'Active',
     callStatus: sale.callStatus || 'Not Called',
+    notes: sale.notes || ''
   };
 });
 
@@ -84,7 +108,7 @@ const loadPackageRows = async () => {
       Seller.find()
         .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId'),
       PackageSale.find()
-        .select('customerName contactPerson email phoneNumber packageName packageType purchaseDate expiryDate status callStatus agentId agentName customerType')
+        .select('customerName contactPerson email phoneNumber packageName packageType market packagePrice packageValue commissionRate totalCommission firstCommissionAmount secondCommissionAmount firstCommissionApproved secondCommissionApproved commissionApproved firstCommissionPaid secondCommissionPaid firstCommissionPaidAt secondCommissionPaidAt payrollMonth dealHistory purchaseDate expiryDate status callStatus agentId agentName customerType notes createdAt')
     ]);
 
     const agentIds = [
@@ -140,6 +164,8 @@ const createPackageSale = async (req, res) => {
       phoneNumber,
       packageName,
       packageType,
+      market,
+      packagePrice: inputPrice,
       purchaseDate,
       expiryDate,
       status,
@@ -157,13 +183,47 @@ const createPackageSale = async (req, res) => {
     const resolvedAgentId = agentId || currentAgent._id?.toString?.() || currentAgent.id;
     const resolvedAgentName = agentName || currentAgent.fullName || currentAgent.username || currentAgent.name || 'Package Sales';
 
+    // Resolve true price from Package catalog if not directly provided
+    let price = Number(inputPrice) || 0;
+    const marketValue = (market || 'Local').toString().toLowerCase() === 'international' ? 'International' : 'Local';
+    const pkgNum = parseInt(packageType, 10);
+    if (!price && !Number.isNaN(pkgNum)) {
+      const catalogPkg = await Package.findOne({ market: marketValue, packageNumber: pkgNum });
+      if (catalogPkg && catalogPkg.price) {
+        price = catalogPkg.price;
+      }
+    }
+
+    const commissionRate = 0.075;
+    const totalCommission = Number((price * commissionRate).toFixed(2));
+    const firstCommissionAmount = Number((totalCommission / 2).toFixed(2));
+    const secondCommissionAmount = Number((totalCommission / 2).toFixed(2));
+
+    const initialHistory = [
+      {
+        stage: 'deal_created',
+        title: 'Deal Registered',
+        description: `Package deal registered by ${resolvedAgentName} for ETB ${price.toLocaleString()}`,
+        timestamp: purchaseDate ? new Date(purchaseDate) : new Date(),
+        updatedBy: resolvedAgentName
+      }
+    ];
+
     const sale = new PackageSale({
       customerName,
       contactPerson,
       email,
       phoneNumber,
-      packageName,
+      packageName: packageName || (pkgNum ? `Package ${pkgNum}` : 'Package'),
       packageType,
+      market: marketValue,
+      packagePrice: price,
+      packageValue: price,
+      commissionRate,
+      totalCommission,
+      firstCommissionAmount,
+      secondCommissionAmount,
+      dealHistory: initialHistory,
       purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
       expiryDate: expiryDate ? new Date(expiryDate) : undefined,
       status,

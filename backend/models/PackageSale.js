@@ -57,7 +57,63 @@ const PackageSaleSchema = new mongoose.Schema({
   notes: {
     type: String,
     default: ''
-  }
+  },
+  market: {
+    type: String,
+    enum: ['Local', 'International'],
+    default: 'Local'
+  },
+  packagePrice: {
+    type: Number,
+    default: 0
+  },
+  packageValue: {
+    type: Number,
+    default: 0
+  },
+  commissionRate: {
+    type: Number,
+    default: 0.075
+  },
+  totalCommission: {
+    type: Number,
+    default: 0
+  },
+  firstCommissionAmount: {
+    type: Number,
+    default: 0
+  },
+  secondCommissionAmount: {
+    type: Number,
+    default: 0
+  },
+  firstCommissionPaid: {
+    type: Boolean,
+    default: false
+  },
+  secondCommissionPaid: {
+    type: Boolean,
+    default: false
+  },
+  firstCommissionPaidAt: {
+    type: Date
+  },
+  secondCommissionPaidAt: {
+    type: Date
+  },
+  payrollMonth: {
+    type: String,
+    default: ''
+  },
+  dealHistory: [
+    {
+      stage: { type: String, default: 'deal_created' },
+      title: { type: String, default: 'Deal Created' },
+      description: { type: String, default: '' },
+      timestamp: { type: Date, default: Date.now },
+      updatedBy: { type: String, default: '' }
+    }
+  ]
 }, {
   timestamps: true
 });
