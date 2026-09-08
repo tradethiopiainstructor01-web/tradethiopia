@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Box,
     Button,
@@ -49,6 +49,13 @@ const LoginPage = () => {
     const toast = useToast();
     const setCurrentUser = useUserStore((state) => state.setCurrentUser);
     const redirectAfterLogin = (path) => navigate(path, { replace: true });
+
+    useEffect(() => {
+        const img1 = new window.Image();
+        img1.src = '/assets/newyear/adey_abeba_bouquet.jpg';
+        const img2 = new window.Image();
+        img2.src = '/assets/newyear/ethiopian_newyear_art.jpg';
+    }, []);
 
 const handleLogin = async (event) => {
     event?.preventDefault();
@@ -262,6 +269,8 @@ const handleLogin = async (event) => {
                                     w="100%"
                                     h="250px"
                                     objectFit="cover"
+                                    loading="eager"
+                                    decoding="async"
                                     transition="transform 0.4s ease"
                                     _hover={{ transform: 'scale(1.04)' }}
                                 />
@@ -513,6 +522,8 @@ const handleLogin = async (event) => {
                                     w="100%"
                                     h="250px"
                                     objectFit="cover"
+                                    loading="eager"
+                                    decoding="async"
                                     transition="transform 0.4s ease"
                                     _hover={{ transform: 'scale(1.04)' }}
                                 />
