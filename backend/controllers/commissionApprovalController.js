@@ -9,6 +9,7 @@ const asyncHandler = require('express-async-handler');
 
 const buildPackageSaleRows = (sales = [], agentLookup = {}) => sales.map((sale) => {
   const agentId = sale.agentId ? sale.agentId.toString() : null;
+  const packagePrice = Number(sale.packagePrice || sale.packageValue || 0);
   return {
     id: sale._id.toString(),
     customerId: sale._id,
@@ -22,6 +23,9 @@ const buildPackageSaleRows = (sales = [], agentLookup = {}) => sales.map((sale) 
     packageId: sale._id,
     packageName: sale.packageName || 'Unknown Package',
     packageType: sale.packageType || 'Not specified',
+    market: sale.market || 'Local',
+    packagePrice,
+    packageValue: packagePrice,
     country: sale.country || 'Not specified',
     industry: sale.industry || 'Not specified',
     purchaseDate: sale.purchaseDate || sale.createdAt,
@@ -30,6 +34,7 @@ const buildPackageSaleRows = (sales = [], agentLookup = {}) => sales.map((sale) 
     firstCommissionApproved: sale.firstCommissionApproved || false,
     secondCommissionApproved: sale.secondCommissionApproved || false,
     commissionApproved: sale.commissionApproved || false,
+    dealHistory: sale.dealHistory || [],
     approvedAt: sale.approvedAt,
     approvedBy: sale.approvedBy,
     source: 'PackageSale'
@@ -66,7 +71,7 @@ const getPendingCommissions = asyncHandler(async (req, res) => {
       Seller.find()
         .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId'),
       PackageSale.find()
-        .select('customerName contactPerson email phoneNumber packageName packageType purchaseDate expiryDate status agentId agentName customerType firstCommissionApproved secondCommissionApproved commissionApproved approvedAt approvedBy createdAt')
+        .select('customerName contactPerson email phoneNumber packageName packageType market packagePrice packageValue purchaseDate expiryDate status agentId agentName customerType firstCommissionApproved secondCommissionApproved commissionApproved dealHistory approvedAt approvedBy createdAt')
     ]);
 
     const agentIds = [
@@ -112,6 +117,12 @@ const getPendingCommissions = asyncHandler(async (req, res) => {
           purchaseDate: pkg?.purchaseDate || customer.createdAt,
           expiryDate: pkg?.expiryDate || null,
           status: pkg?.status || 'Active',
+          firstCommissionApproved: pkg?.firstCommissionApproved || customer.firstCommissionApproved || false,
+          secondCommissionApproved: pkg?.secondCommissionApproved || customer.secondCommissionApproved || false,
+          commissionApproved: pkg?.commissionApproved || customer.commissionApproved || false,
+          approvedAt: pkg?.approvedAt || customer.approvedAt,
+          approvedBy: pkg?.approvedBy || customer.approvedBy,
+          source: customerType
         };
       };
 
@@ -147,7 +158,7 @@ const getPendingCommissions = asyncHandler(async (req, res) => {
     // Calculate commission splits for each package sale
     const commissionRate = 0.075;
     const pendingCommissions = sortedRows.map(row => {
-      const packageValue = row.packageType ? parseInt(row.packageType) * 1000 : 0;
+      const packageValue = Number(row.packagePrice || row.packageValue) || (row.packageType ? parseInt(row.packageType) * 1000 : 0);
       const grossCommission = packageValue * commissionRate;
       const commissionTax = 0;
       const netCommission = grossCommission - commissionTax;
@@ -243,9 +254,9 @@ const approveCommission = asyncHandler(async (req, res) => {
       agentUser = await User.findById(customer.agentId).select('fullName username');
     }
 
-    // Calculate commission based on package type
-    const packageValue = customer.packageType ? parseInt(customer.packageType) * 1000 : 0;
-    const commissionRate = 0.075;
+    // Calculate commission based on actual package price or fallback
+    const packageValue = Number(customer.packagePrice || customer.packageValue) || (customer.packageType ? parseInt(customer.packageType) * 1000 : 0);
+    const commissionRate = customer.commissionRate || 0.075;
     const grossCommission = packageValue * commissionRate;
     const commissionTax = 0;
     const netCommission = grossCommission - commissionTax;
@@ -255,20 +266,47 @@ const approveCommission = asyncHandler(async (req, res) => {
     // Handle partial approval based on the request body
     const { part } = req.body || {};
     let commissionToAdd = netCommission;
+    const approverName = req.user?.fullName || req.user?.username || 'Finance';
+    if (!Array.isArray(customer.dealHistory)) {
+      customer.dealHistory = [];
+    }
     
     if (part === 'first') {
       // Only approve first commission
       commissionToAdd = firstCommission;
       // Set first commission as approved but keep overall status as partial
       customer.firstCommissionApproved = true;
+      customer.dealHistory.push({
+        stage: 'milestone_1_approved',
+        title: 'Advance Paid & Milestone 1 Approved',
+        description: `50% commission (ETB ${firstCommission.toLocaleString()}) approved by ${approverName}`,
+        timestamp: new Date(),
+        updatedBy: approverName
+      });
     } else if (part === 'second') {
       // Only approve second commission
       commissionToAdd = secondCommission;
       // Set second commission as approved but keep overall status as partial
       customer.secondCommissionApproved = true;
+      customer.dealHistory.push({
+        stage: 'milestone_2_approved',
+        title: 'Project Delivered & Milestone 2 Approved',
+        description: `50% commission (ETB ${secondCommission.toLocaleString()}) approved by ${approverName}`,
+        timestamp: new Date(),
+        updatedBy: approverName
+      });
     } else {
       // Approve both commissions
       customer.commissionApproved = true;
+      customer.firstCommissionApproved = true;
+      customer.secondCommissionApproved = true;
+      customer.dealHistory.push({
+        stage: 'fully_approved',
+        title: 'Full Commission Approved',
+        description: `100% commission (ETB ${netCommission.toLocaleString()}) approved by ${approverName}`,
+        timestamp: new Date(),
+        updatedBy: approverName
+      });
     }
     
     customer.approvedAt = new Date();

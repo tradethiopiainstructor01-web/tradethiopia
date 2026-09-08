@@ -1040,11 +1040,11 @@ const fetchPayrollDataHandler = async () => {
     return {
       customerId: sale.customerId || sale._id,
       customerName: sale.customerName || '',
-      saleAmount: sale.saleAmount ?? sale.coursePrice ?? sale.commission?.saleAmount ?? 0,
+      saleAmount: sale.saleAmount ?? sale.coursePrice ?? sale.packagePrice ?? sale.commission?.saleAmount ?? 0,
       grossCommission: Number(commissionSource.grossCommission) || 0,
       commissionTax: Number(commissionSource.commissionTax) || 0,
       netCommission: Number(commissionSource.netCommission) || 0,
-      date: sale.date
+      date: sale.date || sale.purchaseDate
     };
   };
 
@@ -1074,7 +1074,7 @@ const fetchPayrollDataHandler = async () => {
         customerId: sale.customerId,
         customerName: sale.customerName,
         saleAmount: sale.saleAmount || 0,
-        commissionRate: 0.07,
+        commissionRate: 0.075,
         grossCommission: sale.grossCommission || 0,
         commissionTax: sale.commissionTax || 0,
         netCommission: sale.netCommission || 0,
@@ -2819,59 +2819,93 @@ const fetchPayrollDataHandler = async () => {
       {/* ========================================================================= */}
       {/* 3. COMMISSIONS & BONUSES VIEW */}
       {/* ========================================================================= */}
-      {isCommissionsView && (
-        <Box>
-          <Grid templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }} gap={4} mb={6}>
-            <StatCard title="Commission Sales Count" value={payrollData.reduce((sum, emp) => sum + (emp.numberOfSales || 0), 0)} color="purple.500" />
-            <StatCard title="Total Gross Commission" value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.commissionGross || emp.salesCommission || 0), 0))} color="blue.500" />
-            <StatCard title="Commission Tax Withheld" value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.commissionTax || 0), 0))} color="orange.500" />
-            <StatCard title="Net Commission Payout" value={formatCurrency(payrollData.reduce((sum, emp) => sum + (emp.salesCommission || 0), 0))} color="teal.500" isBold={true} />
-          </Grid>
+      {isCommissionsView && (() => {
+        const commissionEmployees = payrollData.filter((emp) => {
+          const dept = String(emp.department || emp.userId?.department || '').toLowerCase();
+          const role = String(emp.role || emp.userId?.role || '').toLowerCase();
+          const hasSales = (emp.numberOfSales || 0) > 0 || (emp.salesCommission || 0) > 0 || (emp.commissionGross || 0) > 0;
+          return dept.includes('sale') || role.includes('sale') || hasSales;
+        });
 
-          <Card bg={cardBg} boxShadow="md" borderRadius="lg">
-            <CardBody py={4} px={4}>
-              <Flex justify="space-between" align="center" mb={4}>
-                <Heading size="md" color={headerColor}>Sales Agents Commission Breakdown (7.5% Rate)</Heading>
-                <Text fontSize="xs" color="gray.500">Based on Ethiopian Sales Product Rules</Text>
-              </Flex>
-              <Box overflowX="auto">
-                <Table variant="simple" size="sm">
-                  <Thead>
-                    <Tr bg={headerBg}>
-                      <Th color="white">Agent Name</Th>
-                      <Th color="white">Department</Th>
-                      <Th color="white">Sales Count</Th>
-                      <Th color="white">Commission Rate</Th>
-                      <Th color="white">Gross Commission</Th>
-                      <Th color="white">Tax Withheld</Th>
-                      <Th color="white">Net Commission</Th>
-                      <Th color="white">Actions</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {payrollData.map((employee) => (
-                      <Tr key={employee._id || employee.userId?._id}>
-                        <Td fontWeight="medium">{employee.employeeName || employee.userId?.fullName || 'Unknown'}</Td>
-                        <Td>{employee.department}</Td>
-                        <Td><Badge colorScheme="purple">{employee.numberOfSales || 0} Sales</Badge></Td>
-                        <Td><Badge colorScheme="green">7.5%</Badge></Td>
-                        <Td>{formatCurrency(employee.commissionGross || employee.salesCommission || 0)}</Td>
-                        <Td color="orange.500">{formatCurrency(employee.commissionTax || 0)}</Td>
-                        <Td fontWeight="bold" color="teal.600">{formatCurrency(employee.salesCommission || 0)}</Td>
-                        <Td>
-                          <Button size="xs" colorScheme="orange" onClick={() => openCommissionModal(employee)}>
-                            Manage Commission
-                          </Button>
-                        </Td>
+        const totalSalesCount = commissionEmployees.reduce((sum, emp) => sum + (emp.numberOfSales || 0), 0);
+        const totalGross = commissionEmployees.reduce((sum, emp) => sum + (emp.commissionGross || emp.salesCommission || 0), 0);
+        const totalTax = commissionEmployees.reduce((sum, emp) => sum + (emp.commissionTax || 0), 0);
+        const totalNet = commissionEmployees.reduce((sum, emp) => {
+          const gross = emp.commissionGross || emp.salesCommission || 0;
+          const tax = emp.commissionTax || 0;
+          return sum + (gross - tax > 0 ? gross - tax : emp.salesCommission || 0);
+        }, 0);
+
+        return (
+          <Box>
+            <Grid templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }} gap={4} mb={6}>
+              <StatCard title="Active Sales Agents" value={commissionEmployees.length} color="purple.500" />
+              <StatCard title="Commission Sales Count" value={totalSalesCount} color="blue.500" />
+              <StatCard title="Total Gross Commission" value={formatCurrency(totalGross)} color="orange.500" />
+              <StatCard title="Net Commission Payout" value={formatCurrency(totalNet)} color="teal.500" isBold={true} />
+            </Grid>
+
+            <Card bg={cardBg} boxShadow="md" borderRadius="lg">
+              <CardBody py={4} px={4}>
+                <Flex justify="space-between" align="center" mb={4}>
+                  <Heading size="md" color={headerColor}>Sales Agents Commission Breakdown (7.5% Rate)</Heading>
+                  <Text fontSize="xs" color="gray.500">Filtered for Sales Department & Active Commission Earners</Text>
+                </Flex>
+                <Box overflowX="auto">
+                  <Table variant="simple" size="sm">
+                    <Thead>
+                      <Tr bg={headerBg}>
+                        <Th color="white">Agent Name</Th>
+                        <Th color="white">Department</Th>
+                        <Th color="white">Sales Count</Th>
+                        <Th color="white">Commission Rate</Th>
+                        <Th color="white">Gross Commission</Th>
+                        <Th color="white">Tax Withheld</Th>
+                        <Th color="white">Net Commission</Th>
+                        <Th color="white">Actions</Th>
                       </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </Box>
-            </CardBody>
-          </Card>
-        </Box>
-      )}
+                    </Thead>
+                    <Tbody>
+                      {commissionEmployees.length === 0 ? (
+                        <Tr>
+                          <Td colSpan={8} textAlign="center" py={6} color="gray.500">
+                            No sales agents or commission records found for this period.
+                          </Td>
+                        </Tr>
+                      ) : (
+                        commissionEmployees.map((employee) => {
+                          const gross = employee.commissionGross || employee.salesCommission || 0;
+                          const tax = employee.commissionTax || 0;
+                          const net = gross - tax > 0 ? gross - tax : (employee.salesCommission || 0);
+
+                          return (
+                            <Tr key={employee._id || employee.userId?._id}>
+                              <Td fontWeight="medium">{employee.employeeName || employee.userId?.fullName || 'Unknown'}</Td>
+                              <Td>
+                                <Badge colorScheme="blue">{employee.department || 'Sales'}</Badge>
+                              </Td>
+                              <Td><Badge colorScheme="purple">{employee.numberOfSales || 0} Sales</Badge></Td>
+                              <Td><Badge colorScheme="green">7.5%</Badge></Td>
+                              <Td>{formatCurrency(gross)}</Td>
+                              <Td color="orange.500">{formatCurrency(tax)}</Td>
+                              <Td fontWeight="bold" color="teal.600">{formatCurrency(net)}</Td>
+                              <Td>
+                                <Button size="xs" colorScheme="orange" onClick={() => openCommissionModal(employee)}>
+                                  Manage Commission
+                                </Button>
+                              </Td>
+                            </Tr>
+                          );
+                        })
+                      )}
+                    </Tbody>
+                  </Table>
+                </Box>
+              </CardBody>
+            </Card>
+          </Box>
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* 4. BANK & DISBURSEMENTS VIEW */}
