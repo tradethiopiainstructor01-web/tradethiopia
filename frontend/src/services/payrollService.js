@@ -231,8 +231,8 @@ export const fetchSalesDataForCommission = async (agentId, month, year, startDat
       return {
         customerId: sale._id,
         customerName: sale.customerName,
-        saleAmount: sale.coursePrice || 0,
-        commissionRate: 0.07, // 7% commission rate
+        saleAmount: sale.coursePrice || sale.packagePrice || 0,
+        commissionRate: 0.075, // 7.5% commission rate
         grossCommission: grossCommission,
         commissionTax: commissionTax,
         netCommission: netCommission,

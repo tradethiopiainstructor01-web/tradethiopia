@@ -116,8 +116,9 @@ const buildCommissionRecordFromSales = (userId, userData = {}, month, year, sale
 };
 
 const calculatePackageSaleCommission = (sale = {}) => {
-  const packageValue = Number(sale.packageValue) || ((Number(sale.packageType) || 0) * 1000);
-  const grossCommission = packageValue * 0.075;
+  const packageValue = Number(sale.packagePrice || sale.packageValue) || ((Number(sale.packageType) || 0) * 1000);
+  const commissionRate = Number(sale.commissionRate) || 0.075;
+  const grossCommission = packageValue * commissionRate;
   const commissionTax = 0;
   const netCommission = grossCommission - commissionTax;
 

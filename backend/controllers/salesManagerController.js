@@ -1,4 +1,5 @@
 const SalesCustomer = require('../models/SalesCustomer');
+const PackageSale = require('../models/PackageSale');
 const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
 const { calculateCommission, resolveSaleCommission } = require('../utils/commission');
@@ -123,46 +124,144 @@ const getAllSales = asyncHandler(async (req, res) => {
     }
     console.log('Applied filter:', filter);
 
+    // Build filter for PackageSale
+    let packageFilter = {};
+    if (filter.agentId) {
+      if (mongoose.Types.ObjectId.isValid(filter.agentId)) {
+        packageFilter.$or = [
+          { agentId: new mongoose.Types.ObjectId(filter.agentId) },
+          { agentId: String(filter.agentId) }
+        ];
+      } else {
+        packageFilter.agentId = filter.agentId;
+      }
+    }
+
+    if (req.query.dateFrom || req.query.dateTo) {
+      packageFilter.purchaseDate = {};
+      if (req.query.dateFrom) {
+        packageFilter.purchaseDate.$gte = new Date(req.query.dateFrom);
+      }
+      if (req.query.dateTo) {
+        packageFilter.purchaseDate.$lte = new Date(req.query.dateTo);
+      }
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(escapeRegex(search), 'i');
+      packageFilter.$or = [
+        { customerName: searchRegex },
+        { phoneNumber: searchRegex },
+        { email: searchRegex },
+        { packageName: searchRegex },
+        { notes: searchRegex }
+      ];
+    }
+
+    if (req.query.status) {
+      const statuses = String(req.query.status).split(',').map(s => s.trim()).filter(Boolean);
+      const pkgStatuses = statuses.filter(s => ['Active', 'Pending', 'Expired', 'Cancelled'].includes(s));
+      if (pkgStatuses.length > 0) {
+        packageFilter.status = pkgStatuses.length === 1 ? pkgStatuses[0] : { $in: pkgStatuses };
+      }
+    }
+
     // Get paginated sales with lean objects for speed
-    const [sales, totalCount] = await Promise.all([
+    const [sales, totalCount, packageSales] = await Promise.all([
       SalesCustomer.find(filter)
         .sort({ date: -1 })
         .skip(skip)
         .limit(limit)
         .select('customerName contactTitle phone callStatus followupStatus packageScope date schedulePreference email note supervisorComment courseName courseId coursePrice productInterest source pipelineStatus agentId assignedAt commission commissionApproved approvedAt createdAt updatedAt passportPhoto nationalIdFrontImage nationalIdBackImage paymentScreenshot paymentOption paymentBank fsNumber studentRegistrationId')
         .lean(),
-      SalesCustomer.countDocuments(filter)
+      SalesCustomer.countDocuments(filter),
+      PackageSale.find(packageFilter)
+        .sort({ purchaseDate: -1 })
+        .limit(limit)
+        .lean()
     ]);
-    
-    console.log(`Found ${sales.length} sales records (page ${page}, limit ${limit}, total ${totalCount})`);
 
+    // Format package sales into standard sales format
+    const formattedPackageSales = (packageSales || []).map((pkg) => {
+      const pkgPrice = Number(pkg.packagePrice || pkg.packageValue) || 0;
+      const grossComm = Number(pkg.totalCommission) || Math.round(pkgPrice * 0.075);
+      const netComm = grossComm;
+
+      return {
+        _id: pkg._id,
+        customerName: pkg.customerName,
+        contactTitle: pkg.contactPerson || '',
+        phone: pkg.phoneNumber || '',
+        callStatus: pkg.callStatus || 'Called',
+        followupStatus: pkg.status || 'Active',
+        packageScope: pkg.packageName || `${pkg.market || 'Local'} Package ${pkg.packageType || ''}`,
+        date: pkg.purchaseDate || pkg.createdAt,
+        schedulePreference: '',
+        email: pkg.email || '',
+        note: pkg.notes || '',
+        supervisorComment: '',
+        courseName: pkg.packageName || `${pkg.market || 'Local'} Package ${pkg.packageType || ''}`,
+        courseId: pkg._id,
+        coursePrice: pkgPrice,
+        productInterest: `${pkg.market || 'Local'} Package ${pkg.packageType || ''}`,
+        source: 'PackageSales',
+        pipelineStatus: pkg.status || 'Active',
+        agentId: pkg.agentId ? String(pkg.agentId) : null,
+        assignedAt: pkg.purchaseDate,
+        commission: {
+          grossCommission: grossComm,
+          commissionTax: 0,
+          netCommission: netComm
+        },
+        commissionApproved: Boolean(pkg.secondCommissionPaid || pkg.firstCommissionPaid || pkg.firstCommissionApproved),
+        approvedAt: pkg.secondCommissionPaidAt || pkg.firstCommissionPaidAt || null,
+        market: pkg.market || 'Local',
+        packageType: pkg.packageType,
+        dealHistory: pkg.dealHistory || [],
+        isPackageSale: true,
+        createdAt: pkg.createdAt || pkg.purchaseDate,
+        updatedAt: pkg.updatedAt || pkg.purchaseDate
+      };
+    });
+
+    const combinedSales = [...sales, ...formattedPackageSales].sort(
+      (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
+    );
+    const combinedTotal = totalCount + (packageSales?.length || 0);
+
+    console.log(`Found ${sales.length} course sales + ${formattedPackageSales.length} package sales (total ${combinedTotal})`);
+
+    // If no sales found, return empty array with meta
+    if (combinedSales.length === 0) {
     if (sales.length === 0) {
       console.log('No sales found with current filter');
       return res.json({
         data: [],
         page,
         limit,
-        total: totalCount,
-        totalPages: Math.ceil(totalCount / limit)
+        total: combinedTotal,
+        totalPages: Math.ceil(combinedTotal / limit)
       });
     }
 
-    // Populate agent information manually since agentId is stored as String
-    const agentIds = [...new Set(sales.map(sale => sale.agentId))];
+    // Populate agent information manually since agentId is stored as String/ObjectId
+    const agentIds = [...new Set(combinedSales.map(sale => sale.agentId ? String(sale.agentId) : null))];
     
     // Filter out any falsy agent IDs
-    const validAgentIds = agentIds.filter(id => id);
+    const validAgentIds = agentIds.filter(Boolean);
     if (validAgentIds.length === 0) {
       return res.json({
-        data: sales.map((sale) => ({
+        data: combinedSales.map((sale) => ({
           ...sale,
-          commission: calculateCommission(Number(sale.coursePrice) || 0),
+          commission: sale.isPackageSale
+            ? sale.commission
+            : calculateCommission(Number(sale.coursePrice) || 0),
           agentId: null
         })),
         page,
         limit,
-        total: totalCount,
-        totalPages: Math.max(1, Math.ceil(totalCount / limit))
+        total: combinedTotal,
+        totalPages: Math.max(1, Math.ceil(combinedTotal / limit))
       });
     }
     
@@ -174,8 +273,11 @@ const getAllSales = asyncHandler(async (req, res) => {
     }, {});
 
     // Attach agent information to sales
-    const salesWithAgents = sales.map(sale => {
-      const commissionData = calculateCommission(Number(sale.coursePrice) || 0);
+    const salesWithAgents = combinedSales.map(sale => {
+      const saleAgentKey = sale.agentId ? String(sale.agentId) : null;
+      const commissionData = sale.isPackageSale
+        ? sale.commission
+        : calculateCommission(Number(sale.coursePrice) || 0);
 
       return {
         ...sale,
@@ -185,7 +287,7 @@ const getAllSales = asyncHandler(async (req, res) => {
           commissionTax: commissionData.commissionTax,
           netCommission: commissionData.netCommission
         },
-        agentId: agentMap[sale.agentId] || null
+        agentId: (saleAgentKey && agentMap[saleAgentKey]) || null
       };
     });
 
@@ -193,8 +295,8 @@ const getAllSales = asyncHandler(async (req, res) => {
       data: salesWithAgents,
       page,
       limit,
-      total: totalCount,
-      totalPages: Math.max(1, Math.ceil(totalCount / limit))
+      total: combinedTotal,
+      totalPages: Math.max(1, Math.ceil(combinedTotal / limit))
     });
   } catch (error) {
     console.error('Error in getAllSales:', error);
