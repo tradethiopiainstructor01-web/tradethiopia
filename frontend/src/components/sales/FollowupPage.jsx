@@ -24,6 +24,8 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  InputRightElement,
+  IconButton,
   Icon,
   Text,
   HStack,
@@ -32,18 +34,24 @@ import {
   TabList,
   TabPanels,
   Tab,
-  TabPanel
+  TabPanel,
+  Divider,
+  Tooltip
 } from '@chakra-ui/react';
-import { AddIcon, SearchIcon } from '@chakra-ui/icons';
+import { AddIcon, SearchIcon, CloseIcon } from '@chakra-ui/icons';
 import { 
   FiUser, 
+  FiUsers,
   FiPhone, 
   FiCheckCircle, 
   FiTrendingUp, 
   FiDollarSign,
   FiClock,
   FiDownload,
-  FiUpload
+  FiUpload,
+  FiCalendar,
+  FiX,
+  FiLayers
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
 import FollowupCompletedTable from './FollowupCompletedTable';
@@ -746,358 +754,515 @@ const FollowupPage = () => {
       
       {/* Stats Overview */}
       <SimpleGrid 
-        columns={{ base: 1, sm: 2, md: 2, lg: 5 }} 
-        spacing={{ base: 4, md: 6 }} 
-        mb={{ base: 6, md: 8 }}
+        columns={{ base: 1, sm: 2, md: 3, xl: 5 }} 
+        spacing={{ base: 3, md: 4 }} 
+        mb={5}
       >
-        <Card 
+        {/* Card 1: Total Customers */}
+        <Box 
           bg={cardBg} 
-          boxShadow="lg" 
           borderRadius="xl" 
           borderWidth="1px" 
           borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
+          p={3.5}
+          boxShadow="xs"
+          transition="all 0.25s ease"
+          _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "blue.300" }}
+          position="relative"
+          overflow="hidden"
         >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="blue.100"
-                  color="blue.500"
-                  mr={3}
-                >
-                  <Icon as={FiUser} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Total Customers
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="blue.500" mt={0}>
-                    {stats.total}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="blue.500" />
+          <Flex align="center" justify="space-between">
+            <Box>
+              <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
+                Total Customers
+              </Text>
+              <Text fontSize="2xl" fontWeight="800" color="blue.600" lineHeight="1.1" mt={1}>
+                {stats.total}
+              </Text>
+              <Text fontSize="2xs" color="gray.400" mt={1}>All assigned leads</Text>
+            </Box>
+            <Box p={2.5} borderRadius="lg" bg="blue.50" color="blue.500">
+              <Icon as={FiUsers} boxSize={5} />
+            </Box>
+          </Flex>
+        </Box>
 
-        <Card 
+        {/* Card 2: Completed Deals */}
+        <Box 
           bg={cardBg} 
-          boxShadow="lg" 
           borderRadius="xl" 
           borderWidth="1px" 
           borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
+          p={3.5}
+          boxShadow="xs"
+          transition="all 0.25s ease"
+          _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "green.300" }}
+          position="relative"
+          overflow="hidden"
         >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="green.100"
-                  color="green.500"
-                  mr={3}
-                >
-                  <Icon as={FiCheckCircle} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Completed Deals
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="green.500" mt={0}>
-                    {stats.completedDeals}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="green.500" />
+          <Flex align="center" justify="space-between">
+            <Box>
+              <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
+                Completed Deals
+              </Text>
+              <Text fontSize="2xl" fontWeight="800" color="green.600" lineHeight="1.1" mt={1}>
+                {stats.completedDeals}
+              </Text>
+              <Text fontSize="2xs" color="green.600" fontWeight="600" mt={1}>Successfully closed</Text>
+            </Box>
+            <Box p={2.5} borderRadius="lg" bg="green.50" color="green.500">
+              <Icon as={FiCheckCircle} boxSize={5} />
+            </Box>
+          </Flex>
+        </Box>
 
-        <Card 
+        {/* Card 3: Total Commission */}
+        <Box 
           bg={cardBg} 
-          boxShadow="lg" 
           borderRadius="xl" 
           borderWidth="1px" 
           borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
+          p={3.5}
+          boxShadow="xs"
+          transition="all 0.25s ease"
+          _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "yellow.400" }}
+          position="relative"
+          overflow="hidden"
         >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="yellow.100"
-                  color="yellow.600"
-                  mr={3}
-                >
-                  <Icon as={FiDollarSign} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Total Commission
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="yellow.600" mt={0}>
-                    ETB {typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}
-                  </StatNumber>
-                  <StatHelpText fontSize="xs" color={secondaryTextColor}>from all sales</StatHelpText>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="yellow.500" />
+          <Flex align="center" justify="space-between">
+            <Box minW={0}>
+              <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
+                Total Commission
+              </Text>
+              <Text fontSize="lg" fontWeight="800" color="yellow.600" lineHeight="1.2" mt={1} noOfLines={1} title={`ETB ${typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}`}>
+                ETB {typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}
+              </Text>
+              <Text fontSize="2xs" color="gray.400" mt={1}>From closed sales</Text>
+            </Box>
+            <Box p={2.5} borderRadius="lg" bg="yellow.50" color="yellow.600" flexShrink={0} ml={2}>
+              <Icon as={FiDollarSign} boxSize={5} />
+            </Box>
+          </Flex>
+        </Box>
 
-        <Card 
+        {/* Card 4: Called Customers */}
+        <Box 
           bg={cardBg} 
-          boxShadow="lg" 
           borderRadius="xl" 
           borderWidth="1px" 
           borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
+          p={3.5}
+          boxShadow="xs"
+          transition="all 0.25s ease"
+          _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "purple.300" }}
+          position="relative"
+          overflow="hidden"
         >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="purple.100"
-                  color="purple.500"
-                  mr={3}
-                >
-                  <Icon as={FiPhone} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    Called Customers
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="purple.500" mt={0}>
-                    {stats.calledCustomers}
-                  </StatNumber>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="purple.500" />
+          <Flex align="center" justify="space-between">
+            <Box>
+              <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
+                Called Customers
+              </Text>
+              <Text fontSize="2xl" fontWeight="800" color="purple.600" lineHeight="1.1" mt={1}>
+                {stats.calledCustomers}
+              </Text>
+              <Text fontSize="2xs" color="purple.600" fontWeight="600" mt={1}>
+                {stats.total > 0 ? Math.round((stats.calledCustomers / stats.total) * 100) : 0}% contacted
+              </Text>
+            </Box>
+            <Box p={2.5} borderRadius="lg" bg="purple.50" color="purple.500">
+              <Icon as={FiPhone} boxSize={5} />
+            </Box>
+          </Flex>
+        </Box>
 
-        <Card 
+        {/* Card 5: New Prospects */}
+        <Box 
           bg={cardBg} 
-          boxShadow="lg" 
           borderRadius="xl" 
           borderWidth="1px" 
           borderColor={borderColor}
-          transition="all 0.3s"
-          _hover={{ transform: "translateY(-5px)", boxShadow: "xl" }}
-          h="100%"
+          p={3.5}
+          boxShadow="xs"
+          transition="all 0.25s ease"
+          _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "teal.300" }}
+          position="relative"
+          overflow="hidden"
         >
-          <CardBody p={3}>
-            <Stat>
-              <Flex alignItems="center">
-                <Box
-                  p={2}
-                  borderRadius="lg"
-                  bg="teal.100"
-                  color="teal.500"
-                  mr={3}
-                >
-                  <Icon as={FiTrendingUp} boxSize={5} />
-                </Box>
-                <Box>
-                  <StatLabel fontSize="xs" fontWeight="medium" color={secondaryTextColor} mb={0}>
-                    New Prospects
-                  </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="teal.500" mt={0}>
-                    {stats.new}
-                  </StatNumber>
-                  <StatHelpText mt={1} fontSize="xs">
-                    <StatArrow type='increase' />
-                    {stats.total > 0 ? Math.round((stats.new / stats.total) * 100) : 0}% this month
-                  </StatHelpText>
-                </Box>
-              </Flex>
-            </Stat>
-          </CardBody>
-        </Card>
+          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="teal.500" />
+          <Flex align="center" justify="space-between">
+            <Box>
+              <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
+                New Prospects
+              </Text>
+              <Text fontSize="2xl" fontWeight="800" color="teal.600" lineHeight="1.1" mt={1}>
+                {stats.new}
+              </Text>
+              <Text fontSize="2xs" color="teal.600" fontWeight="600" mt={1}>
+                {stats.total > 0 ? Math.round((stats.new / stats.total) * 100) : 0}% pipeline share
+              </Text>
+            </Box>
+            <Box p={2.5} borderRadius="lg" bg="teal.50" color="teal.500">
+              <Icon as={FiTrendingUp} boxSize={5} />
+            </Box>
+          </Flex>
+        </Box>
       </SimpleGrid>
 
-      {/* Filters and Search */}
-      <Box bg={cardBg} p={4} borderRadius="lg" boxShadow="md" mb={6}>
+      {/* Filters and Search Toolbar */}
+      <Box 
+        bg={cardBg} 
+        p={3.5} 
+        borderRadius="xl" 
+        borderWidth="1px" 
+        borderColor={borderColor} 
+        boxShadow="xs" 
+        mb={5}
+      >
         <Flex 
-          direction={{ base: 'column', md: 'row' }} 
-          wrap="wrap" 
-          gap={4} 
-          align="center"
+          direction={{ base: 'column', lg: 'row' }} 
+          gap={3} 
+          align={{ base: 'stretch', lg: 'center' }}
+          justify="space-between"
+          flexWrap="wrap"
         >
-          <InputGroup width={{ base: '100%', md: '250px' }}>
-            <InputLeftElement pointerEvents="none">
-              <SearchIcon color="gray.300" />
-            </InputLeftElement>
-            <Input
-              placeholder="Search prospects..."
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
+          {/* Left: Search and Select Filters */}
+          <Flex 
+            wrap="wrap" 
+            gap={2.5} 
+            align="center" 
+            flex="1" 
+            minW="0"
+          >
+            {/* Search Input */}
+            <InputGroup size="sm" maxW={{ base: '100%', sm: '220px' }}>
+              <InputLeftElement pointerEvents="none">
+                <SearchIcon color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Search prospects..."
+                value={filters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+                borderRadius="lg"
+                bg="white"
+                borderColor="gray.200"
+                _focus={{ borderColor: 'teal.500', boxShadow: '0 0 0 1px #319795' }}
+              />
+              {filters.search && (
+                <InputRightElement>
+                  <IconButton
+                    icon={<CloseIcon boxSize={2} />}
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => handleFilterChange('search', '')}
+                    aria-label="Clear search"
+                  />
+                </InputRightElement>
+              )}
+            </InputGroup>
+
+            {/* Call Status */}
+            <Select 
+              size="sm"
+              w={{ base: '100%', sm: '125px' }}
+              borderRadius="lg"
+              placeholder="Call Status"
+              value={filters.callStatus}
+              onChange={(e) => handleFilterChange('callStatus', e.target.value)}
+              bg="white"
+              borderColor="gray.200"
+            >
+              <option value="Called">Called</option>
+              <option value="Not Called">Not Called</option>
+              <option value="Busy">Busy</option>
+              <option value="No Answer">No Answer</option>
+              <option value="Callback">Callback</option>
+              <option value="2x Called">2x Called</option>
+            </Select>
+
+            {/* Follow-up Status */}
+            <Select 
+              size="sm"
+              w={{ base: '100%', sm: '135px' }}
+              borderRadius="lg"
+              placeholder="Follow-up Status"
+              value={filters.followupStatus}
+              onChange={(e) => handleFilterChange('followupStatus', e.target.value)}
+              bg="white"
+              borderColor="gray.200"
+            >
+              <option value="">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Completed">Completed</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value="Not Imported">Not Imported</option>
+            </Select>
+
+            {/* Schedule */}
+            <Select 
+              size="sm"
+              w={{ base: '100%', sm: '120px' }}
+              borderRadius="lg"
+              placeholder="Schedule"
+              value={scheduleFilter} 
+              onChange={(e) => setScheduleFilter(e.target.value)}
+              bg="white"
+              borderColor="gray.200"
+            >
+              <option value="">All Schedules</option>
+              <option value="Regular">Regular</option>
+              <option value="Weekend">Weekend</option>
+              <option value="Night">Night</option>
+              <option value="Online">Online</option>
+            </Select>
+
+            {/* Sort By */}
+            <Select 
+              size="sm"
+              w={{ base: '100%', sm: '115px' }}
+              borderRadius="lg"
+              placeholder="Sort By"
+              value={filters.sortBy}
+              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+              bg="white"
+              borderColor="gray.200"
+            >
+              <option value="date">Date</option>
+              <option value="name">Name</option>
+              <option value="callStatus">Call Status</option>
+              <option value="followupStatus">Status</option>
+            </Select>
+
+            {/* Date Filter Type */}
+            <Select 
+              size="sm"
+              w={{ base: '100%', sm: '115px' }}
+              borderRadius="lg"
+              value={dateFilterType} 
+              onChange={(e) => setDateFilterType(e.target.value)}
+              bg="white"
+              borderColor="gray.200"
+            >
+              <option value="All">All Dates</option>
+              <option value="DateRange">Date Range</option>
+              <option value="Day">Day</option>
+              <option value="Week">Week</option>
+              <option value="Year">Year</option>
+            </Select>
+          </Flex>
+
+          {/* Right: Actions (Import, Export, Clear) */}
+          <HStack spacing={2} justify={{ base: 'flex-start', lg: 'flex-end' }} flexShrink={0}>
+            <Button
+              size="sm"
+              borderRadius="lg"
+              leftIcon={<Icon as={FiUpload} boxSize={3.5} />}
+              colorScheme="blue"
+              variant="outline"
+              type="button"
+              onClick={() => customerImportRef.current?.click()}
+              isLoading={isImportingCustomers}
+              isDisabled={isImportingCustomers}
+            >
+              Import Excel
+            </Button>
+            <input
+              ref={customerImportRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportCustomers}
+              style={{ display: 'none' }}
             />
-          </InputGroup>
-          
-          <Select 
-            width={{ base: '100%', md: '150px' }} 
-            placeholder="Call Status"
-            value={filters.callStatus}
-            onChange={(e) => handleFilterChange('callStatus', e.target.value)}
-          >
-            <option value="Called">Called</option>
-            <option value="Not Called">Not Called</option>
-            <option value="Busy">Busy</option>
-            <option value="No Answer">No Answer</option>
-            <option value="Callback">Callback</option>
-            <option value="2x Called">2x Called</option>
-          </Select>
-          
-          <Select 
-            width={{ base: '100%', md: '150px' }} 
-            placeholder="Follow-up Status"
-            value={filters.followupStatus}
-            onChange={(e) => handleFilterChange('followupStatus', e.target.value)}
-          >
-            <option value="">All</option>
-            <option value="Pending">Pending</option>
-            <option value="Completed">Completed</option>
-            <option value="Scheduled">Scheduled</option>
-            <option value="Cancelled">Cancelled</option>
-            <option value="Not Imported">Not Imported</option>
-          </Select>
-          
-          <Select 
-            width={{ base: '100%', md: '150px' }} 
-            placeholder="Sort By"
-            value={filters.sortBy}
-            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-          >
-            <option value="date">Date</option>
-            <option value="name">Name</option>
-            <option value="callStatus">Call Status</option>
-            <option value="followupStatus">Follow-up Status</option>
-          </Select>
 
-          <Select width={{ base: '100%', md: '150px' }} placeholder="Schedule" value={scheduleFilter} onChange={(e) => setScheduleFilter(e.target.value)}>
-            <option value="">All Schedules</option>
-            <option value="Regular">Regular</option>
-            <option value="Weekend">Weekend</option>
-            <option value="Night">Night</option>
-            <option value="Online">Online</option>
-          </Select>
-
-          {/* Date filters: All, Date Range, Week, Year */}
-          <Select width={{ base: '100%', md: '150px' }} value={dateFilterType} onChange={(e) => setDateFilterType(e.target.value)}>
-            <option value="All">All Dates</option>
-            <option value="DateRange">Date Range</option>
-            <option value="Day">Day</option>
-            <option value="Week">Week</option>
-            <option value="Year">Year</option>
-          </Select>
-
-          {dateFilterType === 'DateRange' && (
-            <>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} width={{ base: '100%', md: '150px' }} />
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} width={{ base: '100%', md: '150px' }} />
-            </>
-          )}
-
-          {dateFilterType === 'Day' && (
-            <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setEndDate(e.target.value); }} width={{ base: '100%', md: '150px' }} />
-          )}
-
-          {dateFilterType === 'Week' && (
-            <Input type="week" value={weekValue} onChange={(e) => setWeekValue(e.target.value)} width={{ base: '100%', md: '150px' }} />
-          )}
-
-          {dateFilterType === 'Year' && (
-            <Input type="number" placeholder="Year" value={yearValue} onChange={(e) => setYearValue(e.target.value)} width={{ base: '100%', md: '120px' }} />
-          )}
-
-          <Menu>
-            <MenuButton as={Button} colorScheme="teal" leftIcon={<Icon as={FiDownload} />} type="button">
-              Export
-            </MenuButton>
-            <MenuList minW="220px">
-              {Object.keys(exportColumns).map(col => (
-                <MenuItem key={col} minH="40px" closeOnSelect={false}>
-                  <Checkbox isChecked={exportColumns[col]} onChange={(e) => setExportColumns(prev => ({ ...prev, [col]: e.target.checked }))}>
-                    {col}
-                  </Checkbox>
+            <Menu>
+              <MenuButton 
+                as={Button} 
+                size="sm"
+                borderRadius="lg"
+                colorScheme="teal" 
+                leftIcon={<Icon as={FiDownload} boxSize={3.5} />} 
+                type="button"
+              >
+                Export
+              </MenuButton>
+              <MenuList minW="220px" shadow="lg" borderRadius="xl">
+                {Object.keys(exportColumns).map(col => (
+                  <MenuItem key={col} minH="36px" closeOnSelect={false} py={1} px={3}>
+                    <Checkbox isChecked={exportColumns[col]} onChange={(e) => setExportColumns(prev => ({ ...prev, [col]: e.target.checked }))} colorScheme="teal" fontSize="xs">
+                      {col}
+                    </Checkbox>
+                  </MenuItem>
+                ))}
+                <Divider my={1} />
+                <MenuItem closeOnSelect={false} py={1} px={3}>
+                  <HStack spacing={2} w="100%">
+                    <Button variant="ghost" size="xs" type="button" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=true, acc), {}))} flex="1">Select All</Button>
+                    <Button variant="ghost" size="xs" type="button" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=false, acc), {}))} flex="1">Clear</Button>
+                  </HStack>
                 </MenuItem>
-              ))}
-              <MenuItem closeOnSelect={false}>
-                <Box display="flex" gap={2}>
-                  <Button variant="ghost" size="sm" type="button" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=true, acc), {}))}>Select All</Button>
-                  <Button variant="ghost" size="sm" type="button" onClick={() => setExportColumns(Object.keys(exportColumns).reduce((acc, c) => (acc[c]=false, acc), {}))}>Clear</Button>
-                </Box>
-              </MenuItem>
-              <MenuItem closeOnSelect={false}>
-                <Button colorScheme="teal" size="sm" type="button" onClick={exportVisible}>Download</Button>
-              </MenuItem>
-            </MenuList>
-          </Menu>
+                <MenuItem closeOnSelect={false} py={1.5} px={3}>
+                  <Button colorScheme="teal" size="sm" w="100%" type="button" onClick={exportVisible}>Download Excel/CSV</Button>
+                </MenuItem>
+              </MenuList>
+            </Menu>
 
-          <Button
-            leftIcon={<Icon as={FiUpload} />}
-            colorScheme="blue"
-            variant="outline"
-            type="button"
-            onClick={() => customerImportRef.current?.click()}
-            isLoading={isImportingCustomers}
-            isDisabled={isImportingCustomers}
-          >
-            Import Excel
-          </Button>
-          <input
-            ref={customerImportRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleImportCustomers}
-            style={{ display: 'none' }}
-          />
-
-          <Button onClick={() => { setDateFilterType('All'); setStartDate(''); setEndDate(''); setWeekValue(''); setYearValue(''); }} variant="ghost">Clear Date</Button>
+            {/* Quick Reset All button */}
+            {(filters.search || filters.callStatus || filters.followupStatus || scheduleFilter || dateFilterType !== 'All') && (
+              <Tooltip label="Reset all active filters" hasArrow>
+                <IconButton
+                  size="sm"
+                  borderRadius="lg"
+                  variant="ghost"
+                  colorScheme="red"
+                  icon={<Icon as={FiX} boxSize={4} />}
+                  onClick={() => {
+                    setFilters({ search: '', callStatus: '', followupStatus: '', sortBy: 'date' });
+                    setScheduleFilter('');
+                    setDateFilterType('All');
+                    setStartDate('');
+                    setEndDate('');
+                    setWeekValue('');
+                    setYearValue('');
+                  }}
+                  aria-label="Reset all filters"
+                />
+              </Tooltip>
+            )}
+          </HStack>
         </Flex>
+
+        {/* Secondary Date Range Controls (Conditional) */}
+        {dateFilterType !== 'All' && (
+          <Flex align="center" gap={2} mt={3} pt={2.5} borderTop="1px solid" borderColor="gray.100" flexWrap="wrap">
+            <Text fontSize="xs" fontWeight="600" color="gray.600">
+              <Icon as={FiCalendar} mr={1} verticalAlign="middle" />
+              Date Filter ({dateFilterType}):
+            </Text>
+            {dateFilterType === 'DateRange' && (
+              <HStack spacing={2}>
+                <Input type="date" size="sm" borderRadius="lg" value={startDate} onChange={(e) => setStartDate(e.target.value)} w="140px" bg="white" />
+                <Text fontSize="xs" color="gray.400">to</Text>
+                <Input type="date" size="sm" borderRadius="lg" value={endDate} onChange={(e) => setEndDate(e.target.value)} w="140px" bg="white" />
+              </HStack>
+            )}
+            {dateFilterType === 'Day' && (
+              <Input type="date" size="sm" borderRadius="lg" value={startDate} onChange={(e) => { setStartDate(e.target.value); setEndDate(e.target.value); }} w="140px" bg="white" />
+            )}
+            {dateFilterType === 'Week' && (
+              <Input type="week" size="sm" borderRadius="lg" value={weekValue} onChange={(e) => setWeekValue(e.target.value)} w="150px" bg="white" />
+            )}
+            {dateFilterType === 'Year' && (
+              <Input type="number" size="sm" borderRadius="lg" placeholder="Year" value={yearValue} onChange={(e) => setYearValue(e.target.value)} w="100px" bg="white" />
+            )}
+            <Button
+              size="xs"
+              variant="ghost"
+              colorScheme="red"
+              onClick={() => { setDateFilterType('All'); setStartDate(''); setEndDate(''); setWeekValue(''); setYearValue(''); }}
+            >
+              Clear Date Filter
+            </Button>
+          </Flex>
+        )}
       </Box>
 
-      <Box bg="white" p={0} borderRadius="lg" boxShadow="md" w="100%" maxW="100%">
-        <Tabs isFitted variant="enclosed" colorScheme="teal">
-          <TabList mb="1em">
-            <Tab fontWeight="semibold">Customer Followups</Tab>
-            <Tab fontWeight="semibold">
-              <HStack spacing={2} justify="center">
+      {/* Main Tabs Panel */}
+      <Box bg="transparent" w="100%" maxW="100%">
+        <Tabs variant="unstyled" colorScheme="teal" defaultIndex={0}>
+          <TabList 
+            mb={4} 
+            bg="white" 
+            p={1.5} 
+            borderRadius="xl" 
+            borderWidth="1px" 
+            borderColor={borderColor} 
+            boxShadow="xs"
+            display="inline-flex"
+            w={{ base: '100%', md: 'auto' }}
+            gap={1}
+            overflowX="auto"
+          >
+            <Tab 
+              borderRadius="lg" 
+              px={4} 
+              py={2} 
+              fontSize="sm" 
+              fontWeight="600" 
+              color="gray.600"
+              _selected={{ bg: 'teal.500', color: 'white', shadow: 'sm' }}
+              _hover={{ bg: 'gray.100', _selected: { bg: 'teal.500' } }}
+              transition="all 0.2s"
+              whiteSpace="nowrap"
+            >
+              <HStack spacing={2}>
+                <Icon as={FiUsers} boxSize={3.5} />
+                <Text>Customer Followups</Text>
+              </HStack>
+            </Tab>
+            <Tab 
+              borderRadius="lg" 
+              px={4} 
+              py={2} 
+              fontSize="sm" 
+              fontWeight="600" 
+              color="gray.600"
+              _selected={{ bg: 'teal.500', color: 'white', shadow: 'sm' }}
+              _hover={{ bg: 'gray.100', _selected: { bg: 'teal.500' } }}
+              transition="all 0.2s"
+              whiteSpace="nowrap"
+            >
+              <HStack spacing={2}>
+                <Icon as={FiCheckCircle} boxSize={3.5} />
                 <Text>Followup Completed</Text>
                 {completedCount > 0 && (
-                  <Badge colorScheme="green" variant="solid" borderRadius="full" px={2} py={0.5} fontSize="xs">
+                  <Badge 
+                    colorScheme="green" 
+                    bg="green.100" 
+                    color="green.700" 
+                    borderRadius="full" 
+                    px={2} 
+                    py={0.5} 
+                    fontSize="xs"
+                    fontWeight="bold"
+                  >
                     {completedCount}
                   </Badge>
                 )}
               </HStack>
             </Tab>
-            <Tab fontWeight="semibold">Package Sales</Tab>
+            <Tab 
+              borderRadius="lg" 
+              px={4} 
+              py={2} 
+              fontSize="sm" 
+              fontWeight="600" 
+              color="gray.600"
+              _selected={{ bg: 'teal.500', color: 'white', shadow: 'sm' }}
+              _hover={{ bg: 'gray.100', _selected: { bg: 'teal.500' } }}
+              transition="all 0.2s"
+              whiteSpace="nowrap"
+            >
+              <HStack spacing={2}>
+                <Icon as={FiLayers} boxSize={3.5} />
+                <Text>Package Sales</Text>
+              </HStack>
+            </Tab>
           </TabList>
+
           <TabPanels>
             <TabPanel p={0}>
               {loading ? (
-                <Flex justify="center" align="center" minH="300px">
+                <Flex justify="center" align="center" minH="300px" bg="white" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
                   <Spinner size="xl" color="teal.500" thickness="4px" />
                 </Flex>
               ) : error ? (
-                <Box bg="red.50" p={4} borderRadius="lg" mb={4}>
-                  <Text color="red.500" fontWeight="medium">{error}</Text>
+                <Box bg="red.50" p={4} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
+                  <Text color="red.600" fontWeight="medium">{error}</Text>
                 </Box>
               ) : (
                 <FollowupCustomerTable
@@ -1111,12 +1276,12 @@ const FollowupPage = () => {
             </TabPanel>
             <TabPanel p={0}>
               {loading ? (
-                <Flex justify="center" align="center" minH="300px">
+                <Flex justify="center" align="center" minH="300px" bg="white" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
                   <Spinner size="xl" color="teal.500" thickness="4px" />
                 </Flex>
               ) : error ? (
-                <Box bg="red.50" p={4} borderRadius="lg" mb={4}>
-                  <Text color="red.500" fontWeight="medium">{error}</Text>
+                <Box bg="red.50" p={4} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
+                  <Text color="red.600" fontWeight="medium">{error}</Text>
                 </Box>
               ) : (
                 <FollowupCompletedTable
@@ -1127,7 +1292,7 @@ const FollowupPage = () => {
                 />
               )}
             </TabPanel>
-            <TabPanel p={4}>
+            <TabPanel p={0}>
               <PackageSalesTab />
             </TabPanel>
           </TabPanels>

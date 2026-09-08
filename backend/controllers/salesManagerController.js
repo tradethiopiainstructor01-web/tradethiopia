@@ -233,7 +233,6 @@ const getAllSales = asyncHandler(async (req, res) => {
 
     // If no sales found, return empty array with meta
     if (combinedSales.length === 0) {
-    if (sales.length === 0) {
       console.log('No sales found with current filter');
       return res.json({
         data: [],

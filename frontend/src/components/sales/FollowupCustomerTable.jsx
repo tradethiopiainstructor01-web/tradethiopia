@@ -41,7 +41,8 @@ import {
   useToast,
   Tag,
   TagLabel,
-  TagLeftIcon
+  TagLeftIcon,
+  Collapse
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon, SettingsIcon, DragHandleIcon } from '@chakra-ui/icons';
 import {
@@ -233,20 +234,20 @@ const ImageUploadCard = ({
 };
 
 const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
-const TABLE_PREF_VERSION = 2;
+const TABLE_PREF_VERSION = 3;
 const VIEW_PREF_KEY = 'salesFollowupCustomerViewMode';
 const DEFAULT_COLUMNS = [
-  { key: 'customerName', label: 'Customer Name', width: 150, required: true },
-  { key: 'contactTitle', label: 'Training Title', width: 180 },
-  { key: 'phone', label: 'Phone', width: 130 },
-  { key: 'callStatus', label: 'Call Status', width: 112 },
-  { key: 'followupStatus', label: 'Follow-up Status', width: 138 },
-  { key: 'schedulePreference', label: 'Schedule', width: 108 },
-  { key: 'packageScope', label: 'Package Scope', width: 126 },
-  { key: 'date', label: 'Date', width: 120 },
-  { key: 'email', label: 'Email', width: 190 },
-  { key: 'note', label: 'Notes', width: 220 },
-  { key: 'actions', label: 'Actions', width: 130, required: true }
+  { key: 'customerName', label: 'Customer', fullLabel: 'Customer Name', width: 140, required: true },
+  { key: 'contactTitle', label: 'Training', fullLabel: 'Training Title', width: 135 },
+  { key: 'phone', label: 'Phone', fullLabel: 'Phone', width: 105 },
+  { key: 'callStatus', label: 'Call', fullLabel: 'Call Status', width: 90 },
+  { key: 'followupStatus', label: 'Status', fullLabel: 'Follow-up Status', width: 95 },
+  { key: 'schedulePreference', label: 'Schedule', fullLabel: 'Schedule', width: 85 },
+  { key: 'packageScope', label: 'Scope', fullLabel: 'Package Scope', width: 75 },
+  { key: 'date', label: 'Date', fullLabel: 'Date', width: 85 },
+  { key: 'email', label: 'Email', fullLabel: 'Email', width: 130 },
+  { key: 'note', label: 'Notes', fullLabel: 'Notes', width: 115 },
+  { key: 'actions', label: 'Actions', fullLabel: 'Actions', width: 85, required: true }
 ];
 
 const getDefaultColumnPrefs = () => ({
@@ -312,7 +313,9 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const [completionProofData, setCompletionProofData] = useState(null);
   const [fullImageModal, setFullImageModal] = useState({ isOpen: false, src: '', title: '', subtitle: '' });
   const [addingRow, setAddingRow] = useState(false);
-  const newCustomerRef = useRef(createEmptyCustomer());
+  const [newCustomerData, setNewCustomerData] = useState(createEmptyCustomer);
+  const addFormRef = useRef(null);
+  const nameInputRef = useRef(null);
   const [updatedCustomers, setUpdatedCustomers] = useState(new Set());
   const [drawerCustomer, setDrawerCustomer] = useState(null);
   const [editModalCustomer, setEditModalCustomer] = useState(null);
@@ -542,11 +545,12 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   );
 
   const compactBadgeProps = {
-    fontSize: '2xs',
-    lineHeight: '1',
+    fontSize: '10px',
+    lineHeight: '1.2',
+    fontWeight: '700',
     px: 1.5,
-    py: 1,
-    borderRadius: 'sm',
+    py: 0.5,
+    borderRadius: 'full',
     maxW: '100%',
     whiteSpace: 'nowrap'
   };
@@ -776,19 +780,32 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
   const handleNewCustomerChange = (e) => {
     const { name, value } = e.target;
-    newCustomerRef.current[name] = value;
+    setNewCustomerData(prev => {
+      const next = { ...prev, [name]: value };
+      if (name === 'contactTitle') {
+        const courseDetails = getCourseDetails(value);
+        if (courseDetails) {
+          next.courseId = courseDetails.id;
+          next.coursePrice = courseDetails.price;
+        }
+      }
+      return next;
+    });
   };
 
   const closeNewCustomerRow = () => {
-    newCustomerRef.current = createEmptyCustomer();
+    setNewCustomerData(createEmptyCustomer());
     setAddingRow(false);
   };
 
   const openNewCustomerRow = () => {
     window.dispatchEvent(new Event('sales:new-followup'));
-    newCustomerRef.current = createEmptyCustomer();
-    setViewMode('list');
+    setNewCustomerData(createEmptyCustomer());
     setAddingRow(true);
+    setTimeout(() => {
+      addFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      nameInputRef.current?.focus();
+    }, 150);
   };
 
   const handleKeyDown = (e, customer) => {
@@ -810,7 +827,19 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   };
 
   const handleAddNewCustomer = () => {
-    const newCustomer = newCustomerRef.current;
+    if (!newCustomerData.customerName || !newCustomerData.customerName.trim()) {
+      toast({
+        title: 'Customer Name Required',
+        description: 'Please enter a name for the customer.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      nameInputRef.current?.focus();
+      return;
+    }
+
+    const newCustomer = newCustomerData;
     // If the new customer has a "Completed" status, calculate commission
     let customerToAdd = { ...newCustomer };
     
@@ -944,102 +973,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     );
   };
 
-  const renderNewCustomerCell = (field, value, type = 'text') => {
-    if (type === 'select') {
-      return (
-        <Td key={field} p={1}>
-          {field === 'contactTitle' ? (
-            <Select
-              name={field}
-              defaultValue={value}
-              onChange={handleNewCustomerChange}
-              onKeyDown={handleNewCustomerKeyDown}
-              {...compactSelectProps}
-            >
-              <option value="">Select a course</option>
-              {(Array.isArray(courses) ? courses : []).map(course => (
-                <option key={course._id} value={course.name}>
-                  {course.name} - {formatPrice(Number(course.price) || 0)}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <Select
-              name={field}
-              defaultValue={value}
-              onChange={handleNewCustomerChange}
-              onKeyDown={handleNewCustomerKeyDown}
-              {...compactSelectProps}
-            >
-              {field === 'callStatus' ? (
-                <>
-                  <option value="Called">Called</option>
-                  <option value="Not Called">Not Called</option>
-                  <option value="Busy">Busy</option>
-                  <option value="No Answer">No Answer</option>
-                  <option value="Callback">Callback</option>
-                  <option value="2x Called">2x Called</option>
-                </>
-              ) : field === 'schedulePreference' ? (
-                <>
-                  <option value="Regular">Regular</option>
-                  <option value="Weekend">Weekend</option>
-                  <option value="Night">Night</option>
-                  <option value="Online">Online</option>
-                </>
-              ) : field === 'packageScope' ? (
-                <>
-                  <option value="Local">Local</option>
-                  <option value="International">International</option>
-                </>
-              ) : (
-                <>
-                  <option value="Prospect">Prospect</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="Cancelled">Cancelled</option>
-                  <option value="Imported">Imported</option>
-                </>
-              )}
-            </Select>
-          )}
-        </Td>
-      );
-    }
-    
-    if (type === 'textarea') {
-      return (
-        <Td key={field} p={1}>
-          <Textarea
-            name={field}
-            defaultValue={value}
-            onChange={handleNewCustomerChange}
-            onKeyDown={handleNewCustomerKeyDown}
-            size="xs"
-            rows={2}
-            fontSize="sm"
-            p={1}
-          />
-        </Td>
-      );
-    }
-    
-    return (
-      <Td key={field} p={1}>
-        <Input
-          type={type}
-          name={field}
-          defaultValue={value}
-          onChange={handleNewCustomerChange}
-          onKeyDown={handleNewCustomerKeyDown}
-          size="xs"
-          fontSize="sm"
-          p={1}
-        />
-      </Td>
-    );
-  };
+
 
   const getStatusBadgeVariant = (status, type) => {
     if (type === 'call') {
@@ -1077,60 +1011,15 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   };
 
   const getCellBaseProps = (key) => ({
-    p: 1.5,
+    py: 2,
+    px: 2,
     fontSize: 'xs',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap'
   });
 
-  const renderNewCustomerColumnCell = (column) => {
-    const newCustomer = newCustomerRef.current;
-    switch (column.key) {
-      case 'customerName':
-        return renderNewCustomerCell('customerName', newCustomer.customerName);
-      case 'contactTitle':
-        return renderNewCustomerCell('contactTitle', newCustomer.contactTitle, 'select');
-      case 'phone':
-        return renderNewCustomerCell('phone', newCustomer.phone);
-      case 'callStatus':
-        return renderNewCustomerCell('callStatus', newCustomer.callStatus, 'select');
-      case 'followupStatus':
-        return renderNewCustomerCell('followupStatus', newCustomer.followupStatus, 'select');
-      case 'schedulePreference':
-        return renderNewCustomerCell('schedulePreference', newCustomer.schedulePreference || 'Regular', 'select');
-      case 'packageScope':
-        return renderNewCustomerCell('packageScope', newCustomer.packageScope || 'Local', 'select');
-      case 'date':
-        return <Td key="date" {...getCellBaseProps('date')}>{formatDate(new Date().toISOString())}</Td>;
-      case 'email':
-        return renderNewCustomerCell('email', newCustomer.email);
-      case 'note':
-        return renderNewCustomerCell('note', newCustomer.note, 'textarea');
-      case 'actions':
-        return (
-          <Td key="actions" p={1.5}>
-            <IconButton
-              icon={<CheckIcon />}
-              colorScheme="green"
-              size="xs"
-              mr={1}
-              onClick={handleAddNewCustomer}
-              aria-label="Save customer"
-            />
-            <IconButton
-              icon={<CloseIcon />}
-              colorScheme="red"
-              size="xs"
-              onClick={closeNewCustomerRow}
-              aria-label="Cancel"
-            />
-          </Td>
-        );
-      default:
-        return null;
-    }
-  };
+
 
   const renderDisplayCell = (customer, field, children, extraProps = {}) => (
     <Td
@@ -1216,28 +1105,28 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           );
         }
         return (
-          <Td key="actions" p={1.5} position="relative">
+          <Td key="actions" p={1} position="relative">
             {updatedCustomers.has(customer._id) && (
               <Box
                 position="absolute"
-                top="-2px"
-                left="-2px"
-                w="8px"
-                h="8px"
+                top="2px"
+                left="2px"
+                w="6px"
+                h="6px"
                 bg="green.500"
                 borderRadius="50%"
                 zIndex="1"
               />
             )}
-            <HStack spacing={1} justify="flex-end">
+            <HStack spacing={0.5} justify="center">
               <Tooltip label="Edit customer" hasArrow>
                 <IconButton
                   icon={<EditIcon />}
                   colorScheme="teal"
                   size="xs"
+                  variant="ghost"
                   onClick={() => handleOpenEditModal(customer)}
                   aria-label="Edit customer"
-                  variant="outline"
                 />
               </Tooltip>
               <Tooltip label="Delete customer" hasArrow>
@@ -1245,9 +1134,9 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   icon={<DeleteIcon />}
                   colorScheme="red"
                   size="xs"
+                  variant="ghost"
                   onClick={() => handleDeleteClick(customer)}
                   aria-label="Delete customer"
-                  variant="outline"
                 />
               </Tooltip>
               <Tooltip label="View details" hasArrow>
@@ -1255,12 +1144,12 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   icon={<InfoIcon />}
                   colorScheme="blue"
                   size="xs"
+                  variant="ghost"
                   onClick={() => {
                     setDrawerCustomer(customer);
                     onOpen();
                   }}
                   aria-label="View details"
-                  variant="outline"
                 />
               </Tooltip>
             </HStack>
@@ -1440,27 +1329,29 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         bg="white"
         borderWidth="1px"
         borderColor="gray.200"
-        borderRadius="md"
-        px={{ base: 2, md: 3 }}
+        borderRadius="xl"
+        px={3}
         py={2}
         boxShadow="xs"
       >
         <Button 
-          leftIcon={<AddIcon />}
-          colorScheme="teal" 
+          leftIcon={addingRow ? <CloseIcon boxSize={2} /> : <AddIcon boxSize={2.5} />}
+          colorScheme={addingRow ? 'gray' : 'teal'} 
           size="sm"
+          borderRadius="lg"
+          fontWeight="semibold"
           minW={{ base: '100%', sm: 'auto' }}
-          onClick={openNewCustomerRow}
-          disabled={addingRow}
+          onClick={addingRow ? closeNewCustomerRow : openNewCustomerRow}
         >
-          Add New Customer Row
+          {addingRow ? 'Close Form' : 'Add New Customer'}
         </Button>
         <HStack spacing={2} justify={{ base: 'space-between', sm: 'flex-end' }} w={{ base: '100%', sm: 'auto' }}>
-          <HStack spacing={1} borderWidth="1px" borderColor="gray.200" borderRadius="md" p={0.5} bg="gray.50">
+          <HStack spacing={1} borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={0.5} bg="gray.50">
             <Button
               size="xs"
               h="28px"
               minW="52px"
+              borderRadius="md"
               colorScheme={viewMode === 'list' ? 'teal' : 'gray'}
               variant={viewMode === 'list' ? 'solid' : 'ghost'}
               onClick={() => setViewMode('list')}
@@ -1471,65 +1362,338 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               size="xs"
               h="28px"
               minW="52px"
+              borderRadius="md"
               colorScheme={viewMode === 'grid' ? 'teal' : 'gray'}
               variant={viewMode === 'grid' ? 'solid' : 'ghost'}
               onClick={() => setViewMode('grid')}
-              disabled={addingRow}
             >
               Grid
             </Button>
           </HStack>
           <Menu closeOnSelect={false}>
-            <MenuButton as={Button} leftIcon={<SettingsIcon />} size="sm" variant="outline" minW="118px">
+            <MenuButton as={Button} leftIcon={<SettingsIcon boxSize={2.5} />} size="sm" variant="outline" borderRadius="lg" minW="100px">
               Columns
             </MenuButton>
-            <MenuList minW="240px" maxH="340px" overflowY="auto" zIndex="popover">
+            <MenuList minW="220px" maxH="340px" overflowY="auto" zIndex="popover" shadow="lg" borderRadius="xl">
               {columns.map(column => (
-                <MenuItem key={column.key} as="div" closeOnSelect={false}>
+                <MenuItem key={column.key} as="div" closeOnSelect={false} py={1.5} px={3}>
                   <Checkbox
                     isChecked={!columnPrefs.hidden.includes(column.key)}
                     isDisabled={column.required}
                     onChange={() => toggleColumnVisibility(column.key)}
+                    colorScheme="teal"
+                    fontSize="xs"
                   >
-                    {column.label}
+                    {column.fullLabel || column.label}
                   </Checkbox>
                 </MenuItem>
               ))}
-              <MenuItem onClick={resetColumnLayout} fontWeight="semibold">
-                Reset layout
+              <Divider my={1} />
+              <MenuItem onClick={resetColumnLayout} fontWeight="semibold" fontSize="xs" color="teal.600">
+                Reset to default layout
               </MenuItem>
             </MenuList>
           </Menu>
         </HStack>
       </Flex>
+
+      {/* Dedicated Add Customer Follow-up Form Card */}
+      <Collapse in={addingRow} animateOpacity>
+        <Box
+          ref={addFormRef}
+          bg="white"
+          borderWidth="1.5px"
+          borderColor="teal.300"
+          borderRadius="xl"
+          p={{ base: 4, md: 5 }}
+          mb={4}
+          boxShadow="sm"
+        >
+          <Flex justify="space-between" align="center" mb={4} pb={3} borderBottomWidth="1px" borderColor="gray.100">
+            <HStack spacing={3}>
+              <Flex
+                w="34px"
+                h="34px"
+                borderRadius="lg"
+                bg="teal.50"
+                color="teal.600"
+                align="center"
+                justify="center"
+                borderWidth="1px"
+                borderColor="teal.200"
+              >
+                <AddIcon boxSize={3} />
+              </Flex>
+              <Box>
+                <Heading size="xs" color="gray.800" fontWeight="bold">
+                  Add New Customer Follow-up
+                </Heading>
+                <Text fontSize="xs" color="gray.500">
+                  Enter prospect contact details, training preference, and initial status.
+                </Text>
+              </Box>
+            </HStack>
+            <IconButton
+              icon={<CloseIcon boxSize={2} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'gray.700', bg: 'gray.100' }}
+              onClick={closeNewCustomerRow}
+              aria-label="Close form"
+            />
+          </Flex>
+
+          <VStack spacing={4} align="stretch">
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+              <FormControl isRequired>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Customer Name
+                </FormLabel>
+                <Input
+                  ref={nameInputRef}
+                  name="customerName"
+                  value={newCustomerData.customerName || ''}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  placeholder="e.g. Abebe Kebede"
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Phone Number
+                </FormLabel>
+                <Input
+                  name="phone"
+                  value={newCustomerData.phone || ''}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  placeholder="e.g. 0911234567"
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Email Address
+                </FormLabel>
+                <Input
+                  name="email"
+                  type="email"
+                  value={newCustomerData.email || ''}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  placeholder="e.g. customer@example.com"
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                />
+              </FormControl>
+            </SimpleGrid>
+
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Training Course
+                </FormLabel>
+                <Select
+                  name="contactTitle"
+                  value={newCustomerData.contactTitle || ''}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                >
+                  <option value="">Select a course</option>
+                  {(Array.isArray(courses) ? courses : []).map(course => (
+                    <option key={course._id} value={course.name}>
+                      {course.name} - {formatPrice(Number(course.price) || 0)}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Schedule Preference
+                </FormLabel>
+                <Select
+                  name="schedulePreference"
+                  value={newCustomerData.schedulePreference || 'Regular'}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                >
+                  <option value="Regular">Regular</option>
+                  <option value="Weekend">Weekend</option>
+                  <option value="Night">Night</option>
+                  <option value="Online">Online</option>
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Package Scope
+                </FormLabel>
+                <Select
+                  name="packageScope"
+                  value={newCustomerData.packageScope || 'Local'}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                >
+                  <option value="Local">Local</option>
+                  <option value="International">International</option>
+                </Select>
+              </FormControl>
+            </SimpleGrid>
+
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Call Status
+                </FormLabel>
+                <Select
+                  name="callStatus"
+                  value={newCustomerData.callStatus || 'Not Called'}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                >
+                  <option value="Not Called">Not Called</option>
+                  <option value="Called">Called</option>
+                  <option value="Busy">Busy</option>
+                  <option value="No Answer">No Answer</option>
+                  <option value="Callback">Callback</option>
+                  <option value="2x Called">2x Called</option>
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Follow-up Status
+                </FormLabel>
+                <Select
+                  name="followupStatus"
+                  value={newCustomerData.followupStatus || 'Pending'}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Prospect">Prospect</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Cancelled">Cancelled</option>
+                  <option value="Imported">Imported</option>
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  Follow-up Date
+                </FormLabel>
+                <Input
+                  name="date"
+                  type="date"
+                  value={newCustomerData.date ? newCustomerData.date.slice(0, 10) : new Date().toISOString().slice(0, 10)}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                />
+              </FormControl>
+            </SimpleGrid>
+
+            <FormControl>
+              <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                Notes & Remarks
+              </FormLabel>
+              <Textarea
+                name="note"
+                value={newCustomerData.note || ''}
+                onChange={handleNewCustomerChange}
+                placeholder="Enter discussion points, client requests, or callback notes..."
+                size="sm"
+                rows={2}
+                borderRadius="md"
+                focusBorderColor="teal.500"
+              />
+            </FormControl>
+
+            <Flex justify="flex-end" gap={3} pt={2} borderTopWidth="1px" borderColor="gray.100">
+              <Button
+                size="sm"
+                variant="ghost"
+                colorScheme="gray"
+                onClick={closeNewCustomerRow}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                colorScheme="teal"
+                leftIcon={<CheckIcon boxSize={2.5} />}
+                onClick={handleAddNewCustomer}
+                fontWeight="semibold"
+              >
+                Save Customer
+              </Button>
+            </Flex>
+          </VStack>
+        </Box>
+      </Collapse>
       {viewMode === 'list' ? (
-      <Box overflowX="auto" borderRadius="md" boxShadow="sm">
-      <Table variant="simple" size="sm" minW={`${visibleColumns.reduce((sum, column) => sum + column.width, 0)}px`} sx={{ tableLayout: 'fixed' }}>
+      <Box
+        overflowX="auto"
+        borderRadius="xl"
+        borderWidth="1px"
+        borderColor="gray.200"
+        boxShadow="xs"
+        bg="white"
+      >
+      <Table variant="simple" size="sm" w="100%" sx={{ tableLayout: 'fixed' }}>
         <colgroup>
           {visibleColumns.map(column => (
             <col key={column.key} style={{ width: `${column.width}px` }} />
           ))}
         </colgroup>
         <Thead>
-          <Tr bg="teal.500">
+          <Tr bgGradient="linear(to-r, #0f766e, #115e59)">
             {visibleColumns.map(column => (
               <Th
                 key={column.key}
                 color="white"
-                fontWeight="bold"
+                fontWeight="700"
+                fontSize="11px"
+                letterSpacing="0.04em"
                 textTransform="uppercase"
-                fontSize="xs"
-                letterSpacing="wider"
-                py={2}
-                px={1.5}
+                py={2.5}
+                px={2}
                 position="relative"
                 userSelect="none"
                 draggable
                 opacity={draggedColumn === column.key ? 0.75 : 1}
                 cursor={draggedColumn === column.key ? 'grabbing' : 'grab'}
-                bg={dragOverColumn === column.key && draggedColumn !== column.key ? 'teal.600' : undefined}
+                bg={dragOverColumn === column.key && draggedColumn !== column.key ? '#134e4a' : undefined}
                 boxShadow={dragOverColumn === column.key && draggedColumn !== column.key ? 'inset 3px 0 0 rgba(255,255,255,0.95)' : 'none'}
-                transform={draggedColumn === column.key ? 'translateY(-2px)' : 'translateY(0)'}
+                transform={draggedColumn === column.key ? 'translateY(-1px)' : 'translateY(0)'}
                 transition="background 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease"
                 onDragStart={(event) => {
                   setDraggedColumn(column.key);
@@ -1557,17 +1721,22 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   setDragOverColumn(null);
                 }}
               >
-                <HStack spacing={1.5} minW={0} pointerEvents="none">
-                  <DragHandleIcon boxSize={2.5} opacity={0.85} flexShrink={0} />
-                  <Text as="span" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                <Flex align="center" minW={0} pointerEvents="none">
+                  <Text
+                    as="span"
+                    overflow="hidden"
+                    textOverflow="ellipsis"
+                    whiteSpace="nowrap"
+                    title={column.fullLabel || column.label}
+                  >
                     {column.label}
                   </Text>
-                </HStack>
+                </Flex>
                 <Box
                   position="absolute"
                   top={0}
                   right={0}
-                  w="8px"
+                  w="6px"
                   h="100%"
                   cursor="col-resize"
                   _hover={{ bg: 'whiteAlpha.400' }}
@@ -1578,11 +1747,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           </Tr>
         </Thead>
         <Tbody>
-          {addingRow && (
-            <Tr bg="gray.100">
-              {visibleColumns.map(renderNewCustomerColumnCell)}
-            </Tr>
-          )}
+
 
           {paginatedCustomers && paginatedCustomers.map(customer => (
             <Tr 

@@ -153,11 +153,20 @@ const Layout = ({ initialActiveItem }) => {
             base: 0, // No margin on mobile
             md: isSidebarCollapsed ? "70px" : "200px", // Adjust for collapsed or expanded sidebar on larger screens
           }}
-          transition="margin-left 0.3s"
-          p={4}
+          transition="margin-left 0.3s, width 0.3s"
+          p={{ base: 3, md: 5 }}
           bg="#f8f9fa"
           flex="1"
-          width="100%" // Ensure it takes up the remaining space
+          minW="0"
+          w={{
+            base: "100%",
+            md: isSidebarCollapsed ? "calc(100% - 70px)" : "calc(100% - 200px)"
+          }}
+          maxW={{
+            base: "100%",
+            md: isSidebarCollapsed ? "calc(100% - 70px)" : "calc(100% - 200px)"
+          }}
+          overflowX="hidden"
         >
           <ErrorBoundary>
             <Suspense fallback={<Flex minH="240px" align="center" justify="center" gap={3}><Spinner size="sm" /><Text>Loading section...</Text></Flex>}>
