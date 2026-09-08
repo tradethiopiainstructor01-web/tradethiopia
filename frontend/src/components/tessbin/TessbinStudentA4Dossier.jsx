@@ -73,6 +73,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
   const isCocPaid = isCoffeeCupping && (student.cocPaymentStatus || '').toLowerCase() === 'paid';
   const nationalIdFront = student.nationalIdFrontImage || student.nationalIdImage || '';
   const nationalIdBack = student.nationalIdBackImage || '';
+  const cocPaymentSlip = student.cocPaymentScreenshot || '';
   const isCompleted =
     (student.classCompletionStatus || '').toLowerCase() === 'completed' || Boolean(student.classCompleted);
 
@@ -448,6 +449,11 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                             ? (isCocPaid ? 'COC PAID / ተከፍሏል' : 'UNPAID / አልተከፈለም')
                             : 'NOT APPLICABLE'}
                         </span>
+                        {(student.cocPaymentBank || (isCoffeeCupping && isCocPaid)) && student.cocPaymentBank && (
+                          <span style={{ marginLeft: '4px', fontSize: '6.5pt', fontWeight: '700', color: '#0D9488' }}>
+                            ({student.cocPaymentBank})
+                          </span>
+                        )}
                       </td>
                     </tr>
                     <tr>
@@ -469,7 +475,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                   <Text fontSize="5.5pt" color="#CBD5E1">OFFICIAL VERIFICATION PROOFS</Text>
                 </Box>
 
-                <SimpleGrid columns={3} spacing={1.5} p={1} border="1px solid #1E293B" borderTop="none" bg="#FFFFFF">
+                <SimpleGrid columns={cocPaymentSlip || isCoffeeCupping ? 4 : 3} spacing={1.5} p={1} border="1px solid #1E293B" borderTop="none" bg="#FFFFFF">
                   {/* 1. National ID Front */}
                   <Box border="1px solid #CBD5E1" borderRadius="md" p={1} bg="#F8FAFC">
                     <Flex justify="space-between" align="center" mb={0.5}>
@@ -550,7 +556,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                       <HStack spacing={1}>
                         <Icon as={FiCheckCircle} color={student.paymentScreenshot ? '#16A34A' : '#94A3B8'} boxSize="10px" />
                         <Text fontSize="6.5pt" fontWeight="800" color="#0F172A">
-                          Bank Receipt (የባንክ ደረሰኝ)
+                          Tuition Receipt
                         </Text>
                       </HStack>
                       <Badge fontSize="5pt" colorScheme={student.paymentScreenshot ? 'green' : 'gray'} px={1}>
@@ -568,7 +574,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                         bg="#FFFFFF"
                         position="relative"
                         cursor={onOpenImage ? 'pointer' : 'default'}
-                        onClick={() => onOpenImage && onOpenImage(student.paymentScreenshot, 'Bank Payment Receipt', student.fullName)}
+                        onClick={() => onOpenImage && onOpenImage(student.paymentScreenshot, 'Tuition Payment Receipt', student.fullName)}
                       >
                         <Image
                           src={student.paymentScreenshot}
@@ -585,6 +591,50 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                       </Flex>
                     )}
                   </Box>
+
+                  {/* 4. COC Payment Receipt */}
+                  {(cocPaymentSlip || isCoffeeCupping) && (
+                    <Box border="1px solid #CBD5E1" borderRadius="md" p={1} bg="#F8FAFC">
+                      <Flex justify="space-between" align="center" mb={0.5}>
+                        <HStack spacing={1}>
+                          <Icon as={FiCheckCircle} color={cocPaymentSlip ? '#0D9488' : '#94A3B8'} boxSize="10px" />
+                          <Text fontSize="6.5pt" fontWeight="800" color="#0F172A">
+                            COC Slip (የCOC ደረሰኝ)
+                          </Text>
+                        </HStack>
+                        <Badge fontSize="5pt" colorScheme={cocPaymentSlip ? 'teal' : 'gray'} px={1}>
+                          {cocPaymentSlip ? 'ATTACHED' : 'PENDING'}
+                        </Badge>
+                      </Flex>
+
+                      {cocPaymentSlip ? (
+                        <Box
+                          h="60px"
+                          w="100%"
+                          border="1px solid #0D9488"
+                          borderRadius="sm"
+                          overflow="hidden"
+                          bg="#FFFFFF"
+                          position="relative"
+                          cursor={onOpenImage ? 'pointer' : 'default'}
+                          onClick={() => onOpenImage && onOpenImage(cocPaymentSlip, 'COC Payment Receipt Slip', student.fullName)}
+                        >
+                          <Image
+                            src={cocPaymentSlip}
+                            alt="COC Payment Deposit Slip"
+                            w="100%"
+                            h="100%"
+                            objectFit="contain"
+                          />
+                        </Box>
+                      ) : (
+                        <Flex h="60px" w="100%" border="1px dashed #CBD5E1" borderRadius="sm" align="center" justify="center" direction="column" color="#94A3B8" bg="#FFFFFF">
+                          <Icon as={FiFileText} boxSize="14px" mb={0.5} opacity={0.5} />
+                          <Text fontSize="5.5pt" fontWeight="700">No COC Slip Uploaded</Text>
+                        </Flex>
+                      )}
+                    </Box>
+                  )}
                 </SimpleGrid>
               </Box>
 

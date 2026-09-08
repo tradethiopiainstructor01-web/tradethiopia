@@ -33,6 +33,7 @@ const StudentDetailView = ({ student, isOpen, onClose, onEdit, onPrint }) => {
   const ink = useColorModeValue("#101a45", "gray.100");
   if (!student) return null;
   const s = student;
+  const isCoffeeCupping = (s.learningDepartment || '').toLowerCase().includes('coffee') || (s.program || '').toLowerCase().includes('coffee');
   const classStatus = s.classCompletionStatus || (s.classCompleted ? "Completed" : "Not Completed");
   const joined = s.enrollmentDate || s.createdAt;
   const files = [
@@ -40,6 +41,7 @@ const StudentDetailView = ({ student, isOpen, onClose, onEdit, onPrint }) => {
     ["ID-F", FiCreditCard, "blue", s.nationalIdFrontImage || s.nationalIdImage],
     ["ID-B", FiCreditCard, "blue", s.nationalIdBackImage],
     ["Slip", FiFileText, "green", s.paymentScreenshot],
+    ...(isCoffeeCupping || s.cocPaymentScreenshot ? [["COC Slip", FiFileText, "teal", s.cocPaymentScreenshot]] : []),
   ];
   const edit = () => { onClose(); onEdit(s); };
   return <>
@@ -71,10 +73,19 @@ const StudentDetailView = ({ student, isOpen, onClose, onEdit, onPrint }) => {
               </SimpleGrid>
             </Section>
             <Section title="Verification Files" subtitle="Uploaded documents for student verification" icon={FiFileText}>
-              <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>{files.map(([label, icon, color, src]) => <VStack key={label} p={4} border="1px solid" borderColor={border} borderRadius="16px" spacing={3}><Box p={3} bg={`${color}.50`} color={`${color}.600`} borderRadius="14px"><Icon as={icon} boxSize={7} /></Box><HStack><Text fontWeight="700">{label}</Text>{src && <Icon as={FiCheckCircle} color="green.600" />}</HStack><Button size="sm" width="full" colorScheme="blue" variant="outline" leftIcon={<FiEye />} isDisabled={!src} onClick={() => setPreview({ label, src })}>{src ? "View" : "Not attached"}</Button></VStack>)}</SimpleGrid>
+              <SimpleGrid columns={{ base: 2, md: files.length > 4 ? 5 : 4 }} spacing={4}>{files.map(([label, icon, color, src]) => <VStack key={label} p={4} border="1px solid" borderColor={border} borderRadius="16px" spacing={3}><Box p={3} bg={`${color}.50`} color={`${color}.600`} borderRadius="14px"><Icon as={icon} boxSize={7} /></Box><HStack><Text fontWeight="700">{label}</Text>{src && <Icon as={FiCheckCircle} color="green.600" />}</HStack><Button size="sm" width="full" colorScheme="blue" variant="outline" leftIcon={<FiEye />} isDisabled={!src} onClick={() => setPreview({ label, src })}>{src ? "View" : "Not attached"}</Button></VStack>)}</SimpleGrid>
             </Section>
             <Section title="Payment Information" subtitle="Payment details and bank information" icon={FiCreditCard}>
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}><Info icon={FiCheckCircle} label="Payment Status" value={s.paymentStatus} /><Info icon={FiCreditCard} label="Payment Type" value={s.paymentOption} /><Info icon={FiCreditCard} label="Bank Name" value={s.paymentBank} /><Info label="Amount" value={s.paymentAmount} /><Info icon={FiCalendar} label="Payment Date" value={s.paymentDate ? dateLabel(s.paymentDate) : undefined} /><Info label="Transaction Reference / FS Number" value={s.fsNumber} /></SimpleGrid>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+                <Info icon={FiCheckCircle} label="Payment Status" value={s.paymentStatus} />
+                <Info icon={FiCreditCard} label="Payment Type" value={s.paymentOption} />
+                <Info icon={FiCreditCard} label="Bank Name" value={s.paymentBank} />
+                <Info label="Transaction Reference / FS Number" value={s.fsNumber} />
+                {isCoffeeCupping && <Info icon={FiCheckCircle} label="COC Payment Status" value={s.cocPaymentStatus || "Unpaid"} />}
+                {isCoffeeCupping && <Info icon={FiCreditCard} label="COC Payment Bank" value={s.cocPaymentBank} />}
+                <Info label="Amount" value={s.paymentAmount} />
+                <Info icon={FiCalendar} label="Payment Date" value={s.paymentDate ? dateLabel(s.paymentDate) : undefined} />
+              </SimpleGrid>
             </Section>
             <Section title="Additional Information" subtitle="Follow-up and registration details" icon={FiInfo}>
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5} mb={5}>{[["Agent", s.registeredBy], ["Registrar Email", s.registeredByEmail], ["Follow-up Status", s.salesFollowupStatus], ["Follow-up Date", dateLabel(s.salesFollowupDate)], ["Call Status", s.salesCallStatus], ["Schedule Preference", s.salesSchedulePreference], ["Package Scope", s.salesPackageScope], ["Readiness", s.readinessStatus], ["Training End Date", dateLabel(s.trainingEndDate)], ["Exam Date", dateLabel(s.examDate)], ["CoC Payment", s.cocPaymentStatus], ["Last Updated By", s.updatedBy], ["Last Updated", dateLabel(s.updatedAt)]].map(([label, value]) => <Info key={label} label={label} value={value} />)}</SimpleGrid>

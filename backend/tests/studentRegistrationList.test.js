@@ -38,7 +38,7 @@ test('student list returns existing students without awaiting historical repairs
   assert.equal(response.data[0].fullName, 'Student');
   assert.equal(response.data[0].hasPassportPhoto, true);
   assert.equal(response.data[0].passportPhoto, '');
-  for (const field of ['passportPhoto', 'nationalIdImage', 'nationalIdFrontImage', 'nationalIdBackImage', 'paymentScreenshot']) {
+  for (const field of ['passportPhoto', 'nationalIdImage', 'nationalIdFrontImage', 'nationalIdBackImage', 'paymentScreenshot', 'cocPaymentScreenshot']) {
     const projectIndex = pipeline.findIndex((stage) => stage.$project);
     const sortIndex = pipeline.findIndex((stage) => stage.$sort);
     assert.ok(projectIndex < sortIndex, 'strip large attachments before sorting');

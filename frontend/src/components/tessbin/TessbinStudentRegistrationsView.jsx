@@ -106,6 +106,8 @@ const normalizeStudent = (s = {}) => ({
   classCompleted: Boolean(s.classCompleted || (s.classCompletionStatus || "").toLowerCase() === "completed"),
   classCompletionStatus: s.classCompletionStatus || (s.classCompleted ? "Completed" : "Not Completed"),
   cocPaymentStatus: s.cocPaymentStatus || "Unpaid",
+  cocPaymentBank: s.cocPaymentBank || "",
+  cocPaymentScreenshot: s.cocPaymentScreenshot || "",
 });
 
 const keepCocPaidStudents = (list = []) => list;
@@ -173,6 +175,7 @@ const initialForm = {
   classCompleted: false,
   classCompletionStatus: "Not Completed",
   cocPaymentStatus: "Unpaid",
+  cocPaymentBank: "",
   status: "Active",
   registeredBy: "",
   registeredByEmail: "",
@@ -295,6 +298,8 @@ const normalizeStudent = (student = {}, index = 0) => {
       normalizeBoolean(safe.classCompleted)
     ),
     cocPaymentStatus: safe.cocPaymentStatus === "Paid" ? "Paid" : "Unpaid",
+    cocPaymentBank: safe.cocPaymentBank || "",
+    cocPaymentScreenshot: safe.cocPaymentScreenshot || "",
     registeredBy:
       safe.registeredBy ||
       safe.registeredByName ||
@@ -863,12 +868,14 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
     setIsSaving(true);
     const now = new Date().toISOString();
     const cocPaymentStatus = isCoffeeCuppingCourse(form) ? form.cocPaymentStatus : "Unpaid";
+    const cocPaymentBank = isCoffeeCuppingCourse(form) ? (form.cocPaymentBank || "").trim() : "";
 
     try {
       if (editingId) {
         const payload = {
           ...form,
           cocPaymentStatus,
+          cocPaymentBank,
           fullName: form.fullName.trim(),
           classCompleted: form.classCompletionStatus === "Completed",
           updatedAt: now,
@@ -898,6 +905,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
         const payload = {
           ...form,
           cocPaymentStatus,
+          cocPaymentBank,
           fullName: form.fullName.trim(),
           classCompleted: form.classCompletionStatus === "Completed",
           registeredBy: form.registeredBy?.trim() || registrarName,
@@ -955,6 +963,7 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
       "Payment Option": s.paymentOption || "Full Payment",
       "Class Outcome": getClassOutcome(s),
       "CoC Payment Status": s.cocPaymentStatus || "Unpaid",
+      "CoC Payment Bank": s.cocPaymentBank || "",
       "Readiness Status": s.readinessStatus || "Not assessed",
       "Registration Status": s.status || "Active",
       "Registered By": s.registeredBy || "",
@@ -1806,6 +1815,9 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                       <DetailItem label="Payment Bank" value={selectedStudent.paymentBank} />
                       <DetailItem label="FS Number" value={selectedStudent.fsNumber} />
                       <DetailItem label="CoC Payment" value={selectedStudent.cocPaymentStatus || "Unpaid"} />
+                      {isCoffeeCuppingCourse(selectedStudent) && (
+                        <DetailItem label="CoC Payment Bank" value={selectedStudent.cocPaymentBank} />
+                      )}
                     </SimpleGrid>
                   </CardBody>
                 </Card>
@@ -2089,18 +2101,41 @@ const TessbinStudentRegistrationsView = ({ onStudentCountChange }) => {
                   </FormControl>
 
                   {isCoffeeCuppingCourse(form) && (
-                    <FormControl>
-                      <FormLabel fontSize="xs">Digital QR Verification (Tessbin Admin)</FormLabel>
-                      <Input
-                        value="Live Scannable QR Code Active"
-                        isReadOnly
-                        bg={softGreenBg}
-                        size="sm"
-                        borderRadius="xl"
-                        fontWeight="700"
-                      />
-                      <Text mt={1} fontSize="xs" color={mutedText}>Scannable verification QR Code is automatically embedded on official dossiers.</Text>
-                    </FormControl>
+                    <>
+                      <FormControl>
+                        <FormLabel fontSize="xs">CoC Payment Bank</FormLabel>
+                        <Select
+                          name="cocPaymentBank"
+                          value={form.cocPaymentBank}
+                          onChange={handleChange}
+                          placeholder="Select CoC Payment Bank"
+                          bg={fieldBg}
+                          size="sm"
+                          borderRadius="xl"
+                        >
+                          {form.cocPaymentBank && !ETHIOPIAN_BANKS.includes(form.cocPaymentBank) && (
+                            <option value={form.cocPaymentBank}>{form.cocPaymentBank}</option>
+                          )}
+                          {ETHIOPIAN_BANKS.map((bank) => (
+                            <option key={bank} value={bank}>
+                              {bank}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <FormControl>
+                        <FormLabel fontSize="xs">Digital QR Verification (Tessbin Admin)</FormLabel>
+                        <Input
+                          value="Live Scannable QR Code Active"
+                          isReadOnly
+                          bg={softGreenBg}
+                          size="sm"
+                          borderRadius="xl"
+                          fontWeight="700"
+                        />
+                        <Text mt={1} fontSize="xs" color={mutedText}>Scannable verification QR Code is automatically embedded on official dossiers.</Text>
+                      </FormControl>
+                    </>
                   )}
 
                   {/* Class Completion Status Card */}

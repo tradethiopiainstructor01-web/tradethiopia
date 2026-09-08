@@ -65,12 +65,29 @@ const StudentRegistryTable = ({ students, onDetail, onEdit, onDelete }) => {
                     <HStack flexWrap="wrap"><Badge colorScheme={student.paymentStatus === "Paid" ? "green" : "orange"} px={3} py={2} borderRadius="full" textTransform="none">{student.paymentStatus || "Waiting"}</Badge><Badge colorScheme="green" px={2} py={2} borderRadius="full" textTransform="none">{student.paymentOption || "Full Payment"}</Badge></HStack>
                     {student.paymentBank && <HStack spacing={2} align="start"><Icon as={FiCreditCard} color={muted} /><Text fontSize="xs" fontWeight="700">{student.paymentBank}</Text></HStack>}
                     {student.fsNumber && <Text fontSize="xs" color="blue.500">FS#: {student.fsNumber}</Text>}
+                    {((student.learningDepartment || '').toLowerCase().includes('coffee') || (student.program || '').toLowerCase().includes('coffee')) && (
+                      <Box pt={1} borderTop="1px dashed" borderColor={border} w="full">
+                        <HStack spacing={1.5} flexWrap="wrap">
+                          <Badge colorScheme={student.cocPaymentStatus === "Paid" ? "teal" : "gray"} fontSize="10px" px={2} py={0.5} borderRadius="full">
+                            COC: {student.cocPaymentStatus || "Unpaid"}
+                          </Badge>
+                          {student.cocPaymentBank && (
+                            <Text fontSize="10px" fontWeight="600" color={muted} noOfLines={1}>
+                              🏦 {student.cocPaymentBank}
+                            </Text>
+                          )}
+                        </HStack>
+                      </Box>
+                    )}
                   </VStack></Td>
                   <Td><HStack spacing={3} color={muted}>
                     <FileIndicator label="Photo" present={Boolean(student.passportPhoto || student.hasPassportPhoto)} icon={FiCamera} color="purple" onOpen={() => onDetail(student)} />
                     <FileIndicator label="ID-F" present={Boolean(student.nationalIdFrontImage || student.nationalIdImage || student.hasNationalIdFrontImage || student.hasNationalIdImage)} icon={FiCreditCard} color="blue" onOpen={() => onDetail(student)} />
                     <FileIndicator label="ID-B" present={Boolean(student.nationalIdBackImage || student.hasNationalIdBackImage)} icon={FiCreditCard} color="cyan" onOpen={() => onDetail(student)} />
                     <FileIndicator label="Slip" present={Boolean(student.paymentScreenshot || student.hasPaymentScreenshot)} icon={FiFileText} color="green" onOpen={() => onDetail(student)} />
+                    {((student.learningDepartment || '').toLowerCase().includes('coffee') || (student.program || '').toLowerCase().includes('coffee') || student.hasCocPaymentScreenshot || student.cocPaymentScreenshot) && (
+                      <FileIndicator label="COC" present={Boolean(student.cocPaymentScreenshot || student.hasCocPaymentScreenshot)} icon={FiFileText} color="teal" onOpen={() => onDetail(student)} />
+                    )}
                   </HStack></Td>
                   <Td><HStack justify="end" spacing={2}>
                     {[["View student", FiEye, "blue", onDetail], ["Edit student", FiEdit2, "blue", onEdit], ["Delete student", FiTrash2, "red", onDelete]].map(([label, icon, color, action]) => <Tooltip key={label} label={label}><IconButton aria-label={`${label}: ${student.fullName}`} icon={<Icon as={icon} boxSize={5} />} bg={`${color}.50`} color={`${color}.600`} variant="solid" borderRadius="12px" onClick={() => action(student)} /></Tooltip>)}

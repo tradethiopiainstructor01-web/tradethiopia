@@ -1471,7 +1471,7 @@ export default function TessbinCSRegisteredUsersView() {
                     </Text>
                   </Flex>
 
-                  <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
+                  <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: (selectedStudent.cocPaymentScreenshot || (selectedStudent.learningDepartment || '').toLowerCase().includes('coffee')) ? 5 : 4 }} spacing={3}>
                     {/* 1. Passport Photo (3x4) */}
                     <Box
                       border="1px solid"
@@ -1501,24 +1501,28 @@ export default function TessbinCSRegisteredUsersView() {
                             position="relative"
                             borderRadius="lg"
                             overflow="hidden"
-                            bg="blackAlpha.900"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
+                            borderColor={borderColor}
                             cursor="zoom-in"
+                            p={1}
                             onClick={() => handleOpenFullImage(selectedStudent.passportPhoto, '3×4 Passport Photo', selectedStudent.fullName)}
                             role="group"
                           >
                             <Image
                               src={selectedStudent.passportPhoto}
                               alt="Passport Photo"
-                              h="170px"
+                              h="150px"
                               w="100%"
-                              objectFit="cover"
+                              objectFit="contain"
+                              borderRadius="md"
                               transition="transform 0.2s"
-                              _groupHover={{ transform: 'scale(1.05)', opacity: 0.9 }}
+                              _groupHover={{ transform: 'scale(1.03)' }}
                             />
                             <Flex
                               position="absolute"
                               inset={0}
-                              bg="blackAlpha.600"
+                              bg="blackAlpha.500"
                               opacity={0}
                               _groupHover={{ opacity: 1 }}
                               transition="opacity 0.2s"
@@ -1527,45 +1531,50 @@ export default function TessbinCSRegisteredUsersView() {
                               color="white"
                               direction="column"
                               gap={1}
+                              borderRadius="md"
                             >
-                              <Icon as={FiMaximize2} boxSize="22px" />
-                              <Text fontSize="11px" fontWeight="700">Click for Full View</Text>
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
                             </Flex>
                           </Box>
                         ) : (
-                          <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
                             <Icon as={FiCamera} boxSize="28px" mb={1} opacity={0.5} />
                             <Text fontSize="11px">No passport photo uploaded</Text>
                           </Flex>
                         )}
                       </Box>
                       {selectedStudent.passportPhoto && (
-                        <ButtonGroup size="xs" mt={3} isAttached w="full">
+                        <HStack mt={3} spacing={1.5} w="full">
                           <Button
                             flex="1"
+                            size="xs"
                             colorScheme="indigo"
                             bg="#4F46E5"
                             _hover={{ bg: '#4338CA' }}
                             color="white"
                             leftIcon={<FiMaximize2 />}
                             onClick={() => handleOpenFullImage(selectedStudent.passportPhoto, '3×4 Passport Photo', selectedStudent.fullName)}
+                            fontWeight="700"
                           >
-                            Full View
+                            View
                           </Button>
-                          <Button
-                            variant="outline"
-                            borderColor={borderColor}
-                            leftIcon={<FiDownload />}
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = selectedStudent.passportPhoto;
-                              link.download = `Passport_Photo_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
-                              link.click();
-                            }}
-                          >
-                            Download
-                          </Button>
-                        </ButtonGroup>
+                          <Tooltip label="Download Passport Photo" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download Passport Photo"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedStudent.passportPhoto;
+                                link.download = `Passport_Photo_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       )}
                     </Box>
 
@@ -1598,24 +1607,28 @@ export default function TessbinCSRegisteredUsersView() {
                             position="relative"
                             borderRadius="lg"
                             overflow="hidden"
-                            bg="blackAlpha.900"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
+                            borderColor={borderColor}
                             cursor="zoom-in"
+                            p={1}
                             onClick={() => handleOpenFullImage(selectedNationalIdFront, 'National ID Front', selectedStudent.fullName)}
                             role="group"
                           >
                             <Image
                               src={selectedNationalIdFront}
                               alt="National ID Front"
-                              h="170px"
+                              h="150px"
                               w="100%"
                               objectFit="contain"
+                              borderRadius="md"
                               transition="transform 0.2s"
-                              _groupHover={{ transform: 'scale(1.05)', opacity: 0.9 }}
+                              _groupHover={{ transform: 'scale(1.03)' }}
                             />
                             <Flex
                               position="absolute"
                               inset={0}
-                              bg="blackAlpha.600"
+                              bg="blackAlpha.500"
                               opacity={0}
                               _groupHover={{ opacity: 1 }}
                               transition="opacity 0.2s"
@@ -1624,74 +1637,158 @@ export default function TessbinCSRegisteredUsersView() {
                               color="white"
                               direction="column"
                               gap={1}
+                              borderRadius="md"
                             >
-                              <Icon as={FiMaximize2} boxSize="22px" />
-                              <Text fontSize="11px" fontWeight="700">Click for Full View</Text>
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
                             </Flex>
                           </Box>
                         ) : (
-                          <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
                             <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
                             <Text fontSize="11px">No National ID front uploaded</Text>
                           </Flex>
                         )}
                       </Box>
                       {selectedNationalIdFront && (
-                        <ButtonGroup size="xs" mt={3} isAttached w="full">
+                        <HStack mt={3} spacing={1.5} w="full">
                           <Button
                             flex="1"
+                            size="xs"
                             colorScheme="indigo"
                             bg="#4F46E5"
                             _hover={{ bg: '#4338CA' }}
                             color="white"
                             leftIcon={<FiMaximize2 />}
                             onClick={() => handleOpenFullImage(selectedNationalIdFront, 'National ID Front', selectedStudent.fullName)}
+                            fontWeight="700"
                           >
-                            Full View
+                            View
                           </Button>
-                          <Button
-                            variant="outline"
-                            borderColor={borderColor}
-                            leftIcon={<FiDownload />}
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = selectedNationalIdFront;
-                              link.download = `National_ID_Front_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
-                              link.click();
-                            }}
-                          >
-                            Download
-                          </Button>
-                        </ButtonGroup>
+                          <Tooltip label="Download National ID Front" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download National ID Front"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedNationalIdFront;
+                                link.download = `National_ID_Front_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       )}
                     </Box>
 
                     {/* 3. National ID / Kebele Card Back */}
-                    <Box border="1px solid" borderColor={selectedNationalIdBack ? '#C7D2FE' : borderColor} borderRadius="xl" p={3} bg={cardBg}>
-                      <Flex justify="space-between" align="center" mb={2}>
-                        <Text fontSize="12px" fontWeight="800" color={textColor}>National ID Back</Text>
-                        <Badge colorScheme={selectedNationalIdBack ? 'green' : 'gray'} fontSize="10px">
-                          {selectedNationalIdBack ? 'Available' : 'Not Provided'}
-                        </Badge>
-                      </Flex>
-                      {selectedNationalIdBack ? (
-                        <>
-                          <Box borderRadius="lg" overflow="hidden" bg="blackAlpha.900" cursor="zoom-in" onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}>
-                            <Image src={selectedNationalIdBack} alt="National ID Back" h="170px" w="100%" objectFit="contain" />
-                          </Box>
-                          <Button size="xs" mt={3} w="full" colorScheme="indigo" leftIcon={<FiMaximize2 />} onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}>
-                            Full View
-                          </Button>
-                        </>
-                      ) : (
-                        <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
-                          <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
-                          <Text fontSize="11px">No National ID back uploaded</Text>
+                    <Box
+                      border="1px solid"
+                      borderColor={selectedNationalIdBack ? '#C7D2FE' : borderColor}
+                      borderRadius="xl"
+                      p={3}
+                      bg={cardBg}
+                      display="flex"
+                      flexDirection="column"
+                      justifyContent="space-between"
+                      transition="all 0.2s"
+                      _hover={{ borderColor: '#4F46E5', boxShadow: 'md' }}
+                    >
+                      <Box>
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="12px" fontWeight="800" color={textColor}>National ID Back</Text>
+                          {selectedNationalIdBack ? (
+                            <Badge colorScheme="green" fontSize="10px">Available</Badge>
+                          ) : (
+                            <Badge colorScheme="gray" fontSize="10px">Not Provided</Badge>
+                          )}
                         </Flex>
+                        {selectedNationalIdBack ? (
+                          <Box
+                            position="relative"
+                            borderRadius="lg"
+                            overflow="hidden"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
+                            borderColor={borderColor}
+                            cursor="zoom-in"
+                            p={1}
+                            onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}
+                            role="group"
+                          >
+                            <Image
+                              src={selectedNationalIdBack}
+                              alt="National ID Back"
+                              h="150px"
+                              w="100%"
+                              objectFit="contain"
+                              borderRadius="md"
+                              transition="transform 0.2s"
+                              _groupHover={{ transform: 'scale(1.03)' }}
+                            />
+                            <Flex
+                              position="absolute"
+                              inset={0}
+                              bg="blackAlpha.500"
+                              opacity={0}
+                              _groupHover={{ opacity: 1 }}
+                              transition="opacity 0.2s"
+                              align="center"
+                              justify="center"
+                              color="white"
+                              direction="column"
+                              gap={1}
+                              borderRadius="md"
+                            >
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
+                            </Flex>
+                          </Box>
+                        ) : (
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                            <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
+                            <Text fontSize="11px">No National ID back uploaded</Text>
+                          </Flex>
+                        )}
+                      </Box>
+                      {selectedNationalIdBack && (
+                        <HStack mt={3} spacing={1.5} w="full">
+                          <Button
+                            flex="1"
+                            size="xs"
+                            colorScheme="indigo"
+                            bg="#4F46E5"
+                            _hover={{ bg: '#4338CA' }}
+                            color="white"
+                            leftIcon={<FiMaximize2 />}
+                            onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}
+                            fontWeight="700"
+                          >
+                            View
+                          </Button>
+                          <Tooltip label="Download National ID Back" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download National ID Back"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedNationalIdBack;
+                                link.download = `National_ID_Back_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       )}
                     </Box>
 
-                    {/* 4. Payment Receipt Screenshot */}
+                    {/* 4. Tuition Payment Receipt Screenshot */}
                     <Box
                       border="1px solid"
                       borderColor={selectedStudent.paymentScreenshot ? '#C7D2FE' : borderColor}
@@ -1707,7 +1804,7 @@ export default function TessbinCSRegisteredUsersView() {
                       <Box>
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="12px" fontWeight="800" color={textColor}>
-                            Bank Payment Receipt
+                            Tuition Payment Receipt
                           </Text>
                           {selectedStudent.paymentScreenshot ? (
                             <Badge colorScheme="green" fontSize="10px">Available</Badge>
@@ -1720,24 +1817,28 @@ export default function TessbinCSRegisteredUsersView() {
                             position="relative"
                             borderRadius="lg"
                             overflow="hidden"
-                            bg="blackAlpha.900"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
+                            borderColor={borderColor}
                             cursor="zoom-in"
-                            onClick={() => handleOpenFullImage(selectedStudent.paymentScreenshot, 'Bank Payment Receipt', selectedStudent.fullName)}
+                            p={1}
+                            onClick={() => handleOpenFullImage(selectedStudent.paymentScreenshot, 'Tuition Payment Receipt', selectedStudent.fullName)}
                             role="group"
                           >
                             <Image
                               src={selectedStudent.paymentScreenshot}
                               alt="Payment Receipt"
-                              h="170px"
+                              h="150px"
                               w="100%"
                               objectFit="contain"
+                              borderRadius="md"
                               transition="transform 0.2s"
-                              _groupHover={{ transform: 'scale(1.05)', opacity: 0.9 }}
+                              _groupHover={{ transform: 'scale(1.03)' }}
                             />
                             <Flex
                               position="absolute"
                               inset={0}
-                              bg="blackAlpha.600"
+                              bg="blackAlpha.500"
                               opacity={0}
                               _groupHover={{ opacity: 1 }}
                               transition="opacity 0.2s"
@@ -1746,47 +1847,160 @@ export default function TessbinCSRegisteredUsersView() {
                               color="white"
                               direction="column"
                               gap={1}
+                              borderRadius="md"
                             >
-                              <Icon as={FiMaximize2} boxSize="22px" />
-                              <Text fontSize="11px" fontWeight="700">Click for Full View</Text>
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
                             </Flex>
                           </Box>
                         ) : (
-                          <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
                             <Icon as={FiDollarSign} boxSize="28px" mb={1} opacity={0.5} />
-                            <Text fontSize="11px">No receipt screenshot uploaded</Text>
+                            <Text fontSize="11px">No tuition receipt uploaded</Text>
                           </Flex>
                         )}
                       </Box>
                       {selectedStudent.paymentScreenshot && (
-                        <ButtonGroup size="xs" mt={3} isAttached w="full">
+                        <HStack mt={3} spacing={1.5} w="full">
                           <Button
                             flex="1"
+                            size="xs"
                             colorScheme="indigo"
                             bg="#4F46E5"
                             _hover={{ bg: '#4338CA' }}
                             color="white"
                             leftIcon={<FiMaximize2 />}
-                            onClick={() => handleOpenFullImage(selectedStudent.paymentScreenshot, 'Bank Payment Receipt', selectedStudent.fullName)}
+                            onClick={() => handleOpenFullImage(selectedStudent.paymentScreenshot, 'Tuition Payment Receipt', selectedStudent.fullName)}
+                            fontWeight="700"
                           >
-                            Full View
+                            View
                           </Button>
-                          <Button
-                            variant="outline"
-                            borderColor={borderColor}
-                            leftIcon={<FiDownload />}
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = selectedStudent.paymentScreenshot;
-                              link.download = `Payment_Receipt_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
-                              link.click();
-                            }}
-                          >
-                            Download
-                          </Button>
-                        </ButtonGroup>
+                          <Tooltip label="Download Tuition Receipt" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download Tuition Receipt"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedStudent.paymentScreenshot;
+                                link.download = `Tuition_Receipt_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       )}
                     </Box>
+
+                    {/* 5. COC Fee Payment Receipt */}
+                    {(selectedStudent.cocPaymentScreenshot || (selectedStudent.learningDepartment || '').toLowerCase().includes('coffee')) && (
+                      <Box
+                        border="1px solid"
+                        borderColor={selectedStudent.cocPaymentScreenshot ? '#99F6E4' : borderColor}
+                        borderRadius="xl"
+                        p={3}
+                        bg={cardBg}
+                        display="flex"
+                        flexDirection="column"
+                        justifyContent="space-between"
+                        transition="all 0.2s"
+                        _hover={{ borderColor: '#0D9488', boxShadow: 'md' }}
+                      >
+                        <Box>
+                          <Flex justify="space-between" align="center" mb={2}>
+                            <Text fontSize="12px" fontWeight="800" color={textColor}>
+                              COC Payment Receipt
+                            </Text>
+                            {selectedStudent.cocPaymentScreenshot ? (
+                              <Badge colorScheme="teal" fontSize="10px">Available</Badge>
+                            ) : (
+                              <Badge colorScheme="gray" fontSize="10px">Not Provided</Badge>
+                            )}
+                          </Flex>
+                          {selectedStudent.cocPaymentScreenshot ? (
+                            <Box
+                              position="relative"
+                              borderRadius="lg"
+                              overflow="hidden"
+                              bg={useColorModeValue('gray.50', 'gray.900')}
+                              border="1px solid"
+                              borderColor={borderColor}
+                              cursor="zoom-in"
+                              p={1}
+                              onClick={() => handleOpenFullImage(selectedStudent.cocPaymentScreenshot, 'COC Payment Receipt', selectedStudent.fullName)}
+                              role="group"
+                            >
+                              <Image
+                                src={selectedStudent.cocPaymentScreenshot}
+                                alt="COC Payment Receipt"
+                                h="150px"
+                                w="100%"
+                                objectFit="contain"
+                                borderRadius="md"
+                                transition="transform 0.2s"
+                                _groupHover={{ transform: 'scale(1.03)' }}
+                              />
+                              <Flex
+                                position="absolute"
+                                inset={0}
+                                bg="blackAlpha.500"
+                                opacity={0}
+                                _groupHover={{ opacity: 1 }}
+                                transition="opacity 0.2s"
+                                align="center"
+                                justify="center"
+                                color="white"
+                                direction="column"
+                                gap={1}
+                                borderRadius="md"
+                              >
+                                <Icon as={FiMaximize2} boxSize="20px" />
+                                <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
+                              </Flex>
+                            </Box>
+                          ) : (
+                            <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                              <Icon as={FiDollarSign} boxSize="28px" mb={1} opacity={0.5} color="teal.500" />
+                              <Text fontSize="11px">No COC receipt uploaded</Text>
+                            </Flex>
+                          )}
+                        </Box>
+                        {selectedStudent.cocPaymentScreenshot && (
+                          <HStack mt={3} spacing={1.5} w="full">
+                            <Button
+                              flex="1"
+                              size="xs"
+                              colorScheme="teal"
+                              bg="#0D9488"
+                              _hover={{ bg: '#0F766E' }}
+                              color="white"
+                              leftIcon={<FiMaximize2 />}
+                              onClick={() => handleOpenFullImage(selectedStudent.cocPaymentScreenshot, 'COC Payment Receipt', selectedStudent.fullName)}
+                              fontWeight="700"
+                            >
+                              View
+                            </Button>
+                            <Tooltip label="Download COC Receipt" hasArrow>
+                              <IconButton
+                                size="xs"
+                                aria-label="Download COC Receipt"
+                                icon={<FiDownload />}
+                                variant="outline"
+                                borderColor={borderColor}
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = selectedStudent.cocPaymentScreenshot;
+                                  link.download = `COC_Payment_Receipt_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                  link.click();
+                                }}
+                              />
+                            </Tooltip>
+                          </HStack>
+                        )}
+                      </Box>
+                    )}
                   </SimpleGrid>
                 </Box>
 
@@ -1869,19 +2083,35 @@ export default function TessbinCSRegisteredUsersView() {
                   <Text fontSize="10px" fontWeight="800" color={mutedColor} textTransform="uppercase" mb={2}>
                     Payment & Bank Information
                   </Text>
-                  <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={2}>
+                  <SimpleGrid columns={{ base: 1, sm: selectedStudent.cocPaymentBank || selectedStudent.cocPaymentStatus ? 5 : 3 }} spacing={2}>
                     <Box>
                       <Text fontSize="10px" color={mutedColor}>Option</Text>
                       <Text fontSize="12px" fontWeight="700">{selectedStudent.paymentOption || 'Full Payment'}</Text>
                     </Box>
                     <Box>
-                      <Text fontSize="10px" color={mutedColor}>Bank</Text>
+                      <Text fontSize="10px" color={mutedColor}>Tuition Bank</Text>
                       <Text fontSize="12px" fontWeight="700">{selectedStudent.paymentBank || 'N/A'}</Text>
                     </Box>
                     <Box>
                       <Text fontSize="10px" color={mutedColor}>FS / Receipt #</Text>
                       <Text fontSize="12px" fontWeight="700">{selectedStudent.fsNumber || 'N/A'}</Text>
                     </Box>
+                    {(selectedStudent.cocPaymentBank || selectedStudent.cocPaymentStatus) && (
+                      <>
+                        <Box>
+                          <Text fontSize="10px" color={mutedColor}>COC Status</Text>
+                          <Badge colorScheme={selectedStudent.cocPaymentStatus === 'Paid' ? 'green' : 'gray'} mt={0.5}>
+                            {selectedStudent.cocPaymentStatus || 'Unpaid'}
+                          </Badge>
+                        </Box>
+                        <Box>
+                          <Text fontSize="10px" color={mutedColor}>COC Bank</Text>
+                          <Text fontSize="12px" fontWeight="700" color="teal.600">
+                            {selectedStudent.cocPaymentBank || 'N/A'}
+                          </Text>
+                        </Box>
+                      </>
+                    )}
                   </SimpleGrid>
                 </Box>
 

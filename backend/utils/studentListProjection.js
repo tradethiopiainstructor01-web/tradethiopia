@@ -1,6 +1,6 @@
 const documentFields = [
   'nationalIdImage', 'nationalIdFrontImage', 'nationalIdBackImage',
-  'passportPhoto', 'paymentScreenshot',
+  'passportPhoto', 'paymentScreenshot', 'cocPaymentScreenshot',
 ];
 const hasImage = (field) => ({ $ne: [{ $ifNull: [`$${field}`, ''] }, ''] });
 
@@ -12,6 +12,7 @@ const studentListProjection = [
     hasNationalIdBackImage: hasImage('nationalIdBackImage'),
     hasPassportPhoto: hasImage('passportPhoto'),
     hasPaymentScreenshot: hasImage('paymentScreenshot'),
+    hasCocPaymentScreenshot: hasImage('cocPaymentScreenshot'),
   } },
   { $project: Object.fromEntries(documentFields.map((field) => [field, 0])) },
 ];
