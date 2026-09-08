@@ -261,19 +261,20 @@ export default function TessbinStudentListA4Report({
               <thead>
                 <tr>
                   <th style={{ width: '4%', textAlign: 'center' }}>#</th>
-                  <th style={{ width: '14%' }}>Student ID</th>
-                  <th style={{ width: '22%' }}>Full Name</th>
-                  <th style={{ width: '18%' }}>Department</th>
-                  <th style={{ width: '10%' }}>Shift</th>
-                  <th style={{ width: '12%' }}>Phone</th>
-                  <th style={{ width: '10%' }}>Tuition</th>
-                  <th style={{ width: '10%' }}>COC Fee</th>
+                  <th style={{ width: '13%' }}>Student ID</th>
+                  <th style={{ width: '20%' }}>Full Name</th>
+                  <th style={{ width: '16%' }}>Department</th>
+                  <th style={{ width: '9%' }}>Shift</th>
+                  <th style={{ width: '11%' }}>Phone</th>
+                  <th style={{ width: '9%' }}>Tuition</th>
+                  <th style={{ width: '9%' }}>COC Fee</th>
+                  <th style={{ width: '9%' }}>Completed</th>
                 </tr>
               </thead>
               <tbody>
                 {students.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '14px', color: '#64748B' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '14px', color: '#64748B' }}>
                       No student registration records match the current filter selection.
                     </td>
                   </tr>
@@ -281,6 +282,7 @@ export default function TessbinStudentListA4Report({
                   students.map((student, idx) => {
                     const isPaid = (student.paymentStatus || '').toLowerCase() === 'paid';
                     const isCoc = (student.cocPaymentStatus || '').toLowerCase() === 'paid';
+                    const isCompleted = (student.classCompletionStatus || '').toLowerCase() === 'completed' || student.classCompleted;
 
                     return (
                       <tr key={student._id || student.id || idx} style={{ backgroundColor: idx % 2 === 1 ? '#F8FAFC' : '#FFFFFF' }}>
@@ -318,6 +320,21 @@ export default function TessbinStudentListA4Report({
                             }}
                           >
                             {isCoc ? 'COC Paid' : 'Unpaid'}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '1px 4px',
+                              borderRadius: '3px',
+                              fontSize: '6pt',
+                              fontWeight: '700',
+                              backgroundColor: isCompleted ? '#DCFCE7' : '#F1F5F9',
+                              color: isCompleted ? '#166534' : '#64748B',
+                            }}
+                          >
+                            {isCompleted ? 'Completed ✓' : 'In Progress'}
                           </span>
                         </td>
                       </tr>

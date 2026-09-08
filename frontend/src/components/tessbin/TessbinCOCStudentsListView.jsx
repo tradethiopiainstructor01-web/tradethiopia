@@ -42,6 +42,7 @@ import {
   TagLabel,
   TagCloseButton,
   Divider,
+  Checkbox,
 } from '@chakra-ui/react';
 import {
   FiSearch,
@@ -66,7 +67,11 @@ import {
   FiEye,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
-import { getStudentRegistrations, getStudentRegistrationById } from '../../services/studentRegistrationService';
+import {
+  getStudentRegistrations,
+  getStudentRegistrationById,
+  updateStudentRegistration,
+} from '../../services/studentRegistrationService';
 import TessbinStudentA4Dossier from './TessbinStudentA4Dossier';
 import TessbinStudentListA4Report from './TessbinStudentListA4Report';
 
@@ -82,6 +87,72 @@ export default function TessbinCOCStudentsListView() {
   const [customEndDate, setCustomEndDate] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('ALL');
   const [shiftFilter, setShiftFilter] = useState('ALL');
+  const [cocStatusFilter, setCocStatusFilter] = useState('ALL');
+  const [completionFilter, setCompletionFilter] = useState('ALL'); // 'ALL', 'COMPLETED', 'IN_PROGRESS'
+  const [updatingStudentId, setUpdatingStudentId] = useState(null);
+
+  const handleToggleCompletion = async (student, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const currentCompleted = Boolean(
+      (student.classCompletionStatus || '').toLowerCase() === 'completed' || student.classCompleted
+    );
+    const nextCompleted = !currentCompleted;
+    const nextStatus = nextCompleted ? 'Completed' : 'Not Completed';
+    const studentDbId = student._id || student.id;
+
+    // Optimistic UI state update
+    setStudents((prev) =>
+      prev.map((s) => {
+        if ((s._id || s.id) === studentDbId) {
+          return {
+            ...s,
+            classCompleted: nextCompleted,
+            classCompletionStatus: nextStatus,
+          };
+        }
+        return s;
+      })
+    );
+
+    try {
+      setUpdatingStudentId(studentDbId);
+      await updateStudentRegistration(studentDbId, {
+        ...student,
+        classCompleted: nextCompleted,
+        classCompletionStatus: nextStatus,
+      });
+      toast({
+        title: nextCompleted ? 'Marked as Completed ✓' : 'Marked as In Progress',
+        description: `${student.fullName || 'Student'} is now marked as ${nextStatus}.`,
+        status: nextCompleted ? 'success' : 'info',
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (err) {
+      // Revert if error
+      setStudents((prev) =>
+        prev.map((s) => {
+          if ((s._id || s.id) === studentDbId) {
+            return {
+              ...s,
+              classCompleted: currentCompleted,
+              classCompletionStatus: student.classCompletionStatus || (currentCompleted ? 'Completed' : 'Not Completed'),
+            };
+          }
+          return s;
+        })
+      );
+      toast({
+        title: 'Status update failed',
+        description: err.response?.data?.message || 'Unable to update completion status in database.',
+        status: 'error',
+        duration: 3500,
+        isClosable: true,
+      });
+    } finally {
+      setUpdatingStudentId(null);
+    }
+  };
 
   // Sort State
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = latest to oldest (Default)
@@ -141,34 +212,30 @@ export default function TessbinCOCStudentsListView() {
   const mutedColor = useColorModeValue('#64748B', '#94A3B8');
   const hoverRowBg = useColorModeValue('#F1F5F9', '#1E293B');
 
-  // Fetch COC Paid Students
+  // Fetch COC Students
   const fetchCocPaidStudents = async () => {
     setLoading(true);
     try {
-      // Backend supports filtering directly by cocPaymentStatus=Paid
-      const data = await getStudentRegistrations({ cocPaymentStatus: 'Paid' });
+      const data = await getStudentRegistrations();
       const rawList = Array.isArray(data) ? data : [];
-      // Ensure only strictly COC Paid students are displayed
-      const paidOnly = rawList.filter((s) => {
-        const acceptedCourses = [
-          'coffeecupping',
-          'coffeeindustrycuppingandqualityassessment',
-        ];
-        const isCoffeeCupping = [s.learningDepartment, s.program].some((value) =>
+      const acceptedCourses = [
+        'coffeecupping',
+        'coffeeindustrycuppingandqualityassessment',
+      ];
+      const cocStudents = rawList.filter((s) => {
+        return [s.learningDepartment, s.program].some((value) =>
           acceptedCourses.includes(
             (value || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '')
           )
         );
-        return isCoffeeCupping &&
-          (s.cocPaymentStatus || '').toString().trim().toLowerCase() === 'paid';
       });
       // Sort latest to oldest
-      paidOnly.sort((a, b) => {
+      cocStudents.sort((a, b) => {
         const dateA = new Date(a.createdAt || a.enrollmentDate || 0).getTime();
         const dateB = new Date(b.createdAt || b.enrollmentDate || 0).getTime();
         return dateB - dateA;
       });
-      setStudents(paidOnly);
+      setStudents(cocStudents);
     } catch (error) {
       toast({
         title: 'Failed to load COC Students List',
@@ -288,13 +355,29 @@ export default function TessbinCOCStudentsListView() {
         return false;
       }
 
+      // 5. COC Status
+      if (cocStatusFilter !== 'ALL') {
+        const isPaid = (student.cocPaymentStatus || '').toString().trim().toLowerCase() === 'paid';
+        if (cocStatusFilter === 'PAID' && !isPaid) return false;
+        if (cocStatusFilter === 'UNPAID' && isPaid) return false;
+      }
+
+      // 6. Completion Filter
+      if (completionFilter !== 'ALL') {
+        const isCompleted = Boolean(
+          (student.classCompletionStatus || '').toLowerCase() === 'completed' || student.classCompleted
+        );
+        if (completionFilter === 'COMPLETED' && !isCompleted) return false;
+        if (completionFilter === 'IN_PROGRESS' && isCompleted) return false;
+      }
+
       return true;
     }).sort((a, b) => {
       const dateA = new Date(a.createdAt || a.enrollmentDate || 0).getTime();
       const dateB = new Date(b.createdAt || b.enrollmentDate || 0).getTime();
       return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
-  }, [students, searchQuery, timePeriodFilter, customStartDate, customEndDate, departmentFilter, shiftFilter, sortOrder]);
+  }, [students, searchQuery, timePeriodFilter, customStartDate, customEndDate, departmentFilter, shiftFilter, cocStatusFilter, completionFilter, sortOrder]);
 
   // Pagination slice
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
@@ -305,7 +388,7 @@ export default function TessbinCOCStudentsListView() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, timePeriodFilter, customStartDate, customEndDate, departmentFilter, shiftFilter, pageSize]);
+  }, [searchQuery, timePeriodFilter, customStartDate, customEndDate, departmentFilter, shiftFilter, cocStatusFilter, completionFilter, pageSize]);
 
   // Helper: compute up to 5 visible page numbers
   const getVisiblePages = (curPage, totalPgs) => {
@@ -324,7 +407,17 @@ export default function TessbinCOCStudentsListView() {
 
   // Stats
   const stats = useMemo(() => {
-    const totalPaid = students.length;
+    const totalCandidates = students.length;
+    const totalPaid = students.filter(
+      (s) => (s.cocPaymentStatus || '').toLowerCase() === 'paid'
+    ).length;
+    const totalUnpaid = students.filter(
+      (s) => (s.cocPaymentStatus || '').toLowerCase() !== 'paid'
+    ).length;
+    const totalCompleted = students.filter(
+      (s) => (s.classCompletionStatus || '').toLowerCase() === 'completed' || s.classCompleted
+    ).length;
+    const totalInProgress = totalCandidates - totalCompleted;
     const importExport = students.filter(
       (s) => (s.learningDepartment || '').toLowerCase().includes('import') || (s.learningDepartment || '').toLowerCase().includes('export')
     ).length;
@@ -337,7 +430,7 @@ export default function TessbinCOCStudentsListView() {
       return d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     }).length;
 
-    return { totalPaid, importExport, coffeeCupping, thisMonth };
+    return { totalCandidates, totalPaid, totalUnpaid, totalCompleted, totalInProgress, importExport, coffeeCupping, thisMonth };
   }, [students]);
 
   // Export to Excel
@@ -356,7 +449,8 @@ export default function TessbinCOCStudentsListView() {
         'Registered Date': s.createdAt ? new Date(s.createdAt).toLocaleDateString() : 'N/A',
         'Payment Option': s.paymentOption || 'Full Payment',
         'General Payment Status': s.paymentStatus || 'Waiting',
-        'COC Payment Status': 'PAID',
+        'COC Payment Status': (s.cocPaymentStatus || 'Unpaid').toUpperCase(),
+        'COC Payment Bank': s.cocPaymentBank || 'N/A',
         'Class Completion': s.classCompletionStatus || (s.classCompleted ? 'Completed' : 'In Progress'),
         'FS / Receipt #': s.fsNumber || 'N/A',
         'Bank': s.paymentBank || 'N/A',
@@ -364,13 +458,13 @@ export default function TessbinCOCStudentsListView() {
 
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'COC_Paid_Students');
-      const filename = `Tessbin_COC_Paid_Students_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.utils.book_append_sheet(wb, ws, 'COC_Students');
+      const filename = `Tessbin_COC_Students_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, filename);
 
       toast({
         title: 'Export Successful',
-        description: `Exported ${dataToExport.length} COC Paid student records to Excel.`,
+        description: `Exported ${dataToExport.length} COC student records to Excel.`,
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -393,6 +487,8 @@ export default function TessbinCOCStudentsListView() {
     setCustomEndDate('');
     setDepartmentFilter('ALL');
     setShiftFilter('ALL');
+    setCocStatusFilter('ALL');
+    setCompletionFilter('ALL');
     setSortOrder('desc');
   };
 
@@ -400,7 +496,9 @@ export default function TessbinCOCStudentsListView() {
     searchQuery.trim() !== '' ||
     timePeriodFilter !== 'ALL' ||
     departmentFilter !== 'ALL' ||
-    shiftFilter !== 'ALL';
+    shiftFilter !== 'ALL' ||
+    cocStatusFilter !== 'ALL' ||
+    completionFilter !== 'ALL';
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -713,6 +811,38 @@ export default function TessbinCOCStudentsListView() {
                 </Select>
               </Box>
 
+              {/* COC Status Dropdown */}
+              <Box minW={{ base: '100%', sm: '150px' }}>
+                <Select
+                  size="sm"
+                  borderRadius="lg"
+                  borderColor={borderColor}
+                  value={cocStatusFilter}
+                  onChange={(e) => setCocStatusFilter(e.target.value)}
+                  fontWeight="600"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="PAID">COC Paid ({stats.totalPaid})</option>
+                  <option value="UNPAID">COC Unpaid ({stats.totalUnpaid})</option>
+                </Select>
+              </Box>
+
+              {/* Completion Filter Dropdown */}
+              <Box minW={{ base: '100%', sm: '160px' }}>
+                <Select
+                  size="sm"
+                  borderRadius="lg"
+                  borderColor={borderColor}
+                  value={completionFilter}
+                  onChange={(e) => setCompletionFilter(e.target.value)}
+                  fontWeight="600"
+                >
+                  <option value="ALL">All Completion</option>
+                  <option value="COMPLETED">Completed ({stats.totalCompleted})</option>
+                  <option value="IN_PROGRESS">In Progress ({stats.totalInProgress})</option>
+                </Select>
+              </Box>
+
               {/* Reset Filters Button */}
               {hasActiveFilters && (
                 <Button
@@ -831,6 +961,9 @@ export default function TessbinCOCStudentsListView() {
                 <Th py={3.5} color={mutedColor} fontSize="11px" fontWeight="800">
                   COC STATUS
                 </Th>
+                <Th py={3.5} color={mutedColor} fontSize="11px" fontWeight="800">
+                  COMPLETED
+                </Th>
                 <Th py={3.5} color={mutedColor} fontSize="11px" fontWeight="800" textAlign="right">
                   ACTION
                 </Th>
@@ -839,7 +972,7 @@ export default function TessbinCOCStudentsListView() {
             <Tbody>
               {loading ? (
                 <Tr>
-                  <Td colSpan={8} py={12} textAlign="center">
+                  <Td colSpan={10} py={12} textAlign="center">
                     <VStack spacing={2}>
                       <Icon as={FiRefreshCw} boxSize="24px" color="#059669" className="rotate" />
                       <Text fontSize="13px" color={mutedColor}>
@@ -850,16 +983,16 @@ export default function TessbinCOCStudentsListView() {
                 </Tr>
               ) : paginatedStudents.length === 0 ? (
                 <Tr>
-                  <Td colSpan={8} py={12} textAlign="center">
+                  <Td colSpan={10} py={12} textAlign="center">
                     <VStack spacing={2}>
                       <Icon as={FiAward} boxSize="32px" color={mutedColor} opacity={0.5} />
                       <Heading size="sm" color={textColor}>
-                        No COC Paid Students Found
+                        No COC Students Found
                       </Heading>
                       <Text fontSize="12px" color={mutedColor} maxW="400px">
                         {hasActiveFilters
                           ? 'No records match your selected filter criteria. Try resetting filters.'
-                          : 'No students with COC fee marked as Paid have been registered by Customer Service yet.'}
+                          : 'No COC students have been registered by Customer Service yet.'}
                       </Text>
                       {hasActiveFilters && (
                         <Button size="xs" colorScheme="green" mt={2} onClick={handleResetFilters}>
@@ -872,6 +1005,10 @@ export default function TessbinCOCStudentsListView() {
               ) : (
                 paginatedStudents.map((student) => {
                   const hasDocs = Boolean(student.hasPassportPhoto || student.hasNationalIdFrontImage || student.hasNationalIdBackImage || student.hasNationalIdImage || student.hasPaymentScreenshot || student.passportPhoto || student.nationalIdFrontImage || student.nationalIdBackImage || student.nationalIdImage || student.paymentScreenshot);
+                  const isCompleted = Boolean(
+                    (student.classCompletionStatus || '').toLowerCase() === 'completed' || student.classCompleted
+                  );
+                  const isUpdating = updatingStudentId === (student._id || student.id);
                   return (
                     <Tr
                       key={student._id || student.studentId}
@@ -975,18 +1112,48 @@ export default function TessbinCOCStudentsListView() {
                       {/* COC Status */}
                       <Td py={3}>
                         <Badge
-                          colorScheme="green"
-                          bg="#10B981"
+                          colorScheme={(student.cocPaymentStatus || '').toLowerCase() === 'paid' ? 'green' : 'orange'}
+                          bg={(student.cocPaymentStatus || '').toLowerCase() === 'paid' ? '#10B981' : '#F59E0B'}
                           color="white"
                           fontSize="11px"
                           px={2.5}
                           py={1}
                           borderRadius="md"
                           fontWeight="800"
-                          boxShadow="0 2px 6px rgba(16, 185, 129, 0.3)"
+                          boxShadow={(student.cocPaymentStatus || '').toLowerCase() === 'paid' ? '0 2px 6px rgba(16, 185, 129, 0.3)' : '0 2px 6px rgba(245, 158, 11, 0.3)'}
                         >
-                          COC PAID
+                          {(student.cocPaymentStatus || '').toLowerCase() === 'paid' ? 'COC PAID' : 'COC UNPAID'}
                         </Badge>
+                      </Td>
+
+                      {/* Completed Checkbox Column */}
+                      <Td py={3}>
+                        <HStack spacing={2} align="center">
+                          <Tooltip label={isCompleted ? "Click to mark as In Progress" : "Click to mark as Completed"}>
+                            <Checkbox
+                              colorScheme="green"
+                              size="md"
+                              isChecked={isCompleted}
+                              isDisabled={isUpdating}
+                              onChange={(e) => handleToggleCompletion(student, e)}
+                            />
+                          </Tooltip>
+                          <Badge
+                            colorScheme={isCompleted ? 'green' : 'gray'}
+                            bg={isCompleted ? '#DCFCE7' : useColorModeValue('gray.100', 'gray.800')}
+                            color={isCompleted ? '#15803D' : mutedColor}
+                            fontSize="10px"
+                            px={2}
+                            py={0.5}
+                            borderRadius="full"
+                            fontWeight="700"
+                            cursor="pointer"
+                            onClick={(e) => handleToggleCompletion(student, e)}
+                            _hover={{ opacity: 0.8 }}
+                          >
+                            {isCompleted ? 'Completed ✓' : 'In Progress'}
+                          </Badge>
+                        </HStack>
                       </Td>
 
                       {/* Actions */}
@@ -1221,8 +1388,7 @@ export default function TessbinCOCStudentsListView() {
                       Click any document to view full resolution
                     </Text>
                   </Flex>
-
-                  <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
+                  <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 5 }} spacing={3}>
                     {/* 1. Passport Photo (3x4) */}
                     <Box
                       border="1px solid"
@@ -1252,24 +1418,28 @@ export default function TessbinCOCStudentsListView() {
                             position="relative"
                             borderRadius="lg"
                             overflow="hidden"
-                            bg="blackAlpha.900"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
+                            borderColor={borderColor}
                             cursor="zoom-in"
+                            p={1}
                             onClick={() => handleOpenFullImage(selectedStudent.passportPhoto, '3×4 Passport Photo', selectedStudent.fullName)}
                             role="group"
                           >
                             <Image
                               src={selectedStudent.passportPhoto}
                               alt="Passport Photo"
-                              h="170px"
+                              h="150px"
                               w="100%"
-                              objectFit="cover"
+                              objectFit="contain"
+                              borderRadius="md"
                               transition="transform 0.2s"
-                              _groupHover={{ transform: 'scale(1.05)', opacity: 0.9 }}
+                              _groupHover={{ transform: 'scale(1.03)' }}
                             />
                             <Flex
                               position="absolute"
                               inset={0}
-                              bg="blackAlpha.600"
+                              bg="blackAlpha.500"
                               opacity={0}
                               _groupHover={{ opacity: 1 }}
                               transition="opacity 0.2s"
@@ -1278,45 +1448,50 @@ export default function TessbinCOCStudentsListView() {
                               color="white"
                               direction="column"
                               gap={1}
+                              borderRadius="md"
                             >
-                              <Icon as={FiMaximize2} boxSize="22px" />
-                              <Text fontSize="11px" fontWeight="700">Click for Full View</Text>
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
                             </Flex>
                           </Box>
                         ) : (
-                          <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
-                            <Icon as={FiCamera} boxSize="28px" mb={1} opacity={0.5} />
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                            <Icon as={FiCamera} boxSize={28} mb={1} opacity={0.5} />
                             <Text fontSize="11px">No passport photo uploaded</Text>
                           </Flex>
                         )}
                       </Box>
                       {selectedStudent.passportPhoto && (
-                        <ButtonGroup size="xs" mt={3} isAttached w="full">
+                        <HStack mt={3} spacing={1.5} w="full">
                           <Button
                             flex="1"
+                            size="xs"
                             colorScheme="green"
                             bg="#059669"
                             _hover={{ bg: '#047857' }}
                             color="white"
                             leftIcon={<FiMaximize2 />}
                             onClick={() => handleOpenFullImage(selectedStudent.passportPhoto, '3×4 Passport Photo', selectedStudent.fullName)}
+                            fontWeight="700"
                           >
-                            Full View
+                            View
                           </Button>
-                          <Button
-                            variant="outline"
-                            borderColor={borderColor}
-                            leftIcon={<FiDownload />}
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = selectedStudent.passportPhoto;
-                              link.download = `Passport_Photo_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
-                              link.click();
-                            }}
-                          >
-                            Download
-                          </Button>
-                        </ButtonGroup>
+                          <Tooltip label="Download Passport Photo" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download Passport Photo"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedStudent.passportPhoto;
+                                link.download = `Passport_Photo_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       )}
                     </Box>
 
@@ -1349,24 +1524,28 @@ export default function TessbinCOCStudentsListView() {
                             position="relative"
                             borderRadius="lg"
                             overflow="hidden"
-                            bg="blackAlpha.900"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
+                            borderColor={borderColor}
                             cursor="zoom-in"
+                            p={1}
                             onClick={() => handleOpenFullImage(selectedNationalIdFront, 'National ID Front', selectedStudent.fullName)}
                             role="group"
                           >
                             <Image
                               src={selectedNationalIdFront}
                               alt="National ID Front"
-                              h="170px"
+                              h="150px"
                               w="100%"
                               objectFit="contain"
+                              borderRadius="md"
                               transition="transform 0.2s"
-                              _groupHover={{ transform: 'scale(1.05)', opacity: 0.9 }}
+                              _groupHover={{ transform: 'scale(1.03)' }}
                             />
                             <Flex
                               position="absolute"
                               inset={0}
-                              bg="blackAlpha.600"
+                              bg="blackAlpha.500"
                               opacity={0}
                               _groupHover={{ opacity: 1 }}
                               transition="opacity 0.2s"
@@ -1375,70 +1554,154 @@ export default function TessbinCOCStudentsListView() {
                               color="white"
                               direction="column"
                               gap={1}
+                              borderRadius="md"
                             >
-                              <Icon as={FiMaximize2} boxSize="22px" />
-                              <Text fontSize="11px" fontWeight="700">Click for Full View</Text>
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
                             </Flex>
                           </Box>
                         ) : (
-                          <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
-                            <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                            <Icon as={FiFileText} boxSize={28} mb={1} opacity={0.5} />
                             <Text fontSize="11px">No National ID front uploaded</Text>
                           </Flex>
                         )}
                       </Box>
                       {selectedNationalIdFront && (
-                        <ButtonGroup size="xs" mt={3} isAttached w="full">
+                        <HStack mt={3} spacing={1.5} w="full">
                           <Button
                             flex="1"
+                            size="xs"
                             colorScheme="green"
                             bg="#059669"
                             _hover={{ bg: '#047857' }}
                             color="white"
                             leftIcon={<FiMaximize2 />}
                             onClick={() => handleOpenFullImage(selectedNationalIdFront, 'National ID Front', selectedStudent.fullName)}
+                            fontWeight="700"
                           >
-                            Full View
+                            View
                           </Button>
-                          <Button
-                            variant="outline"
-                            borderColor={borderColor}
-                            leftIcon={<FiDownload />}
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = selectedNationalIdFront;
-                              link.download = `National_ID_Front_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
-                              link.click();
-                            }}
-                          >
-                            Download
-                          </Button>
-                        </ButtonGroup>
+                          <Tooltip label="Download National ID Front" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download National ID Front"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedNationalIdFront;
+                                link.download = `National_ID_Front_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       )}
                     </Box>
 
                     {/* 3. National ID / Kebele Card Back */}
-                    <Box border="1px solid" borderColor={selectedNationalIdBack ? '#A7F3D0' : borderColor} borderRadius="xl" p={3} bg={cardBg}>
-                      <Flex justify="space-between" align="center" mb={2}>
-                        <Text fontSize="12px" fontWeight="800" color={textColor}>National ID Back</Text>
-                        <Badge colorScheme={selectedNationalIdBack ? 'green' : 'gray'} fontSize="10px">
-                          {selectedNationalIdBack ? 'Available' : 'Not Provided'}
-                        </Badge>
-                      </Flex>
-                      {selectedNationalIdBack ? (
-                        <>
-                          <Box borderRadius="lg" overflow="hidden" bg="blackAlpha.900" cursor="zoom-in" onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}>
-                            <Image src={selectedNationalIdBack} alt="National ID Back" h="170px" w="100%" objectFit="contain" />
-                          </Box>
-                          <Button size="xs" mt={3} w="full" colorScheme="green" leftIcon={<FiMaximize2 />} onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}>
-                            Full View
-                          </Button>
-                        </>
-                      ) : (
-                        <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
-                          <Icon as={FiFileText} boxSize="28px" mb={1} opacity={0.5} />
-                          <Text fontSize="11px">No National ID back uploaded</Text>
+                    <Box
+                      border="1px solid"
+                      borderColor={selectedNationalIdBack ? '#A7F3D0' : borderColor}
+                      borderRadius="xl"
+                      p={3}
+                      bg={cardBg}
+                      display="flex"
+                      flexDirection="column"
+                      justifyContent="space-between"
+                      transition="all 0.2s"
+                      _hover={{ borderColor: '#059669', boxShadow: 'md' }}
+                    >
+                      <Box>
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="12px" fontWeight="800" color={textColor}>National ID Back</Text>
+                          {selectedNationalIdBack ? (
+                            <Badge colorScheme="green" fontSize="10px">Available</Badge>
+                          ) : (
+                            <Badge colorScheme="gray" fontSize="10px">Not Provided</Badge>
+                          )}
                         </Flex>
+                        {selectedNationalIdBack ? (
+                          <Box
+                            position="relative"
+                            borderRadius="lg"
+                            overflow="hidden"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
+                            borderColor={borderColor}
+                            cursor="zoom-in"
+                            p={1}
+                            onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}
+                            role="group"
+                          >
+                            <Image
+                              src={selectedNationalIdBack}
+                              alt="National ID Back"
+                              h="150px"
+                              w="100%"
+                              objectFit="contain"
+                              borderRadius="md"
+                              transition="transform 0.2s"
+                              _groupHover={{ transform: 'scale(1.03)' }}
+                            />
+                            <Flex
+                              position="absolute"
+                              inset={0}
+                              bg="blackAlpha.500"
+                              opacity={0}
+                              _groupHover={{ opacity: 1 }}
+                              transition="opacity 0.2s"
+                              align="center"
+                              justify="center"
+                              color="white"
+                              direction="column"
+                              gap={1}
+                              borderRadius="md"
+                            >
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
+                            </Flex>
+                          </Box>
+                        ) : (
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                            <Icon as={FiFileText} boxSize={28} mb={1} opacity={0.5} />
+                            <Text fontSize="11px">No National ID back uploaded</Text>
+                          </Flex>
+                        )}
+                      </Box>
+                      {selectedNationalIdBack && (
+                        <HStack mt={3} spacing={1.5} w="full">
+                          <Button
+                            flex="1"
+                            size="xs"
+                            colorScheme="green"
+                            bg="#059669"
+                            _hover={{ bg: '#047857' }}
+                            color="white"
+                            leftIcon={<FiMaximize2 />}
+                            onClick={() => handleOpenFullImage(selectedNationalIdBack, 'National ID Back', selectedStudent.fullName)}
+                            fontWeight="700"
+                          >
+                            View
+                          </Button>
+                          <Tooltip label="Download National ID Back" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download National ID Back"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedNationalIdBack;
+                                link.download = `National_ID_Back_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       )}
                     </Box>
 
@@ -1458,7 +1721,7 @@ export default function TessbinCOCStudentsListView() {
                       <Box>
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="12px" fontWeight="800" color={textColor}>
-                            Bank Payment Receipt
+                            Tuition Payment Receipt
                           </Text>
                           {selectedStudent.paymentScreenshot ? (
                             <Badge colorScheme="green" fontSize="10px">Available</Badge>
@@ -1471,24 +1734,28 @@ export default function TessbinCOCStudentsListView() {
                             position="relative"
                             borderRadius="lg"
                             overflow="hidden"
-                            bg="blackAlpha.900"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
+                            borderColor={borderColor}
                             cursor="zoom-in"
-                            onClick={() => handleOpenFullImage(selectedStudent.paymentScreenshot, 'Bank Payment Receipt', selectedStudent.fullName)}
+                            p={1}
+                            onClick={() => handleOpenFullImage(selectedStudent.paymentScreenshot, 'Tuition Payment Receipt', selectedStudent.fullName)}
                             role="group"
                           >
                             <Image
                               src={selectedStudent.paymentScreenshot}
-                              alt="Payment Receipt"
-                              h="170px"
+                              alt="Tuition Payment Receipt"
+                              h="150px"
                               w="100%"
                               objectFit="contain"
+                              borderRadius="md"
                               transition="transform 0.2s"
-                              _groupHover={{ transform: 'scale(1.05)', opacity: 0.9 }}
+                              _groupHover={{ transform: 'scale(1.03)' }}
                             />
                             <Flex
                               position="absolute"
                               inset={0}
-                              bg="blackAlpha.600"
+                              bg="blackAlpha.500"
                               opacity={0}
                               _groupHover={{ opacity: 1 }}
                               transition="opacity 0.2s"
@@ -1497,45 +1764,156 @@ export default function TessbinCOCStudentsListView() {
                               color="white"
                               direction="column"
                               gap={1}
+                              borderRadius="md"
                             >
-                              <Icon as={FiMaximize2} boxSize="22px" />
-                              <Text fontSize="11px" fontWeight="700">Click for Full View</Text>
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
                             </Flex>
                           </Box>
                         ) : (
-                          <Flex h="170px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
-                            <Icon as={FiDollarSign} boxSize="28px" mb={1} opacity={0.5} />
-                            <Text fontSize="11px">No receipt screenshot uploaded</Text>
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                            <Icon as={FiDollarSign} boxSize={28} mb={1} opacity={0.5} />
+                            <Text fontSize="11px">No tuition receipt uploaded</Text>
                           </Flex>
                         )}
                       </Box>
                       {selectedStudent.paymentScreenshot && (
-                        <ButtonGroup size="xs" mt={3} isAttached w="full">
+                        <HStack mt={3} spacing={1.5} w="full">
                           <Button
                             flex="1"
+                            size="xs"
                             colorScheme="green"
                             bg="#059669"
                             _hover={{ bg: '#047857' }}
                             color="white"
                             leftIcon={<FiMaximize2 />}
-                            onClick={() => handleOpenFullImage(selectedStudent.paymentScreenshot, 'Bank Payment Receipt', selectedStudent.fullName)}
+                            onClick={() => handleOpenFullImage(selectedStudent.paymentScreenshot, 'Tuition Payment Receipt', selectedStudent.fullName)}
+                            fontWeight="700"
                           >
-                            Full View
+                            View
                           </Button>
-                          <Button
-                            variant="outline"
+                          <Tooltip label="Download Tuition Receipt" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download Tuition Receipt"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedStudent.paymentScreenshot;
+                                link.download = `Tuition_Receipt_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
+                      )}
+                    </Box>
+
+                    {/* 5. COC Fee Payment Receipt */}
+                    <Box
+                      border="1px solid"
+                      borderColor={selectedStudent.cocPaymentScreenshot ? '#99F6E4' : borderColor}
+                      borderRadius="xl"
+                      p={3}
+                      bg={cardBg}
+                      display="flex"
+                      flexDirection="column"
+                      justifyContent="space-between"
+                      transition="all 0.2s"
+                      _hover={{ borderColor: '#0D9488', boxShadow: 'md' }}
+                    >
+                      <Box>
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="12px" fontWeight="800" color={textColor}>
+                            COC Payment Receipt
+                          </Text>
+                          {selectedStudent.cocPaymentScreenshot ? (
+                            <Badge colorScheme="teal" fontSize="10px">Available</Badge>
+                          ) : (
+                            <Badge colorScheme="gray" fontSize="10px">Not Provided</Badge>
+                          )}
+                        </Flex>
+                        {selectedStudent.cocPaymentScreenshot ? (
+                          <Box
+                            position="relative"
+                            borderRadius="lg"
+                            overflow="hidden"
+                            bg={useColorModeValue('gray.50', 'gray.900')}
+                            border="1px solid"
                             borderColor={borderColor}
-                            leftIcon={<FiDownload />}
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = selectedStudent.paymentScreenshot;
-                              link.download = `Payment_Receipt_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
-                              link.click();
-                            }}
+                            cursor="zoom-in"
+                            p={1}
+                            onClick={() => handleOpenFullImage(selectedStudent.cocPaymentScreenshot, 'COC Payment Receipt', selectedStudent.fullName)}
+                            role="group"
                           >
-                            Download
+                            <Image
+                              src={selectedStudent.cocPaymentScreenshot}
+                              alt="COC Payment Receipt"
+                              h="150px"
+                              w="100%"
+                              objectFit="contain"
+                              borderRadius="md"
+                              transition="transform 0.2s"
+                              _groupHover={{ transform: 'scale(1.03)' }}
+                            />
+                            <Flex
+                              position="absolute"
+                              inset={0}
+                              bg="blackAlpha.500"
+                              opacity={0}
+                              _groupHover={{ opacity: 1 }}
+                              transition="opacity 0.2s"
+                              align="center"
+                              justify="center"
+                              color="white"
+                              direction="column"
+                              gap={1}
+                              borderRadius="md"
+                            >
+                              <Icon as={FiMaximize2} boxSize="20px" />
+                              <Text fontSize="10px" fontWeight="700">Click for Full View</Text>
+                            </Flex>
+                          </Box>
+                        ) : (
+                          <Flex h="150px" bg={useColorModeValue('gray.100', 'gray.800')} borderRadius="lg" align="center" justify="center" direction="column" color={mutedColor}>
+                            <Icon as={FiDollarSign} boxSize={28} mb={1} opacity={0.5} color="teal.500" />
+                            <Text fontSize="11px">No COC receipt uploaded</Text>
+                          </Flex>
+                        )}
+                      </Box>
+                      {selectedStudent.cocPaymentScreenshot && (
+                        <HStack mt={3} spacing={1.5} w="full">
+                          <Button
+                            flex="1"
+                            size="xs"
+                            colorScheme="teal"
+                            bg="#0D9488"
+                            _hover={{ bg: '#0F766E' }}
+                            color="white"
+                            leftIcon={<FiMaximize2 />}
+                            onClick={() => handleOpenFullImage(selectedStudent.cocPaymentScreenshot, 'COC Payment Receipt', selectedStudent.fullName)}
+                            fontWeight="700"
+                          >
+                            View
                           </Button>
-                        </ButtonGroup>
+                          <Tooltip label="Download COC Receipt" hasArrow>
+                            <IconButton
+                              size="xs"
+                              aria-label="Download COC Receipt"
+                              icon={<FiDownload />}
+                              variant="outline"
+                              borderColor={borderColor}
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = selectedStudent.cocPaymentScreenshot;
+                                link.download = `COC_Payment_Receipt_${selectedStudent.fullName.replace(/\s+/g, '_')}.png`;
+                                link.click();
+                              }}
+                            />
+                          </Tooltip>
+                        </HStack>
                       )}
                     </Box>
                   </SimpleGrid>
@@ -1615,17 +1993,21 @@ export default function TessbinCOCStudentsListView() {
                   <Text fontSize="10px" fontWeight="800" color={mutedColor} textTransform="uppercase" mb={2}>
                     Payment & COC Fee Information
                   </Text>
-                  <SimpleGrid columns={{ base: 1, sm: 4 }} spacing={2}>
+                  <SimpleGrid columns={{ base: 1, sm: 5 }} spacing={2}>
                     <Box>
                       <Text fontSize="10px" color={mutedColor}>COC Status</Text>
                       <Badge colorScheme="green" mt={0.5}>PAID</Badge>
+                    </Box>
+                    <Box>
+                      <Text fontSize="10px" color={mutedColor}>COC Bank</Text>
+                      <Text fontSize="12px" fontWeight="700" color="teal.600">{selectedStudent.cocPaymentBank || 'Not Specified'}</Text>
                     </Box>
                     <Box>
                       <Text fontSize="10px" color={mutedColor}>Tuition Option</Text>
                       <Text fontSize="12px" fontWeight="700">{selectedStudent.paymentOption || 'Full Payment'}</Text>
                     </Box>
                     <Box>
-                      <Text fontSize="10px" color={mutedColor}>Bank</Text>
+                      <Text fontSize="10px" color={mutedColor}>Tuition Bank</Text>
                       <Text fontSize="12px" fontWeight="700">{selectedStudent.paymentBank || 'N/A'}</Text>
                     </Box>
                     <Box>

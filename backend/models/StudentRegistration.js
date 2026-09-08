@@ -59,6 +59,11 @@ const StudentRegistrationSchema = new mongoose.Schema(
       default: '',
       select: false,
     },
+    cocPaymentScreenshot: {
+      type: String,
+      default: '',
+      select: false,
+    },
     learningDepartment: {
       type: String,
       required: true,
@@ -127,6 +132,11 @@ const StudentRegistrationSchema = new mongoose.Schema(
       enum: ['Paid', 'Unpaid'],
       default: 'Unpaid',
       index: true,
+    },
+    cocPaymentBank: {
+      type: String,
+      default: '',
+      trim: true,
     },
     status: {
       type: String,

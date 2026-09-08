@@ -150,6 +150,8 @@ const initialForm = {
   classCompleted: false,
   classCompletionStatus: "Not Completed",
   cocPaymentStatus: "Unpaid",
+  cocPaymentBank: "",
+  cocPaymentScreenshot: "",
   status: "Active",
   salesCallStatus: "Not Called",
   salesFollowupStatus: "Pending",
@@ -279,6 +281,8 @@ const normalizeStudent = (student = {}, index = 0) => ({
   classCompleted: normalizeClassCompletionStatus(student.classCompletionStatus || student.classStatus, normalizeBoolean(student.classCompleted)) === "Completed",
   classCompletionStatus: normalizeClassCompletionStatus(student.classCompletionStatus || student.classStatus, normalizeBoolean(student.classCompleted)),
   cocPaymentStatus: student.cocPaymentStatus === "Paid" ? "Paid" : "Unpaid",
+  cocPaymentBank: safeString(student.cocPaymentBank || student.cocBank),
+  cocPaymentScreenshot: safeString(student.cocPaymentScreenshot),
   salesCallStatus: safeString(student.salesCallStatus, "Not Called"),
   salesFollowupStatus: safeString(student.salesFollowupStatus, "Pending"),
   salesSchedulePreference: safeString(student.salesSchedulePreference, "Regular"),
@@ -687,6 +691,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
         student.paymentBank,
         student.fsNumber,
         student.cocPaymentStatus,
+        student.cocPaymentBank,
         student.classCompletionStatus,
         student.classCompleted ? "class completed completed" : "class not completed incomplete",
         student.status,
@@ -808,7 +813,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
         }
         return isCoffeeCuppingCourse(next)
           ? next
-          : { ...next, cocPaymentStatus: "Unpaid" };
+          : { ...next, cocPaymentStatus: "Unpaid", cocPaymentBank: "", cocPaymentScreenshot: "" };
       });
       return;
     }
@@ -889,6 +894,16 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
     event.preventDefault();
     if (!form.fullName.trim() || !form.learningDepartment) {
       toast({ title: "Student name and learning department are required.", status: "warning", duration: 3000, isClosable: true });
+      return;
+    }
+    if (!form.paymentScreenshot) {
+      toast({
+        title: "Payment Receipt Required",
+        description: "Please upload the payment receipt screenshot before completing registration.",
+        status: "warning",
+        duration: 4000,
+        isClosable: true,
+      });
       return;
     }
     const now = new Date().toISOString();
@@ -1062,6 +1077,9 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
       nationalIdBackImage: fullStudent.nationalIdBackImage || "",
       passportPhoto: fullStudent.passportPhoto || "",
       paymentScreenshot: fullStudent.paymentScreenshot || "",
+      cocPaymentStatus: fullStudent.cocPaymentStatus === "Paid" ? "Paid" : "Unpaid",
+      cocPaymentBank: fullStudent.cocPaymentBank || fullStudent.cocBank || "",
+      cocPaymentScreenshot: fullStudent.cocPaymentScreenshot || "",
       enrollmentDate: formatDate(fullStudent.enrollmentDate),
       trainingEndDate: formatDate(fullStudent.trainingEndDate || fullStudent.endDate),
       examDate: formatDate(fullStudent.examDate),
@@ -1145,6 +1163,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
     "Class Completed": student.classCompleted ? "Yes" : "No",
     "Class Outcome": student.classCompletionStatus || (student.classCompleted ? "Completed" : "Not Completed"),
     "CoC Payment Status": isCoffeeCuppingCourse(student) ? (student.cocPaymentStatus || "Unpaid") : "Not Applicable",
+    "CoC Payment Bank": isCoffeeCuppingCourse(student) ? (student.cocPaymentBank || "") : "Not Applicable",
     Status: student.status || "",
     Notes: student.notes || "",
     "Registered By": student.registeredBy || "Unknown CS member",
@@ -1572,6 +1591,8 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                             const hasFront = Boolean(student.nationalIdFrontImage || student.nationalIdImage || student.hasNationalIdFrontImage || student.hasNationalIdImage);
                             const hasBack = Boolean(student.nationalIdBackImage || student.hasNationalIdBackImage);
                             const hasReceipt = Boolean(student.paymentScreenshot || student.hasPaymentScreenshot);
+                            const isCocStudent = isCoffeeCuppingCourse(student);
+                            const hasCocReceipt = Boolean(student.cocPaymentScreenshot || student.hasCocPaymentScreenshot);
 
                             return (
                               <Card key={student.id} border="1px solid" borderColor={borderColor} bg={cardAltBg} borderRadius="14px">
@@ -1598,7 +1619,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                                       <Badge colorScheme={getStateColor(student.paymentStatus || "Waiting")}>{student.paymentStatus || "Waiting"}</Badge>
                                       <Badge colorScheme={getStateColor(student.paymentOption)}>{student.paymentOption || "Full Payment"}</Badge>
                                     </HStack>
-                                    {(student.paymentBank || student.fsNumber) && (
+                                    {(student.paymentBank || student.fsNumber || (isCocStudent && (student.cocPaymentBank || student.cocPaymentStatus))) && (
                                       <Box p={2} bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor} fontSize="xs">
                                         {student.paymentBank && (
                                           <Text fontWeight="700" color={headingColor} noOfLines={1}>
@@ -1609,6 +1630,18 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                                           <Text color="blue.600" fontWeight="700" mt={0.5}>
                                             FS#: {student.fsNumber}
                                           </Text>
+                                        )}
+                                        {isCocStudent && (
+                                          <HStack mt={1} pt={1} borderTop="1px dashed" borderColor={borderColor} justify="space-between" flexWrap="wrap">
+                                            <Badge colorScheme={student.cocPaymentStatus === "Paid" ? "teal" : "gray"} fontSize="10px">
+                                              COC: {student.cocPaymentStatus || "Unpaid"}
+                                            </Badge>
+                                            {student.cocPaymentBank && (
+                                              <Text fontSize="10px" fontWeight="700" color="teal.600">
+                                                🏦 {student.cocPaymentBank}
+                                              </Text>
+                                            )}
+                                          </HStack>
                                         )}
                                       </Box>
                                     )}
@@ -1625,6 +1658,11 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                                       <Badge size="xs" fontSize="9px" px={1.5} py={0.5} borderRadius="full" colorScheme={hasReceipt ? "green" : "gray"} variant={hasReceipt ? "solid" : "subtle"}>
                                         🧾 Receipt
                                       </Badge>
+                                      {isCocStudent && (
+                                        <Badge size="xs" fontSize="9px" px={1.5} py={0.5} borderRadius="full" colorScheme={hasCocReceipt ? "teal" : "gray"} variant={hasCocReceipt ? "solid" : "subtle"}>
+                                          ☕ COC Receipt
+                                        </Badge>
+                                      )}
                                     </HStack>
                                     <Flex justify="flex-end">{renderActions(student)}</Flex>
                                   </VStack>
@@ -1797,14 +1835,36 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                   </FormControl>
                   <FormControl><FormLabel>FS Number</FormLabel><Input name="fsNumber" value={form.fsNumber} onChange={handleChange} placeholder="Paid receipt FS number" bg={fieldBg} /></FormControl>
                   {isCoffeeCuppingCourse(form) && (
-                    <FormControl>
-                      <FormLabel>COC Fee</FormLabel>
-                      <Select name="cocPaymentStatus" value={form.cocPaymentStatus} onChange={handleChange} bg={fieldBg}>
-                        <option value="Unpaid">Unpaid</option>
-                        <option value="Paid">Paid</option>
-                      </Select>
-                      <Text mt={1} fontSize="xs" color={mutedText}>Available only for Coffee Cupping students.</Text>
-                    </FormControl>
+                    <>
+                      <FormControl>
+                        <FormLabel>COC Fee</FormLabel>
+                        <Select name="cocPaymentStatus" value={form.cocPaymentStatus} onChange={handleChange} bg={fieldBg}>
+                          <option value="Unpaid">Unpaid</option>
+                          <option value="Paid">Paid</option>
+                        </Select>
+                        <Text mt={1} fontSize="xs" color={mutedText}>Available only for Coffee Cupping students.</Text>
+                      </FormControl>
+                      <FormControl>
+                        <FormLabel>COC Payment Bank</FormLabel>
+                        <Select
+                          name="cocPaymentBank"
+                          value={form.cocPaymentBank}
+                          onChange={handleChange}
+                          placeholder="Select Ethiopian Bank for COC"
+                          bg={fieldBg}
+                        >
+                          {form.cocPaymentBank && !ETHIOPIAN_BANKS.includes(form.cocPaymentBank) && (
+                            <option value={form.cocPaymentBank}>{form.cocPaymentBank}</option>
+                          )}
+                          {ETHIOPIAN_BANKS.map((bank) => (
+                            <option key={bank} value={bank}>
+                              {bank}
+                            </option>
+                          ))}
+                        </Select>
+                        <Text mt={1} fontSize="xs" color={mutedText}>Bank where the COC fee was deposited.</Text>
+                      </FormControl>
+                    </>
                   )}
                   <FormControl><FormLabel>Registration Status</FormLabel><Select name="status" value={form.status} onChange={handleChange} bg={fieldBg}><option value="Active">Active</option><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="Paused">Paused</option></Select></FormControl>
                   {workspaceLabel === "Sales" && (
@@ -2005,7 +2065,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                       National ID front/back is optional. The payment receipt photo is required.
                     </Text>
 
-                    <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
+                    <SimpleGrid columns={{ base: 1, md: 2, xl: isCoffeeCuppingCourse(form) ? 5 : 4 }} spacing={4}>
                       {/* 1. 3x4 Passport Photo */}
                       <Box
                         border="1px dashed"
@@ -2015,9 +2075,14 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         bg={fieldBg}
                         textAlign="center"
                       >
-                        <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
-                          3×4 Passport Photo
-                        </Text>
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="xs" fontWeight="800" color={headingColor}>
+                            3×4 Passport Photo
+                          </Text>
+                          <Badge colorScheme={form.passportPhoto ? "green" : "gray"} fontSize="9px">
+                            {form.passportPhoto ? "Uploaded ✓" : "Optional"}
+                          </Badge>
+                        </Flex>
                         {form.passportPhoto ? (
                           <VStack spacing={2}>
                             <Image
@@ -2029,7 +2094,6 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               objectFit="cover"
                             />
                             <HStack justify="center" spacing={2}>
-                              <Badge colorScheme="green" fontSize="9px">Uploaded</Badge>
                               <Button
                                 size="xs"
                                 colorScheme="red"
@@ -2075,9 +2139,14 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         bg={fieldBg}
                         textAlign="center"
                       >
-                        <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
-                          National ID Front (Optional)
-                        </Text>
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="xs" fontWeight="800" color={headingColor}>
+                            National ID Front
+                          </Text>
+                          <Badge colorScheme={form.nationalIdFrontImage ? "green" : "gray"} fontSize="9px">
+                            {form.nationalIdFrontImage ? "Uploaded ✓" : "Optional"}
+                          </Badge>
+                        </Flex>
                         {form.nationalIdFrontImage ? (
                           <VStack spacing={2}>
                             <Image
@@ -2089,7 +2158,6 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               objectFit="contain"
                             />
                             <HStack justify="center" spacing={2}>
-                              <Badge colorScheme="green" fontSize="9px">Uploaded</Badge>
                               <Button
                                 size="xs"
                                 colorScheme="red"
@@ -2135,9 +2203,14 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         bg={fieldBg}
                         textAlign="center"
                       >
-                        <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
-                          National ID Back (Optional)
-                        </Text>
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="xs" fontWeight="800" color={headingColor}>
+                            National ID Back
+                          </Text>
+                          <Badge colorScheme={form.nationalIdBackImage ? "green" : "gray"} fontSize="9px">
+                            {form.nationalIdBackImage ? "Uploaded ✓" : "Optional"}
+                          </Badge>
+                        </Flex>
                         {form.nationalIdBackImage ? (
                           <VStack spacing={2}>
                             <Image
@@ -2149,7 +2222,6 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               objectFit="contain"
                             />
                             <HStack justify="center" spacing={2}>
-                              <Badge colorScheme="green" fontSize="9px">Uploaded</Badge>
                               <Button
                                 size="xs"
                                 colorScheme="red"
@@ -2186,18 +2258,23 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         )}
                       </Box>
 
-                      {/* 4. Payment Receipt Screenshot */}
+                      {/* 4. Payment Receipt Screenshot (Required) */}
                       <Box
                         border="1px dashed"
-                        borderColor={form.paymentScreenshot ? "green.400" : borderColor}
+                        borderColor={form.paymentScreenshot ? "green.400" : "red.300"}
                         borderRadius="14px"
                         p={3}
-                        bg={fieldBg}
+                        bg={form.paymentScreenshot ? fieldBg : useColorModeValue("red.50", "rgba(239, 68, 68, 0.05)")}
                         textAlign="center"
                       >
-                        <Text fontSize="xs" fontWeight="800" color={headingColor} mb={2}>
-                          Payment Receipt Screenshot (Required)
-                        </Text>
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="xs" fontWeight="800" color={headingColor}>
+                            Payment Receipt
+                          </Text>
+                          <Badge colorScheme={form.paymentScreenshot ? "green" : "red"} fontSize="9px">
+                            {form.paymentScreenshot ? "Uploaded ✓" : "Required *"}
+                          </Badge>
+                        </Flex>
                         {form.paymentScreenshot ? (
                           <VStack spacing={2}>
                             <Image
@@ -2209,7 +2286,6 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               objectFit="contain"
                             />
                             <HStack justify="center" spacing={2}>
-                              <Badge colorScheme="green" fontSize="9px">Uploaded</Badge>
                               <Button
                                 size="xs"
                                 colorScheme="red"
@@ -2223,14 +2299,16 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                           </VStack>
                         ) : (
                           <VStack spacing={2} py={4}>
-                            <Icon as={FiUploadCloud} boxSize={8} color="gray.400" />
-                            <Text fontSize="11px" color={mutedText}>Bank slip or screenshot</Text>
+                            <Icon as={FiUploadCloud} boxSize={8} color={form.paymentScreenshot ? "gray.400" : "red.400"} />
+                            <Text fontSize="11px" color={form.paymentScreenshot ? mutedText : "red.500"} fontWeight={form.paymentScreenshot ? "normal" : "600"}>
+                              Bank slip (Required)
+                            </Text>
                             <Button
                               as="label"
                               htmlFor="payment-screenshot-upload"
                               size="xs"
-                              colorScheme="blue"
-                              variant="outline"
+                              colorScheme={form.paymentScreenshot ? "blue" : "red"}
+                              variant={form.paymentScreenshot ? "outline" : "solid"}
                               cursor="pointer"
                             >
                               Upload Receipt
@@ -2245,6 +2323,74 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                           </VStack>
                         )}
                       </Box>
+
+                      {/* 5. COC Payment Receipt Screenshot (Coffee Cupping) */}
+                      {isCoffeeCuppingCourse(form) && (
+                        <Box
+                          border="1px dashed"
+                          borderColor={form.cocPaymentScreenshot ? "teal.400" : borderColor}
+                          borderRadius="14px"
+                          p={3}
+                          bg={fieldBg}
+                          textAlign="center"
+                        >
+                          <Flex justify="space-between" align="center" mb={2}>
+                            <Text fontSize="xs" fontWeight="800" color={headingColor}>
+                              COC Receipt
+                            </Text>
+                            <Badge colorScheme={form.cocPaymentScreenshot ? "teal" : "gray"} fontSize="9px">
+                              {form.cocPaymentScreenshot ? "Uploaded ✓" : "Optional"}
+                            </Badge>
+                          </Flex>
+                          {form.cocPaymentScreenshot ? (
+                            <VStack spacing={2}>
+                              <Image
+                                src={form.cocPaymentScreenshot}
+                                alt="COC Payment Receipt Preview"
+                                maxH="110px"
+                                borderRadius="md"
+                                mx="auto"
+                                objectFit="contain"
+                              />
+                              <HStack justify="center" spacing={2}>
+                                <Button
+                                  size="xs"
+                                  colorScheme="red"
+                                  variant="ghost"
+                                  leftIcon={<FiTrash2 />}
+                                  onClick={() => setForm((prev) => ({ ...prev, cocPaymentScreenshot: "" }))}
+                                >
+                                  Remove
+                                </Button>
+                              </HStack>
+                            </VStack>
+                          ) : (
+                            <VStack spacing={2} py={4}>
+                              <Icon as={FiUploadCloud} boxSize={8} color="teal.400" />
+                              <Text fontSize="11px" color={mutedText}>
+                                COC deposit slip (Optional)
+                              </Text>
+                              <Button
+                                as="label"
+                                htmlFor="coc-payment-screenshot-upload"
+                                size="xs"
+                                colorScheme="teal"
+                                variant="outline"
+                                cursor="pointer"
+                              >
+                                Upload COC Slip
+                              </Button>
+                              <input
+                                id="coc-payment-screenshot-upload"
+                                type="file"
+                                accept="image/*"
+                                style={{ display: "none" }}
+                                onChange={(e) => handleImageUpload("cocPaymentScreenshot", e.target.files[0])}
+                              />
+                            </VStack>
+                          )}
+                        </Box>
+                      )}
                     </SimpleGrid>
                   </Box>
 

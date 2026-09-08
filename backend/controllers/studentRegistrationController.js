@@ -439,6 +439,7 @@ const buildPayload = (body = {}) => {
     nationalIdBackImage: hasNationalIdBack ? body.nationalIdBackImage : undefined,
     passportPhoto: body.passportPhoto || undefined,
     paymentScreenshot: body.paymentScreenshot || undefined,
+    cocPaymentScreenshot: body.cocPaymentScreenshot || undefined,
     learningDepartment,
     program,
     enrollmentDate: parseDate(body.enrollmentDate || body.registrationDate),
@@ -455,6 +456,7 @@ const buildPayload = (body = {}) => {
     cocPaymentStatus: isCoffeeCupping
       ? normalizeCocPaymentStatus(body.cocPaymentStatus || body.cocPayment)
       : 'Unpaid',
+    cocPaymentBank: body.cocPaymentBank || body.cocBank || '',
     status: body.status || 'Active',
     salesCallStatus: body.salesCallStatus || 'Not Called',
     salesFollowupStatus: body.salesFollowupStatus || 'Pending',
@@ -484,6 +486,7 @@ const normalizeStudent = (student, includeDocuments = false) => ({
   hasNationalIdBackImage: Boolean(student.nationalIdBackImage || student.hasNationalIdBackImage),
   hasPassportPhoto: Boolean(student.passportPhoto || student.hasPassportPhoto),
   hasPaymentScreenshot: Boolean(student.paymentScreenshot || student.hasPaymentScreenshot),
+  hasCocPaymentScreenshot: Boolean(student.cocPaymentScreenshot || student.hasCocPaymentScreenshot),
   ...(includeDocuments
     ? {
         nationalIdImage: student.nationalIdFrontImage || student.nationalIdImage || '',
@@ -491,6 +494,7 @@ const normalizeStudent = (student, includeDocuments = false) => ({
         nationalIdBackImage: student.nationalIdBackImage || '',
         passportPhoto: student.passportPhoto || '',
         paymentScreenshot: student.paymentScreenshot || '',
+        cocPaymentScreenshot: student.cocPaymentScreenshot || '',
       }
     : {
         nationalIdImage: '',
@@ -498,6 +502,7 @@ const normalizeStudent = (student, includeDocuments = false) => ({
         nationalIdBackImage: '',
         passportPhoto: '',
         paymentScreenshot: '',
+        cocPaymentScreenshot: '',
       }),
   learningDepartment: student.learningDepartment,
   program: student.program,
@@ -515,6 +520,7 @@ const normalizeStudent = (student, includeDocuments = false) => ({
   cocPaymentStatus: isCoffeeCuppingRegistration(student)
     ? (student.cocPaymentStatus || 'Unpaid')
     : 'Unpaid',
+  cocPaymentBank: student.cocPaymentBank || '',
   status: student.status,
   salesCallStatus: student.salesCallStatus || 'Not Called',
   salesFollowupStatus: student.salesFollowupStatus || 'Pending',
@@ -534,6 +540,7 @@ const normalizeStudent = (student, includeDocuments = false) => ({
 });
 
 const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase();
+
 const PRIVILEGED_ROLES = new Set([
   'admin',
   'customerservice',
@@ -551,7 +558,14 @@ const PRIVILEGED_ROLES = new Set([
   'reception',
   'tessbinadmin',
   'tessbin admin',
-  'tessbin'
+  'tessbin',
+  'trainer',
+  'instructor',
+  'teacher',
+  'supervisor',
+  'leader',
+  'manager',
+  'it',
 ]);
 
 const canAccessStudentRecord = (student, user) => {
@@ -745,7 +759,7 @@ const getStudentRegistrations = async (req, res) => {
 const getStudentRegistrationById = async (req, res) => {
   try {
     const student = await StudentRegistration.findById(req.params.id)
-      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot')
+      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot')
       .lean();
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student registration not found.' });
@@ -796,8 +810,17 @@ const createStudentRegistration = async (req, res) => {
         message: 'Invalid Payment Receipt format. Please upload a valid JPEG, PNG, or WEBP under 5MB.',
       });
     }
+    if (payload.cocPaymentScreenshot && !isValidRegistrationImage(payload.cocPaymentScreenshot)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid COC Payment Receipt format. Please upload a valid JPEG, PNG, or WEBP under 5MB.',
+      });
+    }
     if (!payload.paymentScreenshot) {
       payload.paymentScreenshot = '';
+    }
+    if (!payload.cocPaymentScreenshot) {
+      payload.cocPaymentScreenshot = '';
     }
 
     const registrar = getSystemRegistrar(req.user);
@@ -853,7 +876,7 @@ const updateStudentRegistration = async (req, res) => {
   try {
     const syncToSalesFollowup = req.body.syncToSalesFollowup === true;
     const existingStudent = await StudentRegistration.findById(req.params.id)
-      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot')
+      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot')
       .lean();
     if (!existingStudent) {
       return res.status(404).json({ success: false, message: 'Student registration not found.' });
@@ -862,7 +885,11 @@ const updateStudentRegistration = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You do not have permission to update this student registration.' });
     }
 
-    const payload = buildPayload(req.body);
+    const mergedBody = {
+      ...existingStudent,
+      ...req.body,
+    };
+    const payload = buildPayload(mergedBody);
     delete payload.clientLocalId;
     // Student ID and registration ownership are immutable after creation.
     delete payload.studentId;
@@ -877,6 +904,9 @@ const updateStudentRegistration = async (req, res) => {
     // Retain existing image documents if not provided in the update
     if (!payload.paymentScreenshot) {
       payload.paymentScreenshot = existingStudent.paymentScreenshot;
+    }
+    if (!payload.cocPaymentScreenshot) {
+      payload.cocPaymentScreenshot = existingStudent.cocPaymentScreenshot;
     }
     if (!payload.nationalIdFrontImage && !payload.nationalIdImage) {
       payload.nationalIdFrontImage = existingStudent.nationalIdFrontImage || existingStudent.nationalIdImage || '';
@@ -894,6 +924,7 @@ const updateStudentRegistration = async (req, res) => {
       ['National ID back', req.body.nationalIdBackImage],
       ['passport photo', req.body.passportPhoto],
       ['payment receipt', req.body.paymentScreenshot],
+      ['COC payment receipt', req.body.cocPaymentScreenshot],
     ].find(([, value]) => value && !isValidRegistrationImage(value));
     if (invalidImageField) {
       return res.status(400).json({
@@ -905,7 +936,7 @@ const updateStudentRegistration = async (req, res) => {
     const student = await StudentRegistration.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
-    }).select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot');
+    }).select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot');
 
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student registration not found.' });
