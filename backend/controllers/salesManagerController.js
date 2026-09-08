@@ -122,7 +122,6 @@ const getAllSales = asyncHandler(async (req, res) => {
         { agentId: { $in: matchingAgents.map((agent) => String(agent._id)) } }
       ];
     }
-
     console.log('Applied filter:', filter);
 
     // Build filter for PackageSale
@@ -173,7 +172,7 @@ const getAllSales = asyncHandler(async (req, res) => {
         .sort({ date: -1 })
         .skip(skip)
         .limit(limit)
-        .select('customerName contactTitle phone callStatus followupStatus packageScope date schedulePreference email note supervisorComment courseName courseId coursePrice productInterest source pipelineStatus agentId assignedAt commission commissionApproved approvedAt createdAt updatedAt')
+        .select('customerName contactTitle phone callStatus followupStatus packageScope date schedulePreference email note supervisorComment courseName courseId coursePrice productInterest source pipelineStatus agentId assignedAt commission commissionApproved approvedAt createdAt updatedAt passportPhoto nationalIdFrontImage nationalIdBackImage paymentScreenshot paymentOption paymentBank fsNumber studentRegistrationId')
         .lean(),
       SalesCustomer.countDocuments(filter),
       PackageSale.find(packageFilter)
@@ -234,6 +233,7 @@ const getAllSales = asyncHandler(async (req, res) => {
 
     // If no sales found, return empty array with meta
     if (combinedSales.length === 0) {
+    if (sales.length === 0) {
       console.log('No sales found with current filter');
       return res.json({
         data: [],
