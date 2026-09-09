@@ -71,6 +71,7 @@ import {
   FiStar,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
+import axiosInstance from '../../services/axiosInstance';
 import { getStudentRegistrations } from '../../services/studentRegistrationService';
 import { fetchExternalDataAnalytics } from '../../services/tsExamService';
 
@@ -91,16 +92,145 @@ const TIMEFRAME_OPTIONS = [
   { value: 'custom', label: 'Custom Date Range...' },
 ];
 
+// Official TradeEthiopia Academic & Professional Departments (Sourced directly from backend)
 const STANDARD_DEPARTMENTS = [
   'Import and Export',
+  'General',
+  'Coffee Cupping',
   'Digital Marketing',
   'Stock Marketing',
-  'Coffee Cupping',
   'Barista',
-  'AI for Business',
   'Logistics',
   'Transit',
 ];
+
+const CANONICAL_DEPARTMENT_MAP = {
+  // Import & Export
+  'import and export': 'Import and Export',
+  'import export': 'Import and Export',
+  'international trade': 'Import and Export',
+  'international import and export': 'Import and Export',
+  'international trade import export': 'Import and Export',
+  'international trade and import export': 'Import and Export',
+  'international trade brokerage': 'Import and Export',
+  'international trade ceo': 'Import and Export',
+  'import-export': 'Import and Export',
+  'import': 'Import and Export',
+  'export': 'Import and Export',
+  'coldcall': 'Import and Export',
+  'coldcalled': 'Import and Export',
+
+  // Coffee Cupping
+  'coffee cupping': 'Coffee Cupping',
+  'coffee industry cupping & quality assessment': 'Coffee Cupping',
+  'coffee industry cupping and quality assessment': 'Coffee Cupping',
+  'coffee': 'Coffee Cupping',
+
+  // Digital Marketing
+  'digital marketing': 'Digital Marketing',
+  'digital marketing bootcamp': 'Digital Marketing',
+  'digital marketing for international trade': 'Digital Marketing',
+  'digital marketing mastery': 'Digital Marketing',
+  'tradeethiopia business tv & radio': 'Digital Marketing',
+
+  // Stock Marketing
+  'stock marketing': 'Stock Marketing',
+  'stock market': 'Stock Marketing',
+  'stock market trading': 'Stock Marketing',
+  'stock marketing logistic': 'Stock Marketing',
+  'stock market & investment strategies': 'Stock Marketing',
+
+  // Logistics & Transit
+  'logistics': 'Logistics',
+  'logistic': 'Logistics',
+  'logistics & transit': 'Logistics',
+  'logistics transit': 'Logistics',
+  'transit': 'Transit',
+
+  // Barista
+  'barista': 'Barista',
+
+  // General
+  'general': 'General',
+  'general training': 'General',
+};
+
+const KNOWN_DEPARTMENTS_SET = new Set(STANDARD_DEPARTMENTS);
+
+const getCanonicalDepartment = (raw) => {
+  if (!raw || typeof raw !== 'string') return 'Other / Unassigned';
+  const clean = raw.trim();
+  const lower = clean.toLowerCase();
+
+  // 1. Direct dictionary match
+  if (CANONICAL_DEPARTMENT_MAP[lower]) {
+    return CANONICAL_DEPARTMENT_MAP[lower];
+  }
+
+  // 2. Exact match against real departments
+  if (KNOWN_DEPARTMENTS_SET.has(clean)) {
+    return clean;
+  }
+
+  // 3. Keyword matching strictly for genuine departments
+  if (lower.includes('coffee')) return 'Coffee Cupping';
+  if (lower.includes('import') || lower.includes('export') || lower.includes('international trade') || lower.includes('trade')) return 'Import and Export';
+  if (lower.includes('digital') || (lower.includes('marketing') && !lower.includes('stock'))) return 'Digital Marketing';
+  if (lower.includes('stock')) return 'Stock Marketing';
+  if (lower.includes('barista')) return 'Barista';
+  if (lower.includes('transit')) return 'Transit';
+  if (lower.includes('logistic')) return 'Logistics';
+  if (lower === 'general' || lower.includes('general training')) return 'General';
+
+  // Any unrelated entries (dummy company names, test records, unrelated courses) are mapped to Unassigned
+  return 'Other / Unassigned';
+};
+
+const CustomDepartmentTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0]?.payload;
+  if (!data) return null;
+  const conversion = data.registrations > 0 ? Math.round((data.cocPaid / data.registrations) * 100) : 0;
+
+  return (
+    <Box
+      bg="#0F172A"
+      color="white"
+      p={3}
+      borderRadius="xl"
+      boxShadow="0 10px 25px rgba(0,0,0,0.35)"
+      border="1px solid #334155"
+      minW="210px"
+      fontSize="12px"
+    >
+      <Text fontWeight="800" fontSize="13px" mb={2} color="#F8FAFC">
+        {data.name}
+      </Text>
+      <VStack spacing={1.5} align="stretch">
+        <Flex justify="space-between" align="center">
+          <HStack spacing={1.5}>
+            <Box w="8px" h="8px" borderRadius="full" bg="#4F46E5" />
+            <Text color="#94A3B8">Total Registered:</Text>
+          </HStack>
+          <Text fontWeight="800" color="white">{data.registrations.toLocaleString()}</Text>
+        </Flex>
+        <Flex justify="space-between" align="center">
+          <HStack spacing={1.5}>
+            <Box w="8px" h="8px" borderRadius="full" bg="#10B981" />
+            <Text color="#94A3B8">COC Paid:</Text>
+          </HStack>
+          <Text fontWeight="800" color="#34D399">{data.cocPaid.toLocaleString()}</Text>
+        </Flex>
+        <Flex justify="space-between" align="center" pt={1.5} borderTop="1px solid #1E293B">
+          <Text color="#94A3B8">COC Conversion:</Text>
+          <Badge colorScheme={conversion >= 40 ? 'green' : conversion >= 20 ? 'teal' : 'purple'} fontSize="11px" px={1.5}>
+            {conversion}%
+          </Badge>
+        </Flex>
+      </VStack>
+    </Box>
+  );
+};
 
 const OUTCOME_COLORS = {
   Passed: '#10B981',
@@ -140,14 +270,17 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
   // Live Data States
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
+  const [backendExamStats, setBackendExamStats] = useState(null);
   const [examAnalytics, setExamAnalytics] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(null);
 
-  // Table Search Filter
+  // Table Search Filter & Chart Controls
   const [matrixSearch, setMatrixSearch] = useState('');
+  const [chartTopCount, setChartTopCount] = useState('8');
+  const [chartLayout, setChartLayout] = useState('vertical');
 
   // ─────────────────────────────────────────────────────────────
-  // 1. Data Fetching (Sidebars 1 & 2: Students/COC, Sidebar 3: Exams)
+  // 1. Data Fetching (Sidebars 1 & 2: Students/COC, Sidebar 3: Real Exams)
   // ─────────────────────────────────────────────────────────────
   const loadAllOverviewData = useCallback(async () => {
     setLoading(true);
@@ -181,11 +314,15 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
         examAnchor = '2025-01-01';
       }
 
-      // Fetch in parallel for top performance
-      const [studentsData, examRes] = await Promise.all([
+      // Fetch in parallel: real registrations, real backend exam stats & KPIs, external analytics
+      const [studentsData, backendStatsRes, examRes] = await Promise.all([
         getStudentRegistrations().catch((err) => {
           console.warn('[Overview] Error fetching students:', err);
           return [];
+        }),
+        axiosInstance.get('/tessbin/dashboard-stats').catch((err) => {
+          console.warn('[Overview] Error fetching backend stats:', err);
+          return null;
         }),
         fetchExternalDataAnalytics({ period: examPeriod, anchor: examAnchor }).catch((err) => {
           console.warn('[Overview] Error fetching exam analytics:', err);
@@ -194,6 +331,9 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
       ]);
 
       setStudents(Array.isArray(studentsData) ? studentsData : []);
+      if (backendStatsRes?.data?.success && backendStatsRes?.data?.data) {
+        setBackendExamStats(backendStatsRes.data.data);
+      }
       if (examRes?.success && examRes.data) {
         setExamAnalytics(examRes.data);
       }
@@ -320,8 +460,19 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
     );
   }, [filteredStudents]);
 
-  // Online Exam Totals (Sidebar 3 Data)
+  // Online Exam Totals (Directly from Real Backend MongoDB Tessbin records)
   const examTotals = useMemo(() => {
+    if (backendExamStats) {
+      return {
+        applications: backendExamStats.totalExamRecordsCount || 0,
+        uniqueExamTakers: backendExamStats.totalStudentsCount || backendExamStats.totalExamRecordsCount || 0,
+        completedResults: backendExamStats.totalExamRecordsCount || 0,
+        passed: backendExamStats.passedCount || 0,
+        failed: backendExamStats.failedCount || 0,
+        disqualified: 0,
+        passRate: backendExamStats.passRate || 0,
+      };
+    }
     return (
       examAnalytics?.totals || {
         applications: 0,
@@ -333,7 +484,7 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
         passRate: parentStats?.passRate || 90,
       }
     );
-  }, [examAnalytics, parentStats]);
+  }, [backendExamStats, examAnalytics, parentStats]);
 
   // ─────────────────────────────────────────────────────────────
   // 3. Department Analytics (Cross-Sidebar Analysis)
@@ -355,7 +506,8 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
 
     // Populate from filtered students
     filteredStudents.forEach((s) => {
-      const dept = s.learningDepartment || 'Other';
+      const rawDept = (s.learningDepartment || s.program || '').trim();
+      const dept = getCanonicalDepartment(rawDept);
       if (!map[dept]) {
         map[dept] = {
           name: dept,
@@ -384,8 +536,39 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
       }
     });
 
-    return Object.values(map).sort((a, b) => b.registrations - a.registrations);
+    // Rank genuine departments by registrations, and place unassigned at the bottom
+    const realDepts = STANDARD_DEPARTMENTS.map((dept) => map[dept]).sort(
+      (a, b) => b.registrations - a.registrations
+    );
+    const unassignedDept = map['Other / Unassigned'];
+    if (unassignedDept && unassignedDept.registrations > 0) {
+      return [...realDepts, unassignedDept];
+    }
+    return realDepts;
   }, [filteredStudents]);
+
+  // Chart dataset strictly for genuine departments (no dummy names, no unrelated courses)
+  const departmentChartData = useMemo(() => {
+    const genuineActive = departmentAnalysis.filter(
+      (d) => d.name !== 'Other / Unassigned' && d.registrations > 0
+    );
+    if (genuineActive.length === 0) {
+      return departmentAnalysis.filter((d) => d.name !== 'Other / Unassigned').slice(0, 6);
+    }
+    if (chartTopCount === 'all') {
+      return genuineActive;
+    }
+    const limit = Number(chartTopCount) || 8;
+    return genuineActive.slice(0, limit);
+  }, [departmentAnalysis, chartTopCount]);
+
+  // Summary Metrics for the currently displayed chart data
+  const { totalChartReg, totalChartCoc, chartCocConversion } = useMemo(() => {
+    const reg = departmentChartData.reduce((sum, d) => sum + (d.registrations || 0), 0);
+    const coc = departmentChartData.reduce((sum, d) => sum + (d.cocPaid || 0), 0);
+    const conv = reg > 0 ? Math.round((coc / reg) * 100) : 0;
+    return { totalChartReg: reg, totalChartCoc: coc, chartCocConversion: conv };
+  }, [departmentChartData]);
 
   // Filtered Matrix for Table Search
   const filteredDepartmentAnalysis = useMemo(() => {
@@ -1086,29 +1269,161 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
       <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6} mb={6}>
         {/* Department Comparison Grouped Bar Chart */}
         <Card gridColumn={{ lg: 'span 2' }} bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5} boxShadow="sm">
-          <HStack spacing={3} mb={4}>
-            <Icon as={FiBarChart2} color="#059669" boxSize="20px" />
-            <Box>
-              <Heading size="sm" fontWeight="800" fontSize="15px" color={textColor}>
-                Department Analysis: Registrations vs. COC Paid
-              </Heading>
-              <Text fontSize="11px" color={mutedText}>
-                Comparing learners registered by Customer Service against verified COC payments
-              </Text>
-            </Box>
+          <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap={3} mb={3}>
+            <HStack spacing={3}>
+              <Icon as={FiBarChart2} color="#059669" boxSize="22px" />
+              <Box>
+                <HStack spacing={2}>
+                  <Heading size="sm" fontWeight="800" fontSize="15px" color={textColor}>
+                    Department Analysis: Registrations vs. COC Paid
+                  </Heading>
+                  <Badge colorScheme="purple" fontSize="10px" px={2} borderRadius="md">
+                    {departmentChartData.length} Shown
+                  </Badge>
+                </HStack>
+                <Text fontSize="11px" color={mutedText}>
+                  Comparing learners registered by Customer Service against verified COC payments
+                </Text>
+              </Box>
+            </HStack>
+
+            <HStack spacing={2} flexWrap="wrap">
+              {/* Orientation Switcher */}
+              <HStack spacing={1} bg={cardAltBg} p={0.5} borderRadius="lg" border="1px" borderColor={borderColor}>
+                <Button
+                  size="xs"
+                  variant={chartLayout === 'vertical' ? 'solid' : 'ghost'}
+                  bg={chartLayout === 'vertical' ? '#4F46E5' : 'transparent'}
+                  color={chartLayout === 'vertical' ? 'white' : mutedText}
+                  fontSize="10px"
+                  fontWeight="700"
+                  h="22px"
+                  px={2.5}
+                  borderRadius="md"
+                  onClick={() => setChartLayout('vertical')}
+                >
+                  Columns
+                </Button>
+                <Button
+                  size="xs"
+                  variant={chartLayout === 'horizontal' ? 'solid' : 'ghost'}
+                  bg={chartLayout === 'horizontal' ? '#4F46E5' : 'transparent'}
+                  color={chartLayout === 'horizontal' ? 'white' : mutedText}
+                  fontSize="10px"
+                  fontWeight="700"
+                  h="22px"
+                  px={2.5}
+                  borderRadius="md"
+                  onClick={() => setChartLayout('horizontal')}
+                >
+                  Horizontal
+                </Button>
+              </HStack>
+
+              {/* Slicer Filter */}
+              <HStack spacing={1} bg={cardAltBg} p={0.5} borderRadius="lg" border="1px" borderColor={borderColor}>
+                {[
+                  { id: '6', label: 'Top 6' },
+                  { id: '8', label: 'Top 8' },
+                  { id: '12', label: 'Top 12' },
+                  { id: 'all', label: 'All Active' },
+                ].map((opt) => (
+                  <Button
+                    key={opt.id}
+                    size="xs"
+                    variant={chartTopCount === opt.id ? 'solid' : 'ghost'}
+                    bg={chartTopCount === opt.id ? '#4F46E5' : 'transparent'}
+                    color={chartTopCount === opt.id ? 'white' : mutedText}
+                    fontSize="10px"
+                    fontWeight="700"
+                    h="22px"
+                    px={2}
+                    borderRadius="md"
+                    _hover={{ bg: chartTopCount === opt.id ? '#4338CA' : hoverRowBg }}
+                    onClick={() => setChartTopCount(opt.id)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </HStack>
+            </HStack>
+          </Flex>
+
+          {/* Mini Summary Metrics Strip */}
+          <HStack
+            spacing={4}
+            mb={3}
+            px={3}
+            py={2}
+            bg={cardAltBg}
+            borderRadius="xl"
+            border="1px"
+            borderColor={borderColor}
+            fontSize="11px"
+            fontWeight="700"
+            color={mutedText}
+            flexWrap="wrap"
+          >
+            <HStack spacing={1.5}>
+              <Box w="8px" h="8px" borderRadius="full" bg="#4F46E5" />
+              <Text>Total Enrolled in View: <Text as="span" color={textColor} fontWeight="800">{totalChartReg.toLocaleString()}</Text></Text>
+            </HStack>
+            <HStack spacing={1.5}>
+              <Box w="8px" h="8px" borderRadius="full" bg="#10B981" />
+              <Text>Verified COC Paid: <Text as="span" color="#059669" fontWeight="800">{totalChartCoc.toLocaleString()}</Text></Text>
+            </HStack>
+            <HStack spacing={1.5}>
+              <Text>COC Conversion Rate: <Badge colorScheme={chartCocConversion >= 30 ? 'green' : 'purple'} fontSize="10px" px={1.5} borderRadius="sm">{chartCocConversion}%</Badge></Text>
+            </HStack>
           </HStack>
 
-          <Box h="260px" w="full">
+          <Box h="330px" w="full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={departmentAnalysis} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" interval={0} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <RechartsTooltip />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Bar dataKey="registrations" fill="#4F46E5" radius={[4, 4, 0, 0]} name="Total Registered" />
-                <Bar dataKey="cocPaid" fill="#10B981" radius={[4, 4, 0, 0]} name="COC Paid" />
-              </BarChart>
+              {chartLayout === 'horizontal' ? (
+                <BarChart
+                  layout="vertical"
+                  data={departmentChartData}
+                  margin={{ top: 10, right: 25, left: 10, bottom: 10 }}
+                  barGap={4}
+                >
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.12} horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={130}
+                    tick={{ fontSize: 11, fill: '#475569', fontWeight: 700 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <RechartsTooltip content={<CustomDepartmentTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                  <Bar dataKey="registrations" fill="#4F46E5" radius={[0, 6, 6, 0]} maxBarSize={20} name="Total Registered" />
+                  <Bar dataKey="cocPaid" fill="#10B981" radius={[0, 6, 6, 0]} maxBarSize={20} name="COC Paid" />
+                </BarChart>
+              ) : (
+                <BarChart
+                  data={departmentChartData}
+                  margin={{ top: 15, right: 15, left: -10, bottom: 45 }}
+                  barGap={6}
+                >
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.12} vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: '#64748B', fontWeight: 600 }}
+                    angle={-20}
+                    textAnchor="end"
+                    height={50}
+                    interval={0}
+                    tickFormatter={(val) => (val && val.length > 16 ? `${val.slice(0, 14)}…` : val)}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                  <RechartsTooltip content={<CustomDepartmentTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                  <Bar dataKey="registrations" fill="#4F46E5" radius={[6, 6, 0, 0]} maxBarSize={36} name="Total Registered" />
+                  <Bar dataKey="cocPaid" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={36} name="COC Paid" />
+                </BarChart>
+              )}
             </ResponsiveContainer>
           </Box>
         </Card>
