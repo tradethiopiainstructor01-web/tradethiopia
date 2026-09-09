@@ -1488,7 +1488,7 @@ export default function TessbinCSRegisteredUsersView() {
                     </Text>
                   </Flex>
 
-                  <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: (selectedStudent.cocPaymentScreenshot || (selectedStudent.learningDepartment || '').toLowerCase().includes('coffee')) ? 5 : 4 }} spacing={3}>
+                  <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: (selectedStudent.cocPaymentScreenshot || selectedStudent.cocPaymentStatus) ? 5 : 4 }} spacing={3}>
                     {/* 1. Passport Photo (3x4) */}
                     <Box
                       border="1px solid"
@@ -1912,7 +1912,7 @@ export default function TessbinCSRegisteredUsersView() {
                     </Box>
 
                     {/* 5. COC Fee Payment Receipt */}
-                    {(selectedStudent.cocPaymentScreenshot || (selectedStudent.learningDepartment || '').toLowerCase().includes('coffee')) && (
+                    {(selectedStudent.cocPaymentScreenshot || selectedStudent.cocPaymentStatus) && (
                       <Box
                         border="1px solid"
                         borderColor={selectedStudent.cocPaymentScreenshot ? '#99F6E4' : borderColor}

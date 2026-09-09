@@ -170,17 +170,7 @@ export default function TessbinCOCStudentsListView() {
     try {
       const data = await getStudentRegistrations();
       const rawList = Array.isArray(data) ? data : [];
-      const acceptedCourses = [
-        'coffeecupping',
-        'coffeeindustrycuppingandqualityassessment',
-      ];
-      const cocStudents = rawList.filter((s) => {
-        return [s.learningDepartment, s.program].some((value) =>
-          acceptedCourses.includes(
-            (value || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '')
-          )
-        );
-      });
+      const cocStudents = [...rawList];
       // Sort latest to oldest
       cocStudents.sort((a, b) => {
         const dateA = new Date(a.createdAt || a.enrollmentDate || 0).getTime();
@@ -2150,7 +2140,7 @@ export default function TessbinCOCStudentsListView() {
               students={filteredStudents}
               departmentFilter={departmentFilter}
               timePeriodLabel={timePeriodFilter}
-              reportTitle="OFFICIAL COFFEE CUPPING COC CANDIDATE ROSTER & REPORT"
+              reportTitle="OFFICIAL TESBINN COC CANDIDATE ROSTER & REPORT"
               onClose={onA4ReportClose}
             />
           </ModalBody>

@@ -187,7 +187,7 @@ const syncAllFollowupStudentsToRegistrations = async () => {
           paymentStatus: isCompleted || (f.paymentAmount && f.paymentAmount > 0) ? 'Paid' : 'Waiting',
           classCompleted: isCompleted,
           classCompletionStatus: isCompleted ? 'Completed' : 'Not Completed',
-          cocPaymentStatus: isCoffeeCuppingRegistration({ learningDepartment }) ? 'Unpaid' : 'Unpaid',
+          cocPaymentStatus: 'Unpaid',
           status: f.packageStatus || (isCompleted ? 'Completed' : 'Active'),
           notes: f.specialRequirements || f.previousTraining || '',
           registeredBy: f.agentName || 'Customer Success',
@@ -474,9 +474,7 @@ const buildPayload = (body = {}) => {
     fsNumber: body.fsNumber || body.receiptFsNumber || body.receiptNumber || '',
     classCompleted: classCompletionStatus === 'Completed',
     classCompletionStatus,
-    cocPaymentStatus: isCoffeeCupping
-      ? normalizeCocPaymentStatus(body.cocPaymentStatus || body.cocPayment)
-      : 'Unpaid',
+    cocPaymentStatus: normalizeCocPaymentStatus(body.cocPaymentStatus || body.cocPayment),
     cocPaymentBank: body.cocPaymentBank || body.cocBank || '',
     status: body.status || 'Active',
     salesCallStatus: body.salesCallStatus || 'Not Called',
@@ -541,9 +539,7 @@ const normalizeStudent = (student, includeDocuments = false) => ({
   fsNumber: student.fsNumber || '',
   classCompleted: Boolean(student.classCompleted),
   classCompletionStatus: student.classCompletionStatus || (student.classCompleted ? 'Completed' : 'Not Completed'),
-  cocPaymentStatus: isCoffeeCuppingRegistration(student)
-    ? (student.cocPaymentStatus || 'Unpaid')
-    : 'Unpaid',
+  cocPaymentStatus: student.cocPaymentStatus || 'Unpaid',
   cocPaymentBank: student.cocPaymentBank || '',
   status: student.status,
   salesCallStatus: student.salesCallStatus || 'Not Called',
@@ -735,15 +731,6 @@ const getStudentRegistrations = async (req, res) => {
     if (classCompletionStatus && classCompletionStatus !== 'All') query.classCompletionStatus = classCompletionStatus;
     if (cocPaymentStatus && cocPaymentStatus !== 'All') {
       query.cocPaymentStatus = cocPaymentStatus;
-      if (cocPaymentStatus === 'Paid') {
-        const coffeeConditions = [
-          { learningDepartment: /^Coffee Cupping$/i },
-          { learningDepartment: /^Coffee Industry Cupping & Quality Assessment$/i },
-          { program: /^Coffee Cupping$/i },
-          { program: /^Coffee Industry Cupping & Quality Assessment$/i },
-        ];
-        andConditions.push({ $or: coffeeConditions });
-      }
     }
     if (search) {
       const searchConditions = [
@@ -937,7 +924,6 @@ const updateStudentCocCompletion = async (req, res) => {
     const existingStudent = await StudentRegistration.findById(req.params.id).lean();
     if (!existingStudent) return res.status(404).json({ success: false, message: 'Student registration not found.' });
     if (!canAccessStudentRecord(existingStudent, req.user)) return res.status(403).json({ success: false, message: 'You do not have permission to update this student registration.' });
-    if (!isCoffeeCuppingRegistration(existingStudent)) return res.status(400).json({ success: false, message: 'This action applies to COC Coffee Cupping students.' });
     const registrar = getSystemRegistrar(req.user);
     const student = await StudentRegistration.findByIdAndUpdate(req.params.id, { $set: {
       classCompleted: req.body.classCompleted,
@@ -975,7 +961,6 @@ const updateStudentCocPayment = async (req, res) => {
     const existingStudent = await StudentRegistration.findById(req.params.id).lean();
     if (!existingStudent) return res.status(404).json({ success: false, message: 'Student registration not found.' });
     if (!canAccessStudentRecord(existingStudent, req.user)) return res.status(403).json({ success: false, message: 'You do not have permission to update this student registration.' });
-    if (!isCoffeeCuppingRegistration(existingStudent)) return res.status(400).json({ success: false, message: 'COC payments apply to Coffee Cupping registrations.' });
     const registrar = getSystemRegistrar(req.user);
     payload.updatedBy = registrar.name;
     payload.updatedByEmail = registrar.email;
@@ -1148,7 +1133,7 @@ const verifyStudentRegistration = async (req, res) => {
       fsNumber: student.fsNumber || '',
       classCompleted: Boolean(student.classCompleted),
       classCompletionStatus: student.classCompletionStatus || (student.classCompleted ? 'Completed' : 'In Progress'),
-      cocPaymentStatus: isCoffeeCupping ? (student.cocPaymentStatus || 'Paid') : 'Not Applicable',
+      cocPaymentStatus: student.cocPaymentStatus || 'Paid',
       isCoffeeCupping,
       registeredBy: student.registeredBy || 'TESBINN Registrar Admissions',
       passportPhoto: student.passportPhoto || '',

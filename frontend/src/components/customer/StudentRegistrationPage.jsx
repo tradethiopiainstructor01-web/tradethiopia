@@ -650,7 +650,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
       const matchesTimeSlot = timeSlotFilter === "All" || (student.preferredTimeSlot || "Morning") === timeSlotFilter;
       const matchesClassCompletion = classCompletionFilter === "All" || (student.classCompletionStatus || (student.classCompleted ? "Completed" : "Not Completed")) === classCompletionFilter;
       const matchesCocPayment = cocPaymentFilter === "All" || (
-        isCoffeeCuppingCourse(student) && (student.cocPaymentStatus || "Unpaid") === cocPaymentFilter
+        (student.cocPaymentStatus || "Unpaid") === cocPaymentFilter
       );
       // Calendar date matching
       let matchesDate = true;
@@ -813,9 +813,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
         if (name === "program" && value && !prev.learningDepartment && TRAINING_TO_DEPARTMENT_MAP[value]) {
           next.learningDepartment = TRAINING_TO_DEPARTMENT_MAP[value];
         }
-        return isCoffeeCuppingCourse(next)
-          ? next
-          : { ...next, cocPaymentStatus: "Unpaid", cocPaymentBank: "", cocPaymentScreenshot: "" };
+        return next;
       });
       return;
     }
@@ -936,7 +934,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
       return;
     }
     const now = new Date().toISOString();
-    const cocPaymentStatus = isCoffeeCuppingCourse(form) ? form.cocPaymentStatus : "Unpaid";
+    const cocPaymentStatus = form.cocPaymentStatus || "Unpaid";
     const requestedStudentId = form.studentId.trim();
     const duplicateStudentId = requestedStudentId
       ? students.find(
@@ -1191,8 +1189,8 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
     "FS Number": student.fsNumber || "",
     "Class Completed": student.classCompleted ? "Yes" : "No",
     "Class Outcome": student.classCompletionStatus || (student.classCompleted ? "Completed" : "Not Completed"),
-    "CoC Payment Status": isCoffeeCuppingCourse(student) ? (student.cocPaymentStatus || "Unpaid") : "Not Applicable",
-    "CoC Payment Bank": isCoffeeCuppingCourse(student) ? (student.cocPaymentBank || "") : "Not Applicable",
+    "CoC Payment Status": student.cocPaymentStatus || "Unpaid",
+    "CoC Payment Bank": student.cocPaymentBank || "",
     Status: student.status || "",
     Notes: student.notes || "",
     "Registered By": student.registeredBy || "Unknown CS member",
@@ -1620,7 +1618,6 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                             const hasFront = Boolean(student.nationalIdFrontImage || student.nationalIdImage || student.hasNationalIdFrontImage || student.hasNationalIdImage);
                             const hasBack = Boolean(student.nationalIdBackImage || student.hasNationalIdBackImage);
                             const hasReceipt = Boolean(student.paymentScreenshot || student.hasPaymentScreenshot);
-                            const isCocStudent = isCoffeeCuppingCourse(student);
                             const hasCocReceipt = Boolean(student.cocPaymentScreenshot || student.hasCocPaymentScreenshot);
 
                             return (
@@ -1648,7 +1645,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                                       <Badge colorScheme={getStateColor(student.paymentStatus || "Waiting")}>{student.paymentStatus || "Waiting"}</Badge>
                                       <Badge colorScheme={getStateColor(student.paymentOption)}>{student.paymentOption || "Full Payment"}</Badge>
                                     </HStack>
-                                    {(student.paymentBank || student.fsNumber || (isCocStudent && (student.cocPaymentBank || student.cocPaymentStatus))) && (
+                                    {(student.paymentBank || student.fsNumber || student.cocPaymentBank || student.cocPaymentStatus) && (
                                       <Box p={2} bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor} fontSize="xs">
                                         {student.paymentBank && (
                                           <Text fontWeight="700" color={headingColor} noOfLines={1}>
@@ -1660,7 +1657,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                                             FS#: {student.fsNumber}
                                           </Text>
                                         )}
-                                        {isCocStudent && (
+                                        {(student.cocPaymentStatus || student.cocPaymentBank) && (
                                           <HStack mt={1} pt={1} borderTop="1px dashed" borderColor={borderColor} justify="space-between" flexWrap="wrap">
                                             <Badge colorScheme={student.cocPaymentStatus === "Paid" ? "teal" : "gray"} fontSize="10px">
                                               COC: {student.cocPaymentStatus || "Unpaid"}
@@ -1863,38 +1860,33 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                     </Select>
                   </FormControl>
                   <FormControl><FormLabel>FS Number</FormLabel><Input name="fsNumber" value={form.fsNumber} onChange={handleChange} placeholder="Paid receipt FS number" bg={fieldBg} /></FormControl>
-                  {isCoffeeCuppingCourse(form) && (
-                    <>
-                      <FormControl>
-                        <FormLabel>COC Fee</FormLabel>
-                        <Select name="cocPaymentStatus" value={form.cocPaymentStatus} onChange={handleChange} bg={fieldBg}>
-                          <option value="Unpaid">Unpaid</option>
-                          <option value="Paid">Paid</option>
-                        </Select>
-                        <Text mt={1} fontSize="xs" color={mutedText}>Available only for Coffee Cupping students.</Text>
-                      </FormControl>
-                      <FormControl>
-                        <FormLabel>COC Payment Bank</FormLabel>
-                        <Select
-                          name="cocPaymentBank"
-                          value={form.cocPaymentBank}
-                          onChange={handleChange}
-                          placeholder="Select Ethiopian Bank for COC"
-                          bg={fieldBg}
-                        >
-                          {form.cocPaymentBank && !ETHIOPIAN_BANKS.includes(form.cocPaymentBank) && (
-                            <option value={form.cocPaymentBank}>{form.cocPaymentBank}</option>
-                          )}
-                          {ETHIOPIAN_BANKS.map((bank) => (
-                            <option key={bank} value={bank}>
-                              {bank}
-                            </option>
-                          ))}
-                        </Select>
-                        <Text mt={1} fontSize="xs" color={mutedText}>Bank where the COC fee was deposited.</Text>
-                      </FormControl>
-                    </>
-                  )}
+                  <FormControl>
+                    <FormLabel>COC Fee</FormLabel>
+                    <Select name="cocPaymentStatus" value={form.cocPaymentStatus} onChange={handleChange} bg={fieldBg}>
+                      <option value="Unpaid">Unpaid</option>
+                      <option value="Paid">Paid</option>
+                    </Select>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>COC Payment Bank</FormLabel>
+                    <Select
+                      name="cocPaymentBank"
+                      value={form.cocPaymentBank}
+                      onChange={handleChange}
+                      placeholder="Select Ethiopian Bank for COC"
+                      bg={fieldBg}
+                    >
+                      {form.cocPaymentBank && !ETHIOPIAN_BANKS.includes(form.cocPaymentBank) && (
+                        <option value={form.cocPaymentBank}>{form.cocPaymentBank}</option>
+                      )}
+                      {ETHIOPIAN_BANKS.map((bank) => (
+                        <option key={bank} value={bank}>
+                          {bank}
+                        </option>
+                      ))}
+                    </Select>
+                    <Text mt={1} fontSize="xs" color={mutedText}>Bank where the COC fee was deposited.</Text>
+                  </FormControl>
                   <FormControl><FormLabel>Registration Status</FormLabel><Select name="status" value={form.status} onChange={handleChange} bg={fieldBg}><option value="Active">Active</option><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="Paused">Paused</option></Select></FormControl>
                   {workspaceLabel === "Sales" && (
                     <Box
@@ -2094,7 +2086,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                       National ID front/back is optional. The payment receipt photo is required.
                     </Text>
 
-                    <SimpleGrid columns={{ base: 1, md: 2, xl: isCoffeeCuppingCourse(form) ? 5 : 4 }} spacing={4}>
+                    <SimpleGrid columns={{ base: 1, md: 2, xl: 5 }} spacing={4}>
                       {/* 1. 3x4 Passport Photo */}
                       <Box
                         border="1px dashed"
@@ -2353,73 +2345,71 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         )}
                       </Box>
 
-                      {/* 5. COC Payment Receipt Screenshot (Coffee Cupping) */}
-                      {isCoffeeCuppingCourse(form) && (
-                        <Box
-                          border="1px dashed"
-                          borderColor={form.cocPaymentScreenshot ? "teal.400" : borderColor}
-                          borderRadius="14px"
-                          p={3}
-                          bg={fieldBg}
-                          textAlign="center"
-                        >
-                          <Flex justify="space-between" align="center" mb={2}>
-                            <Text fontSize="xs" fontWeight="800" color={headingColor}>
-                              COC Receipt
-                            </Text>
-                            <Badge colorScheme={form.cocPaymentScreenshot ? "teal" : "gray"} fontSize="9px">
-                              {form.cocPaymentScreenshot ? "Uploaded ✓" : "Optional"}
-                            </Badge>
-                          </Flex>
-                          {form.cocPaymentScreenshot ? (
-                            <VStack spacing={2}>
-                              <Image
-                                src={form.cocPaymentScreenshot}
-                                alt="COC Payment Receipt Preview"
-                                maxH="110px"
-                                borderRadius="md"
-                                mx="auto"
-                                objectFit="contain"
-                              />
-                              <HStack justify="center" spacing={2}>
-                                <Button
-                                  size="xs"
-                                  colorScheme="red"
-                                  variant="ghost"
-                                  leftIcon={<FiTrash2 />}
-                                  onClick={() => setForm((prev) => ({ ...prev, cocPaymentScreenshot: "" }))}
-                                >
-                                  Remove
-                                </Button>
-                              </HStack>
-                            </VStack>
-                          ) : (
-                            <VStack spacing={2} py={4}>
-                              <Icon as={FiUploadCloud} boxSize={8} color="teal.400" />
-                              <Text fontSize="11px" color={mutedText}>
-                                COC deposit slip (Optional)
-                              </Text>
+                      {/* 5. COC Payment Receipt Screenshot */}
+                      <Box
+                        border="1px dashed"
+                        borderColor={form.cocPaymentScreenshot ? "teal.400" : borderColor}
+                        borderRadius="14px"
+                        p={3}
+                        bg={fieldBg}
+                        textAlign="center"
+                      >
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="xs" fontWeight="800" color={headingColor}>
+                            COC Receipt
+                          </Text>
+                          <Badge colorScheme={form.cocPaymentScreenshot ? "teal" : "gray"} fontSize="9px">
+                            {form.cocPaymentScreenshot ? "Uploaded ✓" : "Optional"}
+                          </Badge>
+                        </Flex>
+                        {form.cocPaymentScreenshot ? (
+                          <VStack spacing={2}>
+                            <Image
+                              src={form.cocPaymentScreenshot}
+                              alt="COC Payment Receipt Preview"
+                              maxH="110px"
+                              borderRadius="md"
+                              mx="auto"
+                              objectFit="contain"
+                            />
+                            <HStack justify="center" spacing={2}>
                               <Button
-                                as="label"
-                                htmlFor="coc-payment-screenshot-upload"
                                 size="xs"
-                                colorScheme="teal"
-                                variant="outline"
-                                cursor="pointer"
+                                colorScheme="red"
+                                variant="ghost"
+                                leftIcon={<FiTrash2 />}
+                                onClick={() => setForm((prev) => ({ ...prev, cocPaymentScreenshot: "" }))}
                               >
-                                Upload COC Slip
+                                Remove
                               </Button>
-                              <input
-                                id="coc-payment-screenshot-upload"
-                                type="file"
-                                accept="image/*"
-                                style={{ display: "none" }}
-                                onChange={(e) => handleImageUpload("cocPaymentScreenshot", e.target.files[0])}
-                              />
-                            </VStack>
-                          )}
-                        </Box>
-                      )}
+                            </HStack>
+                          </VStack>
+                        ) : (
+                          <VStack spacing={2} py={4}>
+                            <Icon as={FiUploadCloud} boxSize={8} color="teal.400" />
+                            <Text fontSize="11px" color={mutedText}>
+                              COC deposit slip (Optional)
+                            </Text>
+                            <Button
+                              as="label"
+                              htmlFor="coc-payment-screenshot-upload"
+                              size="xs"
+                              colorScheme="teal"
+                              variant="outline"
+                              cursor="pointer"
+                            >
+                              Upload COC Slip
+                            </Button>
+                            <input
+                              id="coc-payment-screenshot-upload"
+                              type="file"
+                              accept="image/*"
+                              style={{ display: "none" }}
+                              onChange={(e) => handleImageUpload("cocPaymentScreenshot", e.target.files[0])}
+                            />
+                          </VStack>
+                        )}
+                      </Box>
                     </SimpleGrid>
                   </Box>
 
@@ -2611,11 +2601,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                       <Td><Badge colorScheme={getStateColor(student.paymentOption)}>{student.paymentOption || "Full Payment"}</Badge></Td>
                       <Td><Badge colorScheme={getStateColor(getClassOutcome(student))}>{getClassOutcome(student)}</Badge></Td>
                       <Td>
-                        {isCoffeeCuppingCourse(student) ? (
-                          <Badge colorScheme={getStateColor(student.cocPaymentStatus)}>{student.cocPaymentStatus || "Unpaid"}</Badge>
-                        ) : (
-                          <Badge colorScheme="gray">N/A</Badge>
-                        )}
+                        <Badge colorScheme={getStateColor(student.cocPaymentStatus)}>{student.cocPaymentStatus || "Unpaid"}</Badge>
                       </Td>
                       <Td>{student.readinessStatus || "Not assessed"}</Td>
                       <Td>{formatDate(student.examDate) || "Not set"}</Td>

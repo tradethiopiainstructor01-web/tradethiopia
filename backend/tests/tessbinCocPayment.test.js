@@ -57,8 +57,10 @@ test('COC endpoint validates values, course eligibility, and access', async () =
   }
   assert.equal((await call('updateStudentCocPayment', { cocPaymentStatus: 'Paid' }, 'unrelated-user')).status, 403);
   stored.learningDepartment = 'Barista';
-  assert.equal((await call('updateStudentCocPayment', { cocPaymentStatus: 'Paid' })).status, 400);
-  assert.equal(writes.length, 0);
+  const baristaResult = await call('updateStudentCocPayment', { cocPaymentStatus: 'Paid' });
+  assert.equal(baristaResult.status, 200);
+  assert.equal(baristaResult.body.data.cocPaymentStatus, 'Paid');
+  assert.equal(writes.length, 1);
 });
 
 test('Tessbin can mark COC completion and undo it without changing other fields', async () => {
@@ -82,6 +84,7 @@ test('completion endpoint rejects invalid values, extra fields, unrelated users 
   assert.equal((await call('updateStudentCocCompletion', { classCompleted: true, fullName: 'Changed' })).status, 403);
   assert.equal((await call('updateStudentCocCompletion', { classCompleted: true }, 'unrelated-user')).status, 403);
   stored.learningDepartment = 'Barista';
-  assert.equal((await call('updateStudentCocCompletion', { classCompleted: true })).status, 400);
-  assert.equal(writes.length, 0);
+  const baristaCompletion = await call('updateStudentCocCompletion', { classCompleted: true });
+  assert.equal(baristaCompletion.status, 200);
+  assert.equal(baristaCompletion.body.data.classCompleted, true);
 });
