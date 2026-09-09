@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Avatar,
   Badge,
@@ -64,23 +64,15 @@ import {
   FiPrinter,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
-import { getStudentRegistrations, getStudentRegistrationById } from '../../services/studentRegistrationService';
+import { getStudentRegistrationsInBatches, getStudentRegistrationById } from '../../services/studentRegistrationService';
+import StudentEducationDocument from './StudentEducationDocument';
+import TessbinCocPaymentEditor from './TessbinCocPaymentEditor';
 import TessbinStudentA4Dossier from './TessbinStudentA4Dossier';
 import TessbinStudentListA4Report from './TessbinStudentListA4Report';
 import { printA4Element, openA4InNewWindow } from '../../utils/tessbinPrintHelper';
 import './TessbinA4Print.css';
 
-const DEPARTMENTS = [
-  'All Departments',
-  'Import and Export',
-  'Digital Marketing',
-  'Stock Marketing',
-  'Barista',
-  'AI for Business',
-  'Coffee Cupping',
-  'Logistics',
-  'Transit',
-];
+import { TESSBIN_DEPARTMENTS as DEPARTMENTS } from '../../utils/tessbinDepartments';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -123,6 +115,8 @@ export default function TessbinCSRegisteredUsersView() {
   // Main Data State
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const listRequest = useRef(null);
 
   // Standard Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,7 +135,7 @@ export default function TessbinCSRegisteredUsersView() {
   // Detail Modal
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [detailViewMode, setDetailViewMode] = useState('a4'); // 'a4' | 'interactive'
+  const [detailViewMode, setDetailViewMode] = useState('interactive'); // 'a4' | 'interactive'
 
   // Full View Directory List Report Modal
   const {
@@ -174,9 +168,14 @@ export default function TessbinCSRegisteredUsersView() {
 
   // Fetch Data
   const fetchData = useCallback(async () => {
+    listRequest.current?.abort();
+    const request = new AbortController();
+    listRequest.current = request;
     setLoading(true);
+    setLoadError('');
     try {
-      const data = await getStudentRegistrations();
+      const data = await getStudentRegistrationsInBatches({ signal: request.signal });
+      if (request.signal.aborted) return;
       let studentList = Array.isArray(data) ? data : [];
 
       // Sort by latest first
@@ -188,21 +187,19 @@ export default function TessbinCSRegisteredUsersView() {
 
       setStudents(studentList);
     } catch (err) {
+      if (request.signal.aborted) return;
       console.error('Error fetching CS student registrations:', err);
-      toast({
-        title: 'Error fetching registrations',
-        description: err.message || 'Could not load student registrations',
-        status: 'error',
-        duration: 3500,
-        isClosable: true,
-      });
+      setLoadError(err.code === 'ECONNABORTED'
+        ? 'The server took too long to respond. Please retry loading registrations.'
+        : err.response?.data?.message || 'Could not load student registrations. Please retry.');
     } finally {
-      setLoading(false);
+      if (!request.signal.aborted) setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     fetchData();
+    return () => listRequest.current?.abort();
   }, [fetchData]);
 
   // Standard Time Filtering Logic
@@ -495,7 +492,7 @@ export default function TessbinCSRegisteredUsersView() {
 
   const handleOpenDetail = async (student) => {
     setSelectedStudent(student);
-    setDetailViewMode('a4');
+    setDetailViewMode('interactive');
     onOpen();
     if (student?._id || student?.id) {
       try {
@@ -570,6 +567,7 @@ export default function TessbinCSRegisteredUsersView() {
             fontWeight="700"
             fontSize="12px"
             onClick={onListReportOpen}
+            isDisabled={loading || Boolean(loadError)}
           >
             Print A4 List (PDF)
           </Button>
@@ -584,6 +582,7 @@ export default function TessbinCSRegisteredUsersView() {
             fontWeight="700"
             fontSize="12px"
             onClick={exportToExcel}
+            isDisabled={loading || Boolean(loadError)}
           >
             Export Excel
           </Button>
@@ -599,7 +598,7 @@ export default function TessbinCSRegisteredUsersView() {
                 Filtered Registrations
               </Text>
               <Text fontSize="28px" fontWeight="900" color="#4F46E5" mt={0.5}>
-                {stats.total}
+                {loading || loadError ? '—' : stats.total}
               </Text>
               <Text fontSize="10px" color={mutedColor} mt={1}>
                 {timePeriod === 'all' ? 'All recorded students' : getTimePeriodLabel(timePeriod)}
@@ -618,7 +617,7 @@ export default function TessbinCSRegisteredUsersView() {
                 Today's Registrations
               </Text>
               <Text fontSize="28px" fontWeight="900" color="#059669" mt={0.5}>
-                {stats.todayRegistrations}
+                {loading || loadError ? '—' : stats.todayRegistrations}
               </Text>
               <Text fontSize="10px" color={mutedColor} mt={1}>
                 Registered today ({new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
@@ -637,10 +636,10 @@ export default function TessbinCSRegisteredUsersView() {
                 Class Completed
               </Text>
               <Text fontSize="28px" fontWeight="900" color="#2563EB" mt={0.5}>
-                {stats.completed}
+                {loading || loadError ? '—' : stats.completed}
               </Text>
               <Text fontSize="10px" color={mutedColor} mt={1}>
-                {stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}% completion rate` : '0%'}
+                {loading || loadError ? 'Awaiting registrations' : stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}% completion rate` : '0%'}
               </Text>
             </Box>
             <Flex w="46px" h="46px" bg="#EFF6FF" color="#2563EB" borderRadius="xl" align="center" justify="center">
@@ -656,7 +655,7 @@ export default function TessbinCSRegisteredUsersView() {
                 Paid In Full / Verified
               </Text>
               <Text fontSize="28px" fontWeight="900" color="#D97706" mt={0.5}>
-                {stats.paid}
+                {loading || loadError ? '—' : stats.paid}
               </Text>
               <Text fontSize="10px" color={mutedColor} mt={1}>
                 Verified payments
@@ -957,6 +956,14 @@ export default function TessbinCSRegisteredUsersView() {
               Loading student registrations...
             </Text>
           </Flex>
+        ) : loadError ? (
+          <Box py={16} px={6} textAlign="center" role="alert">
+            <Heading size="sm" color={textColor}>Unable to load registrations</Heading>
+            <Text mt={2} color={mutedColor}>{loadError}</Text>
+            <Button mt={4} colorScheme="blue" leftIcon={<FiRefreshCw />} onClick={fetchData}>
+              Retry
+            </Button>
+          </Box>
         ) : filteredStudents.length === 0 ? (
           <Box py={16} textAlign="center">
             <Icon as={FiUsers} boxSize="48px" color={mutedColor} mb={3} opacity={0.5} />
@@ -1379,6 +1386,16 @@ export default function TessbinCSRegisteredUsersView() {
           <ModalCloseButton top="14px" right="16px" className="no-print" />
 
           <ModalBody p={detailViewMode === 'a4' ? 0 : 6} bg={detailViewMode === 'a4' ? '#0B0F19' : cardBg}>
+            {selectedStudent && <Box p={4} mb={4} borderWidth="1px" borderRadius="lg" className="no-print"><StudentEducationDocument key={selectedStudent._id || selectedStudent.id} student={selectedStudent} showLabel /></Box>}
+            {selectedStudent && <TessbinCocPaymentEditor key={selectedStudent._id || selectedStudent.id} student={selectedStudent} onSaved={(updated) => {
+              setSelectedStudent(updated);
+              setStudents((previous) => previous.map((record) => (record._id || record.id) === (updated._id || updated.id) ? { ...record, cocPaymentStatus: updated.cocPaymentStatus, cocPaymentBank: updated.cocPaymentBank, hasCocPaymentScreenshot: updated.hasCocPaymentScreenshot } : record));
+            }} />}
+            {selectedStudent && detailViewMode === 'interactive' && (
+              <Box display="none" aria-hidden="true">
+                <TessbinStudentA4Dossier student={selectedStudent} onClose={onClose} />
+              </Box>
+            )}
             {selectedStudent && detailViewMode === 'a4' ? (
               <TessbinStudentA4Dossier
                 student={selectedStudent}

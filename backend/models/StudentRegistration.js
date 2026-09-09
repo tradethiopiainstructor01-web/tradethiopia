@@ -54,6 +54,15 @@ const StudentRegistrationSchema = new mongoose.Schema(
       default: '',
       select: false,
     },
+    educationFile: {
+      type: String,
+      default: '',
+      select: false,
+    },
+    educationFileName: {
+      type: String,
+      default: '',
+    },
     paymentScreenshot: {
       type: String,
       default: '',

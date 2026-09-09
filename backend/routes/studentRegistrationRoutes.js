@@ -5,6 +5,8 @@ const {
   getStudentRegistrationById,
   createStudentRegistration,
   updateStudentRegistration,
+  updateStudentCocPayment,
+  updateStudentCocCompletion,
   deleteStudentRegistration,
   verifyStudentRegistration,
   handleSyncAllFollowupStudents,
@@ -27,6 +29,8 @@ router.get('/', getStudentRegistrations);
 router.get('/:id', getStudentRegistrationById);
 router.post('/', createStudentRegistration);
 router.put('/:id', updateStudentRegistration);
+router.put('/:id/coc-payment', updateStudentCocPayment);
+router.put('/:id/coc-completion', updateStudentCocCompletion);
 router.delete('/:id', deleteStudentRegistration);
 
 module.exports = router;

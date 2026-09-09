@@ -111,6 +111,7 @@ import { useUserStore } from '../store/user';
 import TessbinDataAnalyticsView from '../components/tessbin/TessbinDataAnalyticsView';
 import TessbinCSRegisteredUsersView from '../components/tessbin/TessbinCSRegisteredUsersView';
 import TessbinCOCStudentsListView from '../components/tessbin/TessbinCOCStudentsListView';
+import TessbinStudentsDocumentsView from '../components/tessbin/TessbinStudentsDocumentsView';
 import TessbinOverviewAnalyticsView from '../components/tessbin/TessbinOverviewAnalyticsView';
 
 const COURSE_OPTIONS = [
@@ -645,6 +646,7 @@ const TessbinAdminDashboard = () => {
   const sidebarItems = [
     { id: 'overview', label: 'Overall Data Analytics', icon: FiPieChart },
     { id: 'cs_registered_users', label: 'Student Register Lists', icon: FiUserCheck },
+    { id: 'students_documents', label: 'Students documents', icon: FiFileText },
     { id: 'coc_students_list', label: 'COC Students List', icon: FiAward },
     { id: 'data_analysis', label: 'Online Exam Results', icon: FiTrendingUp },
     { id: 'kpi_metrics', label: 'KPI Targets & Scorecard', icon: FiBarChart2 },
@@ -832,6 +834,7 @@ const TessbinAdminDashboard = () => {
                 <Heading size="lg" fontWeight="900" mt={0.5} color={textColor} fontSize="22px">
                   {activeTab === 'overview' && 'Overall Data Analytics & Smart Intelligence'}
                   {activeTab === 'cs_registered_users' && 'Student Register Lists'}
+                  {activeTab === 'students_documents' && 'Students documents'}
                   {activeTab === 'coc_students_list' && 'COC Students List (Customer Service)'}
                   {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Online Exam Results & Performance Insights'}
                   {activeTab === 'coc_exams' && 'COC Examination Management'}
@@ -961,6 +964,7 @@ const TessbinAdminDashboard = () => {
           {/* ========================================================================= */}
           {/* TAB: CS REGISTERED USERS (DAILY, WEEKLY, MONTHLY, YEARLY FILTERS) */}
           {/* ========================================================================= */}
+          {activeTab === 'students_documents' && <TessbinStudentsDocumentsView />}
           {activeTab === 'cs_registered_users' && (
             <TessbinCSRegisteredUsersView />
           )}

@@ -125,6 +125,8 @@ const isCoffeeCuppingCourse = (registration = {}) => {
 };
 
 const initialForm = {
+  educationFile: "",
+  educationFileName: "",
   clientLocalId: "",
   studentId: "",
   fullName: "",
@@ -843,6 +845,33 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
   const closeRegistrationForm = () => {
     resetForm();
     onRegistrationClose();
+  };
+
+  const [isReadingEducationFile, setIsReadingEducationFile] = useState(false);
+  const handleEducationUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const types = { pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    const type = types[file.name.split(".").pop().toLowerCase()];
+    if (!type || !file.size || file.size > 5 * 1024 * 1024 || file.name.length > 255) {
+      toast({ title: "Choose one PDF or Word file up to 5 MB", status: "warning", duration: 4000, isClosable: true });
+      return;
+    }
+    setIsReadingEducationFile(true);
+    try {
+      const data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Unable to read this file. Please try again."));
+        reader.readAsDataURL(file);
+      });
+      setForm((previous) => ({ ...previous, educationFile: `data:${type};base64,${data.split(",")[1]}`, educationFileName: file.name }));
+    } catch (error) {
+      toast({ title: error.message, status: "error", duration: 4000, isClosable: true });
+    } finally {
+      setIsReadingEducationFile(false);
+    }
   };
 
   const handleImageUpload = (field, file) => {
@@ -2394,6 +2423,20 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                     </SimpleGrid>
                   </Box>
 
+                  {workspaceLabel === "Customer Service" && (
+                    <FormControl gridColumn="1 / -1">
+                      <FormLabel>Education files</FormLabel>
+                      <Input type="file" accept=".pdf,.doc,.docx" onChange={handleEducationUpload} isDisabled={isReadingEducationFile || isSavingStudent} p={1} bg={fieldBg} />
+                      <Text fontSize="xs" color={mutedText} mt={2}>Optional: one PDF or Word file (.pdf, .doc, .docx), up to 5 MB. Selecting another file replaces it.</Text>
+                      {isReadingEducationFile && <Text fontSize="sm">Reading file...</Text>}
+                      {form.educationFile && (
+                        <HStack mt={2}>
+                          <Text fontSize="sm" wordBreak="break-word">{form.educationFileName}</Text>
+                          <Button size="xs" colorScheme="red" variant="ghost" isDisabled={isReadingEducationFile || isSavingStudent} onClick={() => setForm((previous) => ({ ...previous, educationFile: "", educationFileName: "" }))}>Remove</Button>
+                        </HStack>
+                      )}
+                    </FormControl>
+                  )}
                   <FormControl>
                     <FormLabel>Registered By</FormLabel>
                     <Input
@@ -2433,6 +2476,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
               <Button variant="outline" onClick={closeRegistrationForm} w={{ base: "full", sm: "auto" }} isDisabled={isSavingStudent}>Cancel</Button>
               <Button
                 type="submit"
+                isDisabled={isReadingEducationFile}
                 colorScheme="green"
                 leftIcon={<FiBookOpen />}
                 w={{ base: "full", sm: "auto" }}
