@@ -5,6 +5,7 @@ const Course = require('../models/Course');
 const axios = require('axios');
 
 // Supported courses in Tessbin
+// Supported courses in Tessbin (Official TradeEthiopia Academic & Professional Curricula)
 const TESSBIN_COURSES = [
   'Digital Marketing',
   'Digital Marketing for International Trade',
@@ -12,18 +13,18 @@ const TESSBIN_COURSES = [
   'International Import and Export',
   'International Trade & Import-Export',
   'International Trade Brokerage',
+  'Import-Export Documentation & Single Window',
   'Coffee Cupping',
   'Coffee Industry Cupping & Quality Assessment',
   'Stock Market & Investment Strategies',
-  'Artificial Intelligence for Marketing',
-  'Cyber Security Essentials',
-  'Customer Service Excellence',
-  'Data Science & Analytics',
-  'Import-Export Documentation & Single Window',
-  'Netpreneurship & Online Business',
-  'Public Speaking & Business Proposal Writing',
+  'Stock Marketing',
+  'Logistics',
+  'Transit',
+  'General',
 ];
-const tessbinCourseFilter = {};
+const tessbinCourseFilter = {
+  courseName: { $in: TESSBIN_COURSES }
+};
 
 // Initial seed data if database has zero records
 const initialSampleRecords = [
@@ -81,14 +82,14 @@ const initialSampleRecords = [
     status: 'Passed',
     examDate: new Date('2026-08-15'),
     certificateStatus: 'Issued',
-    remarks: 'Completed prompt engineering case study',
+    remarks: 'Sensory coffee evaluation completed',
   },
   {
     studentId: 'TSB-2026-005',
     studentName: 'Dawit Solomon',
     email: 'dawit.s@example.com',
     phone: '+251955667788',
-    courseName: 'Cyber Security Essentials',
+    courseName: 'Barista',
     examType: 'Online Final Exam',
     examMode: 'Online',
     score: 64,
@@ -102,21 +103,21 @@ const initialSampleRecords = [
     studentName: 'Hiwot Tadesse',
     email: 'hiwot.t@example.com',
     phone: '+251966778899',
-    courseName: 'Customer Service Excellence',
+    courseName: 'International Import and Export',
     examType: 'COC Exam',
     examMode: 'Hybrid',
     score: 95,
     status: 'Passed',
     examDate: new Date('2026-08-17'),
     certificateStatus: 'Issued',
-    remarks: 'Top score in customer conflict resolution',
+    remarks: 'Top score in customs clearance',
   },
   {
     studentId: 'TSB-2026-007',
     studentName: 'Ermias Berhanu',
     email: 'ermias.b@example.com',
     phone: '+251977889900',
-    courseName: 'Netpreneurship & Online Business',
+    courseName: 'Digital Marketing',
     examType: 'Online Final Exam',
     examMode: 'Online',
     score: 0,
@@ -144,14 +145,14 @@ const initialSampleRecords = [
     studentName: 'Yonas Kassahun',
     email: 'yonas.k@example.com',
     phone: '+251911998877',
-    courseName: 'Data Science & Analytics',
+    courseName: 'Stock Marketing',
     examType: 'Online Final Exam',
     examMode: 'Online',
     score: 89,
     status: 'Passed',
     examDate: new Date('2026-08-13'),
     certificateStatus: 'Issued',
-    remarks: 'Passed Python data modeling assessment',
+    remarks: 'Passed financial market analysis module',
   },
   {
     studentId: 'TSB-2026-010',
@@ -172,7 +173,7 @@ const initialSampleRecords = [
     studentName: 'Henok Wolde',
     email: 'henok.w@example.com',
     phone: '+251933776655',
-    courseName: 'Public Speaking & Business Proposal Writing',
+    courseName: 'Logistics',
     examType: 'Online Final Exam',
     examMode: 'Online',
     score: 0,
