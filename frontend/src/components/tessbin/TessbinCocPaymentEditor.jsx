@@ -10,10 +10,6 @@ export default function TessbinCocPaymentEditor({ student, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [reading, setReading] = useState(false);
   const toast = useToast();
-  const eligible = [student.learningDepartment, student.program].some((value) =>
-    ['coffeecupping', 'coffeeindustrycuppingandqualityassessment'].includes((value || '').toLowerCase().replace(/[^a-z0-9]/g, ''))
-  );
-  if (!eligible) return null;
   const showError = (error) => toast({ title: 'COC payment update failed', description: error.response?.data?.message || error.message, status: 'error', duration: 4000, isClosable: true });
   const open = async () => {
     setLoading(true);

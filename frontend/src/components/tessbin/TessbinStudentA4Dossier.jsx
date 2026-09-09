@@ -70,7 +70,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
       (value || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '')
     )
   );
-  const isCocPaid = isCoffeeCupping && (student.cocPaymentStatus || '').toLowerCase() === 'paid';
+  const isCocPaid = (student.cocPaymentStatus || '').toLowerCase() === 'paid';
   const nationalIdFront = student.nationalIdFrontImage || student.nationalIdImage || '';
   const nationalIdBack = student.nationalIdBackImage || '';
   const cocPaymentSlip = student.cocPaymentScreenshot || '';
@@ -395,7 +395,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                       </td>
                       <td className="label-cell">National COC Exam:</td>
                       <td className="value-cell">
-                        <b>{isCoffeeCupping ? (isCocPaid ? 'QUALIFIED & COC PAID' : 'PENDING EVALUATION') : 'NOT APPLICABLE'}</b>
+                        <b>{isCocPaid ? 'QUALIFIED & COC PAID' : 'PENDING EVALUATION'}</b>
                       </td>
                     </tr>
                   </tbody>
@@ -445,11 +445,9 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                           border: `1px solid ${isCocPaid ? '#86EFAC' : '#CBD5E1'}`,
                           display: 'inline-block'
                         }}>
-                          {isCoffeeCupping
-                            ? (isCocPaid ? 'COC PAID / ተከፍሏል' : 'UNPAID / አልተከፈለም')
-                            : 'NOT APPLICABLE'}
+                          {isCocPaid ? 'COC PAID / ተከፍሏል' : 'UNPAID / አልተከፈለም'}
                         </span>
-                        {(student.cocPaymentBank || (isCoffeeCupping && isCocPaid)) && student.cocPaymentBank && (
+                        {student.cocPaymentBank && (
                           <span style={{ marginLeft: '4px', fontSize: '6.5pt', fontWeight: '700', color: '#0D9488' }}>
                             ({student.cocPaymentBank})
                           </span>
@@ -475,7 +473,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                   <Text fontSize="5.5pt" color="#CBD5E1">OFFICIAL VERIFICATION PROOFS</Text>
                 </Box>
 
-                <SimpleGrid columns={cocPaymentSlip || isCoffeeCupping ? 4 : 3} spacing={1.5} p={1} border="1px solid #1E293B" borderTop="none" bg="#FFFFFF">
+                <SimpleGrid columns={cocPaymentSlip || student.cocPaymentStatus ? 4 : 3} spacing={1.5} p={1} border="1px solid #1E293B" borderTop="none" bg="#FFFFFF">
                   {/* 1. National ID Front */}
                   <Box border="1px solid #CBD5E1" borderRadius="md" p={1} bg="#F8FAFC">
                     <Flex justify="space-between" align="center" mb={0.5}>
@@ -593,7 +591,7 @@ export default function TessbinStudentA4Dossier({ student, onClose, onOpenImage 
                   </Box>
 
                   {/* 4. COC Payment Receipt */}
-                  {(cocPaymentSlip || isCoffeeCupping) && (
+                  {(cocPaymentSlip || student.cocPaymentStatus) && (
                     <Box border="1px solid #CBD5E1" borderRadius="md" p={1} bg="#F8FAFC">
                       <Flex justify="space-between" align="center" mb={0.5}>
                         <HStack spacing={1}>

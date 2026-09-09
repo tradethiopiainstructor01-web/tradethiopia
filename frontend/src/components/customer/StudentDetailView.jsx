@@ -41,7 +41,7 @@ const StudentDetailView = ({ student, isOpen, onClose, onEdit, onPrint }) => {
     ["ID-F", FiCreditCard, "blue", s.nationalIdFrontImage || s.nationalIdImage],
     ["ID-B", FiCreditCard, "blue", s.nationalIdBackImage],
     ["Slip", FiFileText, "green", s.paymentScreenshot],
-    ...(isCoffeeCupping || s.cocPaymentScreenshot ? [["COC Slip", FiFileText, "teal", s.cocPaymentScreenshot]] : []),
+    ...(s.cocPaymentScreenshot ? [["COC Slip", FiFileText, "teal", s.cocPaymentScreenshot]] : []),
   ];
   const edit = () => { onClose(); onEdit(s); };
   return <>
@@ -81,8 +81,8 @@ const StudentDetailView = ({ student, isOpen, onClose, onEdit, onPrint }) => {
                 <Info icon={FiCreditCard} label="Payment Type" value={s.paymentOption} />
                 <Info icon={FiCreditCard} label="Bank Name" value={s.paymentBank} />
                 <Info label="Transaction Reference / FS Number" value={s.fsNumber} />
-                {isCoffeeCupping && <Info icon={FiCheckCircle} label="COC Payment Status" value={s.cocPaymentStatus || "Unpaid"} />}
-                {isCoffeeCupping && <Info icon={FiCreditCard} label="COC Payment Bank" value={s.cocPaymentBank} />}
+                <Info icon={FiCheckCircle} label="COC Payment Status" value={s.cocPaymentStatus || "Unpaid"} />
+                {s.cocPaymentBank && <Info icon={FiCreditCard} label="COC Payment Bank" value={s.cocPaymentBank} />}
                 <Info label="Amount" value={s.paymentAmount} />
                 <Info icon={FiCalendar} label="Payment Date" value={s.paymentDate ? dateLabel(s.paymentDate) : undefined} />
               </SimpleGrid>

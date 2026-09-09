@@ -393,7 +393,7 @@ export default function StudentVerificationPage() {
                   >
                     {verifiedData.classCompletionStatus || (verifiedData.classCompleted ? 'Course Completed' : 'In Training')}
                   </Badge>
-                  {verifiedData.isCoffeeCupping && (
+                  {verifiedData.cocPaymentStatus && (
                     <Badge
                       colorScheme={verifiedData.cocPaymentStatus === 'Paid' ? 'purple' : 'orange'}
                       fontSize="11px"
