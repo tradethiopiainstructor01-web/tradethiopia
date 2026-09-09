@@ -70,8 +70,10 @@ import * as XLSX from 'xlsx';
 import {
   getStudentRegistrations,
   getStudentRegistrationById,
-  updateStudentRegistration,
+  updateStudentCocCompletion,
 } from '../../services/studentRegistrationService';
+import StudentEducationDocument from './StudentEducationDocument';
+import TessbinCocPaymentEditor from './TessbinCocPaymentEditor';
 import TessbinStudentA4Dossier from './TessbinStudentA4Dossier';
 import TessbinStudentListA4Report from './TessbinStudentListA4Report';
 
@@ -79,6 +81,22 @@ export default function TessbinCOCStudentsListView() {
   const toast = useToast();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updatingCompletion, setUpdatingCompletion] = useState(null);
+  const handleToggleCompletion = async (student, completed) => {
+    if (updatingCompletion) return;
+    const id = student._id || student.id;
+    setUpdatingCompletion(id);
+    try {
+      const updated = await updateStudentCocCompletion(id, completed);
+      setStudents((previous) => previous.map((record) => (record._id || record.id) === id ? { ...record, ...updated } : record));
+      setSelectedStudent((previous) => previous && (previous._id || previous.id) === id ? { ...previous, ...updated } : previous);
+      toast({ title: completed ? 'Student marked Completed' : 'Student marked In Progress', status: 'success', duration: 2500, isClosable: true });
+    } catch (error) {
+      toast({ title: 'Could not update completion', description: error.response?.data?.message || 'Please try again.', status: 'error', duration: 4000, isClosable: true });
+    } finally {
+      setUpdatingCompletion(null);
+    }
+  };
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,72 +107,6 @@ export default function TessbinCOCStudentsListView() {
   const [shiftFilter, setShiftFilter] = useState('ALL');
   const [cocStatusFilter, setCocStatusFilter] = useState('ALL');
   const [completionFilter, setCompletionFilter] = useState('ALL'); // 'ALL', 'COMPLETED', 'IN_PROGRESS'
-  const [updatingStudentId, setUpdatingStudentId] = useState(null);
-
-  const handleToggleCompletion = async (student, e) => {
-    if (e && e.stopPropagation) e.stopPropagation();
-    const currentCompleted = Boolean(
-      (student.classCompletionStatus || '').toLowerCase() === 'completed' || student.classCompleted
-    );
-    const nextCompleted = !currentCompleted;
-    const nextStatus = nextCompleted ? 'Completed' : 'Not Completed';
-    const studentDbId = student._id || student.id;
-
-    // Optimistic UI state update
-    setStudents((prev) =>
-      prev.map((s) => {
-        if ((s._id || s.id) === studentDbId) {
-          return {
-            ...s,
-            classCompleted: nextCompleted,
-            classCompletionStatus: nextStatus,
-          };
-        }
-        return s;
-      })
-    );
-
-    try {
-      setUpdatingStudentId(studentDbId);
-      await updateStudentRegistration(studentDbId, {
-        ...student,
-        classCompleted: nextCompleted,
-        classCompletionStatus: nextStatus,
-      });
-      toast({
-        title: nextCompleted ? 'Marked as Completed ✓' : 'Marked as In Progress',
-        description: `${student.fullName || 'Student'} is now marked as ${nextStatus}.`,
-        status: nextCompleted ? 'success' : 'info',
-        duration: 2500,
-        isClosable: true,
-      });
-    } catch (err) {
-      // Revert if error
-      setStudents((prev) =>
-        prev.map((s) => {
-          if ((s._id || s.id) === studentDbId) {
-            return {
-              ...s,
-              classCompleted: currentCompleted,
-              classCompletionStatus: student.classCompletionStatus || (currentCompleted ? 'Completed' : 'Not Completed'),
-            };
-          }
-          return s;
-        })
-      );
-      toast({
-        title: 'Status update failed',
-        description: err.response?.data?.message || 'Unable to update completion status in database.',
-        status: 'error',
-        duration: 3500,
-        isClosable: true,
-      });
-    } finally {
-      setUpdatingStudentId(null);
-    }
-  };
-
-  // Sort State
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = latest to oldest (Default)
 
   // Pagination
@@ -565,7 +517,7 @@ export default function TessbinCOCStudentsListView() {
                 </Badge>
               </HStack>
               <Text fontSize="12px" color="whiteAlpha.900" mt={1}>
-                Shows only students whose COC fees are verified as <b>PAID</b> from Customer Service registration. This view is read-only for Tessbin Admin.
+                Shows only students whose COC fees are verified as <b>PAID</b> from Customer Service registration. Tessbin can edit COC payment status, bank, and receipt from the student profile.
               </Text>
             </Box>
           </HStack>
@@ -1008,7 +960,6 @@ export default function TessbinCOCStudentsListView() {
                   const isCompleted = Boolean(
                     (student.classCompletionStatus || '').toLowerCase() === 'completed' || student.classCompleted
                   );
-                  const isUpdating = updatingStudentId === (student._id || student.id);
                   return (
                     <Tr
                       key={student._id || student.studentId}
@@ -1129,13 +1080,14 @@ export default function TessbinCOCStudentsListView() {
                       {/* Completed Checkbox Column */}
                       <Td py={3}>
                         <HStack spacing={2} align="center">
-                          <Tooltip label={isCompleted ? "Click to mark as In Progress" : "Click to mark as Completed"}>
+                          <Tooltip label={isCompleted ? 'Mark as In Progress' : 'Mark as Completed'}>
                             <Checkbox
                               colorScheme="green"
                               size="md"
                               isChecked={isCompleted}
-                              isDisabled={isUpdating}
-                              onChange={(e) => handleToggleCompletion(student, e)}
+                              aria-label={`Mark ${student.fullName || 'student'} as ${isCompleted ? 'In Progress' : 'Completed'}`}
+                              isDisabled={Boolean(updatingCompletion)}
+                              onChange={(event) => handleToggleCompletion(student, event.target.checked)}
                             />
                           </Tooltip>
                           <Badge
@@ -1147,8 +1099,7 @@ export default function TessbinCOCStudentsListView() {
                             py={0.5}
                             borderRadius="full"
                             fontWeight="700"
-                            cursor="pointer"
-                            onClick={(e) => handleToggleCompletion(student, e)}
+                            cursor="default"
                             _hover={{ opacity: 0.8 }}
                           >
                             {isCompleted ? 'Completed ✓' : 'In Progress'}
@@ -1336,6 +1287,11 @@ export default function TessbinCOCStudentsListView() {
           <ModalCloseButton top="18px" right="20px" />
 
           <ModalBody py={5} px={6}>
+            {selectedStudent && <Box p={4} mb={4} borderWidth="1px" borderRadius="lg" className="no-print"><StudentEducationDocument key={selectedStudent._id || selectedStudent.id} student={selectedStudent} showLabel /></Box>}
+            {selectedStudent && <TessbinCocPaymentEditor key={selectedStudent._id || selectedStudent.id} student={selectedStudent} onSaved={(updated) => {
+              setSelectedStudent(updated);
+              setStudents((previous) => previous.map((record) => (record._id || record.id) === (updated._id || updated.id) ? { ...record, cocPaymentStatus: updated.cocPaymentStatus, cocPaymentBank: updated.cocPaymentBank, hasCocPaymentScreenshot: updated.hasCocPaymentScreenshot } : record));
+            }} />}
             {selectedStudent && (
               <VStack spacing={5} align="stretch">
                 {/* Status Bar */}

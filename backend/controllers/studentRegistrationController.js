@@ -416,6 +416,25 @@ const generateStudentId = async () => {
   return nextId;
 };
 
+const isValidEducationFile = (body) => {
+  if (body.educationFile === undefined) return true;
+  if (body.educationFile === '') return !body.educationFileName;
+  if (typeof body.educationFile !== 'string' || typeof body.educationFileName !== 'string') return false;
+  if (body.educationFile.length > 7 * 1024 * 1024 || body.educationFileName.length > 255) return false;
+  const extension = body.educationFileName.split('.').pop().toLowerCase();
+  const types = { pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+  if (!types[extension]) return false;
+  const prefix = `data:${types[extension]};base64,`;
+  if (!body.educationFile.startsWith(prefix)) return false;
+  const encoded = body.educationFile.slice(prefix.length);
+  if (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) return false;
+  const bytes = Buffer.from(encoded, 'base64');
+  if (!bytes.length || bytes.length > 5 * 1024 * 1024) return false;
+  if (extension === 'pdf') return bytes.subarray(0, 5).toString() === '%PDF-';
+  if (extension === 'doc') return bytes.subarray(0, 8).toString('hex') === 'd0cf11e0a1b11ae1';
+  return bytes.subarray(0, 4).toString('hex') === '504b0304';
+};
+
 const buildPayload = (body = {}) => {
   const classCompleted = normalizeBoolean(body.classCompleted);
   const classCompletionStatus = normalizeClassCompletionStatus(body.classCompletionStatus || body.classStatus, classCompleted);
@@ -437,6 +456,8 @@ const buildPayload = (body = {}) => {
     nationalIdImage: nationalIdFrontImage === undefined ? undefined : nationalIdFrontImage,
     nationalIdFrontImage: nationalIdFrontImage === undefined ? undefined : nationalIdFrontImage,
     nationalIdBackImage: hasNationalIdBack ? body.nationalIdBackImage : undefined,
+    educationFile: body.educationFile,
+    educationFileName: body.educationFile === '' ? '' : body.educationFileName,
     passportPhoto: body.passportPhoto || undefined,
     paymentScreenshot: body.paymentScreenshot || undefined,
     cocPaymentScreenshot: body.cocPaymentScreenshot || undefined,
@@ -484,6 +505,8 @@ const normalizeStudent = (student, includeDocuments = false) => ({
   hasNationalIdImage: Boolean(student.nationalIdFrontImage || student.nationalIdImage || student.hasNationalIdImage),
   hasNationalIdFrontImage: Boolean(student.nationalIdFrontImage || student.nationalIdImage || student.hasNationalIdFrontImage),
   hasNationalIdBackImage: Boolean(student.nationalIdBackImage || student.hasNationalIdBackImage),
+  educationFileName: student.educationFileName || '',
+  hasEducationFile: Boolean(student.educationFile || student.hasEducationFile),
   hasPassportPhoto: Boolean(student.passportPhoto || student.hasPassportPhoto),
   hasPaymentScreenshot: Boolean(student.paymentScreenshot || student.hasPaymentScreenshot),
   hasCocPaymentScreenshot: Boolean(student.cocPaymentScreenshot || student.hasCocPaymentScreenshot),
@@ -492,6 +515,7 @@ const normalizeStudent = (student, includeDocuments = false) => ({
         nationalIdImage: student.nationalIdFrontImage || student.nationalIdImage || '',
         nationalIdFrontImage: student.nationalIdFrontImage || student.nationalIdImage || '',
         nationalIdBackImage: student.nationalIdBackImage || '',
+        educationFile: student.educationFile || '',
         passportPhoto: student.passportPhoto || '',
         paymentScreenshot: student.paymentScreenshot || '',
         cocPaymentScreenshot: student.cocPaymentScreenshot || '',
@@ -540,6 +564,7 @@ const normalizeStudent = (student, includeDocuments = false) => ({
 });
 
 const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase();
+const isTessbinUser = (user) => ['tessbin', 'tessbinadmin'].includes(normalizeRoleValue(user?.role).replace(/[\s_-]/g, ''));
 
 const PRIVILEGED_ROLES = new Set([
   'admin',
@@ -570,6 +595,7 @@ const PRIVILEGED_ROLES = new Set([
 
 const canAccessStudentRecord = (student, user) => {
   if (!user) return false;
+  if (isTessbinUser(user)) return true;
   const normalizedUserRole = normalizeRoleValue(user.role);
   if (PRIVILEGED_ROLES.has(normalizedUserRole)) return true;
   if (!student) return false;
@@ -744,6 +770,30 @@ const getStudentRegistrations = async (req, res) => {
     }
 
     const sortOrder = req.query.sortOrder === 'asc' || req.query.sort === 'asc' ? 1 : -1;
+    // Cursor batches use MongoDB's built-in _id index and limit work before
+    // reading attachment indicators. Legacy callers still receive the full list.
+    if (req.query.batchSize !== undefined) {
+      const batchSize = Number(req.query.batchSize);
+      const cursor = req.query.cursor;
+      if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 200 ||
+          (cursor && (typeof cursor !== 'string' || !/^[a-f0-9]{24}$/i.test(cursor)))) {
+        return res.status(400).json({ success: false, message: 'Invalid registration batch size or cursor.' });
+      }
+      if (cursor) query.$and = [...(query.$and || []), { _id: { $lt: new mongoose.Types.ObjectId(cursor) } }];
+      const batch = await StudentRegistration.aggregate([
+        { $match: query },
+        { $sort: { _id: -1 } },
+        { $limit: batchSize + 1 },
+        ...require('../utils/studentListProjection').studentListProjection,
+      ]);
+      const hasMore = batch.length > batchSize;
+      const students = batch.slice(0, batchSize);
+      return res.json({
+        success: true,
+        data: students.map((student) => normalizeStudent(student)),
+        nextCursor: hasMore ? String(students[students.length - 1]._id) : null,
+      });
+    }
     const students = await StudentRegistration.aggregate([
       { $match: query },
       ...require('../utils/studentListProjection').studentListProjection,
@@ -759,7 +809,7 @@ const getStudentRegistrations = async (req, res) => {
 const getStudentRegistrationById = async (req, res) => {
   try {
     const student = await StudentRegistration.findById(req.params.id)
-      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot')
+      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot +educationFile')
       .lean();
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student registration not found.' });
@@ -774,7 +824,11 @@ const getStudentRegistrationById = async (req, res) => {
 };
 
 const createStudentRegistration = async (req, res) => {
+  if (isTessbinUser(req.user)) return res.status(403).json({ success: false, message: 'Tessbin can update COC payment fields only.' });
   try {
+    if (!isValidEducationFile(req.body)) {
+      return res.status(400).json({ success: false, message: 'Education files must be one PDF or Word (.doc, .docx) file up to 5 MB.' });
+    }
     const syncToSalesFollowup = req.body.syncToSalesFollowup === true;
     const payload = buildPayload(req.body);
     if (!payload.fullName || !payload.learningDepartment) {
@@ -872,11 +926,77 @@ const createStudentRegistration = async (req, res) => {
   }
 };
 
-const updateStudentRegistration = async (req, res) => {
+const updateStudentCocCompletion = async (req, res) => {
   try {
+    if (Object.keys(req.body || {}).some((key) => key !== 'classCompleted')) {
+      return res.status(403).json({ success: false, message: 'Only class completion can be updated here.' });
+    }
+    if (typeof req.body?.classCompleted !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'Class completion must be true or false.' });
+    }
+    const existingStudent = await StudentRegistration.findById(req.params.id).lean();
+    if (!existingStudent) return res.status(404).json({ success: false, message: 'Student registration not found.' });
+    if (!canAccessStudentRecord(existingStudent, req.user)) return res.status(403).json({ success: false, message: 'You do not have permission to update this student registration.' });
+    if (!isCoffeeCuppingRegistration(existingStudent)) return res.status(400).json({ success: false, message: 'This action applies to COC Coffee Cupping students.' });
+    const registrar = getSystemRegistrar(req.user);
+    const student = await StudentRegistration.findByIdAndUpdate(req.params.id, { $set: {
+      classCompleted: req.body.classCompleted,
+      classCompletionStatus: req.body.classCompleted ? 'Completed' : 'Not Completed',
+      updatedBy: registrar.name,
+      updatedByEmail: registrar.email,
+    } }, { new: true, runValidators: true }).select('classCompleted classCompletionStatus updatedBy updatedByEmail');
+    if (!student) return res.status(404).json({ success: false, message: 'Student registration not found.' });
+    res.json({ success: true, data: {
+      id: student._id,
+      classCompleted: student.classCompleted,
+      classCompletionStatus: student.classCompletionStatus,
+      updatedBy: student.updatedBy,
+      updatedByEmail: student.updatedByEmail,
+    } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update class completion', error: error.message });
+  }
+};
+
+const updateStudentCocPayment = async (req, res) => {
+  try {
+    const allowedFields = ['cocPaymentStatus', 'cocPaymentBank', 'cocPaymentScreenshot'];
+    const keys = Object.keys(req.body || {});
+    if (!keys.length || keys.some((key) => !allowedFields.includes(key))) {
+      return res.status(403).json({ success: false, message: 'Only COC payment status, bank, and receipt can be updated here.' });
+    }
+    const payload = Object.fromEntries(keys.map((key) => [key, req.body[key]]));
+    if ((keys.includes('cocPaymentStatus') && !['Paid', 'Unpaid'].includes(payload.cocPaymentStatus)) ||
+        (keys.includes('cocPaymentBank') && (typeof payload.cocPaymentBank !== 'string' || payload.cocPaymentBank.length > 200)) ||
+        (keys.includes('cocPaymentScreenshot') && (typeof payload.cocPaymentScreenshot !== 'string' ||
+          (payload.cocPaymentScreenshot !== '' && !isValidRegistrationImage(payload.cocPaymentScreenshot))))) {
+      return res.status(400).json({ success: false, message: 'Enter a valid COC payment status, bank, and JPEG, PNG or WEBP receipt up to 5 MB.' });
+    }
+    const existingStudent = await StudentRegistration.findById(req.params.id).lean();
+    if (!existingStudent) return res.status(404).json({ success: false, message: 'Student registration not found.' });
+    if (!canAccessStudentRecord(existingStudent, req.user)) return res.status(403).json({ success: false, message: 'You do not have permission to update this student registration.' });
+    if (!isCoffeeCuppingRegistration(existingStudent)) return res.status(400).json({ success: false, message: 'COC payments apply to Coffee Cupping registrations.' });
+    const registrar = getSystemRegistrar(req.user);
+    payload.updatedBy = registrar.name;
+    payload.updatedByEmail = registrar.email;
+    const student = await StudentRegistration.findByIdAndUpdate(req.params.id, { $set: payload }, { new: true, runValidators: true })
+      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot +educationFile');
+    if (!student) return res.status(404).json({ success: false, message: 'Student registration not found.' });
+    res.json({ success: true, data: normalizeStudent(student, true) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update COC payment', error: error.message });
+  }
+};
+
+const updateStudentRegistration = async (req, res) => {
+  if (isTessbinUser(req.user)) return updateStudentCocPayment(req, res);
+  try {
+    if (!isValidEducationFile(req.body)) {
+      return res.status(400).json({ success: false, message: 'Education files must be one PDF or Word (.doc, .docx) file up to 5 MB.' });
+    }
     const syncToSalesFollowup = req.body.syncToSalesFollowup === true;
     const existingStudent = await StudentRegistration.findById(req.params.id)
-      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot')
+      .select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot +educationFile')
       .lean();
     if (!existingStudent) {
       return res.status(404).json({ success: false, message: 'Student registration not found.' });
@@ -936,7 +1056,7 @@ const updateStudentRegistration = async (req, res) => {
     const student = await StudentRegistration.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
-    }).select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot');
+    }).select('+nationalIdImage +nationalIdFrontImage +nationalIdBackImage +passportPhoto +paymentScreenshot +cocPaymentScreenshot +educationFile');
 
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student registration not found.' });
@@ -959,6 +1079,7 @@ const updateStudentRegistration = async (req, res) => {
 };
 
 const deleteStudentRegistration = async (req, res) => {
+  if (isTessbinUser(req.user)) return res.status(403).json({ success: false, message: 'Tessbin can update COC payment fields only.' });
   try {
     const existingStudent = await StudentRegistration.findById(req.params.id).lean();
     if (!existingStudent) {
@@ -1061,6 +1182,7 @@ const verifyStudentRegistration = async (req, res) => {
 };
 
 const handleSyncAllFollowupStudents = async (req, res) => {
+  if (isTessbinUser(req.user)) return res.status(403).json({ success: false, message: 'Tessbin can update COC payment fields only.' });
   try {
     const stats = await syncAllFollowupStudentsToRegistrations();
     const totalStudents = await StudentRegistration.countDocuments();
@@ -1082,6 +1204,8 @@ const handleSyncAllFollowupStudents = async (req, res) => {
 };
 
 module.exports = {
+  updateStudentCocCompletion,
+  updateStudentCocPayment,
   getStudentRegistrations,
   getStudentRegistrationById,
   createStudentRegistration,

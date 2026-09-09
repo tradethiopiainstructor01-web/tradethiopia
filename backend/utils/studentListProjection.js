@@ -1,6 +1,6 @@
 const documentFields = [
   'nationalIdImage', 'nationalIdFrontImage', 'nationalIdBackImage',
-  'passportPhoto', 'paymentScreenshot', 'cocPaymentScreenshot',
+  'passportPhoto', 'paymentScreenshot', 'cocPaymentScreenshot', 'educationFile',
 ];
 const hasImage = (field) => ({ $ne: [{ $ifNull: [`$${field}`, ''] }, ''] });
 
@@ -11,6 +11,7 @@ const studentListProjection = [
     hasNationalIdFrontImage: { $or: [hasImage('nationalIdFrontImage'), hasImage('nationalIdImage')] },
     hasNationalIdBackImage: hasImage('nationalIdBackImage'),
     hasPassportPhoto: hasImage('passportPhoto'),
+    hasEducationFile: hasImage('educationFile'),
     hasPaymentScreenshot: hasImage('paymentScreenshot'),
     hasCocPaymentScreenshot: hasImage('cocPaymentScreenshot'),
   } },
