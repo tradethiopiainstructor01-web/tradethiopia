@@ -38,6 +38,8 @@ import { getSalesDepartmentKpis } from '../../services/salesDepartmentKpiService
 import CustomerDepartmentKpiReport from '../../components/customer/CustomerDepartmentKpiReport';
 import { getFinanceDepartmentKpis } from '../../services/financeDepartmentKpiService';
 import TessbinDepartmentView from './TessbinDepartmentView';
+import SocialMediaDepartmentView from './SocialMediaDepartmentView';
+import { getSocialKpiReports } from '../../services/socialKpiService';
 import {
   CUSTOMER_SUCCESS_KPI_DETAILS,
   DEPARTMENT_KPI_SUMMARY,
@@ -1178,42 +1180,43 @@ const OverviewView = ({
   const defaultPeriod = useMemo(() => getCurrentHrPeriod(dateRange), [dateRange]);
   const activePeriodType = periodType || defaultPeriod.periodType;
   const activePeriodKey = propPeriodKey || defaultPeriod.periodKey;
-  const activeDisplayPeriod = periodDisplayLabel || (dateRange || 'Weekly');
+  const activeDisplayPeriod = periodDisplayLabel || dateRange;
+
   const [liveSalesKpi, setLiveSalesKpi] = useState(null);
   const [liveHrKpi, setLiveHrKpi] = useState(null);
   const [liveFinanceKpi, setLiveFinanceKpi] = useState(null);
+  const [liveSocialKpi, setLiveSocialKpi] = useState(null);
 
   useEffect(() => {
-    let active = true;
-    if (departmentId === 'all') {
-      getSalesDepartmentKpis(activePeriodType, activePeriodKey)
-        .then((res) => {
-          if (active && res?.data) {
-            setLiveSalesKpi(res.data);
-          }
-        })
-        .catch(() => {});
+    let isMounted = true;
+    getSalesDepartmentKpis({ periodType: activePeriodType, periodKey: activePeriodKey })
+      .then((data) => {
+        if (isMounted) setLiveSalesKpi(data?.currentReport || data?.report || data || null);
+      })
+      .catch(() => {});
 
-      getHrKpis(activePeriodType, activePeriodKey)
-        .then((res) => {
-          if (active && res?.data) {
-            setLiveHrKpi(res.data);
-          }
-        })
-        .catch(() => {});
+    getHrKpis({ periodType: activePeriodType, periodKey: activePeriodKey })
+      .then((data) => {
+        if (isMounted) setLiveHrKpi(data?.currentReport || data?.report || data || null);
+      })
+      .catch(() => {});
 
-      getFinanceDepartmentKpis(activePeriodType, activePeriodKey)
-        .then((res) => {
-          if (active && res?.data) {
-            setLiveFinanceKpi(res.data);
-          }
-        })
-        .catch(() => {});
-    }
+    getFinanceDepartmentKpis({ periodType: activePeriodType, periodKey: activePeriodKey })
+      .then((data) => {
+        if (isMounted) setLiveFinanceKpi(data?.currentReport || data?.report || data || null);
+      })
+      .catch(() => {});
+
+    getSocialKpiReports(activePeriodType, activePeriodKey)
+      .then((data) => {
+        if (isMounted) setLiveSocialKpi(data?.report || data?.currentReport || data?.reports?.[0] || null);
+      })
+      .catch(() => {});
+
     return () => {
-      active = false;
+      isMounted = false;
     };
-  }, [departmentId, activePeriodType, activePeriodKey]);
+  }, [activePeriodType, activePeriodKey]);
 
   const hrLiveRows = useMemo(() => HR_DASHBOARD_KPIS.map((item) => {
     const metric = liveHrKpi?.[item.key] || {};
@@ -1337,9 +1340,29 @@ const OverviewView = ({
           status: (finTarget === 0 && finActual === 0 && !isReported) ? 'Not Reported' : finStatus,
         };
       }
+      if (row.department === 'Social Media & Marketing' || row.deptId === 'social_media') {
+        const isReported = Boolean(liveSocialKpi?.submittedAt || liveSocialKpi?._id);
+        const leads = liveSocialKpi?.overall?.leadsGenerated;
+        const target = leads ? Number(leads.target) || 0 : (liveSocialKpi?.summary?.totalTarget || 0);
+        const actual = leads ? Number(leads.actual) || 0 : (liveSocialKpi?.summary?.totalActual || 0);
+        const achievement = target > 0 ? Math.round((actual / target) * 100) : (actual > 0 ? 100 : (liveSocialKpi?.summary?.overallAchievement || 0));
+        let socStatus = leads?.status;
+        if (!socStatus || socStatus === 'Pending') {
+          socStatus = (!isReported && target === 0 && actual === 0) ? 'Not Reported' : achievement >= 80 ? 'On Track' : achievement >= 50 ? 'At Risk' : 'Behind';
+        }
+        return {
+          ...row,
+          deptId: 'social_media',
+          keyMetric: isReported ? 'Leads Generated (Reported)' : 'Leads Generated',
+          target,
+          actual,
+          achievement,
+          status: (!isReported && target === 0 && actual === 0) ? 'Not Reported' : socStatus,
+        };
+      }
       return row;
     });
-  }, [liveSalesKpi, liveHrKpi, liveFinanceKpi]);
+  }, [liveSalesKpi, liveHrKpi, liveFinanceKpi, liveSocialKpi]);
 
   const filteredDepartmentSummary = useMemo(() => {
     return dynamicDepartmentSummary.filter((row) => {
@@ -1384,36 +1407,14 @@ const OverviewView = ({
 
   if (departmentId === 'social_media') {
     return (
-      <Box maxW="1400px" mx="auto">
-        <Box bg="#213f70" color="white" px={{ base: 5, md: 7 }} py={4} mb={7}>
-          <Heading as="h1" fontSize={{ base: '27px', md: '36px' }} lineHeight="1.2">Social Media &amp; Marketing</Heading>
-          <Text mt={3} fontSize={{ base: '16px', md: '20px' }} fontStyle="italic">
-            Platform performance and content KPIs
-          </Text>
-        </Box>
-
-        <Box display="grid" gap={7}>
-          <DetailTable title="Overall Marketing KPIs" rows={SOCIAL_MEDIA_KPI_DETAILS.overall} statusFilter={statusFilter} searchQuery={searchQuery} />
-          <DetailTable
-            title="Platform Performance"
-            rows={SOCIAL_MEDIA_KPI_DETAILS.platforms}
-            firstColumnLabel="Platform"
-            actualLabel="Achieved"
-            statusLabel="Gap/Status"
-            statusFilter={statusFilter}
-            searchQuery={searchQuery}
-          />
-          <ComparisonChart
-            title="Platform Performance: Target vs Achieved"
-            rows={SOCIAL_MEDIA_KPI_DETAILS.platforms}
-            actualLabel="Achieved"
-          />
-          <ComparisonChart
-            title="Leads & Content: Target vs Actual"
-            rows={SOCIAL_MEDIA_KPI_DETAILS.overall.filter((row) => row.target !== null)}
-          />
-        </Box>
-      </Box>
+      <SocialMediaDepartmentView
+        dateRange={dateRange}
+        periodType={activePeriodType}
+        periodKey={activePeriodKey}
+        periodDisplayLabel={periodDisplayLabel}
+        statusFilter={statusFilter}
+        searchQuery={searchQuery}
+      />
     );
   }
 

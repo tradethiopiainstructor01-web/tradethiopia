@@ -335,7 +335,7 @@ const CooHeader = ({
   const handlePeriodModeChange = (mode) => {
     setPeriodType?.(mode);
     if (setDateRange) {
-      setDateRange(mode === 'weekly' ? 'Weekly' : mode === 'quarterly' ? 'Quarterly' : 'Monthly');
+      setDateRange(mode === 'weekly' ? 'Weekly' : mode === 'quarterly' ? 'Quarterly' : mode === 'yearly' ? 'Yearly' : 'Monthly');
     }
   };
 
@@ -527,7 +527,7 @@ const CooHeader = ({
 
         {/* 1. Period Mode Tabs */}
         <ButtonGroup size="sm" isAttached variant="outline">
-          {['monthly', 'weekly', 'quarterly'].map((mode) => {
+          {['monthly', 'weekly', 'quarterly', 'yearly'].map((mode) => {
             const isActive = periodType === mode;
             const label = mode.charAt(0).toUpperCase() + mode.slice(1);
             return (

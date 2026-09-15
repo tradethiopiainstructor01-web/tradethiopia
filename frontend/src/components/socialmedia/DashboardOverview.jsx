@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Badge,
   Box,
@@ -16,10 +16,14 @@ import {
 import { CalendarIcon, DownloadIcon } from "@chakra-ui/icons";
 import {
   FiActivity,
+  FiAlertCircle,
+  FiArrowRight,
   FiBarChart2,
   FiCalendar,
   FiCheckCircle,
+  FiClock,
   FiLayers,
+  FiTarget,
   FiTrendingUp,
   FiUsers,
 } from "react-icons/fi";
@@ -48,6 +52,20 @@ import {
   SurfaceCard,
   useSocialStyles,
 } from "./SocialMediaPrimitives";
+import { getSocialKpiReports } from "../../services/socialKpiService";
+
+const currentPeriod = (type) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  if (type === 'yearly') return `${year}`;
+  if (type === 'monthly') return `${year}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  if (type === 'quarterly') return `${year}-Q${Math.floor(now.getMonth() / 3) + 1}`;
+  const day = new Date(Date.UTC(year, now.getMonth(), now.getDate()));
+  day.setUTCDate(day.getUTCDate() + 4 - (day.getUTCDay() || 7));
+  const weekYear = day.getUTCFullYear();
+  const week = Math.ceil(((day - new Date(Date.UTC(weekYear, 0, 1))) / 86400000 + 1) / 7);
+  return `${weekYear}-W${String(week).padStart(2, '0')}`;
+};
 
 const PIE_COLORS = ["#2563EB", "#E2E8F0"];
 const PIE_COLORS_DARK = ["#3B82F6", "rgba(255,255,255,0.08)"];
@@ -75,10 +93,56 @@ const DashboardOverview = ({
   selectedDate,
   onNewPost,
   loading = false,
+  onSelectSection,
 }) => {
   const { surfaceBorder, muted, softBg, cardHighlight, primaryButton, outlineButton } = useSocialStyles();
   const progressTrack = useColorModeValue("rgba(226,232,240,0.8)", "whiteAlpha.100");
   const isDark = useColorModeValue(false, true);
+  const [kpiReports, setKpiReports] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    getSocialKpiReports()
+      .then((data) => {
+        if (active && data?.reports) {
+          setKpiReports(data.reports);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const kpiSubmissionOverview = useMemo(() => {
+    const periods = [
+      { type: 'weekly', label: 'Week', title: 'Current Week' },
+      { type: 'monthly', label: 'Month', title: 'Current Month' },
+      { type: 'quarterly', label: 'Quarter', title: 'Current Quarter' },
+      { type: 'yearly', label: 'Year', title: 'Current Year' },
+    ];
+    return periods.map((p) => {
+      const key = currentPeriod(p.type);
+      const report = (kpiReports || []).find((r) => r.periodType === p.type && r.periodKey === key);
+      let totalTarget = 0;
+      let totalActual = 0;
+      if (report && report.metrics) {
+        report.metrics.forEach((m) => {
+          totalTarget += Number(m.target) || 0;
+          totalActual += Number(m.actual) || 0;
+        });
+      }
+      const achievement =
+        totalTarget > 0 ? ((totalActual / totalTarget) * 100).toFixed(0) : totalActual > 0 ? '100' : '0';
+      return {
+        ...p,
+        key,
+        report,
+        isSubmitted: !!report,
+        achievement,
+      };
+    });
+  }, [kpiReports]);
 
   /* ── bar chart data ── */
   const barData = useMemo(() => {
@@ -170,6 +234,82 @@ const DashboardOverview = ({
 
   return (
     <VStack align="stretch" spacing={4}>
+      {/* ── Executive KPI Reporting Status Strip ── */}
+      <SurfaceCard>
+        <Box p={3.5}>
+          <Flex justify="space-between" align={{ base: "stretch", sm: "center" }} mb={2.5} wrap="wrap" gap={2}>
+            <HStack spacing={2}>
+              <Icon as={FiTarget} color="blue.500" boxSize={4} />
+              <Box>
+                <Heading size="xs">
+                  COO2 Executive KPI Reporting Status
+                </Heading>
+                <Text fontSize="10px" color={muted}>
+                  Real-time status of Current Week, Month, Quarter, and Year submissions
+                </Text>
+              </Box>
+            </HStack>
+            <Button
+              size="xs"
+              colorScheme="blue"
+              variant="solid"
+              rightIcon={<Icon as={FiArrowRight} />}
+              onClick={() => onSelectSection?.("submitKpi")}
+              borderRadius="lg"
+            >
+              Submit / Manage KPI Reports
+            </Button>
+          </Flex>
+
+          <SimpleGrid columns={{ base: 2, sm: 4 }} spacing={2.5}>
+            {kpiSubmissionOverview.map((item) => (
+              <Box
+                key={item.type}
+                as="button"
+                type="button"
+                textAlign="left"
+                p={2.5}
+                borderRadius="lg"
+                borderWidth="1px"
+                borderColor={item.isSubmitted ? "green.200" : "orange.200"}
+                bg={item.isSubmitted ? "green.50" : "orange.50"}
+                _dark={{
+                  borderColor: item.isSubmitted ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.3)",
+                  bg: item.isSubmitted ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.08)",
+                }}
+                transition="all 0.15s ease"
+                _hover={{
+                  transform: "translateY(-1px)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                }}
+                onClick={() => onSelectSection?.("submitKpi")}
+              >
+                <Flex justify="space-between" align="center" mb={1}>
+                  <Text fontSize="10px" fontWeight="700" textTransform="uppercase" letterSpacing="0.04em">
+                    {item.title}
+                  </Text>
+                  {item.isSubmitted ? (
+                    <Badge colorScheme="green" fontSize="8px" px={1} py={0.2} borderRadius="full">
+                      Live
+                    </Badge>
+                  ) : (
+                    <Badge colorScheme="orange" fontSize="8px" px={1} py={0.2} borderRadius="full">
+                      Pending
+                    </Badge>
+                  )}
+                </Flex>
+                <Text fontSize="xs" fontWeight="800" noOfLines={1}>
+                  {item.key}
+                </Text>
+                <Text fontSize="9px" color={item.isSubmitted ? "green.700" : "orange.700"} _dark={{ color: item.isSubmitted ? "green.300" : "orange.300" }} fontWeight="600" mt={0.5}>
+                  {item.isSubmitted ? `✅ Submitted (${item.achievement}%)` : "⚠️ Needs Submission"}
+                </Text>
+              </Box>
+            ))}
+          </SimpleGrid>
+        </Box>
+      </SurfaceCard>
+
       {/* ── Hero Banner ── */}
       <SurfaceCard bgImage={cardHighlight}>
         <Box p={4}>

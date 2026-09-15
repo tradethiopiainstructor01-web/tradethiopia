@@ -51,6 +51,9 @@ const CooTwoDashboard = () => {
   const [statusFilter, setStatusFilter] = useState('All');
 
   const periodKey = useMemo(() => {
+    if (periodType === 'yearly') {
+      return `${selectedYear}`;
+    }
     if (periodType === 'weekly') {
       return selectedWeek || `${selectedYear}-W01`;
     }
@@ -61,6 +64,9 @@ const CooTwoDashboard = () => {
   }, [periodType, selectedYear, selectedMonth, selectedWeek, selectedQuarter]);
 
   const periodDisplayLabel = useMemo(() => {
+    if (periodType === 'yearly') {
+      return `Year ${selectedYear}`;
+    }
     if (periodType === 'weekly') {
       const wNum = selectedWeek?.split('-W')[1] || '01';
       return `Week ${wNum}, ${selectedYear}`;
@@ -132,7 +138,7 @@ const CooTwoDashboard = () => {
     const dept = params.get('dept');
     const type = params.get('periodType');
     const key = params.get('periodKey');
-    const formats = { weekly: /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/, monthly: /^\d{4}-(0[1-9]|1[0-2])$/, quarterly: /^\d{4}-Q[1-4]$/ };
+    const formats = { weekly: /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/, monthly: /^\d{4}-(0[1-9]|1[0-2])$/, quarterly: /^\d{4}-Q[1-4]$/, yearly: /^\d{4}$/ };
     if (dept && formats[type]?.test(key)) selectDepartment(dept, type, key);
   }, [location.search]);
 

@@ -365,6 +365,7 @@ app.use('/api/hr-kpi', hrKpiRoutes);
 app.use('/api/customer-department-kpi', require('./routes/customerDepartmentKpiRoutes'));
 app.use('/api/sales-department-kpi', salesDepartmentKpiRoutes);
 app.use('/api/finance-department-kpi', financeDepartmentKpiRoutes);
+app.use('/api/social-kpi-reports', require('./routes/socialKpiReportRoutes'));
 // Awards
 app.use('/api/awards', awardRoutes);
 

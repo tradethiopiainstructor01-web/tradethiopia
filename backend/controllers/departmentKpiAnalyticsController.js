@@ -1,4 +1,4 @@
-﻿const HrKpi = require('../models/HrKpi');
+const HrKpi = require('../models/HrKpi');
 const SalesDepartmentKpi = require('../models/SalesDepartmentKpi');
 const CustomerDepartmentKpi = require('../models/CustomerDepartmentKpi');
 const ITTask = require('../models/ITTask');
@@ -13,6 +13,7 @@ const TessbinKpiReport = require('../models/TessbinKpiReport');
 const { cooMetrics } = require('../utils/tessbinKpiReport');
 const CooKpiTarget = require('../models/CooKpiTarget');
 const SocialWeeklyKpi = require('../models/SocialWeeklyKpi');
+const SocialKpiReport = require('../models/SocialKpiReport');
 const { periodRange, analyzeMetrics, slug } = require('../utils/departmentKpiAnalytics');
 
 const HR_FIELDS = [
@@ -28,10 +29,10 @@ exports.getDepartmentAnalytics = async (req, res) => {
   const { periodType, periodKey } = req.query;
   let range;
   try { range = periodRange(periodType, periodKey); }
-  catch { return res.status(400).json({ message: 'Provide a valid weekly, monthly, or quarterly reporting period.' }); }
+  catch { return res.status(400).json({ message: 'Provide a valid weekly, monthly, quarterly or yearly reporting period.' }); }
   const between = { $gte: range.start, $lt: range.end };
   try {
-    const [hr, salesReport, it, tasks, sales, tradex, customers, ensira, content, payments, tessbin, targets, socialReports] = await Promise.all([
+    const [hr, salesReport, it, tasks, sales, tradex, customers, ensira, content, payments, tessbin, targets, socialReports, socialKpi] = await Promise.all([
       HrKpi.findOne({ periodType, periodKey }).lean(),
       SalesDepartmentKpi.findOne({ periodType, periodKey, submittedAt: { $ne: null } }).lean(),
       ITTask.find({ date: between }).select('projectType status workflowStatus updatedAt').lean(),
@@ -45,6 +46,7 @@ exports.getDepartmentAnalytics = async (req, res) => {
       TessbinKpiReport.findOne({ timeframe: periodType, periodStart: range.start.toISOString().slice(0, 10), status: 'submitted' }).lean(),
       CooKpiTarget.find({ period: periodKey, granularity: periodType === 'weekly' ? 'week' : 'month' }).lean(),
       SocialWeeklyKpi.find({ active: { $ne: false }, weekStart: { $gte: range.start.toISOString().slice(0, 10), $lt: range.end.toISOString().slice(0, 10) } }).lean(),
+      SocialKpiReport.findOne({ periodType, periodKey }).lean(),
     ]);
     const customerReport = await CustomerDepartmentKpi.findOne({ periodType, periodKey, submittedAt: { $ne: null } }).lean();
     const records = [];
@@ -81,16 +83,22 @@ exports.getDepartmentAnalytics = async (req, res) => {
       const rows = ensira.filter((row) => row.type === type);
       if (rows.length) add('Ensira', type === 'company' ? 'Companies registered' : 'Job seekers registered', rows.length, 'Ensira registrations created in period', { updatedAt: latest(rows) });
     }
-    const socialContent = content.filter((row) => /socialmedia|social media/i.test(`${row.createdBy?.role || ''} ${row.createdBy?.department || ''}`));
-    for (const platform of [...new Set(socialReports.map((row) => row.platform))]) {
-      const rows = socialReports.filter((row) => row.platform === platform);
-      for (const field of ['videos', 'graphics', 'views', 'likes', 'shares']) {
-        add('Social Media', `${platform} ${field}`, rows.reduce((sum, row) => sum + (Number(row[field]) || 0), 0), 'Saved weekly social reports with week start in period', { unit: field, updatedAt: latest(rows) });
+    if (socialKpi?.metrics?.length) {
+      socialKpi.metrics.forEach((row) => {
+        add('Social Media', `${row.section ? row.section + ': ' : ''}${row.label}`, row.actual, 'Submitted Social Media KPI report', { target: row.target, unit: 'count', updatedAt: socialKpi.updatedAt || socialKpi.submittedAt });
+      });
+    } else {
+      const socialContent = content.filter((row) => /socialmedia|social media/i.test(`${row.createdBy?.role || ''} ${row.createdBy?.department || ''}`));
+      for (const platform of [...new Set(socialReports.map((row) => row.platform))]) {
+        const rows = socialReports.filter((row) => row.platform === platform);
+        for (const field of ['videos', 'graphics', 'views', 'likes', 'shares']) {
+          add('Social Media', `${platform} ${field}`, rows.reduce((sum, row) => sum + (Number(row[field]) || 0), 0), 'Saved weekly social reports with week start in period', { unit: field, updatedAt: latest(rows) });
+        }
       }
-    }
-    for (const type of [...new Set(socialContent.map((row) => row.type))]) {
-      const rows = socialContent.filter((row) => row.type === type);
-      add('Social Media', `${type} approved`, rows.filter((row) => row.approved).length, 'Approved content dated in period, owned by Social Media staff', { updatedAt: latest(rows) });
+      for (const type of [...new Set(socialContent.map((row) => row.type))]) {
+        const rows = socialContent.filter((row) => row.type === type);
+        add('Social Media', `${type} approved`, rows.filter((row) => row.approved).length, 'Approved content dated in period, owned by Social Media staff', { updatedAt: latest(rows) });
+      }
     }
     if (payments.length) add('Finance', 'Payments recorded', payments.length, 'Payment records created in period', { unit: 'payments', updatedAt: payments[payments.length - 1].createdAt });
     for (const department of ['Supervisor', 'Finance']) {
