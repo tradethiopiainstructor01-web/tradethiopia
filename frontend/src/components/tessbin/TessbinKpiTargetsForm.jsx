@@ -68,9 +68,11 @@ export default function TessbinKpiTargetsForm({ metrics, initialDate, onDirtyCha
     let savedCount = 0;
     for (const timeframe of changed) {
       const report = reports[timeframe];
+      const canKeepSubmitted = report.status === 'submitted' && report.metrics.every((m) => m.target > 0 && m.actual !== null && m.actual >= 0);
+      const targetStatus = canKeepSubmitted ? 'submitted' : (report.status || 'draft');
       try {
         const { data } = await axiosInstance.put('/tessbin/kpi-reports', {
-          timeframe, date, revision: report.revision, status: 'draft', metrics: report.metrics, notes: report.notes,
+          timeframe, date, revision: report.revision, status: targetStatus, metrics: report.metrics, notes: report.notes,
         });
         setReports((previous) => ({ ...previous, [timeframe]: data.data }));
         setChanged((previous) => previous.filter((item) => item !== timeframe));
@@ -81,7 +83,7 @@ export default function TessbinKpiTargetsForm({ metrics, initialDate, onDirtyCha
     }
     if (savedCount) onSaved(date);
     if (failures.length) setError(`${savedCount ? `${savedCount} period(s) saved. ` : ''}${failures.join(' ')} Unsaved entries remain below.`);
-    else toast({ title: 'Targets saved', description: 'Open Submit results when you are ready to report progress.', status: 'success', duration: 4000, isClosable: true });
+    else toast({ title: 'Targets saved', description: 'Your targets have been updated.', status: 'success', duration: 4000, isClosable: true });
     setSaving(false);
     onSavingChange(false);
   };
@@ -113,7 +115,7 @@ export default function TessbinKpiTargetsForm({ metrics, initialDate, onDirtyCha
             {PERIODS.map((timeframe) => <Th key={timeframe} scope="col" py={4} textTransform="none" letterSpacing="normal">
               <Text fontSize="md" textTransform="capitalize">{timeframe} target</Text>
               <Text fontSize="xs" fontWeight="normal" mt={1}>{displayDate(reports[timeframe].periodStart)} – {displayDate(reports[timeframe].periodEnd)}</Text>
-              {reports[timeframe].status === 'submitted' && <Badge mt={2} colorScheme="green">Submitted · locked</Badge>}
+              {reports[timeframe].status === 'submitted' && <Badge mt={2} colorScheme="green">Submitted</Badge>}
             </Th>)}
           </Tr></Thead>
           <Tbody>{metrics.map((metric) => <Tr key={metric.key}>
@@ -123,16 +125,15 @@ export default function TessbinKpiTargetsForm({ metrics, initialDate, onDirtyCha
             {PERIODS.map((timeframe) => <Td key={timeframe}>
               <Input type="number" min={1} step={1} w="150px" placeholder="Enter target"
                 aria-label={`${metric.title}: ${timeframe} target`} value={reports[timeframe].metrics.find((row) => row.key === metric.key)?.target ?? ''}
-                isDisabled={saving || reports[timeframe].status === 'submitted'} onChange={(event) => edit(timeframe, metric.key, event.target.value)} />
+                isDisabled={saving} onChange={(event) => edit(timeframe, metric.key, event.target.value)} />
             </Td>)}
           </Tr>)}</Tbody>
         </Table>
       </TableContainer>
       <Flex justify="space-between" gap={4} align="center" flexWrap="wrap" mt={5}>
-        <Text fontSize="sm" color={muted}>Targets save as drafts. Add actual results later in Submit results.</Text>
+        <Text fontSize="sm" color={muted}>Targets can be edited and saved anytime.</Text>
         <Button colorScheme="purple" type="submit" isLoading={saving} isDisabled={!changed.length || saving}>Save targets</Button>
       </Flex>
-      {PERIODS.some((timeframe) => reports[timeframe].status === 'submitted') && <Text fontSize="sm" color={muted} mt={3}>To change a submitted period, open Submit results, select that period, and choose Revise report.</Text>}
     </Box>}
   </CardBody></Card>;
 }
