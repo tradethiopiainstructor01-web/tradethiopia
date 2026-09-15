@@ -353,11 +353,17 @@ export default function TessbinKpiReportsView() {
         setReport(res.data);
         setHistory((prev) => [res.data, ...prev.filter((item) => item.periodStart !== res.data.periodStart)].sort((a, b) => b.periodStart.localeCompare(a.periodStart)).slice(0, 12));
         setDirty(false);
+        const wasAlreadySubmitted = report.status === 'submitted';
         toast({
-          title: status === 'submitted' ? 'Tessbin KPI Report Submitted' : 'Draft Saved',
+          title:
+            status === 'submitted'
+              ? wasAlreadySubmitted
+                ? 'Tessbin KPI Report Updated'
+                : 'Tessbin KPI Report Submitted'
+              : 'Draft Saved',
           description:
             status === 'submitted'
-              ? 'Published to COO Dashboard → Departments → Tessbin for this reporting period.'
+              ? 'Published & synced with COO Dashboard → Departments → Tessbin.'
               : 'Draft preserved successfully.',
           status: 'success',
           duration: 5000,
@@ -676,7 +682,7 @@ export default function TessbinKpiReportsView() {
                     py={1.5}
                     borderRadius="lg"
                   >
-                    {dirty ? 'Unsaved Changes' : isSubmitted ? 'Submitted' : report?.revision ? 'Draft Saved' : 'New Report'}
+                    {dirty ? (isSubmitted ? 'Unsaved Edits (Submitted)' : 'Unsaved Changes') : isSubmitted ? 'Live (Submitted)' : report?.revision ? 'Draft Saved' : 'New Report'}
                   </Badge>
                 </Flex>
               </Flex>
@@ -808,7 +814,7 @@ export default function TessbinKpiReportsView() {
                             colorScheme="purple"
                             onClick={() => handleOpenEdit(cfg)}
                             aria-label="Edit KPI"
-                            isDisabled={isSubmitted && !dirty}
+                            isDisabled={!!saving}
                           />
                         </Flex>
 
@@ -954,7 +960,7 @@ export default function TessbinKpiReportsView() {
                                     borderRadius="md"
                                     placeholder="Target"
                                     value={row.target ?? ''}
-                                    isDisabled={isSubmitted && !dirty}
+                                    isDisabled={!!saving}
                                     onChange={(e) => editMetric(cfg.key, 'target', e.target.value)}
                                   />
                                 </Td>
@@ -968,7 +974,7 @@ export default function TessbinKpiReportsView() {
                                     borderRadius="md"
                                     placeholder="Actual"
                                     value={row.actual ?? ''}
-                                    isDisabled={isSubmitted && !dirty}
+                                    isDisabled={!!saving}
                                     onChange={(e) => editMetric(cfg.key, 'actual', e.target.value)}
                                   />
                                 </Td>
@@ -991,7 +997,7 @@ export default function TessbinKpiReportsView() {
                                     variant="outline"
                                     colorScheme="purple"
                                     onClick={() => handleOpenEdit(cfg)}
-                                    isDisabled={isSubmitted && !dirty}
+                                    isDisabled={!!saving}
                                   >
                                     Edit
                                   </Button>
@@ -1019,7 +1025,7 @@ export default function TessbinKpiReportsView() {
                       value={report.notes || ''}
                       maxLength={3000}
                       placeholder="Explain key achievements, challenges encountered, and next period action plans..."
-                      isDisabled={isSubmitted && !dirty}
+                      isDisabled={!!saving}
                       onChange={(e) => {
                         setDirty(true);
                         setReport({ ...report, notes: e.target.value });
@@ -1036,47 +1042,31 @@ export default function TessbinKpiReportsView() {
                       </Text>
                       {dirty && (
                         <Text fontSize="xs" color="orange.500" fontWeight="700" mt={0.5}>
-                          &bull; You have unsaved changes
+                          &bull; You have unsaved edits
                         </Text>
                       )}
                     </Box>
 
                     <HStack spacing={3}>
-                      {isSubmitted && !dirty ? (
-                        <Button
-                          leftIcon={<Icon as={FiEdit2} />}
-                          variant="outline"
-                          colorScheme="purple"
-                          onClick={() => {
-                            setReport({ ...report, status: 'draft' });
-                            setDirty(true);
-                          }}
-                        >
-                          Revise Report
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            leftIcon={<Icon as={FiSave} />}
-                            variant="outline"
-                            isLoading={saving === 'draft'}
-                            isDisabled={!!saving}
-                            onClick={() => handleSaveReport('draft')}
-                          >
-                            Save Draft
-                          </Button>
+                      <Button
+                        leftIcon={<Icon as={FiSave} />}
+                        variant="outline"
+                        isLoading={saving === 'draft'}
+                        isDisabled={!!saving}
+                        onClick={() => handleSaveReport('draft')}
+                      >
+                        Save Draft
+                      </Button>
 
-                          <Button
-                            leftIcon={<Icon as={FiCheckCircle} />}
-                            colorScheme="purple"
-                            isLoading={saving === 'submitted'}
-                            isDisabled={!isComplete || !!saving}
-                            onClick={() => handleSaveReport('submitted')}
-                          >
-                            Submit KPI Report
-                          </Button>
-                        </>
-                      )}
+                      <Button
+                        leftIcon={<Icon as={FiCheckCircle} />}
+                        colorScheme={isSubmitted ? 'green' : 'purple'}
+                        isLoading={saving === 'submitted'}
+                        isDisabled={!isComplete || !!saving}
+                        onClick={() => handleSaveReport('submitted')}
+                      >
+                        {isSubmitted ? 'Update Submitted KPI' : 'Submit KPI Report'}
+                      </Button>
                     </HStack>
                   </Flex>
                 </CardBody>
