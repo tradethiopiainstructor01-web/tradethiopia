@@ -64,6 +64,7 @@ import {
   clearKPICache,
 } from "../../services/customerKPIService";
 import Layout from "../../components/customer/Layout";
+import CustomerDepartmentKpiReport from "../../components/customer/CustomerDepartmentKpiReport";
 
 // Helper to get ISO week number
 const getISOWeek = (dateObj) => {
@@ -532,6 +533,7 @@ const CustomerKPIPage = () => {
   return (
     <Layout>
       <Box p={{ base: 4, md: 5, xl: 6 }} w="100%" maxW="none" mx="0">
+        <CustomerDepartmentKpiReport />
         {/* Header Hero Card */}
         <Card
           mb={5}

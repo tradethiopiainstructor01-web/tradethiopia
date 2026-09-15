@@ -1,5 +1,5 @@
 // src/pages/coo2/OverviewView.jsx
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Bar,
   BarChart,
@@ -22,8 +22,22 @@ import {
   Th,
   Thead,
   Tr,
+  Badge,
+  HStack,
+  Flex,
+  Spinner,
+  Alert,
+  AlertIcon,
+  SimpleGrid,
+  Button,
+  useToast,
 } from '@chakra-ui/react';
-import { getHrKpis } from '../../services/hrKpiService';
+import { FiDatabase } from 'react-icons/fi';
+import { getHrKpis, getHrLiveStats } from '../../services/hrKpiService';
+import { getSalesDepartmentKpis } from '../../services/salesDepartmentKpiService';
+import CustomerDepartmentKpiReport from '../../components/customer/CustomerDepartmentKpiReport';
+import { getFinanceDepartmentKpis } from '../../services/financeDepartmentKpiService';
+import TessbinDepartmentView from './TessbinDepartmentView';
 import {
   CUSTOMER_SUCCESS_KPI_DETAILS,
   DEPARTMENT_KPI_SUMMARY,
@@ -59,7 +73,35 @@ const HR_DASHBOARD_KPIS = [
   { key: 'staffTrainingParticipants', label: 'Staff Participating in Trainings', unit: 'participants' },
 ];
 
-const formatNumber = (value) => value === null || value === undefined ? '—' : Number(value).toLocaleString();
+const formatNumber = (value) => {
+  if (value === null || value === undefined || value === '' || isNaN(value)) {
+    return '0';
+  }
+  return Number(value).toLocaleString();
+};
+
+const getCurrentHrPeriod = (dateRange) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const periodType = String(dateRange || 'Monthly').toLowerCase();
+
+  if (periodType === 'weekly') {
+    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+    return { periodType, periodKey: `${year}-W${String(week).padStart(2, '0')}` };
+  }
+
+  if (periodType === 'quarterly') {
+    return { periodType, periodKey: `${year}-Q${Math.floor(now.getMonth() / 3) + 1}` };
+  }
+
+  return {
+    periodType: 'monthly',
+    periodKey: `${year}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+  };
+};
 
 const AchievementLabel = ({ x, y, width, value }) => (
   <text x={x + width / 2} y={y - 8} textAnchor="middle" fill="#111827" fontSize="13" fontWeight="600">
@@ -81,51 +123,100 @@ const AmountLabel = ({ x, y, width, value }) => (
 
 const DetailTable = ({
   title,
-  rows,
+  rows = [],
   firstColumnLabel = 'KPI',
   actualLabel = 'Actual',
   statusLabel = 'Status',
-}) => (
-  <Box border="1px solid #d1d5db" bg="white" overflow="hidden">
-    <Box bg="#137b7e" color="white" px={7} py={2}>
-      <Heading as="h2" fontSize={{ base: '20px', md: '25px' }}>{title}</Heading>
-    </Box>
-    <TableContainer>
-      <Table size="sm" variant="simple">
-        <Thead bg="#213f70">
-          <Tr>
-            {[firstColumnLabel, 'Target', actualLabel, 'Achievement %', statusLabel].map((heading) => (
-              <Th key={heading} color="white" textAlign="center" fontSize={{ base: '12px', md: '15px' }} textTransform="none" letterSpacing="normal" py={3} borderColor="#cbd5e1">
-                {heading}
-              </Th>
-            ))}
-          </Tr>
-        </Thead>
-        <Tbody>
-          {rows.map((row, index) => {
-            const statusStyle = STATUS_STYLES[row.status] || STATUS_STYLES.Behind;
-            return (
-              <Tr key={row.kpi} bg={index % 2 ? '#f3f4f6' : '#ffffff'}>
-                <Td fontWeight="700" fontSize="14px" borderColor="#d1d5db">{row.kpi}</Td>
-                <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">{formatNumber(row.target)}</Td>
-                <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">{formatNumber(row.actual)}</Td>
-                <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                  {row.achievement === null || row.achievement === undefined ? 'N/A' : `${row.achievement}%`}
-                </Td>
-                <Td textAlign="center" fontSize="14px" fontWeight="600" bg={statusStyle.background} color={statusStyle.color} borderColor="#d1d5db">
-                  {row.status}
+  statusFilter = 'All',
+  searchQuery = '',
+}) => {
+  const filteredRows = useMemo(() => {
+    if (!Array.isArray(rows)) return [];
+    return rows.filter((row) => {
+      // Status filter
+      if (statusFilter && statusFilter !== 'All') {
+        const rowStatus = row.status || 'Pending';
+        if (statusFilter === 'Not Reported') {
+          if (rowStatus !== 'Not Reported' && rowStatus !== 'Pending') return false;
+        } else if (rowStatus !== statusFilter) {
+          return false;
+        }
+      }
+      // Search query
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const firstCol = String(row.kpi || row.department || row.item || row.service || '').toLowerCase();
+        const note = String(row.note || row.notes || '').toLowerCase();
+        const status = String(row.status || '').toLowerCase();
+        if (!firstCol.includes(q) && !note.includes(q) && !status.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, statusFilter, searchQuery]);
+
+  return (
+    <Box border="1px solid #d1d5db" bg="white" overflow="hidden">
+      <Box bg="#137b7e" color="white" px={7} py={2} display="flex" justifyContent="space-between" alignItems="center">
+        <Heading as="h2" fontSize={{ base: '20px', md: '25px' }}>{title}</Heading>
+        {filteredRows.length !== rows.length && (
+          <Badge bg="whiteAlpha.300" color="white" px={2.5} py={0.5} borderRadius="full" fontSize="12px">
+            {filteredRows.length} of {rows.length} rows
+          </Badge>
+        )}
+      </Box>
+      <TableContainer>
+        <Table size="sm" variant="simple">
+          <Thead bg="#213f70">
+            <Tr>
+              {[firstColumnLabel, 'Target', actualLabel, 'Achievement %', statusLabel].map((heading) => (
+                <Th key={heading} color="white" textAlign="center" fontSize={{ base: '12px', md: '15px' }} textTransform="none" letterSpacing="normal" py={3} borderColor="#cbd5e1">
+                  {heading}
+                </Th>
+              ))}
+            </Tr>
+          </Thead>
+          <Tbody>
+            {filteredRows.length === 0 ? (
+              <Tr>
+                <Td colSpan={5} textAlign="center" py={6} color="#64748b" fontStyle="italic">
+                  No KPI metrics match the current filter criteria ({statusFilter !== 'All' ? `Status: ${statusFilter}` : ''} {searchQuery ? `Search: "${searchQuery}"` : ''}).
                 </Td>
               </Tr>
-            );
-          })}
-        </Tbody>
-      </Table>
-    </TableContainer>
-  </Box>
-);
+            ) : (
+              filteredRows.map((row, index) => {
+                const isZeroTarget = Number(row.target) === 0;
+                const isZeroActual = Number(row.actual) === 0;
+                const effectiveStatus = (isZeroTarget && isZeroActual)
+                  ? 'Not Reported'
+                  : (isZeroTarget && row.status === 'On Track')
+                    ? 'Not Reported'
+                    : (row.status || 'Not Reported');
+                const statusStyle = STATUS_STYLES[effectiveStatus] || STATUS_STYLES['Not Reported'] || STATUS_STYLES.Pending;
+                return (
+                  <Tr key={row.kpi || index} bg={index % 2 ? '#f3f4f6' : '#ffffff'}>
+                    <Td fontWeight="700" fontSize="14px" borderColor="#d1d5db">{row.kpi}</Td>
+                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">{formatNumber(row.target)}</Td>
+                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">{formatNumber(row.actual)}</Td>
+                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
+                      {isZeroTarget || row.achievement === null || row.achievement === undefined || isNaN(row.achievement) ? '0%' : `${row.achievement}%`}
+                    </Td>
+                    <Td textAlign="center" fontSize="14px" fontWeight="600" bg={statusStyle.background} color={statusStyle.color} borderColor="#d1d5db">
+                      {effectiveStatus}
+                    </Td>
+                  </Tr>
+                );
+              })
+            )}
+          </Tbody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+};
 
-const ComparisonChart = ({ title, rows, actualLabel = 'Actual' }) => {
-  const maximum = Math.max(...rows.flatMap((row) => [row.target, row.actual]));
+const ComparisonChart = ({ title, rows = [], actualLabel = 'Actual' }) => {
+  const values = (rows || []).flatMap((row) => [Number(row?.target) || 0, Number(row?.actual) || 0]);
+  const maximum = values.length > 0 ? Math.max(...values, 0) : 0;
   const upperBound = Math.max(4, Math.ceil((maximum + 1) / 5) * 5);
 
   return (
@@ -202,56 +293,295 @@ const CustomerSuccessChart = () => (
   </Box>
 );
 
-const FinanceTable = () => (
-  <Box border="1px solid #d1d5db" bg="white" overflow="hidden">
-    <Box bg="#137b7e" color="white" px={7} py={2}>
-      <Heading as="h2" fontSize={{ base: '20px', md: '25px' }}>Weekly Financials (ETB)</Heading>
-    </Box>
-    <TableContainer>
-      <Table size="sm" variant="simple">
-        <Thead bg="#213f70">
-          <Tr>
-            {['Item', 'Amount'].map((heading) => (
-              <Th key={heading} color="white" textAlign="center" fontSize={{ base: '12px', md: '15px' }} textTransform="none" letterSpacing="normal" py={3} borderColor="#cbd5e1">
-                {heading}
-              </Th>
-            ))}
-          </Tr>
-        </Thead>
-        <Tbody>
-          {FINANCE_KPI_DETAILS.map((row, index) => (
-            <Tr key={row.item} bg={index % 2 ? '#f3f4f6' : '#ffffff'}>
-              <Td fontWeight="700" fontSize="14px" borderColor="#d1d5db">{row.item}</Td>
-              <Td textAlign="center" fontSize="14px" fontWeight={row.item === 'Net Position' ? '700' : '400'} borderColor="#d1d5db">
-                {typeof row.amount === 'number' ? formatNumber(row.amount) : row.amount ?? '—'}
-              </Td>
-            </Tr>
-          ))}
-        </Tbody>
-      </Table>
-    </TableContainer>
-  </Box>
-);
+const DEFAULT_FINANCE_ROWS = [
+  { kpi: 'Weekly Revenue', target: 0, actual: 0, achievement: 0, status: 'Not Reported', notes: '' },
+  { kpi: 'Weekly Expenses', target: 0, actual: 0, achievement: 0, status: 'Not Reported', notes: '' },
+  { kpi: 'Net Position', target: 0, actual: 0, achievement: 0, status: 'Not Reported', notes: '' },
+  { kpi: 'Receivables Collected', target: 0, actual: 0, achievement: 0, status: 'Not Reported', notes: '' },
+  { kpi: 'Tax Status', target: 0, actual: 0, achievement: 0, status: 'Not Reported', notes: '' },
+];
 
-const FinanceChart = () => {
-  const chartRows = FINANCE_KPI_DETAILS.filter((row) => typeof row.amount === 'number').slice(0, 3);
+const FinanceDashboardKpiTable = ({
+  rows = [],
+  periodKey = '',
+  statusFilter = 'All',
+  searchQuery = '',
+  submittedInfo = null,
+}) => {
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      if (statusFilter && statusFilter !== 'All') {
+        const rowStatus = row.status || 'Not Reported';
+        if (statusFilter === 'Not Reported') {
+          if (rowStatus !== 'Not Reported' && rowStatus !== 'Pending') return false;
+        } else if (rowStatus !== statusFilter) {
+          return false;
+        }
+      }
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const label = String(row.kpi || row.item || '').toLowerCase();
+        const notes = String(row.notes || '').toLowerCase();
+        if (!label.includes(q) && !notes.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, statusFilter, searchQuery]);
+
   return (
-    <Box bg="white" border="1px solid #d1d5db" px={{ base: 3, md: 6 }} pt={5} pb={2}>
-      <Heading as="h2" textAlign="center" fontSize={{ base: '21px', md: '27px' }} mb={3}>
-        Revenue vs Expenses vs Net Position (ETB)
-      </Heading>
-      <Box h={{ base: '350px', md: '420px' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartRows} margin={{ top: 28, right: 20, left: 35, bottom: 35 }}>
-            <CartesianGrid stroke="#9ca3af" vertical={false} />
-            <XAxis dataKey="item" interval={0} tick={{ fill: '#111827', fontSize: 12 }} />
-            <YAxis domain={[0, 600000]} tickFormatter={(value) => formatNumber(value)} label={{ value: 'ETB', angle: -90, position: 'insideLeft', offset: -20, style: { fontWeight: 700 } }} />
-            <ChartTooltip formatter={(value) => [formatNumber(value), 'ETB']} />
-            <Bar dataKey="amount" fill="#5285bf" maxBarSize={150}>
-              <LabelList dataKey="amount" content={<AmountLabel />} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+    <Box border="1px solid #d1d5db" bg="white" overflow="hidden" boxShadow="sm">
+      <Box bg="#137b7e" color="white" px={7} py={2} display="flex" justifyContent="space-between" alignItems="center" wrap="wrap" gap={2}>
+        <HStack spacing={3}>
+          <Heading as="h2" fontSize={{ base: '18px', md: '22px' }}>
+            Finance Operational KPIs (ETB)
+          </Heading>
+          {submittedInfo ? (
+            <Badge bg="#10b981" color="white" px={2.5} py={0.5} borderRadius="full" fontSize="11px">
+              Submitted by {submittedInfo.submittedByName}
+            </Badge>
+          ) : (
+            <Badge bg="whiteAlpha.300" color="white" px={2.5} py={0.5} borderRadius="full" fontSize="11px">
+              Operational Baseline
+            </Badge>
+          )}
+        </HStack>
+        {periodKey && (
+          <Badge bg="whiteAlpha.200" color="white" px={3} py={1} borderRadius="full" fontSize="11.5px">
+            {periodKey}
+          </Badge>
+        )}
+      </Box>
+      <TableContainer>
+        <Table size="sm" variant="simple">
+          <Thead bg="#213f70">
+            <Tr>
+              {['Metric', 'Target', 'Actual', 'Achievement %', 'Status', 'Notes'].map((heading) => (
+                <Th key={heading} color="white" textAlign="center" fontSize={{ base: '12px', md: '14px' }} textTransform="none" letterSpacing="normal" py={3} borderColor="#cbd5e1">
+                  {heading}
+                </Th>
+              ))}
+            </Tr>
+          </Thead>
+          <Tbody>
+            {filteredRows.length === 0 ? (
+              <Tr>
+                <Td colSpan={6} textAlign="center" py={6} color="#64748b" fontStyle="italic">
+                  No Finance KPIs match the current filter criteria ({statusFilter !== 'All' ? `Status: ${statusFilter}` : ''} {searchQuery ? `Search: "${searchQuery}"` : ''}).
+                </Td>
+              </Tr>
+            ) : (
+              filteredRows.map((row, index) => {
+                const isZeroTarget = Number(row.target) === 0;
+                const isZeroActual = Number(row.actual) === 0;
+                const status = (isZeroTarget && isZeroActual && (!row.status || row.status === 'Pending')) ? 'Not Reported' : (row.status || 'Not Reported');
+                const statusStyle = STATUS_STYLES[status] || STATUS_STYLES['Not Reported'] || STATUS_STYLES.Pending;
+                const achievement = Number(row.target) > 0 ? Math.round((Number(row.actual) / Number(row.target)) * 100) : 0;
+                return (
+                  <Tr key={row.kpi || row.item} bg={index % 2 ? '#f3f4f6' : '#ffffff'}>
+                    <Td fontWeight="700" fontSize="14px" borderColor="#d1d5db" minW="220px">
+                      {row.kpi || row.item}
+                    </Td>
+                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
+                      {formatNumber(row.target)}
+                    </Td>
+                    <Td textAlign="center" fontSize="14px" fontWeight={row.kpi === 'Net Position' ? '700' : '500'} borderColor="#d1d5db" color={row.kpi === 'Net Position' && row.actual < 0 ? 'red.600' : 'inherit'}>
+                      {formatNumber(row.actual)}
+                    </Td>
+                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
+                      {achievement}%
+                    </Td>
+                    <Td textAlign="center" fontSize="14px" fontWeight="600" bg={statusStyle.background} color={statusStyle.color} borderColor="#d1d5db" whiteSpace="nowrap">
+                      {status}
+                    </Td>
+                    <Td fontSize="14px" borderColor="#d1d5db" minW="200px">
+                      {row.notes || ''}
+                    </Td>
+                  </Tr>
+                );
+              })
+            )}
+          </Tbody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+};
+
+const FinanceDepartmentView = ({
+  dateRange,
+  periodType,
+  periodKey: propPeriodKey,
+  periodDisplayLabel,
+  statusFilter = 'All',
+  searchQuery = '',
+}) => {
+  const [kpiRecord, setKpiRecord] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const defaultPeriod = useMemo(() => getCurrentHrPeriod(dateRange), [dateRange]);
+  const activePeriodType = periodType || defaultPeriod.periodType;
+  const activePeriodKey = propPeriodKey || defaultPeriod.periodKey;
+
+  useEffect(() => {
+    let active = true;
+    setIsLoading(true);
+    setLoadError('');
+
+    getFinanceDepartmentKpis(activePeriodType, activePeriodKey)
+      .then((response) => {
+        if (active) setKpiRecord(response?.data || null);
+      })
+      .catch((err) => {
+        if (active) setLoadError(err?.message || 'Could not load Finance department KPIs.');
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activePeriodType, activePeriodKey]);
+
+  const liveRows = useMemo(() => {
+    const raw = kpiRecord?.financials || DEFAULT_FINANCE_ROWS;
+    return raw.map((item) => {
+      const target = Number(item.target) || 0;
+      const actual = Number(item.actual) || 0;
+      const isZero = target === 0 && actual === 0;
+      return {
+        ...item,
+        target,
+        actual,
+        achievement: target > 0 ? Math.round((actual / target) * 100) : 0,
+        status: isZero && !kpiRecord?.submittedAt ? 'Not Reported' : (item.status || 'Not Reported'),
+        notes: item.notes || '',
+      };
+    });
+  }, [kpiRecord]);
+
+  const chartRows = useMemo(() => {
+    return liveRows.map((r) => ({
+      item: String(r.kpi || r.item || '').replace('Weekly ', ''),
+      Target: r.target,
+      Actual: r.actual,
+      amount: r.actual,
+    }));
+  }, [liveRows]);
+
+  const revRow = liveRows.find((r) => String(r.kpi || r.item || '').includes('Revenue'));
+  const expRow = liveRows.find((r) => String(r.kpi || r.item || '').includes('Expenses'));
+  const netRow = liveRows.find((r) => String(r.kpi || r.item || '') === 'Net Position');
+  const recRow = liveRows.find((r) => String(r.kpi || r.item || '').includes('Receivables'));
+  const taxRow = liveRows.find((r) => String(r.kpi || r.item || '').includes('Tax'));
+
+  return (
+    <Box maxW="1400px" mx="auto">
+      <Box bg="#213f70" color="white" px={{ base: 5, md: 7 }} py={4} mb={7}>
+        <Flex justify="space-between" align={{ base: 'flex-start', sm: 'center' }} wrap="wrap" gap={3}>
+          <Box>
+            <Heading as="h1" fontSize={{ base: '27px', md: '36px' }} lineHeight="1.2">Finance &amp; Accounts</Heading>
+            <Text mt={2} fontSize={{ base: '15px', md: '18px' }} fontStyle="italic">
+              Weekly revenue, operational expenses, net margins &amp; cash flows
+            </Text>
+          </Box>
+          <HStack spacing={2} wrap="wrap">
+            {kpiRecord?.submittedAt ? (
+              <Badge bg="#10b981" color="white" px={3} py={1} borderRadius="full" fontSize="12px">
+                Submitted by {kpiRecord.submittedByName || 'Finance Manager'} ({new Date(kpiRecord.submittedAt).toLocaleDateString()})
+              </Badge>
+            ) : (
+              <Badge bg="whiteAlpha.300" color="white" px={3} py={1} borderRadius="full" fontSize="12px">
+                Live DB Baseline
+              </Badge>
+            )}
+            <Badge bg="whiteAlpha.400" color="white" px={3} py={1} borderRadius="full" fontSize="12px">
+              Period: {periodDisplayLabel || activePeriodKey}
+            </Badge>
+          </HStack>
+        </Flex>
+      </Box>
+
+      <Box display="grid" gap={7}>
+        <SimpleGrid columns={{ base: 1, sm: 2, lg: 5 }} spacing={4}>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">Revenue</Text>
+            <Text fontSize="22px" fontWeight="800" color="#0f766e" mt={1}>
+              {formatNumber(revRow?.actual)} <Text as="span" fontSize="12px" color="#64748b">ETB</Text>
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">Target: {formatNumber(revRow?.target)}</Text>
+          </Box>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">Expenses</Text>
+            <Text fontSize="22px" fontWeight="800" color="#dc2626" mt={1}>
+              {formatNumber(expRow?.actual)} <Text as="span" fontSize="12px" color="#64748b">ETB</Text>
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">Target: {formatNumber(expRow?.target)}</Text>
+          </Box>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">Net Position</Text>
+            <Text fontSize="22px" fontWeight="800" color={Number(netRow?.actual) >= 0 ? '#16a34a' : '#ea580c'} mt={1}>
+              {formatNumber(netRow?.actual)} <Text as="span" fontSize="12px" color="#64748b">ETB</Text>
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">Target: {formatNumber(netRow?.target)}</Text>
+          </Box>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">Receivables</Text>
+            <Text fontSize="22px" fontWeight="800" color="#2563eb" mt={1}>
+              {formatNumber(recRow?.actual)} <Text as="span" fontSize="12px" color="#64748b">ETB</Text>
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">Target: {formatNumber(recRow?.target)}</Text>
+          </Box>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">Tax Status</Text>
+            <Text fontSize="22px" fontWeight="800" color="#7c3aed" mt={1}>
+              {formatNumber(taxRow?.actual)} <Text as="span" fontSize="12px" color="#64748b">ETB</Text>
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">Target: {formatNumber(taxRow?.target)}</Text>
+          </Box>
+        </SimpleGrid>
+
+        {isLoading && (
+          <Box bg="white" border="1px solid #d1d5db" p={8} textAlign="center">
+            <Text color="#475569" fontWeight="600">Loading Finance dashboard KPIs…</Text>
+          </Box>
+        )}
+
+        {!isLoading && loadError && (
+          <Box bg="#fff7ed" border="1px solid #fdba74" color="#9a3412" p={4} fontWeight="600">
+            {loadError}
+          </Box>
+        )}
+
+        {!isLoading && !loadError && (
+          <>
+            <FinanceDashboardKpiTable
+              rows={liveRows}
+              periodKey={activePeriodKey}
+              statusFilter={statusFilter}
+              searchQuery={searchQuery}
+              submittedInfo={kpiRecord?.submittedAt ? { submittedByName: kpiRecord.submittedByName } : null}
+            />
+            <Box bg="white" border="1px solid #d1d5db" px={{ base: 3, md: 6 }} pt={5} pb={2}>
+              <Heading as="h2" textAlign="center" fontSize={{ base: '20px', md: '24px' }} mb={3}>
+                Finance Target vs Actual (ETB)
+              </Heading>
+              <Box h={{ base: '320px', md: '380px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartRows} margin={{ top: 20, right: 30, left: 25, bottom: 25 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="item" tick={{ fill: '#334155', fontSize: 12 }} />
+                    <YAxis tickFormatter={(val) => formatNumber(val)} tick={{ fill: '#334155', fontSize: 12 }} />
+                    <ChartTooltip formatter={(val) => [`${formatNumber(val)} ETB`]} />
+                    <Legend />
+                    <Bar dataKey="Target" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Actual" fill="#0f766e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+            </Box>
+          </>
+        )}
       </Box>
     </Box>
   );
@@ -360,123 +690,290 @@ const HrChart = () => {
   );
 };
 
-const getCurrentHrPeriod = (dateRange) => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const periodType = String(dateRange || 'Monthly').toLowerCase();
 
-  if (periodType === 'weekly') {
-    const startOfYear = new Date(year, 0, 1);
-    const elapsedDays = (now - startOfYear) / 86400000;
-    const week = Math.ceil((elapsedDays + startOfYear.getDay() + 1) / 7);
-    return { periodType, periodKey: `${year}-W${String(week).padStart(2, '0')}` };
+const resolveKpiStatus = (target, actual, rawStatus) => {
+  const t = Number(target) || 0;
+  const a = Number(actual) || 0;
+  if (t === 0 && a === 0) {
+    return (rawStatus && rawStatus !== 'Pending' && rawStatus !== 'Not Reported') ? rawStatus : 'Not Reported';
   }
-
-  if (periodType === 'quarterly') {
-    return { periodType, periodKey: `${year}-Q${Math.floor(now.getMonth() / 3) + 1}` };
+  if (rawStatus && rawStatus !== 'Pending' && rawStatus !== 'Not Reported') {
+    if (rawStatus === 'Behind Target') return 'Behind';
+    return rawStatus;
   }
-
-  return {
-    periodType: 'monthly',
-    periodKey: `${year}-${String(now.getMonth() + 1).padStart(2, '0')}`,
-  };
+  if (t > 0) {
+    const ratio = (a / t) * 100;
+    if (ratio >= 100) return 'Completed';
+    if (ratio >= 80) return 'On Track';
+    if (ratio >= 50) return 'At Risk';
+    return 'Behind';
+  }
+  return a > 0 ? 'Completed' : 'Not Reported';
 };
 
-const HrDashboardKpiTable = ({ rows, periodKey }) => (
-  <Box border="1px solid #d1d5db" bg="white" overflow="hidden">
-    <Box bg="#137b7e" color="white" px={7} py={2} display="flex" alignItems="center" justifyContent="space-between" gap={4}>
-      <Heading as="h2" fontSize={{ base: '20px', md: '25px' }}>HR Dashboard KPIs</Heading>
-      <Text fontSize="sm" fontWeight="700" whiteSpace="nowrap">Period: {periodKey}</Text>
-    </Box>
-    <TableContainer>
-      <Table size="sm" variant="simple">
-        <Thead bg="#213f70">
-          <Tr>
-            {['KPI', 'Target', 'Actual', 'Achievement %', 'Status', 'Notes'].map((heading) => (
-              <Th key={heading} color="white" textAlign="center" fontSize={{ base: '12px', md: '15px' }} textTransform="none" letterSpacing="normal" py={3} borderColor="#cbd5e1">
-                {heading}
-              </Th>
-            ))}
-          </Tr>
-        </Thead>
-        <Tbody>
-          {rows.map((row, index) => {
-            const statusStyle = STATUS_STYLES[row.status] || STATUS_STYLES.Pending;
-            const achievement = row.target > 0 ? Math.round((row.actual / row.target) * 100) : null;
-            return (
-              <Tr key={row.key} bg={index % 2 ? '#f3f4f6' : '#ffffff'}>
-                <Td fontWeight="700" fontSize="14px" borderColor="#d1d5db" minW="250px">{row.label}</Td>
-                <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">{formatNumber(row.target)}</Td>
-                <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                  {formatNumber(row.actual)} {row.unit === '%' ? '%' : ''}
+const normalizeFilterStatus = (status) => {
+  const s = String(status || '').toLowerCase().trim();
+  if (s.includes('behind')) return 'Behind';
+  if (s.includes('track')) return 'On Track';
+  if (s.includes('risk')) return 'At Risk';
+  if (s.includes('complet')) return 'Completed';
+  if (s.includes('not') || s.includes('pending')) return 'Not Reported';
+  return status;
+};
+
+const matchesStatusFilter = (itemStatus, statusFilter) => {
+  if (!statusFilter || statusFilter === 'All') return true;
+  return normalizeFilterStatus(itemStatus) === normalizeFilterStatus(statusFilter);
+};
+
+const HrDashboardKpiTable = ({ rows, periodKey, statusFilter = 'All', searchQuery = '' }) => {
+  const filteredRows = useMemo(() => {
+    if (!Array.isArray(rows)) return [];
+    return rows.filter((row) => {
+      const effectiveStatus = row.status || resolveKpiStatus(row.target, row.actual, row.status);
+      if (!matchesStatusFilter(effectiveStatus, statusFilter)) return false;
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const label = String(row.label || row.kpi || '').toLowerCase();
+        const notes = String(row.notes || '').toLowerCase();
+        const status = String(effectiveStatus || '').toLowerCase();
+        if (!label.includes(q) && !notes.includes(q) && !status.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, statusFilter, searchQuery]);
+
+  return (
+    <Box border="1px solid #d1d5db" bg="white" overflow="hidden">
+      <Box bg="#137b7e" color="white" px={7} py={2} display="flex" alignItems="center" justifyContent="space-between" gap={4}>
+        <Heading as="h2" fontSize={{ base: '20px', md: '25px' }}>HR Dashboard KPIs</Heading>
+        <HStack spacing={2}>
+          {filteredRows.length !== rows.length && (
+            <Badge bg="whiteAlpha.300" color="white" px={2.5} py={0.5} borderRadius="full" fontSize="12px">
+              {filteredRows.length} of {rows.length}
+            </Badge>
+          )}
+          <Text fontSize="sm" fontWeight="700" whiteSpace="nowrap">Period: {periodKey}</Text>
+        </HStack>
+      </Box>
+      <TableContainer>
+        <Table size="sm" variant="simple">
+          <Thead bg="#213f70">
+            <Tr>
+              {['KPI', 'Target', 'Actual', 'Achievement %', 'Status', 'Notes'].map((heading) => (
+                <Th key={heading} color="white" textAlign="center" fontSize={{ base: '12px', md: '15px' }} textTransform="none" letterSpacing="normal" py={3} borderColor="#cbd5e1">
+                  {heading}
+                </Th>
+              ))}
+            </Tr>
+          </Thead>
+          <Tbody>
+            {filteredRows.length === 0 ? (
+              <Tr>
+                <Td colSpan={6} textAlign="center" py={6} color="#64748b" fontStyle="italic">
+                  No HR KPIs match the current filter criteria ({statusFilter !== 'All' ? `Status: ${statusFilter}` : ''} {searchQuery ? `Search: "${searchQuery}"` : ''}).
                 </Td>
-                <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                  {achievement === null ? 'N/A' : `${achievement}%`}
-                </Td>
-                <Td textAlign="center" fontSize="14px" fontWeight="600" bg={statusStyle.background} color={statusStyle.color} borderColor="#d1d5db" whiteSpace="nowrap">
-                  {row.status}
-                </Td>
-                <Td fontSize="14px" borderColor="#d1d5db" minW="220px">{row.notes || '—'}</Td>
               </Tr>
-            );
-          })}
-        </Tbody>
-      </Table>
-    </TableContainer>
-  </Box>
-);
+            ) : (
+              filteredRows.map((row, index) => {
+                const status = resolveKpiStatus(row.target, row.actual, row.status);
+                const statusStyle = STATUS_STYLES[status] || STATUS_STYLES['Not Reported'] || STATUS_STYLES.Pending;
+                const achievement = Number(row.target) > 0 
+                  ? Math.round((Number(row.actual) / Number(row.target)) * 100) 
+                  : (Number(row.actual) > 0 ? 100 : 0);
+                return (
+                  <Tr key={row.key} bg={index % 2 ? '#f3f4f6' : '#ffffff'}>
+                    <Td fontWeight="700" fontSize="14px" borderColor="#d1d5db" minW="250px">{row.label}</Td>
+                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">{formatNumber(row.target)}</Td>
+                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
+                      {formatNumber(row.actual)} {row.unit === '%' ? '%' : ''}
+                    </Td>
+                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
+                      {achievement}%
+                    </Td>
+                    <Td textAlign="center" fontSize="14px" fontWeight="600" bg={statusStyle.background} color={statusStyle.color} borderColor="#d1d5db" whiteSpace="nowrap">
+                      {status}
+                    </Td>
+                    <Td fontSize="14px" borderColor="#d1d5db" minW="220px">{row.notes || ''}</Td>
+                  </Tr>
+                );
+              })
+            )}
+          </Tbody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+};
 
-const HrDepartmentView = ({ dateRange }) => {
+const HrDepartmentView = ({
+  dateRange,
+  periodType,
+  periodKey: propPeriodKey,
+  periodDisplayLabel,
+  statusFilter = 'All',
+  searchQuery = '',
+}) => {
   const [kpiRecord, setKpiRecord] = useState(null);
+  const [liveStats, setLiveStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingStats, setIsSyncingStats] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const period = useMemo(() => getCurrentHrPeriod(dateRange), [dateRange]);
+  const toast = useToast();
+  const defaultPeriod = useMemo(() => getCurrentHrPeriod(dateRange), [dateRange]);
+  const activePeriodType = periodType || defaultPeriod.periodType;
+  const activePeriodKey = propPeriodKey || defaultPeriod.periodKey;
 
-  useEffect(() => {
-    let active = true;
+  const fetchHrData = useCallback(() => {
     setIsLoading(true);
     setLoadError('');
 
-    getHrKpis(period.periodType, period.periodKey)
-      .then((response) => {
-        if (active) setKpiRecord(response?.data || null);
+    Promise.all([
+      getHrKpis(activePeriodType, activePeriodKey),
+      getHrLiveStats().catch(() => ({ data: null })),
+    ])
+      .then(([kpiResponse, statsResponse]) => {
+        setKpiRecord(kpiResponse?.data || null);
+        if (statsResponse?.data) {
+          setLiveStats(statsResponse.data);
+        }
       })
       .catch((error) => {
-        if (active) setLoadError(error?.response?.data?.message || 'Unable to load the live HR KPI dashboard.');
+        setLoadError(error?.response?.data?.message || 'Unable to load the live HR KPI dashboard.');
       })
       .finally(() => {
-        if (active) setIsLoading(false);
+        setIsLoading(false);
       });
+  }, [activePeriodType, activePeriodKey]);
 
-    return () => {
-      active = false;
-    };
-  }, [period]);
+  useEffect(() => {
+    fetchHrData();
+  }, [fetchHrData]);
+
+  const handleSyncTelemetry = async () => {
+    setIsSyncingStats(true);
+    try {
+      const [kpiRes, statsRes] = await Promise.all([
+        getHrKpis(activePeriodType, activePeriodKey),
+        getHrLiveStats(),
+      ]);
+      setKpiRecord(kpiRes?.data || null);
+      if (statsRes?.data) {
+        setLiveStats(statsRes.data);
+      }
+      toast({
+        title: 'HR Telemetry Synced',
+        description: 'Successfully updated live HR metrics from database.',
+        status: 'success',
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch {
+      toast({
+        title: 'Sync Failed',
+        description: 'Could not fetch updated HR metrics.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSyncingStats(false);
+    }
+  };
 
   const liveRows = useMemo(() => HR_DASHBOARD_KPIS.map((item) => {
     const metric = kpiRecord?.[item.key] || {};
+    const target = Number(metric.target) || 0;
+    const actual = Number(metric.actual) || 0;
+    const achievement = target > 0 ? Math.round((actual / target) * 100) : (actual > 0 ? 100 : 0);
+    const status = resolveKpiStatus(target, actual, metric.status);
     return {
       ...item,
-      target: Number(metric.target) || 0,
-      actual: Number(metric.actual) || 0,
-      status: metric.status || 'Pending',
+      target,
+      actual,
+      achievement,
+      status,
       notes: metric.notes || '',
       kpi: item.label,
     };
   }), [kpiRecord]);
 
+  const chartRows = useMemo(() => {
+    return liveRows.filter((row) => {
+      if (!matchesStatusFilter(row.status, statusFilter)) return false;
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const label = String(row.label || row.kpi || '').toLowerCase();
+        if (!label.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [liveRows, statusFilter, searchQuery]);
+
   return (
     <Box maxW="1400px" mx="auto">
       <Box bg="#213f70" color="white" px={{ base: 5, md: 7 }} py={4} mb={7}>
-        <Heading as="h1" fontSize={{ base: '27px', md: '36px' }} lineHeight="1.2">HR &amp; Development</Heading>
-        <Text mt={3} fontSize={{ base: '16px', md: '20px' }} fontStyle="italic">
-          Workforce headcount and development KPIs
-        </Text>
+        <Flex justify="space-between" align={{ base: 'flex-start', sm: 'center' }} wrap="wrap" gap={3}>
+          <Box>
+            <Heading as="h1" fontSize={{ base: '27px', md: '36px' }} lineHeight="1.2">HR &amp; Development</Heading>
+            <Text mt={2} fontSize={{ base: '15px', md: '18px' }} fontStyle="italic">
+              Workforce headcount and development KPIs
+            </Text>
+          </Box>
+          <HStack spacing={3}>
+            <Button
+              size="sm"
+              colorScheme="teal"
+              variant="outline"
+              bg="whiteAlpha.200"
+              _hover={{ bg: 'whiteAlpha.300' }}
+              color="white"
+              borderColor="whiteAlpha.400"
+              isLoading={isSyncingStats}
+              onClick={handleSyncTelemetry}
+            >
+              Sync DB Telemetry
+            </Button>
+            <Badge bg="whiteAlpha.300" color="white" px={3} py={1} borderRadius="full" fontSize="12.5px">
+              Period: {periodDisplayLabel || activePeriodKey}
+            </Badge>
+          </HStack>
+        </Flex>
       </Box>
 
       <Box display="grid" gap={7}>
-        <HrTable />
-        <HrChart />
+        <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={4}>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">New Hires</Text>
+            <Text fontSize="24px" fontWeight="800" color="#213f70" mt={1}>
+              {formatNumber(liveRows.find((r) => r.key === 'newHires')?.actual)}
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">Target: {formatNumber(liveRows.find((r) => r.key === 'newHires')?.target)}</Text>
+          </Box>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">Candidates Pool</Text>
+            <Text fontSize="24px" fontWeight="800" color="#213f70" mt={1}>
+              {formatNumber(liveRows.find((r) => r.key === 'candidatesPool')?.actual)}
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">
+              {liveStats?.activeCandidates ? `Active DB: ${liveStats.activeCandidates}` : 'Active pipeline'}
+            </Text>
+          </Box>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">Vacancies Posted</Text>
+            <Text fontSize="24px" fontWeight="800" color="#213f70" mt={1}>
+              {formatNumber(liveRows.find((r) => r.key === 'postVacancies')?.actual)}
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">Target: {formatNumber(liveRows.find((r) => r.key === 'postVacancies')?.target)}</Text>
+          </Box>
+          <Box bg="white" p={4} borderRadius="8px" border="1px solid #d1d5db" boxShadow="xs">
+            <Text fontSize="12px" fontWeight="700" color="#64748b" textTransform="uppercase">Attendance &amp; Punctuality</Text>
+            <Text fontSize="24px" fontWeight="800" color="#213f70" mt={1}>
+              {formatNumber(liveRows.find((r) => r.key === 'attendancePunctuality')?.actual)}%
+            </Text>
+            <Text fontSize="11px" color="#94a3b8">Compliance baseline</Text>
+          </Box>
+        </SimpleGrid>
 
         {isLoading && (
           <Box bg="white" border="1px solid #d1d5db" p={8} textAlign="center">
@@ -492,8 +989,13 @@ const HrDepartmentView = ({ dateRange }) => {
 
         {!isLoading && !loadError && (
           <>
-            <HrDashboardKpiTable rows={liveRows} periodKey={period.periodKey} />
-            <ComparisonChart title="HR KPI Target vs Actual" rows={liveRows} />
+            <HrDashboardKpiTable
+              rows={liveRows}
+              periodKey={activePeriodKey}
+              statusFilter={statusFilter}
+              searchQuery={searchQuery}
+            />
+            <ComparisonChart title="HR KPI Target vs Actual" rows={chartRows} />
           </>
         )}
       </Box>
@@ -501,8 +1003,364 @@ const HrDepartmentView = ({ dateRange }) => {
   );
 };
 
-const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
-  const reportPeriod = dateRange || 'Weekly';
+const SalesDepartmentView = ({
+  dateRange,
+  periodType,
+  periodKey: propPeriodKey,
+  periodDisplayLabel,
+  statusFilter = 'All',
+  searchQuery = '',
+}) => {
+  const [kpiRecord, setKpiRecord] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const defaultPeriod = useMemo(() => getCurrentHrPeriod(dateRange), [dateRange]);
+  const activePeriodType = periodType || defaultPeriod.periodType;
+  const activePeriodKey = propPeriodKey || defaultPeriod.periodKey;
+
+  useEffect(() => {
+    let active = true;
+    setIsLoading(true);
+    setLoadError('');
+
+    getSalesDepartmentKpis(activePeriodType, activePeriodKey)
+      .then((response) => {
+        if (active) setKpiRecord(response?.data || null);
+      })
+      .catch((error) => {
+        if (active) setLoadError(error?.response?.data?.message || 'Unable to load live Sales KPI data.');
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activePeriodType, activePeriodKey]);
+
+  const measurements = kpiRecord?.measurements || [];
+  const services = kpiRecord?.services || [];
+  const products = kpiRecord?.products || [];
+  const isLiveSubmitted = !!kpiRecord?.submittedAt;
+
+  const filteredServices = useMemo(() => {
+    return services.filter((row) => {
+      if (statusFilter && statusFilter !== 'All') {
+        const rowStatus = row.status || 'Pending';
+        if (statusFilter === 'Not Reported') {
+          if (rowStatus !== 'Not Reported' && rowStatus !== 'Pending') return false;
+        } else if (rowStatus !== statusFilter) {
+          return false;
+        }
+      }
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const label = String(row.kpi || row.service || '').toLowerCase();
+        if (!label.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [services, statusFilter, searchQuery]);
+
+  return (
+    <Box maxW="1400px" mx="auto">
+      <Box bg="#213f70" color="white" px={{ base: 5, md: 7 }} py={4} mb={7}>
+        <Flex justify="space-between" align={{ base: 'flex-start', sm: 'center' }} wrap="wrap" gap={3}>
+          <Box>
+            <Heading as="h1" fontSize={{ base: '27px', md: '36px' }} lineHeight="1.2">Sales &amp; Services</Heading>
+            <Text mt={2} fontSize={{ base: '15px', md: '18px' }} fontStyle="italic">
+              Service-line conversion performance &amp; sales department metrics
+            </Text>
+          </Box>
+          <HStack spacing={2.5} wrap="wrap">
+            <Badge
+              bg={isLiveSubmitted ? '#10b981' : '#0284c7'}
+              color="white"
+              px={3}
+              py={1}
+              borderRadius="full"
+              fontSize="12.5px"
+              textTransform="none"
+              boxShadow="sm"
+            >
+              {isLiveSubmitted ? `Reported by ${kpiRecord.submittedByName || 'Sales Manager'}` : 'Real MongoDB Live Data (Pending Submission)'}
+            </Badge>
+            <Badge bg="whiteAlpha.300" color="white" px={3} py={1} borderRadius="full" fontSize="12.5px">
+              Period: {periodDisplayLabel || activePeriodKey}
+            </Badge>
+          </HStack>
+        </Flex>
+      </Box>
+
+      {isLoading && (
+        <Box bg="white" border="1px solid #d1d5db" p={8} textAlign="center" mb={7}>
+          <Spinner color="#213f70" size="lg" mb={3} />
+          <Text color="#475569" fontWeight="600">Fetching live Sales department KPIs from Sales Manager &amp; MongoDB...</Text>
+        </Box>
+      )}
+
+      {!isLoading && loadError && (
+        <Box bg="#fff7ed" border="1px solid #fdba74" color="#9a3412" p={4} mb={7} fontWeight="600">
+          {loadError}
+        </Box>
+      )}
+
+      {!isLiveSubmitted && !isLoading && !loadError && (
+        <Alert status="info" borderRadius="8px" mb={6} bg="#f0f9ff" borderColor="#bae6fd" borderWidth="1px">
+          <AlertIcon as={FiDatabase} color="#0284c7" />
+          <Box>
+            <Text fontWeight="700" color="#0369a1" fontSize="13.5px">
+              Live Database Operational Actuals
+            </Text>
+            <Text fontSize="13px" color="#0284c7">
+              Displaying real operational counts and revenues dynamically aggregated from active MongoDB records (SalesCustomer, PackageSale, Orders, and Revenue ledger) for {periodDisplayLabel || activePeriodKey}.
+            </Text>
+          </Box>
+        </Alert>
+      )}
+
+      {kpiRecord?.summaryNotes && (
+        <Box bg="#f0fdf4" border="1px solid #86efac" p={4} borderRadius="8px" mb={7}>
+          <Heading as="h4" fontSize="15px" color="#166534" mb={1}>
+            Executive Notes from Sales Manager ({kpiRecord.submittedByName || 'Sales Manager'}):
+          </Heading>
+          <Text fontSize="14px" color="#14532d">
+            {kpiRecord.summaryNotes}
+          </Text>
+        </Box>
+      )}
+
+      <Box display="grid" gap={7}>
+        <DetailTable
+          title={isLiveSubmitted ? "Sales Measurements (Submitted Report)" : "Sales Measurements (Real Database Operational Actuals)"}
+          rows={measurements}
+          firstColumnLabel="Measurement"
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+        />
+        <DetailTable
+          title="Service Lines"
+          rows={services}
+          firstColumnLabel="Service"
+          actualLabel="Achieved"
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+        />
+        <DetailTable
+          title="Product KPIs"
+          rows={products}
+          firstColumnLabel="Product"
+          actualLabel="Achieved"
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+        />
+        <ComparisonChart
+          title="Service Lines: Target vs Achieved"
+          rows={filteredServices}
+          actualLabel="Achieved"
+        />
+      </Box>
+    </Box>
+  );
+};
+
+const OverviewView = ({
+  departmentId = 'all',
+  onSelectDepartment,
+  dateRange = 'Weekly',
+  periodType,
+  periodKey: propPeriodKey,
+  periodDisplayLabel,
+  statusFilter = 'All',
+  searchQuery = '',
+}) => {
+  const defaultPeriod = useMemo(() => getCurrentHrPeriod(dateRange), [dateRange]);
+  const activePeriodType = periodType || defaultPeriod.periodType;
+  const activePeriodKey = propPeriodKey || defaultPeriod.periodKey;
+  const activeDisplayPeriod = periodDisplayLabel || (dateRange || 'Weekly');
+  const [liveSalesKpi, setLiveSalesKpi] = useState(null);
+  const [liveHrKpi, setLiveHrKpi] = useState(null);
+  const [liveFinanceKpi, setLiveFinanceKpi] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    if (departmentId === 'all') {
+      getSalesDepartmentKpis(activePeriodType, activePeriodKey)
+        .then((res) => {
+          if (active && res?.data) {
+            setLiveSalesKpi(res.data);
+          }
+        })
+        .catch(() => {});
+
+      getHrKpis(activePeriodType, activePeriodKey)
+        .then((res) => {
+          if (active && res?.data) {
+            setLiveHrKpi(res.data);
+          }
+        })
+        .catch(() => {});
+
+      getFinanceDepartmentKpis(activePeriodType, activePeriodKey)
+        .then((res) => {
+          if (active && res?.data) {
+            setLiveFinanceKpi(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [departmentId, activePeriodType, activePeriodKey]);
+
+  const hrLiveRows = useMemo(() => HR_DASHBOARD_KPIS.map((item) => {
+    const metric = liveHrKpi?.[item.key] || {};
+    const target = Number(metric.target) || 0;
+    const actual = Number(metric.actual) || 0;
+    const achievement = target > 0 ? Math.round((actual / target) * 100) : (actual > 0 ? 100 : 0);
+    const status = resolveKpiStatus(target, actual, metric.status);
+    return {
+      ...item,
+      target,
+      actual,
+      achievement,
+      status,
+      notes: metric.notes || '',
+      kpi: item.label,
+    };
+  }), [liveHrKpi]);
+
+  const filteredHrRows = useMemo(() => {
+    return hrLiveRows.filter((row) => {
+      if (!matchesStatusFilter(row.status, statusFilter)) return false;
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const label = String(row.label || row.kpi || '').toLowerCase();
+        const notes = String(row.notes || '').toLowerCase();
+        const status = String(row.status || '').toLowerCase();
+        if (!label.includes(q) && !notes.includes(q) && !status.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [hrLiveRows, statusFilter, searchQuery]);
+
+  const financeLiveRows = useMemo(() => {
+    const raw = liveFinanceKpi?.financials || DEFAULT_FINANCE_ROWS;
+    return raw.map((item) => {
+      const target = Number(item.target) || 0;
+      const actual = Number(item.actual) || 0;
+      const achievement = target > 0 ? Math.round((actual / target) * 100) : 0;
+      const isZero = target === 0 && actual === 0;
+      return {
+        ...item,
+        target,
+        actual,
+        achievement,
+        status: isZero && !liveFinanceKpi?.submittedAt ? 'Not Reported' : (item.status || 'Not Reported'),
+        notes: item.notes || '',
+      };
+    });
+  }, [liveFinanceKpi]);
+
+  const dynamicDepartmentSummary = useMemo(() => {
+    const revRow = (liveSalesKpi?.measurements || []).find((m) => m.kpi === 'Total Revenue');
+    const actual = Number(revRow?.actual) || 0;
+    const target = Number(revRow?.target) || 0;
+    const achievement = target > 0 ? Math.round((actual / target) * 100) : 0;
+    let status = revRow?.status;
+    if (!status || status === 'Pending') {
+      status = (target === 0 && actual === 0) ? 'Not Reported' : achievement >= 80 ? 'On Track' : achievement >= 50 ? 'At Risk' : 'Behind';
+    }
+
+    const servicesRow = liveSalesKpi?.services || [];
+    const totalServicesActual = servicesRow.reduce((s, r) => s + (Number(r.actual) || 0), 0);
+    const totalServicesTarget = servicesRow.reduce((s, r) => s + (Number(r.target) || 0), 0);
+    const servicesAchieve = totalServicesTarget > 0 ? Math.round((totalServicesActual / totalServicesTarget) * 100) : 0;
+
+    const hrTotalTarget = HR_DASHBOARD_KPIS.reduce((s, k) => s + (Number(liveHrKpi?.[k.key]?.target) || 0), 0);
+    const hrTotalActual = HR_DASHBOARD_KPIS.reduce((s, k) => s + (Number(liveHrKpi?.[k.key]?.actual) || 0), 0);
+    const hrAchieve = hrTotalTarget > 0 ? Math.round((hrTotalActual / hrTotalTarget) * 100) : 0;
+    const isHrZero = hrTotalTarget === 0 && hrTotalActual === 0;
+
+    return DEPARTMENT_KPI_SUMMARY.map((row) => {
+      if (row.department === 'Sales') {
+        const isReported = Boolean(liveSalesKpi?.submittedAt);
+        return {
+          ...row,
+          keyMetric: isReported ? 'Total Revenue (Reported)' : actual > 0 ? 'Total Revenue (Live DB)' : 'Total Revenue',
+          target,
+          actual,
+          achievement,
+          status: (target === 0 && actual === 0 && !isReported) ? 'Not Reported' : status,
+        };
+      }
+      if (row.department === 'Services') {
+        return {
+          ...row,
+          target: totalServicesTarget,
+          actual: totalServicesActual,
+          achievement: servicesAchieve,
+          status: (totalServicesTarget === 0 && totalServicesActual === 0) ? 'Not Reported' : row.status,
+        };
+      }
+      if (row.department === 'HR & Development') {
+        return {
+          ...row,
+          deptId: 'hr',
+          keyMetric: 'Workforce & Talent KPIs',
+          target: hrTotalTarget,
+          actual: hrTotalActual,
+          achievement: hrAchieve,
+          status: isHrZero ? 'Not Reported' : hrAchieve >= 80 ? 'On Track' : hrAchieve >= 50 ? 'At Risk' : 'Behind',
+        };
+      }
+      if (row.department === 'Finance') {
+        const isReported = Boolean(liveFinanceKpi?.submittedAt);
+        const financials = liveFinanceKpi?.financials || [];
+        const netRow = financials.find((f) => f.kpi === 'Net Position');
+        const finTarget = Number(netRow?.target) || 0;
+        const finActual = Number(netRow?.actual) || 0;
+        const finAchieve = finTarget > 0 ? Math.round((finActual / finTarget) * 100) : 0;
+        let finStatus = netRow?.status;
+        if (!finStatus || finStatus === 'Pending') {
+          finStatus = (finTarget === 0 && finActual === 0) ? 'Not Reported' : finAchieve >= 80 ? 'On Track' : finAchieve >= 50 ? 'At Risk' : 'Behind';
+        }
+        return {
+          ...row,
+          deptId: 'finance',
+          keyMetric: isReported ? 'Net Position (Reported)' : finActual !== 0 ? 'Net Position (Live DB)' : 'Net Weekly Position (ETB)',
+          target: finTarget,
+          actual: finActual,
+          achievement: finAchieve,
+          status: (finTarget === 0 && finActual === 0 && !isReported) ? 'Not Reported' : finStatus,
+        };
+      }
+      return row;
+    });
+  }, [liveSalesKpi, liveHrKpi, liveFinanceKpi]);
+
+  const filteredDepartmentSummary = useMemo(() => {
+    return dynamicDepartmentSummary.filter((row) => {
+      // Status filter
+      if (!matchesStatusFilter(row.status, statusFilter)) return false;
+      // Search query
+      if (searchQuery && searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const dept = String(row.department || '').toLowerCase();
+        const metric = String(row.keyMetric || '').toLowerCase();
+        const status = String(row.status || '').toLowerCase();
+        if (!dept.includes(q) && !metric.includes(q) && !status.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [dynamicDepartmentSummary, statusFilter, searchQuery]);
+
+  if (departmentId === 'tessbin') {
+    return <TessbinDepartmentView periodType={activePeriodType} periodKey={activePeriodKey}
+      periodDisplayLabel={periodDisplayLabel} searchQuery={searchQuery} />;
+  }
 
   if (departmentId === 'it') {
     return (
@@ -515,8 +1373,8 @@ const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
         </Box>
 
         <Box display="grid" gap={7}>
-          <DetailTable title="Internal Deliverables" rows={IT_KPI_DETAILS.internal} />
-          <DetailTable title="External Collateral" rows={IT_KPI_DETAILS.external} />
+          <DetailTable title="Internal Deliverables" rows={IT_KPI_DETAILS.internal} statusFilter={statusFilter} searchQuery={searchQuery} />
+          <DetailTable title="External Collateral" rows={IT_KPI_DETAILS.external} statusFilter={statusFilter} searchQuery={searchQuery} />
           <ComparisonChart title="Internal Platforms: Target vs Actual" rows={IT_KPI_DETAILS.internal} />
           <ComparisonChart title="External Collateral: Target vs Actual" rows={IT_KPI_DETAILS.external} />
         </Box>
@@ -535,13 +1393,15 @@ const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
         </Box>
 
         <Box display="grid" gap={7}>
-          <DetailTable title="Overall Marketing KPIs" rows={SOCIAL_MEDIA_KPI_DETAILS.overall} />
+          <DetailTable title="Overall Marketing KPIs" rows={SOCIAL_MEDIA_KPI_DETAILS.overall} statusFilter={statusFilter} searchQuery={searchQuery} />
           <DetailTable
             title="Platform Performance"
             rows={SOCIAL_MEDIA_KPI_DETAILS.platforms}
             firstColumnLabel="Platform"
             actualLabel="Achieved"
             statusLabel="Gap/Status"
+            statusFilter={statusFilter}
+            searchQuery={searchQuery}
           />
           <ComparisonChart
             title="Platform Performance: Target vs Achieved"
@@ -559,35 +1419,14 @@ const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
 
   if (departmentId === 'sales') {
     return (
-      <Box maxW="1400px" mx="auto">
-        <Box bg="#213f70" color="white" px={{ base: 5, md: 7 }} py={4} mb={7}>
-          <Heading as="h1" fontSize={{ base: '27px', md: '36px' }} lineHeight="1.2">Sales &amp; Services</Heading>
-          <Text mt={3} fontSize={{ base: '16px', md: '20px' }} fontStyle="italic">
-            Service-line conversion performance
-          </Text>
-        </Box>
-
-        <Box display="grid" gap={7}>
-          <DetailTable title="Sales Measurements (Not Reported)" rows={SALES_KPI_DETAILS.measurements} />
-          <DetailTable
-            title="Service Lines"
-            rows={SALES_KPI_DETAILS.services}
-            firstColumnLabel="Service"
-            actualLabel="Achieved"
-          />
-          <DetailTable
-            title="Product KPIs"
-            rows={SALES_KPI_DETAILS.products}
-            firstColumnLabel="Product"
-            actualLabel="Achieved"
-          />
-          <ComparisonChart
-            title="Service Lines: Target vs Achieved"
-            rows={SALES_KPI_DETAILS.services}
-            actualLabel="Achieved"
-          />
-        </Box>
-      </Box>
+      <SalesDepartmentView
+        dateRange={dateRange}
+        periodType={activePeriodType}
+        periodKey={activePeriodKey}
+        periodDisplayLabel={periodDisplayLabel}
+        statusFilter={statusFilter}
+        searchQuery={searchQuery}
+      />
     );
   }
 
@@ -610,43 +1449,34 @@ const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
   }
 
   if (departmentId === 'customer_services') {
-    return (
-      <Box maxW="1400px" mx="auto">
-        <Box bg="#213f70" color="white" px={{ base: 5, md: 7 }} py={4} mb={7}>
-          <Heading as="h1" fontSize={{ base: '27px', md: '36px' }} lineHeight="1.2">Customer Success</Heading>
-          <Text mt={3} fontSize={{ base: '16px', md: '20px' }} fontStyle="italic">
-            No targets currently set — raw scores only
-          </Text>
-        </Box>
-
-        <Box display="grid" gap={7}>
-          <CustomerSuccessTable />
-          <CustomerSuccessChart />
-        </Box>
-      </Box>
-    );
+    return <CustomerDepartmentKpiReport readOnly periodType={activePeriodType} periodKey={activePeriodKey} periodDisplayLabel={periodDisplayLabel} />;
   }
 
   if (departmentId === 'finance') {
     return (
-      <Box maxW="1400px" mx="auto">
-        <Box bg="#213f70" color="white" px={{ base: 5, md: 7 }} py={4} mb={7}>
-          <Heading as="h1" fontSize={{ base: '27px', md: '36px' }} lineHeight="1.2">Finance</Heading>
-          <Text mt={3} fontSize={{ base: '16px', md: '20px' }} fontStyle="italic">
-            Weekly revenue, expenses, and net position
-          </Text>
-        </Box>
-
-        <Box display="grid" gap={7}>
-          <FinanceTable />
-          <FinanceChart />
-        </Box>
-      </Box>
+      <FinanceDepartmentView
+        dateRange={dateRange}
+        periodType={activePeriodType}
+        periodKey={activePeriodKey}
+        periodDisplayLabel={periodDisplayLabel}
+        statusFilter={statusFilter}
+        searchQuery={searchQuery}
+      />
     );
   }
 
-  if (departmentId === 'hr') {
-    return <HrDepartmentView dateRange={dateRange} />;
+  const normDept = String(departmentId || '').toLowerCase().trim();
+  if (normDept === 'hr' || normDept === 'hr & development' || normDept === 'hr_development' || normDept === 'hr-development') {
+    return (
+      <HrDepartmentView
+        dateRange={dateRange}
+        periodType={activePeriodType}
+        periodKey={activePeriodKey}
+        periodDisplayLabel={periodDisplayLabel}
+        statusFilter={statusFilter}
+        searchQuery={searchQuery}
+      />
+    );
   }
 
   return (
@@ -656,16 +1486,39 @@ const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
           Tradethiopia Group — Department KPI Summary
         </Heading>
         <Text mt={2} fontSize={{ base: '16px', md: '21px' }} fontStyle="italic">
-          Operations Division | {reportPeriod} Report
+          Operations Division | {activeDisplayPeriod} Report
         </Text>
       </Box>
 
       <Box border="1px solid #d1d5db" bg="white" overflow="hidden">
-        <Box bg="#137b7e" color="white" px={7} py={2}>
+        <Box bg="#137b7e" color="white" px={7} py={2} display="flex" justifyContent="space-between" alignItems="center">
           <Heading as="h2" fontSize={{ base: '20px', md: '25px' }}>
             Department Snapshot
           </Heading>
+          {filteredDepartmentSummary.length !== dynamicDepartmentSummary.length && (
+            <Badge bg="whiteAlpha.300" color="white" px={2.5} py={0.5} borderRadius="full" fontSize="12px">
+              {filteredDepartmentSummary.length} of {dynamicDepartmentSummary.length} departments
+            </Badge>
+          )}
         </Box>
+
+        {/* Active Filter Bar */}
+        {(statusFilter !== 'All' || (searchQuery && searchQuery.trim())) && (
+          <Flex bg="#f8fafc" px={7} py={2} justify="space-between" align="center" borderBottom="1px solid #cbd5e1" wrap="wrap" gap={2}>
+            <HStack spacing={2} wrap="wrap">
+              <Text fontSize="12.5px" fontWeight="700" color="#475569">Active Filters:</Text>
+              {statusFilter !== 'All' && (
+                <Badge colorScheme="blue" fontSize="11.5px">Status: {statusFilter}</Badge>
+              )}
+              {searchQuery && searchQuery.trim() && (
+                <Badge colorScheme="purple" fontSize="11.5px">Search: "{searchQuery.trim()}"</Badge>
+              )}
+            </HStack>
+            <Text fontSize="12px" fontWeight="600" color="#64748b">
+              Showing {filteredDepartmentSummary.length} of {dynamicDepartmentSummary.length} departments
+            </Text>
+          </Flex>
+        )}
 
         <TableContainer>
           <Table size="sm" variant="simple">
@@ -688,39 +1541,58 @@ const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
               </Tr>
             </Thead>
             <Tbody>
-              {DEPARTMENT_KPI_SUMMARY.map((row, index) => {
-                const statusStyle = STATUS_STYLES[row.status] || STATUS_STYLES.Behind;
-                return (
-                  <Tr key={row.department} bg={index % 2 ? '#f3f4f6' : '#ffffff'}>
-                    <Td fontWeight="700" fontSize="14px" whiteSpace="nowrap" borderColor="#d1d5db">
-                      {row.department}
-                    </Td>
-                    <Td textAlign="center" fontSize="14px" minW="260px" borderColor="#d1d5db">
-                      {row.keyMetric}
-                    </Td>
-                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                      {formatNumber(row.target)}
-                    </Td>
-                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                      {formatNumber(row.actual)}
-                    </Td>
-                    <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                      {row.achievement}%
-                    </Td>
-                    <Td
-                      textAlign="center"
-                      fontSize="14px"
-                      fontWeight="600"
-                      bg={statusStyle.background}
-                      color={statusStyle.color}
-                      borderColor="#d1d5db"
-                      whiteSpace="nowrap"
+              {filteredDepartmentSummary.length === 0 ? (
+                <Tr>
+                  <Td colSpan={6} textAlign="center" py={8} color="#64748b" fontStyle="italic">
+                    No departments match your filter criteria ({statusFilter !== 'All' ? `Status: ${statusFilter}` : ''} {searchQuery ? `Search: "${searchQuery}"` : ''}).
+                  </Td>
+                </Tr>
+              ) : (
+                filteredDepartmentSummary.map((row, index) => {
+                  const statusStyle = STATUS_STYLES[row.status] || STATUS_STYLES.Behind;
+                  return (
+                    <Tr
+                      key={row.department}
+                      bg={index % 2 ? '#f3f4f6' : '#ffffff'}
+                      cursor={onSelectDepartment && row.deptId ? 'pointer' : 'default'}
+                      _hover={onSelectDepartment && row.deptId ? { bg: '#e0f2fe' } : undefined}
+                      onClick={() => {
+                        if (onSelectDepartment && row.deptId) {
+                          onSelectDepartment(row.deptId);
+                        }
+                      }}
+                      title={onSelectDepartment && row.deptId ? `Click to view ${row.department} department details` : undefined}
                     >
-                      {row.status}
-                    </Td>
-                  </Tr>
-                );
-              })}
+                      <Td fontWeight="700" fontSize="14px" whiteSpace="nowrap" borderColor="#d1d5db">
+                        {row.department}
+                      </Td>
+                      <Td textAlign="center" fontSize="14px" minW="260px" borderColor="#d1d5db">
+                        {row.keyMetric}
+                      </Td>
+                      <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
+                        {formatNumber(row.target)}
+                      </Td>
+                      <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
+                        {formatNumber(row.actual)}
+                      </Td>
+                      <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
+                        {row.achievement}%
+                      </Td>
+                      <Td
+                        textAlign="center"
+                        fontSize="14px"
+                        fontWeight="600"
+                        bg={statusStyle.background}
+                        color={statusStyle.color}
+                        borderColor="#d1d5db"
+                        whiteSpace="nowrap"
+                      >
+                        {row.status}
+                      </Td>
+                    </Tr>
+                  );
+                })
+              )}
             </Tbody>
           </Table>
         </TableContainer>
@@ -732,7 +1604,7 @@ const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
         </Heading>
         <Box h={{ base: '390px', md: '460px' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={DEPARTMENT_KPI_SUMMARY} margin={{ top: 28, right: 20, left: 12, bottom: 125 }}>
+            <BarChart data={filteredDepartmentSummary} margin={{ top: 28, right: 20, left: 12, bottom: 125 }}>
               <CartesianGrid stroke="#9ca3af" vertical={false} />
               <XAxis
                 dataKey="department"
@@ -757,6 +1629,34 @@ const OverviewView = ({ departmentId = 'all', dateRange = 'Weekly' }) => {
             </BarChart>
           </ResponsiveContainer>
         </Box>
+      </Box>
+
+      {/* Live HR Department Operational KPIs Display on COO2 Dashboard */}
+      <Box mt={8}>
+        <HrDashboardKpiTable
+          rows={hrLiveRows}
+          periodKey={activePeriodKey}
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+        />
+      </Box>
+
+      <Box mt={7}>
+        <ComparisonChart
+          title="HR & Development: Target vs Actual"
+          rows={filteredHrRows}
+        />
+      </Box>
+
+      {/* Live Finance Department Operational KPIs Display on COO2 Dashboard */}
+      <Box mt={8}>
+        <FinanceDashboardKpiTable
+          rows={financeLiveRows}
+          periodKey={activePeriodKey}
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+          submittedInfo={liveFinanceKpi?.submittedAt ? { submittedByName: liveFinanceKpi.submittedByName } : null}
+        />
       </Box>
     </Box>
   );

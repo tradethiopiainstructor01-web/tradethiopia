@@ -1,5 +1,6 @@
 const HrKpi = require('../models/HrKpi');
 const CandidatePool = require('../models/CandidatePool');
+const { notifyKpiSubmission } = require('../services/kpiSubmissionNotificationService');
 const Attendance = require('../models/Attendance');
 const User = require('../models/user.model');
 
@@ -52,16 +53,16 @@ exports.getHrKpis = async (req, res) => {
         periodKey: key,
         year: keyYear,
         periodLabel: key,
-        postVacancies: { target: periodType === 'weekly' ? 2 : periodType === 'monthly' ? 5 : 15, actual: 0, status: 'Pending' },
-        screenCvs: { target: periodType === 'weekly' ? 15 : periodType === 'monthly' ? 60 : 180, actual: 0, status: 'Pending' },
-        conductInterviews: { target: periodType === 'weekly' ? 5 : periodType === 'monthly' ? 20 : 60, actual: 0, status: 'Pending' },
-        facilitateInternalTrainings: { target: periodType === 'weekly' ? 1 : periodType === 'monthly' ? 3 : 10, actual: 0, status: 'Pending' },
-        attendancePunctuality: { target: 95, actual: 92, status: 'On Track', notes: 'Attendance rate baseline' },
-        checkingJobEnisra: { target: periodType === 'weekly' ? 7 : periodType === 'monthly' ? 30 : 90, actual: 0, status: 'Pending' },
-        newHires: { target: periodType === 'weekly' ? 1 : periodType === 'monthly' ? 4 : 12, actual: newHiresCount, status: calculateStatus(newHiresCount, periodType === 'weekly' ? 1 : periodType === 'monthly' ? 4 : 12) },
-        resignations: { target: 0, actual: 0, status: 'On Track' },
-        candidatesPool: { target: 50, actual: candidateCount, status: calculateStatus(candidateCount, 50) },
-        staffTrainingParticipants: { target: periodType === 'weekly' ? 5 : periodType === 'monthly' ? 20 : 60, actual: 0, status: 'Pending' },
+        postVacancies: { target: 0, actual: 0, status: 'Not Reported' },
+        screenCvs: { target: 0, actual: 0, status: 'Not Reported' },
+        conductInterviews: { target: 0, actual: 0, status: 'Not Reported' },
+        facilitateInternalTrainings: { target: 0, actual: 0, status: 'Not Reported' },
+        attendancePunctuality: { target: 0, actual: 0, status: 'Not Reported', notes: '' },
+        checkingJobEnisra: { target: 0, actual: 0, status: 'Not Reported' },
+        newHires: { target: 0, actual: newHiresCount, status: newHiresCount > 0 ? 'On Track' : 'Not Reported' },
+        resignations: { target: 0, actual: 0, status: 'Not Reported' },
+        candidatesPool: { target: 0, actual: candidateCount, status: candidateCount > 0 ? 'On Track' : 'Not Reported' },
+        staffTrainingParticipants: { target: 0, actual: 0, status: 'Not Reported' },
       });
       await record.save();
     }
@@ -124,6 +125,7 @@ exports.saveHrKpi = async (req, res) => {
     }
 
     await record.save();
+    await notifyKpiSubmission(req, { departmentId: 'hr', periodType, periodKey, reportId: record._id });
     res.json({ success: true, message: 'HR KPI updated successfully', data: record });
   } catch (error) {
     console.error('Error saving HR KPI:', error);

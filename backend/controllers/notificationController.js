@@ -14,12 +14,15 @@ const getNotifications = async (req, res) => {
       );
     }
 
+    const includeRead = req.query.includeRead === 'true';
     const notifications = await Notification.find({
       user: req.user._id,
+      ...(includeRead ? {} : {
       $or: [
         { read: false },
         { type: 'reminder', 'metadata.keepVisible': true },
       ],
+      }),
     }).sort({ createdAt: -1 });
     res.json(notifications.map((notification) => {
       const item = notification.toObject();

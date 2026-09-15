@@ -1,5 +1,5 @@
 // src/pages/coo2/CooTwoDashboard.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Flex,
@@ -16,18 +16,82 @@ import AgentsView from './AgentsView';
 import CreateReportModal from './CreateReportModal';
 import QuickSearchModal from './QuickSearchModal';
 import { useUserStore } from '../../store/user';
+import axiosInstance from '../../services/axiosInstance';
+import { useLocation } from 'react-router-dom';
 
 const CooTwoDashboard = () => {
+  const location = useLocation();
   const { currentUser } = useUserStore();
   const [activeTab, setActiveTab] = useState('departments');
   const [selectedDept, setSelectedDept] = useState('all');
   const [dateRange, setDateRange] = useState('Weekly');
   const [, setDataRevision] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [unreadNotifsCount, setUnreadNotifsCount] = useState(3);
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
   const [mainSidebarCollapsed, setMainSidebarCollapsed] = useState(false);
   const [departmentsMenuOpen, setDepartmentsMenuOpen] = useState(false);
   const mainScrollRef = useRef(null);
+
+  // Filter states
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const currentWeekNum = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  const currentWeekStr = `${currentYear}-W${String(currentWeekNum).padStart(2, '0')}`;
+  const currentQuarterStr = String(Math.floor(now.getMonth() / 3) + 1);
+
+  const [periodType, setPeriodType] = useState('weekly');
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+  const [selectedWeek, setSelectedWeek] = useState(currentWeekStr);
+  const [selectedQuarter, setSelectedQuarter] = useState(currentQuarterStr);
+  const [statusFilter, setStatusFilter] = useState('All');
+
+  const periodKey = useMemo(() => {
+    if (periodType === 'weekly') {
+      return selectedWeek || `${selectedYear}-W01`;
+    }
+    if (periodType === 'quarterly') {
+      return `${selectedYear}-Q${selectedQuarter}`;
+    }
+    return `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  }, [periodType, selectedYear, selectedMonth, selectedWeek, selectedQuarter]);
+
+  const periodDisplayLabel = useMemo(() => {
+    if (periodType === 'weekly') {
+      const wNum = selectedWeek?.split('-W')[1] || '01';
+      return `Week ${wNum}, ${selectedYear}`;
+    }
+    if (periodType === 'quarterly') {
+      return `Q${selectedQuarter} ${selectedYear}`;
+    }
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthIndex = parseInt(selectedMonth, 10) - 1;
+    return `${monthNames[monthIndex] || selectedMonth} ${selectedYear}`;
+  }, [periodType, selectedYear, selectedMonth, selectedWeek, selectedQuarter]);
+
+  const handleResetFilters = () => {
+    setPeriodType('weekly');
+    setSelectedYear(currentYear);
+    setSelectedMonth(currentMonthStr);
+    setSelectedWeek(currentWeekStr);
+    setSelectedQuarter(currentQuarterStr);
+    setStatusFilter('All');
+    setSearchQuery('');
+  };
+
+  const handleSetCurrentPeriod = () => {
+    setSelectedYear(currentYear);
+    setSelectedMonth(currentMonthStr);
+    setSelectedWeek(currentWeekStr);
+    setSelectedQuarter(currentQuarterStr);
+  };
 
   const {
     isOpen: isReportModalOpen,
@@ -49,10 +113,28 @@ const CooTwoDashboard = () => {
     setDepartmentsMenuOpen(true);
   };
 
-  const selectDepartment = (deptId) => {
+  const selectDepartment = (deptId, reportType, reportKey) => {
+    if (reportType && reportKey) {
+      setPeriodType(reportType);
+      setSelectedYear(Number(reportKey.slice(0, 4)));
+      if (reportType === 'weekly') setSelectedWeek(reportKey);
+      if (reportType === 'monthly') setSelectedMonth(reportKey.slice(5, 7));
+      if (reportType === 'quarterly') setSelectedQuarter(reportKey.slice(-1));
+      setStatusFilter('All');
+      setSearchQuery('');
+    }
     setSelectedDept(deptId);
     openDepartments();
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const dept = params.get('dept');
+    const type = params.get('periodType');
+    const key = params.get('periodKey');
+    const formats = { weekly: /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/, monthly: /^\d{4}-(0[1-9]|1[0-2])$/, quarterly: /^\d{4}-Q[1-4]$/ };
+    if (dept && formats[type]?.test(key)) selectDepartment(dept, type, key);
+  }, [location.search]);
 
   const selectMainTab = (tab) => {
     if (tab === 'departments') {
@@ -78,6 +160,22 @@ const CooTwoDashboard = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onOpenSearchModal]);
+
+  useEffect(() => {
+    let active = true;
+    const refreshUnread = () => axiosInstance.get('/notifications')
+      .then((res) => {
+        if (active && Array.isArray(res?.data)) {
+          const unread = res.data.filter((n) => !n.read).length;
+          setUnreadNotifsCount(unread);
+        }
+      })
+      .catch((err) => console.warn('Could not load unread count:', err));
+    refreshUnread();
+    const timer = window.setInterval(refreshUnread, 15000);
+    window.addEventListener('focus', refreshUnread);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refreshUnread); };
+  }, [activeTab]);
 
   useEffect(() => {
     mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -114,8 +212,26 @@ const CooTwoDashboard = () => {
         {/* Header Bar */}
         <CooHeader
           onToggleSidebar={() => setMainSidebarCollapsed(!mainSidebarCollapsed)}
+          periodType={periodType}
+          setPeriodType={setPeriodType}
+          selectedYear={selectedYear}
+          setSelectedYear={setSelectedYear}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
+          selectedWeek={selectedWeek}
+          setSelectedWeek={setSelectedWeek}
+          selectedQuarter={selectedQuarter}
+          setSelectedQuarter={setSelectedQuarter}
+          periodKey={periodKey}
+          periodDisplayLabel={periodDisplayLabel}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          onResetFilters={handleResetFilters}
+          onSetCurrentPeriod={handleSetCurrentPeriod}
+          selectedDepartment={selectedDept}
+          onSelectDepartment={selectDepartment}
           onOpenSearchModal={onOpenSearchModal}
           dateRange={dateRange}
           setDateRange={setDateRange}
@@ -125,7 +241,6 @@ const CooTwoDashboard = () => {
           onRefresh={handleRefresh}
           onNotificationsClick={() => selectMainTab('notifications')}
           onDataImported={() => setDataRevision((revision) => revision + 1)}
-          selectedDepartment={selectedDept}
         />
 
         {/* Dynamic Views Rendering */}
@@ -158,11 +273,17 @@ const CooTwoDashboard = () => {
               currentUser={currentUser}
               dateRange={dateRange}
               setDateRange={setDateRange}
+              periodType={periodType}
+              periodKey={periodKey}
+              periodDisplayLabel={periodDisplayLabel}
+              statusFilter={statusFilter}
+              searchQuery={searchQuery}
               onNavigateTab={selectMainTab}
+              onSelectDepartment={selectDepartment}
             />
           )}
 
-          {activeTab === 'analytics' && <AnalyticsView />}
+          {activeTab === 'analytics' && <AnalyticsView periodType={periodType} periodKey={periodKey} periodDisplayLabel={periodDisplayLabel} />}
 
           {activeTab === 'reports' && (
             <ReportsView onCreateReportModalOpen={onOpenReportModal} />
@@ -172,6 +293,7 @@ const CooTwoDashboard = () => {
             <NotificationsView
               unreadCount={unreadNotifsCount}
               setUnreadCount={setUnreadNotifsCount}
+              onNavigateDepartment={selectDepartment}
             />
           )}
 
@@ -192,6 +314,11 @@ const CooTwoDashboard = () => {
                 currentUser={currentUser}
                 dateRange={dateRange}
                 setDateRange={setDateRange}
+                periodType={periodType}
+                periodKey={periodKey}
+                periodDisplayLabel={periodDisplayLabel}
+                statusFilter={statusFilter}
+                searchQuery={searchQuery}
                 onNavigateTab={selectMainTab}
               />
             </Box>
@@ -207,7 +334,7 @@ const CooTwoDashboard = () => {
                   Operational department heads, team distribution, and active assignments.
                 </Box>
               </Box>
-              <AnalyticsView />
+              <AnalyticsView periodType={periodType} periodKey={periodKey} periodDisplayLabel={periodDisplayLabel} />
             </Box>
           )}
 
@@ -256,6 +383,11 @@ const CooTwoDashboard = () => {
               currentUser={currentUser}
               dateRange={dateRange}
               setDateRange={setDateRange}
+              periodType={periodType}
+              periodKey={periodKey}
+              periodDisplayLabel={periodDisplayLabel}
+              statusFilter={statusFilter}
+              searchQuery={searchQuery}
               onNavigateTab={selectMainTab}
             />
           )}

@@ -38,7 +38,8 @@ import {
   FiCheckCircle,
   FiClipboard,
   FiBookOpen,
-  FiAlertTriangle
+  FiAlertTriangle,
+  FiAward
 } from 'react-icons/fi';
 
 const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
@@ -67,7 +68,8 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
     { name: 'Course', icon: FiBookOpen, path: '/salesmanager/course' },
     { name: 'All Sales', icon: FiDollarSign, path: '/salesmanager/all-sales' },
     { name: 'Performance', icon: FiTrendingUp, path: '/salesmanager/performance' },
-    { name: 'KPI', icon: FiBarChart2, path: '/salesmanager/kpi' },
+    { name: 'Agent Scorecard', icon: FiAward, path: '/salesmanager/kpi' },
+    { name: 'COO KPI Submission', icon: FiBarChart2, path: '/salesmanager/coo-kpi' },
     { name: 'Team Management', icon: FiUsers, path: '/salesmanager/team' },
     { name: 'Task Management', icon: FiCheckCircle, path: '/salesmanager/tasks' },
     { name: 'Reports', icon: FiPieChart, path: '/salesmanager/reports' },

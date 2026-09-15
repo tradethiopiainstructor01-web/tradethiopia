@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Flex,
@@ -33,7 +33,6 @@ import {
   ModalCloseButton,
   FormControl,
   FormLabel,
-  Textarea,
   useDisclosure,
   useColorMode,
   useColorModeValue,
@@ -46,33 +45,9 @@ import {
   DrawerBody,
   InputGroup,
   InputLeftElement,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  Divider,
 } from '@chakra-ui/react';
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
-} from 'recharts';
-import {
-  FiUsers,
   FiAward,
-  FiBookOpen,
   FiCheckCircle,
   FiPlus,
   FiRefreshCw,
@@ -84,28 +59,19 @@ import {
   FiMoon,
   FiSun,
   FiMonitor,
-  FiGrid,
   FiPieChart,
   FiMenu,
-  FiChevronDown,
   FiClock,
-  FiXCircle,
   FiBarChart2,
   FiLayers,
-  FiCheckSquare,
   FiFileText,
   FiTrendingUp,
-  FiTarget,
-  FiActivity,
-  FiSliders,
-  FiSave,
-  FiZap,
   FiLogOut,
-  FiGlobe,
   FiUserCheck,
 } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../services/axiosInstance';
+import TessbinKpiReportsView from '../components/tessbin/TessbinKpiReportsView';
 import { fetchExternalCourses } from '../services/api';
 import { useUserStore } from '../store/user';
 import TessbinDataAnalyticsView from '../components/tessbin/TessbinDataAnalyticsView';
@@ -145,7 +111,6 @@ const TessbinAdminDashboard = () => {
 
   // Active navigation tab
   const [activeTab, setActiveTab] = useState('overview');
-  const [kpiTimeframe, setKpiTimeframe] = useState('monthly'); // 'weekly', 'monthly', 'quarterly', 'all'
 
   // Mobile sidebar drawer disclosure
   const { isOpen: isMobileNavOpen, onOpen: onMobileNavOpen, onClose: onMobileNavClose } = useDisclosure();
@@ -156,6 +121,9 @@ const TessbinAdminDashboard = () => {
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const textColor = useColorModeValue('gray.800', 'gray.100');
   const mutedText = useColorModeValue('gray.500', 'gray.400');
+  const tableHeaderBg = useColorModeValue('gray.50', 'gray.900');
+  const tabHoverBg = useColorModeValue('gray.100', 'whiteAlpha.100');
+  const rowHoverBg = useColorModeValue('gray.50', 'gray.750');
 
   // Sidebar dark navy styling
   const sidebarBg = '#0C101D';
@@ -177,11 +145,10 @@ const TessbinAdminDashboard = () => {
   });
 
   const [records, setRecords] = useState([]);
-  const [kpiList, setKpiList] = useState([]);
   const [courseOptions, setCourseOptions] = useState(COURSE_OPTIONS);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [examTypeFilter, setExamTypeFilter] = useState('All');
+  const [examTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
 
   // Modal disclosures
@@ -189,9 +156,6 @@ const TessbinAdminDashboard = () => {
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isViewOpen, onOpen: onViewOpen, onClose: onViewClose } = useDisclosure();
 
-  // Master KPI Modal disclosure
-  const { isOpen: isAddKpiOpen, onOpen: onAddKpiOpen, onClose: onAddKpiClose } = useDisclosure();
-  const { isOpen: isEditKpiOpen, onOpen: onEditKpiOpen, onClose: onEditKpiClose } = useDisclosure();
 
   // Exam Record Form state
   const [formData, setFormData] = useState({
@@ -212,38 +176,6 @@ const TessbinAdminDashboard = () => {
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Master KPI Unified Form State (ALL 3 Core KPIs × 3 Timeframes)
-  const [masterKpiFormData, setMasterKpiFormData] = useState({
-    coc: {
-      weekly: 3,
-      monthly: 10,
-      quarterly: 30,
-    },
-    online: {
-      weekly: 3,
-      monthly: 10,
-      quarterly: 30,
-    },
-    students: {
-      weekly: 4,
-      monthly: 15,
-      quarterly: 45,
-    },
-  });
-
-  // Single Edit KPI Form State
-  const [singleKpiEditData, setSingleKpiEditData] = useState({
-    title: '',
-    category: '',
-    timeframe: 'monthly',
-    targetValue: 10,
-    actualValue: 0,
-    unit: 'Students',
-    weight: 25,
-    remarks: '',
-  });
-  const [editingKpiId, setEditingKpiId] = useState(null);
-
   // Fetch Dashboard Stats, Exam Records & KPI Targets
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -251,17 +183,11 @@ const TessbinAdminDashboard = () => {
       // Parallel fetch without blocking
       const promises = [
         axiosInstance.get('/tessbin/dashboard-stats'),
-        axiosInstance.get('/tessbin/kpis', {
-          params: { timeframe: kpiTimeframe === 'all' ? undefined : kpiTimeframe },
-        }),
       ];
 
-      const [statsRes, kpiRes] = await Promise.allSettled(promises);
+      const [statsRes] = await Promise.allSettled(promises);
       if (statsRes.status === 'fulfilled' && statsRes.value?.data?.success) {
         setStats(statsRes.value.data.data);
-      }
-      if (kpiRes.status === 'fulfilled' && kpiRes.value?.data?.success) {
-        setKpiList(kpiRes.value.data.data);
       }
 
       // Fetch exams table only when relevant
@@ -296,7 +222,7 @@ const TessbinAdminDashboard = () => {
 
   useEffect(() => {
     fetchData(true);
-  }, [kpiTimeframe]);
+  }, []);
 
   useEffect(() => {
     if (['coc_exams', 'online_exams', 'all_records'].includes(activeTab) || searchQuery || examTypeFilter !== 'All' || statusFilter !== 'All') {
@@ -463,114 +389,6 @@ const TessbinAdminDashboard = () => {
     setEditingRecordId(null);
   };
 
-  // Master KPI Form Submit (Creates/Updates All 3 Core KPIs × 3 Timeframes)
-  const handleMasterKpiSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const itemsToSave = [
-        // 1. COC Exam Student Takes
-        { title: 'COC Exam Student Takes', category: 'National Evaluation', unit: 'Students', weight: 30, timeframe: 'weekly', targetValue: Number(masterKpiFormData.coc.weekly) },
-        { title: 'COC Exam Student Takes', category: 'National Evaluation', unit: 'Students', weight: 30, timeframe: 'monthly', targetValue: Number(masterKpiFormData.coc.monthly) },
-        { title: 'COC Exam Student Takes', category: 'National Evaluation', unit: 'Students', weight: 30, timeframe: 'quarterly', targetValue: Number(masterKpiFormData.coc.quarterly) },
-
-        // 2. Online Final Exam Takes
-        { title: 'Online Final Exam Takes', category: 'E-Learning Platform', unit: 'Students', weight: 30, timeframe: 'weekly', targetValue: Number(masterKpiFormData.online.weekly) },
-        { title: 'Online Final Exam Takes', category: 'E-Learning Platform', unit: 'Students', weight: 30, timeframe: 'monthly', targetValue: Number(masterKpiFormData.online.monthly) },
-        { title: 'Online Final Exam Takes', category: 'E-Learning Platform', unit: 'Students', weight: 30, timeframe: 'quarterly', targetValue: Number(masterKpiFormData.online.quarterly) },
-
-        // 3. Number of Registered Students
-        { title: 'Number of Registered Students', category: 'Student Enrollment', unit: 'Students', weight: 20, timeframe: 'weekly', targetValue: Number(masterKpiFormData.students.weekly) },
-        { title: 'Number of Registered Students', category: 'Student Enrollment', unit: 'Students', weight: 20, timeframe: 'monthly', targetValue: Number(masterKpiFormData.students.monthly) },
-        { title: 'Number of Registered Students', category: 'Student Enrollment', unit: 'Students', weight: 20, timeframe: 'quarterly', targetValue: Number(masterKpiFormData.students.quarterly) },
-      ];
-
-      for (const item of itemsToSave) {
-        await axiosInstance.post('/tessbin/kpis', item);
-      }
-
-      toast({
-        title: 'Master KPI Targets Configured!',
-        description: 'Saved Weekly, Monthly & Quarterly targets for COC Exams, Online Exams & Registered Students.',
-        status: 'success',
-        duration: 4000,
-        isClosable: true,
-      });
-      onAddKpiClose();
-      fetchData();
-    } catch (error) {
-      toast({
-        title: 'Failed to save Master KPI Targets',
-        description: error.response?.data?.message || 'An error occurred.',
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const openEditKpiModal = (kpi) => {
-    setEditingKpiId(kpi._id);
-    setSingleKpiEditData({
-      title: kpi.title || '',
-      category: kpi.category || 'General Academic',
-      timeframe: kpi.timeframe || 'monthly',
-      targetValue: kpi.targetValue || 10,
-      actualValue: kpi.actualValue || 0,
-      unit: kpi.unit || 'Students',
-      weight: kpi.weight || 25,
-      remarks: kpi.remarks || '',
-    });
-    onEditKpiOpen();
-  };
-
-  const handleEditKpiSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await axiosInstance.put(`/tessbin/kpis/${editingKpiId}`, singleKpiEditData);
-      if (res.data?.success) {
-        toast({
-          title: 'KPI Target Updated',
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
-        });
-        onEditKpiClose();
-        fetchData();
-      }
-    } catch (error) {
-      toast({
-        title: 'Failed to update KPI target',
-        description: error.response?.data?.message || 'An error occurred.',
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const handleDeleteKpi = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this KPI target?')) return;
-    try {
-      const res = await axiosInstance.delete(`/tessbin/kpis/${id}`);
-      if (res.data?.success) {
-        toast({
-          title: 'KPI Target Deleted',
-          status: 'info',
-          duration: 3000,
-          isClosable: true,
-        });
-        fetchData();
-      }
-    } catch (error) {
-      toast({
-        title: 'Delete Failed',
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-    }
-  };
-
   // Export CSV
   const handleExportCSV = () => {
     if (!records.length) {
@@ -605,43 +423,6 @@ const TessbinAdminDashboard = () => {
   };
 
   // ── GRAPHICAL DATA PREPARATION ──
-  const kpiComparisonData = [
-    {
-      name: 'COC Exam Student Takes',
-      Target: masterKpiFormData.coc[kpiTimeframe === 'weekly' ? 'weekly' : kpiTimeframe === 'quarterly' ? 'quarterly' : 'monthly'],
-      Actual: stats.cocExamStudentsCount ?? 0,
-    },
-    {
-      name: 'Online Final Exam Takes',
-      Target: masterKpiFormData.online[kpiTimeframe === 'weekly' ? 'weekly' : kpiTimeframe === 'quarterly' ? 'quarterly' : 'monthly'],
-      Actual: stats.onlineFinalExamStudentsCount ?? 0,
-    },
-    {
-      name: 'Number of Registered Students',
-      Target: masterKpiFormData.students[kpiTimeframe === 'weekly' ? 'weekly' : kpiTimeframe === 'quarterly' ? 'quarterly' : 'monthly'],
-      Actual: stats.totalStudentsCount ?? 0,
-    },
-  ];
-
-  const pieData = [
-    { name: 'COC Exam Takes', value: stats.cocExamStudentsCount ?? 0, color: '#6366F1' },
-    { name: 'Online Final Exams', value: stats.onlineFinalExamStudentsCount ?? 0, color: '#2563EB' },
-    { name: 'Total Registered Students', value: stats.totalStudentsCount ?? 0, color: '#10B981' },
-  ];
-
-  const trendData = [
-    { period: 'Week 1', COC: 2, Online: 2, TotalStudents: 4 },
-    { period: 'Week 2', COC: 3, Online: 3, TotalStudents: 7 },
-    { period: 'Week 3', COC: 5, Online: 4, TotalStudents: 10 },
-    { period: 'Week 4', COC: stats.cocExamStudentsCount ?? 0, Online: stats.onlineFinalExamStudentsCount ?? 0, TotalStudents: stats.totalStudentsCount ?? 0 },
-  ];
-
-  // ── OVERALL KPI PERCENTAGE ACHIEVEMENTS CALCULATIONS ──
-  const totalTargetSum = kpiList.reduce((acc, k) => acc + (Number(k.targetValue) || 1), 0);
-  const totalActualSum = kpiList.reduce((acc, k) => acc + (Number(k.actualValue) || 0), 0);
-  const overallAchievementPercent = totalTargetSum > 0 ? Math.min(100, Math.round((totalActualSum / totalTargetSum) * 100)) : 0;
-  const exceededCount = kpiList.filter((k) => (Number(k.actualValue) || 0) >= (Number(k.targetValue) || 1)).length;
-
   // Sidebar Navigation Definition
   const sidebarItems = [
     { id: 'overview', label: 'Overall Data Analytics', icon: FiPieChart },
@@ -838,7 +619,7 @@ const TessbinAdminDashboard = () => {
                   {activeTab === 'coc_students_list' && 'COC Students List (Customer Service)'}
                   {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Online Exam Results & Performance Insights'}
                   {activeTab === 'coc_exams' && 'COC Examination Management'}
-                  {activeTab === 'kpi_metrics' && 'Master KPI Target & Scorecard Manager'}
+                  {activeTab === 'kpi_metrics' && 'Tessbin KPI Targets & Reports'}
                 </Heading>
                 <Text fontSize="12px" color={mutedText} mt={0.5}>
                   {activeTab === 'overview' && 'Real-time multi-dimensional executive intelligence combining Student Registrations, COC Paid records, Online Exam Results & KPIs'}
@@ -846,7 +627,7 @@ const TessbinAdminDashboard = () => {
                   {activeTab === 'coc_students_list' && 'Verified read-only directory of students registered by Customer Service whose COC fee is marked as Paid'}
                   {(activeTab === 'data_analysis' || activeTab === 'data_analytics') && 'Real-time online examination outcomes, qualification rates, course test outcomes, and performance insights'}
                   {activeTab === 'coc_exams' && 'National Certificate of Competency (COC) evaluation tracking'}
-                  {activeTab === 'kpi_metrics' && 'Overall KPI Form & Interactive Charts: Configure and track Weekly, Monthly, and Quarterly targets'}
+                  {activeTab === 'kpi_metrics' && 'Set targets, save drafts, and submit weekly, monthly, and quarterly results'}
                 </Text>
 
               </Box>
@@ -862,7 +643,7 @@ const TessbinAdminDashboard = () => {
                   borderRadius="xl"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  bg={useColorModeValue('gray.50', 'gray.900')}
+                  bg={tableHeaderBg}
                   fontSize="12px"
                 />
               </InputGroup>
@@ -939,7 +720,7 @@ const TessbinAdminDashboard = () => {
                   bg={isActive ? tab.color : 'transparent'}
                   color={isActive ? 'white' : mutedText}
                   _hover={{
-                    bg: isActive ? tab.color : useColorModeValue('gray.100', 'whiteAlpha.100'),
+                    bg: isActive ? tab.color : tabHoverBg,
                     color: isActive ? 'white' : textColor,
                   }}
                   borderRadius="xl"
@@ -987,7 +768,7 @@ const TessbinAdminDashboard = () => {
           {/* TAB 1: OVERVIEW PAGE & GRAPHICAL CHARTS */}
           {/* ========================================================================= */}
           {activeTab === 'overview' && (
-            <TessbinOverviewAnalyticsView kpiList={kpiList} stats={stats} />
+            <TessbinOverviewAnalyticsView stats={stats} />
           )}
 
           {/* ========================================================================= */}
@@ -1041,334 +822,9 @@ const TessbinAdminDashboard = () => {
           {/* ========================================================================= */}
           {/* TAB 3: FULL KPI TARGETS, TIMEFRAME MANAGER & GRAPHICAL CHARTS */}
           {/* ========================================================================= */}
-          {activeTab === 'kpi_metrics' && (
-            <Box mb={8}>
-              {/* Header & Timeframe Selector */}
-              <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6} mb={6} boxShadow="0 2px 10px rgba(0,0,0,0.03)">
-                <Flex direction={{ base: 'column', lg: 'row' }} justify="space-between" align={{ base: 'start', lg: 'center' }} gap={4}>
-                  <HStack spacing={3}>
-                    <Flex minW="48px" minH="48px" maxW="48px" maxH="48px" flexShrink={0} bg="#6366F1" color="white" borderRadius="xl" align="center" justify="center">
-                      <Icon as={FiTarget} boxSize="24px" />
-                    </Flex>
-                    <Box>
-                      <Heading size="md" fontWeight="800">
-                        Master KPI Targets & Graphical Scorecard
-                      </Heading>
-                      <Text fontSize="12px" color={mutedText}>
-                        Create, edit, and visually analyze target goals for COC Exams, Online Exams & Registered Students
-                      </Text>
-                    </Box>
-                  </HStack>
-
-                  <HStack spacing={3} wrap="wrap">
-                    {/* Timeframe Selector Pills */}
-                    <HStack bg={useColorModeValue('gray.100', 'gray.700')} p={1} borderRadius="xl">
-                      {[
-                        { id: 'weekly', label: 'Weekly Targets' },
-                        { id: 'monthly', label: 'Monthly Targets' },
-                        { id: 'quarterly', label: 'Quarterly Targets' },
-                        { id: 'all', label: 'All Timeframes' },
-                      ].map((t) => (
-                        <Button
-                          key={t.id}
-                          size="xs"
-                          borderRadius="lg"
-                          px={3}
-                          py={1.5}
-                          fontSize="11px"
-                          fontWeight="700"
-                          bg={kpiTimeframe === t.id ? '#6366F1' : 'transparent'}
-                          color={kpiTimeframe === t.id ? 'white' : textColor}
-                          _hover={{ bg: kpiTimeframe === t.id ? '#4F46E5' : 'rgba(0,0,0,0.05)' }}
-                          onClick={() => setKpiTimeframe(t.id)}
-                        >
-                          {t.label}
-                        </Button>
-                      ))}
-                    </HStack>
-
-                    <Button
-                      leftIcon={<FiSliders />}
-                      bg="#6366F1"
-                      color="white"
-                      _hover={{ bg: '#4F46E5' }}
-                      size="sm"
-                      borderRadius="xl"
-                      fontSize="12px"
-                      fontWeight="700"
-                      onClick={onAddKpiOpen}
-                    >
-                      Configure Master KPIs Form
-                    </Button>
-                  </HStack>
-                </Flex>
-              </Card>
-
-              {/* ── KPI SIDEBAR DEDICATED GRAPHICAL CHARTS ── */}
-              <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mb={8}>
-                
-                {/* GRAPH 1: KPI TARGET VS ACTUAL BAR CHART FOR SELECTED TIMEFRAME */}
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
-                  <HStack justify="space-between" mb={5}>
-                    <HStack spacing={3}>
-                      <Icon as={FiBarChart2} color="#6366F1" boxSize="22px" />
-                      <Box>
-                        <Heading size="md" fontWeight="800" fontSize="16px">
-                          {kpiTimeframe === 'weekly' ? 'Weekly' : kpiTimeframe === 'quarterly' ? 'Quarterly' : 'Monthly'} Target vs Actual Performance
-                        </Heading>
-                        <Text fontSize="11px" color={mutedText}>
-                          Direct evaluation of metric achievement against configured targets
-                        </Text>
-                      </Box>
-                    </HStack>
-                    <Badge colorScheme="purple" fontSize="10px" px={2.5} py={0.5} borderRadius="md">
-                      {kpiTimeframe.toUpperCase()} METRICS
-                    </Badge>
-                  </HStack>
-
-                  <Box h="260px" w="full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={kpiComparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
-                        <RechartsTooltip />
-                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                        <Bar dataKey="Target" fill="#94A3B8" radius={[6, 6, 0, 0]} name="Target Goal" />
-                        <Bar dataKey="Actual" fill="#6366F1" radius={[6, 6, 0, 0]} name="Actual Score" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </Card>
-
-                {/* GRAPH 2: KPI METRIC TIME TRAJECTORY */}
-                <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6}>
-                  <HStack justify="space-between" mb={5}>
-                    <HStack spacing={3}>
-                      <Icon as={FiTrendingUp} color="#10B981" boxSize="22px" />
-                      <Box>
-                        <Heading size="md" fontWeight="800" fontSize="16px">Academic KPI Progress Trajectory</Heading>
-                        <Text fontSize="11px" color={mutedText}>Weekly accumulation towards quarterly goal targets</Text>
-                      </Box>
-                    </HStack>
-                    <Tag colorScheme="green" size="sm" fontWeight="700">Trajectory</Tag>
-                  </HStack>
-
-                  <Box h="260px" w="full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
-                        <RechartsTooltip />
-                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                        <Line type="monotone" dataKey="COC" stroke="#6366F1" strokeWidth={3} name="COC Exam Student Takes" />
-                        <Line type="monotone" dataKey="Online" stroke="#2563EB" strokeWidth={3} name="Online Final Exam Takes" />
-                        <Line type="monotone" dataKey="TotalStudents" stroke="#10B981" strokeWidth={3} name="Registered Students" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </Box>
-                </Card>
-
-              </SimpleGrid>
-
-              {/* Dynamic KPI Cards Grid */}
-              <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={5} mb={8}>
-                {kpiList.map((kpi) => {
-                  const target = kpi.targetValue || 1;
-                  const actual = kpi.actualValue || 0;
-                  const progress = Math.min(100, Math.round((actual / target) * 100));
-                  const isExceeded = actual >= target;
-
-                  return (
-                    <Card key={kpi._id} bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5} boxShadow="0 2px 10px rgba(0,0,0,0.03)">
-                      <Flex justify="space-between" align="start">
-                        <Box overflow="hidden">
-                          <HStack spacing={2} mb={1.5}>
-                            <Badge colorScheme="purple" fontSize="9px" px={2} py={0.5} borderRadius="md" fontWeight="800">
-                              {kpi.timeframe ? kpi.timeframe.toUpperCase() : 'MONTHLY'}
-                            </Badge>
-                            <Badge colorScheme="blue" fontSize="9px" px={2} py={0.5} borderRadius="md" fontWeight="700">
-                              {kpi.category || 'Evaluation'}
-                            </Badge>
-                          </HStack>
-                          <Text fontSize="14px" fontWeight="800" color={textColor} noOfLines={1}>
-                            {kpi.title}
-                          </Text>
-                          <Text fontSize="26px" fontWeight="900" color="#6366F1" mt={1}>
-                            {actual} <Text as="span" fontSize="13px" fontWeight="700" color={mutedText}>{kpi.unit || 'Students'}</Text>
-                          </Text>
-                          <Text fontSize="11px" color={mutedText} fontWeight="700" mt={0.5}>
-                            Target: {target} {kpi.unit || 'Students'} ({progress}% Achieved)
-                          </Text>
-                        </Box>
-                        <Menu>
-                          <MenuButton as={IconButton} icon={<FiSliders />} size="xs" variant="ghost" aria-label="KPI Actions" borderRadius="lg" />
-                          <MenuList fontSize="12px">
-                            <MenuItem icon={<FiEdit />} onClick={() => openEditKpiModal(kpi)}>Edit Single Target</MenuItem>
-                            <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => handleDeleteKpi(kpi._id)}>Delete Target</MenuItem>
-                          </MenuList>
-                        </Menu>
-                      </Flex>
-                      <Progress value={progress} size="xs" colorScheme={isExceeded ? 'green' : 'purple'} mt={4} borderRadius="full" />
-                    </Card>
-                  );
-                })}
-              </SimpleGrid>
-
-              {/* Comprehensive Master KPI Targets Scorecard Table with OVERALL ACHIEVEMENT PERCENTAGES BANNER */}
-              <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={6} boxShadow="0 2px 10px rgba(0,0,0,0.03)">
-                <CardBody p={0}>
-                  
-                  {/* ── OVERALL KPI ACHIEVEMENTS PERCENTAGE BANNER CARD ── */}
-                  <Box p={5} mb={6} borderRadius="2xl" bgGradient="linear(to-r, #4F46E5, #6366F1, #3B82F6)" color="white" boxShadow="0 8px 20px rgba(99, 102, 241, 0.25)">
-                    <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={6} align="center">
-                      <Box>
-                        <Text fontSize="11px" fontWeight="700" textTransform="uppercase" letterSpacing="wider" opacity={0.85}>
-                          Overall Target Achievement Rate
-                        </Text>
-                        <Text fontSize="34px" fontWeight="900" mt={1}>
-                          {overallAchievementPercent}%
-                        </Text>
-                        <Progress value={overallAchievementPercent} size="xs" colorScheme="teal" borderRadius="full" mt={2} bg="rgba(255,255,255,0.2)" />
-                      </Box>
-
-                      <Box borderLeft={{ sm: '1px solid rgba(255,255,255,0.2)' }} borderRight={{ sm: '1px solid rgba(255,255,255,0.2)' }} px={4}>
-                        <Text fontSize="11px" fontWeight="700" textTransform="uppercase" letterSpacing="wider" opacity={0.85}>
-                          Targets Met & Exceeded
-                        </Text>
-                        <Text fontSize="34px" fontWeight="900" mt={1}>
-                          {exceededCount} / {kpiList.length}
-                        </Text>
-                        <Text fontSize="10px" opacity={0.8} mt={1}>
-                          {Math.round((exceededCount / (kpiList.length || 1)) * 100)}% Success Rate
-                        </Text>
-                      </Box>
-
-                      <Box>
-                        <Text fontSize="11px" fontWeight="700" textTransform="uppercase" letterSpacing="wider" opacity={0.85}>
-                          Total Student Takes vs Target
-                        </Text>
-                        <Text fontSize="34px" fontWeight="900" mt={1}>
-                          {totalActualSum} / {totalTargetSum}
-                        </Text>
-                        <Text fontSize="10px" opacity={0.8} mt={1}>
-                          Total Aggregate Volume
-                        </Text>
-                      </Box>
-                    </SimpleGrid>
-                  </Box>
-
-                  <Flex justify="space-between" align="center" mb={6}>
-                    <HStack spacing={3}>
-                      <Icon as={FiActivity} color="#6366F1" boxSize="22px" />
-                      <Box>
-                        <Heading size="md" fontWeight="800">
-                          {kpiTimeframe === 'weekly' && 'Weekly Master KPI Performance Scorecard'}
-                          {kpiTimeframe === 'monthly' && 'Monthly Master KPI Performance Scorecard'}
-                          {kpiTimeframe === 'quarterly' && 'Quarterly Master KPI Performance Scorecard'}
-                          {kpiTimeframe === 'all' && 'All Master KPI Target Schedules'}
-                        </Heading>
-                        <Text fontSize="12px" color={mutedText}>
-                          Detailed percentage achievement ratings for COC Exam Takes, Online Finals, and Registered Students
-                        </Text>
-                      </Box>
-                    </HStack>
-                    <Button bg="#6366F1" color="white" size="xs" borderRadius="lg" leftIcon={<FiSliders />} onClick={onAddKpiOpen}>
-                      Edit Master Form Targets
-                    </Button>
-                  </Flex>
-
-                  <Table variant="simple" size="sm">
-                    <Thead bg={useColorModeValue('gray.50', 'gray.900')}>
-                      <Tr>
-                        <Th fontSize="10px" py={3}>KPI Metric Name</Th>
-                        <Th fontSize="10px" py={3}>Category</Th>
-                        <Th fontSize="10px" py={3}>Schedule</Th>
-                        <Th fontSize="10px" py={3}>Target Goal</Th>
-                        <Th fontSize="10px" py={3}>Actual Score</Th>
-                        <Th fontSize="10px" py={3}>Achievement %</Th>
-                        <Th fontSize="10px" py={3}>Weight</Th>
-                        <Th fontSize="10px" py={3}>Evaluation Status</Th>
-                        <Th fontSize="10px" py={3} textStyle="right">Actions</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {kpiList.length === 0 ? (
-                        <Tr>
-                          <Td colSpan={9} textAlign="center" py={8}>
-                            <Text color={mutedText} fontSize="12px">No KPI targets found for the selected timeframe. Click "Configure Master KPIs Form" to add.</Text>
-                          </Td>
-                        </Tr>
-                      ) : (
-                        kpiList.map((kpi) => {
-                          const target = Number(kpi.targetValue) || 1;
-                          const actual = Number(kpi.actualValue) || 0;
-                          const achievementPercent = Math.round((actual / target) * 100);
-                          const isExceeded = actual >= target;
-
-                          return (
-                            <Tr key={kpi._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
-                              <Td fontWeight="800" fontSize="12px">
-                                {kpi.title}
-                              </Td>
-                              <Td fontSize="11px" color={mutedText}>
-                                {kpi.category || 'General'}
-                              </Td>
-                              <Td>
-                                <Tag size="sm" colorScheme={kpi.timeframe === 'weekly' ? 'orange' : kpi.timeframe === 'monthly' ? 'purple' : 'blue'} borderRadius="md" fontWeight="700" textTransform="uppercase" fontSize="9px">
-                                  {kpi.timeframe}
-                                </Tag>
-                              </Td>
-                              <Td fontSize="11px" fontWeight="700">
-                                {kpi.targetValue} {kpi.unit}
-                              </Td>
-                              <Td fontSize="12px" fontWeight="800" color="#6366F1">
-                                {kpi.actualValue} {kpi.unit}
-                              </Td>
-                              <Td fontSize="12px" fontWeight="900" color={isExceeded ? '#10B981' : '#6366F1'}>
-                                {achievementPercent}%
-                              </Td>
-                              <Td fontSize="11px">{kpi.weight || 25}%</Td>
-                              <Td>
-                                <Badge colorScheme={isExceeded ? 'green' : 'purple'} px={2.5} py={0.5} borderRadius="full" fontSize="10px" fontWeight="800">
-                                  {isExceeded ? 'Exceeded Goal' : 'On Track'}
-                                </Badge>
-                              </Td>
-                              <Td textStyle="right">
-                                <HStack spacing={1} justify="flex-end">
-                                  <Tooltip label="Edit Target Goal">
-                                    <IconButton
-                                      icon={<FiEdit />}
-                                      size="sm"
-                                      variant="ghost"
-                                      colorScheme="blue"
-                                      aria-label="Edit KPI"
-                                      onClick={() => openEditKpiModal(kpi)}
-                                    />
-                                  </Tooltip>
-                                  <Tooltip label="Delete Target">
-                                    <IconButton
-                                      icon={<FiTrash2 />}
-                                      size="sm"
-                                      variant="ghost"
-                                      colorScheme="red"
-                                      aria-label="Delete KPI"
-                                      onClick={() => handleDeleteKpi(kpi._id)}
-                                    />
-                                  </Tooltip>
-                                </HStack>
-                              </Td>
-                            </Tr>
-                          );
-                        })
-                      )}
-                    </Tbody>
-                  </Table>
-                </CardBody>
-              </Card>
-            </Box>
-          )}
+          <Box display={activeTab === 'kpi_metrics' ? 'block' : 'none'}>
+            <TessbinKpiReportsView />
+          </Box>
 
           {/* ========================================================================= */}
           {/* COC EXAMS ANALYTICS TABLE (Exclusively shown for coc_exams tab) */}
@@ -1391,7 +847,7 @@ const TessbinAdminDashboard = () => {
                 </HStack>
                 <Box overflowX="auto">
                   <Table variant="simple" size="sm">
-                    <Thead bg={useColorModeValue('gray.50', 'gray.900')}>
+                    <Thead bg={tableHeaderBg}>
                       <Tr>
                         <Th fontSize="10px" py={3}>Course Name</Th>
                         <Th fontSize="10px" py={3} textStyle="center">Weekly Students</Th>
@@ -1411,7 +867,7 @@ const TessbinAdminDashboard = () => {
                         const quarterly = totalCoc;
                         
                         return (
-                          <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                          <Tr key={idx} _hover={{ bg: rowHoverBg }}>
                             <Td fontWeight="700" fontSize="12px" color="#6366F1">{courseName}</Td>
                             <Td textStyle="center">
                               <Badge bg="#EEF2FF" color="#6366F1" px={2} py={0.5} borderRadius="md" fontWeight="800">{weekly}</Badge>
@@ -1454,7 +910,7 @@ const TessbinAdminDashboard = () => {
                 </HStack>
                 <Box overflowX="auto">
                   <Table variant="simple" size="sm">
-                    <Thead bg={useColorModeValue('gray.50', 'gray.900')}>
+                    <Thead bg={tableHeaderBg}>
                       <Tr>
                         <Th fontSize="10px" py={3}>Course Name</Th>
                         <Th fontSize="10px" py={3} textStyle="center">Weekly Students</Th>
@@ -1474,7 +930,7 @@ const TessbinAdminDashboard = () => {
                         const quarterly = totalOnline;
                         
                         return (
-                          <Tr key={idx} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                          <Tr key={idx} _hover={{ bg: rowHoverBg }}>
                             <Td fontWeight="700" fontSize="12px" color="#2563EB">{courseName}</Td>
                             <Td textStyle="center">
                               <Badge bg="#EFF6FF" color="#2563EB" px={2} py={0.5} borderRadius="md" fontWeight="800">{weekly}</Badge>
@@ -1551,7 +1007,7 @@ const TessbinAdminDashboard = () => {
                 {/* Table */}
                 <Box overflowX="auto">
                   <Table variant="simple" size="sm">
-                    <Thead bg={useColorModeValue('gray.50', 'gray.900')}>
+                    <Thead bg={tableHeaderBg}>
                       <Tr>
                         <Th fontSize="10px" py={3}>Student ID</Th>
                         <Th fontSize="10px" py={3}>Student Name</Th>
@@ -1579,7 +1035,7 @@ const TessbinAdminDashboard = () => {
                         </Tr>
                       ) : (
                         records.map((record) => (
-                          <Tr key={record._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                          <Tr key={record._id} _hover={{ bg: rowHoverBg }}>
                             <Td fontWeight="700" fontSize="11px">
                               <Tag size="sm" bg="#EEF2FF" color="#6366F1" borderRadius="md">
                                 {record.studentId}
@@ -1702,7 +1158,7 @@ const TessbinAdminDashboard = () => {
 
                 <Box overflowX="auto">
                   <Table variant="simple" size="sm">
-                    <Thead bg={useColorModeValue('gray.50', 'gray.900')}>
+                    <Thead bg={tableHeaderBg}>
                       <Tr>
                         <Th fontSize="10px" py={3}>Student ID</Th>
                         <Th fontSize="10px" py={3}>Full Name</Th>
@@ -1727,7 +1183,7 @@ const TessbinAdminDashboard = () => {
                         </Tr>
                       ) : (
                         records.map((record) => (
-                          <Tr key={record._id} _hover={{ bg: useColorModeValue('gray.50', 'gray.750') }}>
+                          <Tr key={record._id} _hover={{ bg: rowHoverBg }}>
                             <Td fontWeight="700" fontSize="11px">
                               <Tag size="sm" bg="#EEF2FF" color="#6366F1" borderRadius="md">
                                 {record.studentId}
@@ -2045,305 +1501,6 @@ const TessbinAdminDashboard = () => {
             <ModalFooter borderTop="1px" borderColor={borderColor}>
               <Button variant="ghost" mr={3} onClick={onEditClose} size="sm">Cancel</Button>
               <Button bg="#2563EB" color="white" _hover={{ bg: '#1D4ED8' }} type="submit" size="sm">Update Record</Button>
-            </ModalFooter>
-          </form>
-        </ModalContent>
-      </Modal>
-
-      {/* ── UNIFIED MASTER KPI FORM MODAL (COC EXAMS, ONLINE FINALS, REGISTERED STUDENTS) ── */}
-      <Modal isOpen={isAddKpiOpen} onClose={onAddKpiClose} size="xl">
-        <ModalOverlay backdropFilter="blur(4px)" />
-        <ModalContent borderRadius="2xl">
-          <form onSubmit={handleMasterKpiSubmit}>
-            <ModalHeader borderBottom="1px" borderColor={borderColor}>
-              <HStack spacing={2.5}>
-                <Icon as={FiTarget} color="#6366F1" boxSize="20px" />
-                <Box>
-                  <Text fontSize="16px" fontWeight="800">Master KPI Target Configuration Form</Text>
-                  <Text fontSize="11px" color={mutedText} fontWeight="600">
-                    Configure Weekly, Monthly, and Quarterly targets for all 3 core academic KPIs
-                  </Text>
-                </Box>
-              </HStack>
-            </ModalHeader>
-            <ModalCloseButton />
-            <ModalBody py={6}>
-              <VStack spacing={6} align="stretch">
-                
-                {/* SECTION 1: COC EXAM STUDENT TAKES */}
-                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#818CF8" bg={useColorModeValue('purple.50', 'purple.950')}>
-                  <HStack spacing={2} mb={3}>
-                    <Icon as={FiAward} color="#6366F1" boxSize="18px" />
-                    <Text fontSize="13px" fontWeight="800" color="#4338CA" _dark={{ color: 'purple.200' }}>
-                      1. COC Exam Student Takes Targets
-                    </Text>
-                    <Badge colorScheme="purple" fontSize="9px">National Evaluation</Badge>
-                  </HStack>
-
-                  <SimpleGrid columns={3} spacing={3}>
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Weekly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.coc.weekly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          coc: { ...masterKpiFormData.coc, weekly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Monthly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.coc.monthly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          coc: { ...masterKpiFormData.coc, monthly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Quarterly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.coc.quarterly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          coc: { ...masterKpiFormData.coc, quarterly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-                  </SimpleGrid>
-                </Box>
-
-                {/* SECTION 2: ONLINE FINAL EXAM TAKES */}
-                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#60A5FA" bg={useColorModeValue('blue.50', 'blue.950')}>
-                  <HStack spacing={2} mb={3}>
-                    <Icon as={FiMonitor} color="#2563EB" boxSize="18px" />
-                    <Text fontSize="13px" fontWeight="800" color="#1E40AF" _dark={{ color: 'blue.200' }}>
-                      2. Online Final Exam Takes Targets
-                    </Text>
-                    <Badge colorScheme="blue" fontSize="9px">E-Learning Platform</Badge>
-                  </HStack>
-
-                  <SimpleGrid columns={3} spacing={3}>
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Weekly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.online.weekly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          online: { ...masterKpiFormData.online, weekly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Monthly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.online.monthly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          online: { ...masterKpiFormData.online, monthly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Quarterly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.online.quarterly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          online: { ...masterKpiFormData.online, quarterly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-                  </SimpleGrid>
-                </Box>
-
-                {/* SECTION 3: NUMBER OF REGISTERED STUDENTS */}
-                <Box p={4} borderRadius="xl" border="1.5px solid" borderColor="#34D399" bg={useColorModeValue('teal.50', 'teal.950')}>
-                  <HStack spacing={2} mb={3}>
-                    <Icon as={FiUsers} color="#059669" boxSize="18px" />
-                    <Text fontSize="13px" fontWeight="800" color="#065F46" _dark={{ color: 'teal.200' }}>
-                      3. Number of Registered Students Targets
-                    </Text>
-                    <Badge colorScheme="teal" fontSize="9px">Student Enrollment</Badge>
-                  </HStack>
-
-                  <SimpleGrid columns={3} spacing={3}>
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Weekly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.students.weekly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          students: { ...masterKpiFormData.students, weekly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Monthly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.students.monthly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          students: { ...masterKpiFormData.students, monthly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-
-                    <FormControl isRequired>
-                      <FormLabel fontSize="xs" fontWeight="700">Quarterly Target</FormLabel>
-                      <Input
-                        size="sm"
-                        borderRadius="xl"
-                        type="number"
-                        bg={cardBg}
-                        value={masterKpiFormData.students.quarterly}
-                        onChange={(e) => setMasterKpiFormData({
-                          ...masterKpiFormData,
-                          students: { ...masterKpiFormData.students, quarterly: e.target.value }
-                        })}
-                      />
-                    </FormControl>
-                  </SimpleGrid>
-                </Box>
-
-              </VStack>
-            </ModalBody>
-            <ModalFooter borderTop="1px" borderColor={borderColor}>
-              <Button variant="ghost" mr={3} onClick={onAddKpiClose} size="sm">Cancel</Button>
-              <Button bg="#6366F1" color="white" _hover={{ bg: '#4F46E5' }} type="submit" size="sm" leftIcon={<FiSave />}>
-                Save Master KPI Targets
-              </Button>
-            </ModalFooter>
-          </form>
-        </ModalContent>
-      </Modal>
-
-      {/* ── EDIT SINGLE KPI TARGET MODAL ── */}
-      <Modal isOpen={isEditKpiOpen} onClose={onEditKpiClose} size="lg">
-        <ModalOverlay backdropFilter="blur(4px)" />
-        <ModalContent borderRadius="2xl">
-          <form onSubmit={handleEditKpiSubmit}>
-            <ModalHeader borderBottom="1px" borderColor={borderColor}>
-              <HStack spacing={2}>
-                <Icon as={FiEdit} color="#2563EB" />
-                <Text fontSize="15px">Edit Single KPI Target Goal</Text>
-              </HStack>
-            </ModalHeader>
-            <ModalCloseButton />
-            <ModalBody py={6}>
-              <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel fontSize="xs">KPI Name / Title</FormLabel>
-                  <Input
-                    size="sm"
-                    borderRadius="xl"
-                    value={singleKpiEditData.title}
-                    onChange={(e) => setSingleKpiEditData({ ...singleKpiEditData, title: e.target.value })}
-                  />
-                </FormControl>
-
-                <SimpleGrid columns={2} spacing={4} w="full">
-                  <FormControl isRequired>
-                    <FormLabel fontSize="xs">Target Schedule Timeframe</FormLabel>
-                    <Select
-                      size="sm"
-                      borderRadius="xl"
-                      value={singleKpiEditData.timeframe}
-                      onChange={(e) => setSingleKpiEditData({ ...singleKpiEditData, timeframe: e.target.value })}
-                    >
-                      <option value="weekly">Weekly Target</option>
-                      <option value="monthly">Monthly Target</option>
-                      <option value="quarterly">Quarterly Target</option>
-                    </Select>
-                  </FormControl>
-
-                  <FormControl isRequired>
-                    <FormLabel fontSize="xs">KPI Category</FormLabel>
-                    <Input
-                      size="sm"
-                      borderRadius="xl"
-                      value={singleKpiEditData.category}
-                      onChange={(e) => setSingleKpiEditData({ ...singleKpiEditData, category: e.target.value })}
-                    />
-                  </FormControl>
-                </SimpleGrid>
-
-                <SimpleGrid columns={3} spacing={3} w="full">
-                  <FormControl isRequired>
-                    <FormLabel fontSize="xs">Target Value</FormLabel>
-                    <Input
-                      size="sm"
-                      borderRadius="xl"
-                      type="number"
-                      value={singleKpiEditData.targetValue}
-                      onChange={(e) => setSingleKpiEditData({ ...singleKpiEditData, targetValue: Number(e.target.value) })}
-                    />
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel fontSize="xs">Current Actual Value</FormLabel>
-                    <Input
-                      size="sm"
-                      borderRadius="xl"
-                      type="number"
-                      value={singleKpiEditData.actualValue}
-                      onChange={(e) => setSingleKpiEditData({ ...singleKpiEditData, actualValue: Number(e.target.value) })}
-                    />
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel fontSize="xs">Unit of Measure</FormLabel>
-                    <Input
-                      size="sm"
-                      borderRadius="xl"
-                      value={singleKpiEditData.unit}
-                      onChange={(e) => setSingleKpiEditData({ ...singleKpiEditData, unit: e.target.value })}
-                    />
-                  </FormControl>
-                </SimpleGrid>
-              </VStack>
-            </ModalBody>
-            <ModalFooter borderTop="1px" borderColor={borderColor}>
-              <Button variant="ghost" mr={3} onClick={onEditKpiClose} size="sm">Cancel</Button>
-              <Button bg="#2563EB" color="white" _hover={{ bg: '#1D4ED8' }} type="submit" size="sm">Update Target</Button>
             </ModalFooter>
           </form>
         </ModalContent>

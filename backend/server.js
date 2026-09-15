@@ -66,6 +66,8 @@ const awardRoutes = require('./routes/awardRoutes.js');
 const contentTrackerRoutes = require('./routes/contentTrackerRoutes');
 const candidatePoolRoutes = require('./routes/candidatePoolRoutes.js');
 const hrKpiRoutes = require('./routes/hrKpiRoutes.js');
+const salesDepartmentKpiRoutes = require('./routes/salesDepartmentKpiRoutes.js');
+const financeDepartmentKpiRoutes = require('./routes/financeDepartmentKpiRoutes.js');
 
 const consultancyRoutes = require('./routes/consultancyRoutes.js');
 
@@ -360,6 +362,9 @@ app.use('/api/action-items', actionItemRoutes);
 app.use('/api/content-tracker', contentTrackerRoutes);
 app.use('/api/candidate-pool', candidatePoolRoutes);
 app.use('/api/hr-kpi', hrKpiRoutes);
+app.use('/api/customer-department-kpi', require('./routes/customerDepartmentKpiRoutes'));
+app.use('/api/sales-department-kpi', salesDepartmentKpiRoutes);
+app.use('/api/finance-department-kpi', financeDepartmentKpiRoutes);
 // Awards
 app.use('/api/awards', awardRoutes);
 

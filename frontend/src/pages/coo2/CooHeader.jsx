@@ -1,5 +1,5 @@
 // src/pages/coo2/CooHeader.jsx
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import {
   Badge,
   Box,
@@ -9,16 +9,32 @@ import {
   HStack,
   IconButton,
   Input,
+  InputGroup,
+  InputLeftElement,
+  InputRightElement,
+  Select,
   Text,
   Tooltip,
   useToast,
 } from '@chakra-ui/react';
-import { FiBell, FiDownload, FiLogOut, FiMenu, FiUpload } from 'react-icons/fi';
+import {
+  FiBell,
+  FiDownload,
+  FiLogOut,
+  FiMenu,
+  FiUpload,
+  FiCalendar,
+  FiClock,
+  FiSearch,
+  FiX,
+  FiFilter,
+} from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useUserStore } from '../../store/user';
 import {
   CUSTOMER_SUCCESS_KPI_DETAILS,
   DEPARTMENT_KPI_SUMMARY,
+  DEPARTMENTS,
   FINANCE_KPI_DETAILS,
   HR_KPI_DETAILS,
   IT_KPI_DETAILS,
@@ -27,16 +43,94 @@ import {
   TRADEX_TV_KPI_DETAILS,
 } from './cooData';
 
-const PERIOD_FILTERS = ['Weekly', 'Monthly', 'Quarterly'];
+const YEARS = Array.from({ length: 11 }, (_, i) => 2020 + i); // 2020 to 2030
+
+const MONTHS = [
+  { value: '01', label: 'January', short: 'Jan' },
+  { value: '02', label: 'February', short: 'Feb' },
+  { value: '03', label: 'March', short: 'Mar' },
+  { value: '04', label: 'April', short: 'Apr' },
+  { value: '05', label: 'May', short: 'May' },
+  { value: '06', label: 'June', short: 'Jun' },
+  { value: '07', label: 'July', short: 'Jul' },
+  { value: '08', label: 'August', short: 'Aug' },
+  { value: '09', label: 'September', short: 'Sep' },
+  { value: '10', label: 'October', short: 'Oct' },
+  { value: '11', label: 'November', short: 'Nov' },
+  { value: '12', label: 'December', short: 'Dec' },
+];
+
+const QUARTERS = [
+  { value: '1', label: 'Q1 (Jan - Mar)', short: 'Q1' },
+  { value: '2', label: 'Q2 (Apr - Jun)', short: 'Q2' },
+  { value: '3', label: 'Q3 (Jul - Sep)', short: 'Q3' },
+  { value: '4', label: 'Q4 (Oct - Dec)', short: 'Q4' },
+];
+
+const KPI_STATUS_OPTIONS = [
+  'All',
+  'On Track',
+  'Completed',
+  'At Risk',
+  'Behind',
+  'Not Reported',
+];
+
+const generateWeeksForYear = (year) => {
+  const weeks = [];
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = (jan4.getUTCDay() + 6) % 7;
+  const firstMonday = new Date(jan4);
+  firstMonday.setUTCDate(jan4.getUTCDate() - dayOfWeek);
+  firstMonday.setUTCHours(0, 0, 0, 0);
+
+  for (let w = 1; w <= 52; w++) {
+    const monday = new Date(firstMonday);
+    monday.setUTCDate(firstMonday.getUTCDate() + (w - 1) * 7);
+
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+
+    const startStr = monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const endStr = sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const weekValue = `${year}-W${String(w).padStart(2, '0')}`;
+
+    weeks.push({
+      value: weekValue,
+      label: `Week ${String(w).padStart(2, '0')} (${startStr} - ${endStr})`,
+      weekNum: w,
+    });
+  }
+  return weeks;
+};
 
 const CooHeader = ({
   onToggleSidebar,
+  periodType = 'monthly',
+  setPeriodType,
+  selectedYear = 2026,
+  setSelectedYear,
+  selectedMonth = '09',
+  setSelectedMonth,
+  selectedWeek = '2026-W37',
+  setSelectedWeek,
+  selectedQuarter = '3',
+  setSelectedQuarter,
+  periodKey = '2026-09',
+  periodDisplayLabel = 'September 2026',
+  statusFilter = 'All',
+  setStatusFilter,
+  searchQuery = '',
+  setSearchQuery,
+  onResetFilters,
+  onSetCurrentPeriod,
+  selectedDepartment = 'all',
+  onSelectDepartment,
   dateRange,
   setDateRange,
-  unreadCount = 3,
+  unreadCount = 0,
   onNotificationsClick,
   onDataImported,
-  selectedDepartment = 'all',
 }) => {
   const navigate = useNavigate();
   const clearUser = useUserStore((state) => state.clearUser);
@@ -44,6 +138,18 @@ const CooHeader = ({
   const toast = useToast();
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const currentWeekNum = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  const currentWeekStr = `${currentYear}-W${String(currentWeekNum).padStart(2, '0')}`;
+  const currentQuarterStr = String(Math.floor(now.getMonth() / 3) + 1);
+
+  const availableWeeks = useMemo(() => generateWeeksForYear(selectedYear), [selectedYear]);
 
   const handleLogout = () => {
     clearUser();
@@ -75,8 +181,9 @@ const CooHeader = ({
             Actual: row.actual,
             Note: row.note,
           }))
-        : detailData ? Object.entries(detailData).flatMap(([section, items]) =>
-            items.map((row) => ({
+        : detailData
+        ? Object.keys(detailData).flatMap((section) =>
+            detailData[section].map((row) => ({
               Section: sectionTitles[section],
               KPI: row.kpi,
               Target: row.target,
@@ -111,11 +218,11 @@ const CooHeader = ({
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
       XLSX.writeFile(
         workbook,
-        `coo-kpi-export-${dateRange.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.xlsx`
+        `coo-kpi-export-${periodKey}-${new Date().toISOString().slice(0, 10)}.xlsx`
       );
       toast({
         title: 'Excel export complete',
-        description: `${rows.length} KPI records were exported.`,
+        description: `${rows.length} KPI records were exported for ${periodKey}.`,
         status: 'success',
         duration: 2500,
         isClosable: true,
@@ -125,7 +232,7 @@ const CooHeader = ({
         title: 'Excel export failed',
         description: error.message,
         status: 'error',
-        duration: 3500,
+        duration: 4000,
         isClosable: true,
       });
     } finally {
@@ -140,74 +247,35 @@ const CooHeader = ({
     setIsImporting(true);
     try {
       const XLSX = await import('xlsx');
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const firstSheet = workbook.SheetNames[0];
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: '' });
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet);
+
+      if (!rows.length) {
+        throw new Error('The selected Excel file is empty.');
+      }
+
       let updatedCount = 0;
-
       rows.forEach((row) => {
-        if (selectedDepartment === 'tradex') {
-          const detailRow = TRADEX_TV_KPI_DETAILS.find(
-            (item) => item.kpi.toLowerCase() === String(row.KPI || '').trim().toLowerCase()
-          );
-          if (!detailRow) return;
-          if (row.Value !== undefined && row.Value !== '') detailRow.value = Number(row.Value) || 0;
-          updatedCount += 1;
-          return;
-        }
+        const kpiName = String(row.KPI || row.kpi || row.Item || row.item || '').trim().toLowerCase();
+        if (!kpiName) return;
 
-        if (selectedDepartment === 'hr') {
-          const detailRow = HR_KPI_DETAILS.find(
-            (item) => item.kpi.toLowerCase() === String(row.KPI || '').trim().toLowerCase()
-          );
-          if (!detailRow) return;
-          if (row.Value !== undefined && row.Value !== '') {
-            detailRow.value = typeof row.Value === 'number' ? row.Value : String(row.Value);
-          }
-          updatedCount += 1;
-          return;
-        }
+        const detailTargets = [
+          ...IT_KPI_DETAILS.internal,
+          ...IT_KPI_DETAILS.external,
+          ...SOCIAL_MEDIA_KPI_DETAILS.overall,
+          ...SOCIAL_MEDIA_KPI_DETAILS.platforms,
+          ...SALES_KPI_DETAILS.measurements,
+          ...SALES_KPI_DETAILS.services,
+          ...SALES_KPI_DETAILS.products,
+        ];
+        const detailRow = detailTargets.find(
+          (item) => item.kpi?.toLowerCase() === kpiName
+        );
 
-        if (selectedDepartment === 'finance') {
-          const detailRow = FINANCE_KPI_DETAILS.find(
-            (item) => item.item.toLowerCase() === String(row.Item || '').trim().toLowerCase()
-          );
-          if (!detailRow) return;
-          if (row.Amount === '') {
-            detailRow.amount = null;
-          } else if (row.Amount !== undefined) {
-            detailRow.amount = typeof row.Amount === 'number' ? row.Amount : String(row.Amount);
-          }
-          updatedCount += 1;
-          return;
-        }
-
-        if (selectedDepartment === 'customer_services') {
-          const detailRow = CUSTOMER_SUCCESS_KPI_DETAILS.find(
-            (item) => item.kpi.toLowerCase() === String(row.KPI || '').trim().toLowerCase()
-          );
-          if (!detailRow) return;
-          if (row.Target !== '' && row.Target !== undefined) detailRow.target = Number(row.Target);
-          if (row.Actual !== '' && row.Actual !== undefined) detailRow.actual = Number(row.Actual);
-          if (row.Note) detailRow.note = String(row.Note);
-          updatedCount += 1;
-          return;
-        }
-
-        if (['it', 'social_media', 'sales'].includes(selectedDepartment)) {
-          const sectionName = String(row.Section || '').trim().toLowerCase();
-          const detailData = selectedDepartment === 'it'
-            ? IT_KPI_DETAILS
-            : selectedDepartment === 'social_media' ? SOCIAL_MEDIA_KPI_DETAILS : SALES_KPI_DETAILS;
-          const section = selectedDepartment === 'it'
-            ? sectionName.includes('external') ? detailData.external : detailData.internal
-            : selectedDepartment === 'social_media'
-              ? sectionName.includes('platform performance') ? detailData.platforms : detailData.overall
-              : sectionName.includes('service')
-                ? detailData.services
-                : sectionName.includes('product') ? detailData.products : detailData.measurements;
-          const detailRow = section.find((item) => item.kpi.toLowerCase() === String(row.KPI || '').trim().toLowerCase());
-          if (!detailRow) return;
+        if (detailRow) {
           if (row.Target !== '' && row.Target !== undefined) detailRow.target = Number(row.Target);
           if (row.Actual !== '' && row.Actual !== undefined) detailRow.actual = Number(row.Actual);
           if (row.Status) detailRow.status = String(row.Status);
@@ -244,8 +312,8 @@ const CooHeader = ({
 
       onDataImported?.();
       toast({
-        title: 'Excel import complete',
-        description: `${updatedCount} KPI records were updated.`,
+        title: 'Excel import successful',
+        description: `Updated ${updatedCount} KPI metric(s).`,
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -264,6 +332,15 @@ const CooHeader = ({
     }
   };
 
+  const handlePeriodModeChange = (mode) => {
+    setPeriodType?.(mode);
+    if (setDateRange) {
+      setDateRange(mode === 'weekly' ? 'Weekly' : mode === 'quarterly' ? 'Quarterly' : 'Monthly');
+    }
+  };
+
+  const hasActiveFilters = statusFilter !== 'All' || searchQuery !== '' || selectedYear !== currentYear;
+
   return (
     <Box
       bg="#ffffff"
@@ -276,7 +353,8 @@ const CooHeader = ({
       flexShrink={0}
       boxShadow="0 1px 3px rgba(0, 0, 0, 0.03)"
     >
-      <Flex align="center" gap={3}>
+      {/* Row 1: Global Navigation, Search & Actions */}
+      <Flex align="center" gap={3} wrap="wrap">
         <IconButton
           icon={<FiMenu size={19} />}
           variant="ghost"
@@ -287,6 +365,59 @@ const CooHeader = ({
           borderRadius="10px"
         />
 
+        {/* Quick Department Selector */}
+        <HStack spacing={1.5}>
+          <Text fontSize="12px" fontWeight="700" color="#64748b" display={{ base: 'none', lg: 'block' }}>
+            Department:
+          </Text>
+          <Select
+            size="sm"
+            w={{ base: '140px', md: '185px' }}
+            borderRadius="8px"
+            bg="#f8fafc"
+            borderColor="#cbd5e1"
+            fontWeight="700"
+            color="#0f172a"
+            value={selectedDepartment}
+            onChange={(e) => onSelectDepartment?.(e.target.value)}
+          >
+            {DEPARTMENTS.map((dept) => (
+              <option key={dept.id} value={dept.id}>
+                {dept.name}
+              </option>
+            ))}
+          </Select>
+        </HStack>
+
+        {/* Global Search Filter */}
+        <InputGroup size="sm" maxW={{ base: '170px', md: '260px' }}>
+          <InputLeftElement pointerEvents="none">
+            <FiSearch color="#94a3b8" />
+          </InputLeftElement>
+          <Input
+            placeholder="Search KPIs & metrics..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery?.(e.target.value)}
+            borderRadius="8px"
+            bg="#f8fafc"
+            borderColor="#cbd5e1"
+            _focus={{ bg: '#ffffff', borderColor: '#2563eb' }}
+            fontSize="12.5px"
+          />
+          {searchQuery && (
+            <InputRightElement>
+              <IconButton
+                size="xs"
+                icon={<FiX />}
+                variant="ghost"
+                aria-label="Clear search"
+                onClick={() => setSearchQuery?.('')}
+              />
+            </InputRightElement>
+          )}
+        </InputGroup>
+
+        {/* Actions (Excel, Notifications, Logout) */}
         <HStack spacing={2} ml="auto">
           <Input
             ref={fileInputRef}
@@ -304,8 +435,9 @@ const CooHeader = ({
             onClick={() => fileInputRef.current?.click()}
             isLoading={isImporting}
             loadingText="Importing"
+            display={{ base: 'none', md: 'inline-flex' }}
           >
-            Import Excel
+            Import
           </Button>
           <Button
             size="sm"
@@ -314,60 +446,62 @@ const CooHeader = ({
             onClick={handleExportExcel}
             isLoading={isExporting}
             loadingText="Exporting"
+            display={{ base: 'none', md: 'inline-flex' }}
           >
-            Export Excel
+            Export
+          </Button>
+
+          <Tooltip label="Notifications" placement="bottom">
+            <Box position="relative">
+              <IconButton
+                size="sm"
+                variant="ghost"
+                borderRadius="10px"
+                color="#64748b"
+                _hover={{ bg: '#f1f5f9', color: '#0f172a' }}
+                icon={<FiBell size={18} />}
+                aria-label="Notifications"
+                onClick={onNotificationsClick}
+              />
+              {unreadCount > 0 && (
+                <Badge
+                  position="absolute"
+                  top="-3px"
+                  right="-3px"
+                  bg="#ef4444"
+                  color="white"
+                  fontSize="9px"
+                  borderRadius="full"
+                  minW="18px"
+                  h="18px"
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  border="2px solid #ffffff"
+                >
+                  {unreadCount}
+                </Badge>
+              )}
+            </Box>
+          </Tooltip>
+
+          <Button
+            size="sm"
+            ml={{ base: 0, xl: 1 }}
+            variant="outline"
+            colorScheme="red"
+            leftIcon={<FiLogOut />}
+            onClick={handleLogout}
+          >
+            Logout
           </Button>
         </HStack>
-
-        <Tooltip label="Notifications" placement="bottom">
-          <Box position="relative">
-            <IconButton
-              size="sm"
-              variant="ghost"
-              borderRadius="10px"
-              color="#64748b"
-              _hover={{ bg: '#f1f5f9', color: '#0f172a' }}
-              icon={<FiBell size={18} />}
-              aria-label="Notifications"
-              onClick={onNotificationsClick}
-            />
-            {unreadCount > 0 && (
-              <Badge
-                position="absolute"
-                top="-3px"
-                right="-3px"
-                bg="#ef4444"
-                color="white"
-                fontSize="9px"
-                borderRadius="full"
-                minW="18px"
-                h="18px"
-                display="flex"
-                alignItems="center"
-                justifyContent="center"
-                border="2px solid #ffffff"
-              >
-                {unreadCount}
-              </Badge>
-            )}
-          </Box>
-        </Tooltip>
-
-        <Button
-          size="sm"
-          ml={{ base: 0, xl: 1 }}
-          variant="outline"
-          colorScheme="red"
-          leftIcon={<FiLogOut />}
-          onClick={handleLogout}
-        >
-          Logout
-        </Button>
       </Flex>
 
+      {/* Row 2: Dedicated Filter Toolbar */}
       <Flex
         align="center"
-        gap={3}
+        gap={2.5}
         mt={3}
         mb={-3}
         mx={{ base: -4, md: -6 }}
@@ -375,35 +509,208 @@ const CooHeader = ({
         py={2.5}
         bg="#f8fafc"
         borderTop="1px solid #e2e8f0"
+        wrap="wrap"
       >
-        <Text
-          fontSize="11px"
-          fontWeight="700"
-          color="#64748b"
-          textTransform="uppercase"
-          letterSpacing="0.08em"
-          whiteSpace="nowrap"
-        >
-          Reporting period
-        </Text>
+        <HStack spacing={1.5} mr={1}>
+          <FiFilter color="#2563eb" />
+          <Text
+            fontSize="11.5px"
+            fontWeight="800"
+            color="#1e293b"
+            textTransform="uppercase"
+            letterSpacing="0.06em"
+            whiteSpace="nowrap"
+          >
+            Filters:
+          </Text>
+        </HStack>
+
+        {/* 1. Period Mode Tabs */}
         <ButtonGroup size="sm" isAttached variant="outline">
-          {PERIOD_FILTERS.map((period) => {
-            const isActive = dateRange === period;
+          {['monthly', 'weekly', 'quarterly'].map((mode) => {
+            const isActive = periodType === mode;
+            const label = mode.charAt(0).toUpperCase() + mode.slice(1);
             return (
               <Button
-                key={period}
-                minW={{ base: 'auto', sm: '92px' }}
-                onClick={() => setDateRange(period)}
-                bg={isActive ? '#2563eb' : '#ffffff'}
+                key={mode}
+                minW={{ base: 'auto', sm: '78px' }}
+                onClick={() => handlePeriodModeChange(mode)}
+                bg={isActive ? '#213f70' : '#ffffff'}
                 color={isActive ? '#ffffff' : '#475569'}
-                borderColor={isActive ? '#2563eb' : '#cbd5e1'}
-                _hover={{ bg: isActive ? '#1d4ed8' : '#ffffff' }}
+                borderColor={isActive ? '#213f70' : '#cbd5e1'}
+                _hover={{ bg: isActive ? '#1b335a' : '#f1f5f9' }}
+                fontWeight={isActive ? '700' : '600'}
+                fontSize="12.5px"
               >
-                {period}
+                {label}
               </Button>
             );
           })}
         </ButtonGroup>
+
+        {/* 2. Year Selector */}
+        <HStack spacing={1}>
+          <Text fontSize="12px" fontWeight="700" color="#64748b">Year:</Text>
+          <Select
+            size="sm"
+            w="98px"
+            bg="white"
+            borderColor="#cbd5e1"
+            fontWeight="700"
+            borderRadius="8px"
+            fontSize="12.5px"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear?.(Number(e.target.value))}
+          >
+            {YEARS.map((y) => (
+              <option key={y} value={y}>
+                {y} {y === currentYear ? '★' : ''}
+              </option>
+            ))}
+          </Select>
+        </HStack>
+
+        {/* 3. Monthly: Month Selector */}
+        {periodType === 'monthly' && (
+          <HStack spacing={1}>
+            <Text fontSize="12px" fontWeight="700" color="#64748b">Month:</Text>
+            <Select
+              size="sm"
+              w="155px"
+              bg="white"
+              borderColor="#cbd5e1"
+              fontWeight="700"
+              borderRadius="8px"
+              fontSize="12.5px"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth?.(e.target.value)}
+            >
+              {MONTHS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label} ({m.short}) {selectedYear === currentYear && m.value === currentMonthStr ? '★' : ''}
+                </option>
+              ))}
+            </Select>
+          </HStack>
+        )}
+
+        {/* 4. Weekly: Auto-calculated ISO Weeks */}
+        {periodType === 'weekly' && (
+          <HStack spacing={1}>
+            <Text fontSize="12px" fontWeight="700" color="#64748b">Week:</Text>
+            <Select
+              size="sm"
+              w="225px"
+              bg="white"
+              borderColor="#cbd5e1"
+              fontWeight="700"
+              borderRadius="8px"
+              fontSize="12px"
+              value={selectedWeek}
+              onChange={(e) => setSelectedWeek?.(e.target.value)}
+            >
+              {availableWeeks.map((w) => (
+                <option key={w.value} value={w.value}>
+                  {w.label} {selectedYear === currentYear && w.value === currentWeekStr ? '★' : ''}
+                </option>
+              ))}
+            </Select>
+          </HStack>
+        )}
+
+        {/* 5. Quarterly: Quarter Selector */}
+        {periodType === 'quarterly' && (
+          <HStack spacing={1}>
+            <Text fontSize="12px" fontWeight="700" color="#64748b">Quarter:</Text>
+            <Select
+              size="sm"
+              w="150px"
+              bg="white"
+              borderColor="#cbd5e1"
+              fontWeight="700"
+              borderRadius="8px"
+              fontSize="12.5px"
+              value={selectedQuarter}
+              onChange={(e) => setSelectedQuarter?.(e.target.value)}
+            >
+              {QUARTERS.map((q) => (
+                <option key={q.value} value={q.value}>
+                  {q.label} {selectedYear === currentYear && q.value === currentQuarterStr ? '★' : ''}
+                </option>
+              ))}
+            </Select>
+          </HStack>
+        )}
+
+        {/* 6. Quick Jump to Current Period */}
+        <Button
+          size="sm"
+          variant="outline"
+          borderColor="#cbd5e1"
+          bg="white"
+          color="#1e293b"
+          _hover={{ bg: '#f1f5f9' }}
+          leftIcon={<FiClock />}
+          onClick={onSetCurrentPeriod}
+          fontSize="12px"
+          fontWeight="600"
+        >
+          Current {periodType === 'weekly' ? 'Week' : periodType === 'quarterly' ? 'Quarter' : 'Month'}
+        </Button>
+
+        {/* 7. Status Filter */}
+        <HStack spacing={1}>
+          <Text fontSize="12px" fontWeight="700" color="#64748b">Status:</Text>
+          <Select
+            size="sm"
+            w="135px"
+            bg="white"
+            borderColor="#cbd5e1"
+            fontWeight="700"
+            borderRadius="8px"
+            fontSize="12.5px"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter?.(e.target.value)}
+          >
+            {KPI_STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {status === 'All' ? 'All Statuses' : status}
+              </option>
+            ))}
+          </Select>
+        </HStack>
+
+        {/* 8. Active Period Tag & Reset */}
+        <HStack spacing={1.5} ml={{ base: 0, xl: 'auto' }}>
+          <Badge
+            bg="#213f70"
+            color="white"
+            px={3}
+            py={1}
+            borderRadius="full"
+            fontSize="11.5px"
+            fontWeight="700"
+            display="flex"
+            alignItems="center"
+            gap={1.5}
+            boxShadow="xs"
+          >
+            <FiCalendar size={12} />
+            <Text as="span">{periodDisplayLabel}</Text>
+          </Badge>
+
+          {hasActiveFilters && (
+            <Button
+              size="xs"
+              variant="ghost"
+              color="#64748b"
+              _hover={{ color: '#ef4444', bg: '#fee2e2' }}
+              onClick={onResetFilters}
+            >
+              Reset
+            </Button>
+          )}
+        </HStack>
       </Flex>
     </Box>
   );
