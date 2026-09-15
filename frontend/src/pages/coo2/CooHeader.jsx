@@ -354,71 +354,74 @@ const CooHeader = ({
       boxShadow="0 1px 3px rgba(0, 0, 0, 0.03)"
     >
       {/* Row 1: Global Navigation, Search & Actions */}
-      <Flex align="center" gap={3} wrap="wrap">
-        <IconButton
-          icon={<FiMenu size={19} />}
-          variant="ghost"
-          color="#64748b"
-          aria-label="Toggle navigation"
-          onClick={onToggleSidebar}
-          _hover={{ bg: '#f1f5f9', color: '#0f172a' }}
-          borderRadius="10px"
-        />
-
-        {/* Quick Department Selector */}
-        <HStack spacing={1.5}>
-          <Text fontSize="12px" fontWeight="700" color="#64748b" display={{ base: 'none', lg: 'block' }}>
-            Department:
-          </Text>
-          <Select
+      <Flex align="center" gap={2.5} wrap="wrap" justify="space-between">
+        <HStack spacing={2} flexWrap="wrap" flex={1} minW={0}>
+          <IconButton
+            icon={<FiMenu size={19} />}
+            variant="ghost"
+            color="#64748b"
+            aria-label="Toggle navigation"
+            onClick={onToggleSidebar}
+            _hover={{ bg: '#f1f5f9', color: '#0f172a' }}
+            borderRadius="10px"
             size="sm"
-            w={{ base: '140px', md: '185px' }}
-            borderRadius="8px"
-            bg="#f8fafc"
-            borderColor="#cbd5e1"
-            fontWeight="700"
-            color="#0f172a"
-            value={selectedDepartment}
-            onChange={(e) => onSelectDepartment?.(e.target.value)}
-          >
-            {DEPARTMENTS.map((dept) => (
-              <option key={dept.id} value={dept.id}>
-                {dept.name}
-              </option>
-            ))}
-          </Select>
+          />
+
+          {/* Quick Department Selector */}
+          <HStack spacing={1.5}>
+            <Text fontSize="12px" fontWeight="700" color="#64748b" display={{ base: 'none', lg: 'block' }}>
+              Department:
+            </Text>
+            <Select
+              size="sm"
+              w={{ base: '125px', sm: '150px', md: '185px' }}
+              borderRadius="8px"
+              bg="#f8fafc"
+              borderColor="#cbd5e1"
+              fontWeight="700"
+              color="#0f172a"
+              value={selectedDepartment}
+              onChange={(e) => onSelectDepartment?.(e.target.value)}
+            >
+              {DEPARTMENTS.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </option>
+              ))}
+            </Select>
+          </HStack>
+
+          {/* Global Search Filter */}
+          <InputGroup size="sm" maxW={{ base: '140px', sm: '190px', md: '260px' }}>
+            <InputLeftElement pointerEvents="none">
+              <FiSearch color="#94a3b8" />
+            </InputLeftElement>
+            <Input
+              placeholder="Search KPIs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery?.(e.target.value)}
+              borderRadius="8px"
+              bg="#f8fafc"
+              borderColor="#cbd5e1"
+              _focus={{ bg: '#ffffff', borderColor: '#2563eb' }}
+              fontSize="12.5px"
+            />
+            {searchQuery && (
+              <InputRightElement>
+                <IconButton
+                  size="xs"
+                  icon={<FiX />}
+                  variant="ghost"
+                  aria-label="Clear search"
+                  onClick={() => setSearchQuery?.('')}
+                />
+              </InputRightElement>
+            )}
+          </InputGroup>
         </HStack>
 
-        {/* Global Search Filter */}
-        <InputGroup size="sm" maxW={{ base: '170px', md: '260px' }}>
-          <InputLeftElement pointerEvents="none">
-            <FiSearch color="#94a3b8" />
-          </InputLeftElement>
-          <Input
-            placeholder="Search KPIs & metrics..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery?.(e.target.value)}
-            borderRadius="8px"
-            bg="#f8fafc"
-            borderColor="#cbd5e1"
-            _focus={{ bg: '#ffffff', borderColor: '#2563eb' }}
-            fontSize="12.5px"
-          />
-          {searchQuery && (
-            <InputRightElement>
-              <IconButton
-                size="xs"
-                icon={<FiX />}
-                variant="ghost"
-                aria-label="Clear search"
-                onClick={() => setSearchQuery?.('')}
-              />
-            </InputRightElement>
-          )}
-        </InputGroup>
-
         {/* Actions (Excel, Notifications, Logout) */}
-        <HStack spacing={2} ml="auto">
+        <HStack spacing={1.5} ml="auto">
           <Input
             ref={fileInputRef}
             type="file"
@@ -487,7 +490,7 @@ const CooHeader = ({
 
           <Button
             size="sm"
-            ml={{ base: 0, xl: 1 }}
+            px={{ base: 2.5, sm: 3 }}
             variant="outline"
             colorScheme="red"
             leftIcon={<FiLogOut />}
@@ -509,9 +512,15 @@ const CooHeader = ({
         py={2.5}
         bg="#f8fafc"
         borderTop="1px solid #e2e8f0"
-        wrap="wrap"
+        wrap={{ base: 'nowrap', xl: 'wrap' }}
+        overflowX={{ base: 'auto', xl: 'visible' }}
+        sx={{
+          '&::-webkit-scrollbar': { display: 'none' },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
       >
-        <HStack spacing={1.5} mr={1}>
+        <HStack spacing={1.5} mr={1} flexShrink={0}>
           <FiFilter color="#2563eb" />
           <Text
             fontSize="11.5px"
