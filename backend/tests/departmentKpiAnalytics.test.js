@@ -1,4 +1,4 @@
-﻿const test = require('node:test');
+const test = require('node:test');
 const assert = require('node:assert/strict');
 const { periodRange, analyzeMetrics } = require('../utils/departmentKpiAnalytics');
 
@@ -7,6 +7,7 @@ test('reporting periods use exact exclusive boundaries and reject invalid ISO we
   assert.equal(periodRange('weekly', '2026-W37').end.toISOString(), '2026-09-14T00:00:00.000Z');
   assert.equal(periodRange('monthly', '2024-02').end.toISOString(), '2024-03-01T00:00:00.000Z');
   assert.equal(periodRange('quarterly', '2026-Q4').end.toISOString(), '2027-01-01T00:00:00.000Z');
+  assert.equal(periodRange('yearly', '2026').end.toISOString(), '2027-01-01T00:00:00.000Z');
   assert.throws(() => periodRange('weekly', '2025-W53'));
   assert.throws(() => periodRange('monthly', '2026-13'));
 });
@@ -28,7 +29,7 @@ test('analysis separates missing targets from zero results and respects lower-is
 });
 
 test('endpoint reads department records, excludes money, applies saved targets, and never fabricates missing departments', async () => {
-  const names = ['HrKpi', 'SalesDepartmentKpi', 'CustomerDepartmentKpi', 'ITTask', 'Task', 'SalesCustomer', 'TradexFollowup', 'Followup', 'EnsraFollowup', 'ContentTrackerEntry', 'Payment', 'TessbinKpiReport', 'CooKpiTarget', 'SocialWeeklyKpi'];
+  const names = ['HrKpi', 'SalesDepartmentKpi', 'CustomerDepartmentKpi', 'ITTask', 'Task', 'SalesCustomer', 'TradexFollowup', 'Followup', 'EnsraFollowup', 'ContentTrackerEntry', 'Payment', 'TessbinKpiReport', 'CooKpiTarget', 'SocialWeeklyKpi', 'SocialKpiReport'];
   const fixtures = {
     CustomerDepartmentKpi: { metrics: [{ section: 'B2B', kpi: 'Emails sent', actual: 100, target: 120 }], submittedAt: '2026-09-14T00:00:00Z' },
     HrKpi: { postVacancies: { actual: 2, target: 4 }, screenCvs: { actual: 0, target: 0, status: 'Not Reported' } },
@@ -45,7 +46,7 @@ test('endpoint reads department records, excludes money, applies saved targets, 
     originals.set(path, require.cache[path]);
     const find = (query) => {
       queries.set(name, query);
-      return { select() { return this; }, populate() { return this; }, lean: async () => fixtures[name] || (['HrKpi', 'SalesDepartmentKpi', 'TessbinKpiReport'].includes(name) ? null : []) };
+      return { select() { return this; }, populate() { return this; }, lean: async () => fixtures[name] || (['HrKpi', 'SalesDepartmentKpi', 'TessbinKpiReport', 'SocialKpiReport'].includes(name) ? null : []) };
     };
     require.cache[path] = { id: path, filename: path, loaded: true, exports: { find, findOne: find } };
   }

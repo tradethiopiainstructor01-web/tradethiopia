@@ -40,7 +40,6 @@ import {
   SunIcon,
 } from "@chakra-ui/icons";
 import {
-  FiBarChart2,
   FiChevronLeft,
   FiChevronRight,
   FiClipboard,
@@ -65,6 +64,7 @@ import NotesLauncher from "../notes/NotesLauncher";
 import RequestPage from "../../pages/RequestPage";
 import ContentTrackerPage from "../sales/ContentTrackerPage";
 import SocialMediaManager from "./SocialMediaManager";
+import SocialKpiSubmission from "./SocialKpiSubmission";
 import SocialMediaAccountsManager from "./SocialMediaAccountsManager";
 import SocialMediaActivationsManager from "./SocialMediaActivationsManager";
 import SocialMediaAccountSummary from "./SocialMediaAccountSummary";
@@ -95,6 +95,7 @@ const navGroups = [
     label: "Analytics",
     items: [
       { key: "analytics", label: "Analytics", icon: FiTrendingUp },
+      { key: "submitKpi", label: "Submit KPI", icon: FiTarget },
       { key: "reports", label: "Reports", icon: FiFileText },
     ],
   },
@@ -154,6 +155,7 @@ const sectionMeta = {
     eyebrow: "Analytics",
     title: "Reports Archive",
   },
+  submitKpi: { eyebrow: "Analytics", title: "Submit KPI" },
   requests: {
     eyebrow: "Collaboration",
     title: "Request center",
@@ -415,12 +417,6 @@ export default function SocialMediaWorkspace() {
   const borderColor = useColorModeValue("rgba(226,232,240,0.86)", "rgba(148,163,184,0.16)");
   const searchBg = useColorModeValue("rgba(255,255,255,0.92)", "whiteAlpha.100");
   const muted = useColorModeValue("#64748B", "gray.400");
-  const assetHeroBg = useColorModeValue(
-    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(239,246,255,0.92))",
-    "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,64,175,0.28))"
-  );
-  const assetBadgeBg = useColorModeValue("rgba(37,99,235,0.08)", "whiteAlpha.100");
-  const assetIconBg = useColorModeValue("rgba(37,99,235,0.1)", "rgba(37,99,235,0.26)");
 
   const activeBottomNavColor = useColorModeValue("#2563EB", "#60A5FA");
   const inactiveBottomNavColor = useColorModeValue("#64748B", "#A1A1AA");
@@ -435,6 +431,8 @@ export default function SocialMediaWorkspace() {
   };
 
   const renderMainContent = () => {
+    if (activeSection === "submitKpi") return <SocialKpiSubmission />;
+
     if (activeSection === "assets") {
       return (
         <VStack align="stretch" spacing={4}>
@@ -528,7 +526,7 @@ export default function SocialMediaWorkspace() {
 
     return (
       <VStack align="stretch" spacing={4}>
-        <SocialMediaManager activeSection={activeSection} />
+        <SocialMediaManager activeSection={activeSection} onSelectSection={setActiveSection} />
       </VStack>
     );
   };
@@ -732,5 +730,3 @@ export default function SocialMediaWorkspace() {
     </Flex>
   );
 }
-
-

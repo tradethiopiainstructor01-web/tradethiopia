@@ -1,4 +1,4 @@
-﻿const DEPARTMENTS = ['Sales', 'IT', 'Tradex TV', 'Tessbin', 'HR', 'Customer Success', 'Finance', 'Supervisor', 'Social Media', 'Ensira'];
+const DEPARTMENTS = ['Sales', 'IT', 'Tradex TV', 'Tessbin', 'HR', 'Customer Success', 'Finance', 'Supervisor', 'Social Media', 'Ensira'];
 const finite = (value) => value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
 const slug = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -9,6 +9,9 @@ function periodRange(type, key) {
   if (type === 'monthly' && (match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(key))) {
     start = new Date(Date.UTC(+match[1], +match[2] - 1, 1));
     end = new Date(Date.UTC(+match[1], +match[2], 1));
+  } else if (type === 'yearly' && (match = /^(\d{4})$/.exec(key))) {
+    start = new Date(Date.UTC(+match[1], 0, 1));
+    end = new Date(Date.UTC(+match[1] + 1, 0, 1));
   } else if (type === 'quarterly' && (match = /^(\d{4})-Q([1-4])$/.exec(key))) {
     start = new Date(Date.UTC(+match[1], (+match[2] - 1) * 3, 1));
     end = new Date(Date.UTC(+match[1], +match[2] * 3, 1));

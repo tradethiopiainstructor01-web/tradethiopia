@@ -250,7 +250,7 @@ const buildTargetRow = (target) => {
    SocialMediaManager — data provider + section renderer
    ────────────────────────────────────────────── */
 
-const SocialMediaManager = ({ activeSection = "dashboard" }) => {
+const SocialMediaManager = ({ activeSection = "dashboard", onSelectSection }) => {
   const toast = useToast();
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isKpiEditOpen, onOpen: onKpiEditOpen, onClose: onKpiEditClose } = useDisclosure();
@@ -506,6 +506,7 @@ const SocialMediaManager = ({ activeSection = "dashboard" }) => {
             selectedDate={selectedDate}
             onNewPost={onNewPostOpen}
             loading={targetsLoading}
+            onSelectSection={onSelectSection}
           />
         );
       case "targets":
