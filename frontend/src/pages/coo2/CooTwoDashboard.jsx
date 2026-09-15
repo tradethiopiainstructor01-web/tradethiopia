@@ -6,8 +6,11 @@ import {
   useDisclosure,
   useToast,
 } from '@chakra-ui/react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import CooSidebar from './CooSidebar';
 import CooHeader from './CooHeader';
+import CooBottomNav from './CooBottomNav';
+import CooMobileDrawer from './CooMobileDrawer';
 import OverviewView from './OverviewView';
 import AnalyticsView from './AnalyticsView';
 import ReportsView from './ReportsView';
@@ -15,13 +18,14 @@ import NotificationsView from './NotificationsView';
 import AgentsView from './AgentsView';
 import CreateReportModal from './CreateReportModal';
 import QuickSearchModal from './QuickSearchModal';
+import { DEPARTMENTS } from './cooData';
 import { useUserStore } from '../../store/user';
 import axiosInstance from '../../services/axiosInstance';
-import { useLocation } from 'react-router-dom';
 
 const CooTwoDashboard = () => {
   const location = useLocation();
-  const { currentUser } = useUserStore();
+  const navigate = useNavigate();
+  const { currentUser, clearUser } = useUserStore();
   const [activeTab, setActiveTab] = useState('departments');
   const [selectedDept, setSelectedDept] = useState('all');
   const [dateRange, setDateRange] = useState('Weekly');
@@ -31,6 +35,12 @@ const CooTwoDashboard = () => {
   const [mainSidebarCollapsed, setMainSidebarCollapsed] = useState(false);
   const [departmentsMenuOpen, setDepartmentsMenuOpen] = useState(false);
   const mainScrollRef = useRef(null);
+
+  const {
+    isOpen: isMobileDrawerOpen,
+    onOpen: onOpenMobileDrawer,
+    onClose: onCloseMobileDrawer,
+  } = useDisclosure();
 
   // Filter states
   const now = new Date();
@@ -217,7 +227,13 @@ const CooTwoDashboard = () => {
       <Flex direction="column" flex={1} minW={0} minH={0} h="100%" overflow="hidden">
         {/* Header Bar */}
         <CooHeader
-          onToggleSidebar={() => setMainSidebarCollapsed(!mainSidebarCollapsed)}
+          onToggleSidebar={() => {
+            if (window.innerWidth < 1024) {
+              onOpenMobileDrawer();
+            } else {
+              setMainSidebarCollapsed(!mainSidebarCollapsed);
+            }
+          }}
           periodType={periodType}
           setPeriodType={setPeriodType}
           selectedYear={selectedYear}
@@ -252,7 +268,8 @@ const CooTwoDashboard = () => {
         {/* Dynamic Views Rendering */}
         <Box
           ref={mainScrollRef}
-          p={{ base: 4, md: 6, lg: 8 }}
+          p={{ base: 3, md: 5, lg: 8 }}
+          pb={{ base: '92px', lg: 8 }}
           flex={1}
           minH={0}
           overflowY="auto"
@@ -399,6 +416,33 @@ const CooTwoDashboard = () => {
           )}
         </Box>
       </Flex>
+
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <CooBottomNav
+        activeTab={activeTab}
+        onSelectTab={selectMainTab}
+        unreadNotifsCount={unreadNotifsCount}
+        onOpenMobileMenu={onOpenMobileDrawer}
+        selectedDeptName={DEPARTMENTS.find((d) => d.id === selectedDept)?.shortName || 'All'}
+      />
+
+      {/* Mobile Slide-Over Drawer Menu */}
+      <CooMobileDrawer
+        isOpen={isMobileDrawerOpen}
+        onClose={onCloseMobileDrawer}
+        activeTab={activeTab}
+        onSelectTab={selectMainTab}
+        selectedDept={selectedDept}
+        onSelectDepartment={selectDepartment}
+        onOpenQuickSearch={onOpenSearchModal}
+        onOpenReportModal={onOpenReportModal}
+        currentUser={currentUser}
+        onLogout={() => {
+          clearUser();
+          navigate('/login', { replace: true });
+        }}
+        unreadNotifsCount={unreadNotifsCount}
+      />
 
       {/* Modals */}
       <CreateReportModal
