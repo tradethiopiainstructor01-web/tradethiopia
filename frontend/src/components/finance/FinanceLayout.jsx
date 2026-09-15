@@ -114,6 +114,7 @@ const Sidebar = ({ onClose, mobile = false, unreadCount = 0, showNoticeBoard = t
         {!collapsed && <Heading size="sm" mb={2} color={accent}>Finance</Heading>}
         <SidebarItem icon={FiHome} label={collapsed && !mobile ? '' : 'Dashboard'} to="/finance-dashboard" />
         <SidebarItem icon={FiBarChart2} label={collapsed && !mobile ? '' : 'Financial Reports'} to="/finance-dashboard/reports" />
+        <SidebarItem icon={FiBarChart2} label={collapsed && !mobile ? '' : 'COO KPI Reports'} to="/finance-dashboard/coo-kpis" />
         <SidebarItem icon={FiBox} label={collapsed && !mobile ? '' : 'Inventory'} to="/finance-dashboard/inventory" />
         <SidebarItem icon={FiShoppingCart} label={collapsed && !mobile ? '' : 'Orders'} to="/finance-dashboard/orders" />
         <SidebarItem icon={FiDollarSign} label={collapsed && !mobile ? '' : 'Pricing'} to="/finance-dashboard/pricing" />

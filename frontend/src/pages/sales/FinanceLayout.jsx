@@ -108,6 +108,7 @@ const FinanceLayout = ({ children }) => {
   const navItems = [
     { label: 'Dashboard', icon: FaHome, path: '/finance-dashboard' },
     { label: 'Financial Reports', icon: FaChartBar, path: '/finance-dashboard/reports' },
+    { label: 'COO KPI Reports', icon: FaChartLine, path: '/finance-dashboard/coo-kpis' },
     { label: 'Inventory', icon: FaBoxes, path: '/finance-dashboard/inventory' },
     { label: 'Orders', icon: FaShoppingCart, path: '/finance-dashboard/orders' },
     { label: 'Pricing', icon: FaDollarSign, path: '/finance-dashboard/pricing' },

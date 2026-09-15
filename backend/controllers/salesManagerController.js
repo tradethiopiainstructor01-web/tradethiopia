@@ -6,22 +6,32 @@ const { calculateCommission, resolveSaleCommission } = require('../utils/commiss
 const mongoose = require('mongoose');
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase();
-const isAllowedManagerRole = (role) => (
-  [
-    'salesmanager',
-    'hr',
-    'finance',
-    'admin',
-    'coo',
-    'ceo',
-    'customerservice',
-    'customer service',
-    'customersuccessmanager',
-    'customer success manager',
-    'customer_success_manager'
-  ].includes(normalizeRoleValue(role))
-);
+const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase().replace(/[\s_-]/g, '');
+const isAllowedManagerRole = (role) => {
+  const normalized = normalizeRoleValue(role);
+  if (!normalized) return false;
+  return (
+    [
+      'salesmanager',
+      'hr',
+      'finance',
+      'admin',
+      'superadmin',
+      'coo',
+      'coo2',
+      '2coo',
+      'ceo',
+      'customerservice',
+      'customersuccessmanager',
+      'operationsdirector',
+      'executivedirector'
+    ].includes(normalized) ||
+    normalized.includes('coo') ||
+    normalized.includes('admin') ||
+    normalized.includes('ceo') ||
+    normalized.includes('manager')
+  );
+};
 
 const resolveAgentId = async (agentValue) => {
   if (!agentValue) return null;

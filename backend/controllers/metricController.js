@@ -88,6 +88,7 @@ exports.listSocial = async (_req, res) => {
   }
 };
 
+const { notifyKpiSubmission, periodKeyFor } = require('../services/kpiSubmissionNotificationService');
 exports.upsertSocialWeeklyKpi = async (req, res) => {
   try {
     const platform = (req.body.platform || '').trim();
@@ -114,6 +115,7 @@ exports.upsertSocialWeeklyKpi = async (req, res) => {
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
+    await notifyKpiSubmission(req, { departmentId: 'social_media', periodType: 'weekly', periodKey: periodKeyFor('weekly', weekStart), reportId: doc._id, notes: platform });
     res.status(200).json(doc);
   } catch (err) {
     res.status(500).json({ message: 'Failed to save social weekly KPI', error: err.message });

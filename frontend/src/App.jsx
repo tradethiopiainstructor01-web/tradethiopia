@@ -66,8 +66,10 @@ import SalesManagerProtectedRoute from "./components/salesmanager/SalesManagerPr
 import CustomerMessagesPage from "./pages/CustomerMessagesPage.jsx";
 import EmployeePayrollView from "./components/Payroll/EmployeePayrollView";
 import KPIScorecardPage from "./pages/sales/KPIScorecardPage";
+import SalesCooKpiPage from "./pages/sales/SalesCooKpiPage";
 import CustomerKPIPage from "./pages/customer/CustomerKPIPage";
 import HrKpiPage from "./pages/HrKpiPage";
+import FinanceCooKpiPage from "./pages/finance/FinanceCooKpiPage";
 
 import MessagesPage from "./pages/MessagesPage";
 import SalesMessagesPage from "./pages/SalesMessagesPage";
@@ -156,7 +158,7 @@ function LayoutWrapper({ children }) {
     "/finance/messages", "/finance/team-requests", "/finance/demands", "/finance/payments", "/finance/inventory", "/finance/orders",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
     "/cdashboard", "/waitingforapproval", "/training", "/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
-    "/coo-dashboard", "/ceo-dashboard", "/tradextv-dashboard", "/customer-settings", "/customer-user-management", "/customer/student-registration", "/customer/manager-tasks", "/customer-manager-tasks", "/admincustomerreport", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/finance-dashboard/commission-approval", "/finance-dashboard/forms", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard",
+    "/coo-dashboard", "/ceo-dashboard", "/coo", "/coo2", "/2-coo", "/coo-2", "/2coo", "/coo-v2", "/coo2-dashboard", "/coo2/dashboard", "/tradextv-dashboard", "/customer-settings", "/customer-user-management", "/customer/student-registration", "/customer/manager-tasks", "/customer-manager-tasks", "/admincustomerreport", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/finance-dashboard/commission-approval", "/finance-dashboard/forms", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard",
     "/tessbin-dashboard", "/tessbin", "/verify", "/verify-student", "/tessbin/verify"
   ].map((path) => path.toLowerCase());
 
@@ -202,6 +204,8 @@ function App() {
       <Route path="/finance-dashboard/tax" element={<DashboardPermitRoute><FinanceLayout><FinanceERPPage /></FinanceLayout></DashboardPermitRoute>} />
       <Route path="/finance-dashboard/settings" element={<DashboardPermitRoute><FinanceLayout><FinanceERPPage /></FinanceLayout></DashboardPermitRoute>} />
       <Route path="/finance-dashboard/reports" element={<DashboardPermitRoute><FinanceLayout><FinanceReportsPage /></FinanceLayout></DashboardPermitRoute>} />
+      <Route path="/finance-dashboard/coo-kpis" element={<DashboardPermitRoute><FinanceLayout><FinanceCooKpiPage /></FinanceLayout></DashboardPermitRoute>} />
+      <Route path="/finance/coo-kpis" element={<Navigate to="/finance-dashboard/coo-kpis" replace />} />
       <Route path="/finance-dashboard/inventory" element={<DashboardPermitRoute><FinanceLayout><InventoryPage /></FinanceLayout></DashboardPermitRoute>} />
       <Route path="/finance-dashboard/orders" element={<DashboardPermitRoute><FinanceLayout><OrdersPage /></FinanceLayout></DashboardPermitRoute>} />
       <Route path="/finance-dashboard/demands" element={<DashboardPermitRoute><FinanceLayout><FinanceDemandsPage /></FinanceLayout></DashboardPermitRoute>} />
@@ -483,17 +487,17 @@ function App() {
         }
       />
       <Route path="/b2b-dashboard" element={<DashboardPermitRoute><B2BDashboard /></DashboardPermitRoute>} />
-      <Route path="/coo-dashboard" element={<COODashboard />} />
-      <Route path="/ceo-dashboard" element={<COODashboard />} />
-      <Route path="/tradextv-dashboard" element={<DashboardPermitRoute><TradexTVDashboard /></DashboardPermitRoute>} />
-      <Route path="/reception-dashboard" element={<DashboardPermitRoute><LayoutWrapper><ReceptionDashboard /></LayoutWrapper></DashboardPermitRoute>} />
-      {['/coo', '/coo/dashboard', '/2-coo', '/coo-2', '/coo2', '/2coo', '/coo-v2', '/coo2-dashboard', '/coo2/dashboard'].map((path) => (
+      {['/coo-dashboard', '/coo', '/coo/dashboard', '/2-coo', '/coo-2', '/coo2', '/2coo', '/coo-v2', '/coo2-dashboard', '/coo2/dashboard'].map((path) => (
         <Route
           key={path}
           path={path}
           element={<DashboardPermitRoute><CooTwoDashboard /></DashboardPermitRoute>}
         />
       ))}
+      <Route path="/coo-legacy" element={<COODashboard />} />
+      <Route path="/ceo-dashboard" element={<COODashboard />} />
+      <Route path="/tradextv-dashboard" element={<DashboardPermitRoute><TradexTVDashboard /></DashboardPermitRoute>} />
+      <Route path="/reception-dashboard" element={<DashboardPermitRoute><LayoutWrapper><ReceptionDashboard /></LayoutWrapper></DashboardPermitRoute>} />
       <Route
         path="/customer-settings"
         element={
@@ -670,6 +674,7 @@ function App() {
         <Route path="all-sales" element={<AllSalesPage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="kpi" element={<KPIScorecardPage />} />
+        <Route path="coo-kpi" element={<SalesCooKpiPage />} />
         <Route path="team" element={<TeamManagementPage />} />
         <Route path="tasks" element={<TaskManagementPage />} />
         <Route path="reports" element={<ReportsPage />} />

@@ -1,6 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const tessbinController = require('../controllers/tessbinController');
+const kpiReports = require('../controllers/tessbinKpiReportController');
+const { protect } = require('../middleware/auth');
+
+router.get('/kpi-reports', protect, kpiReports.authorize, kpiReports.get);
+router.get('/kpi-reports/live-counts', protect, kpiReports.authorize, kpiReports.getLiveCounts);
+router.put('/kpi-reports', protect, kpiReports.authorize, kpiReports.save);
 
 // GET dashboard statistics & KPI summary
 router.get('/dashboard-stats', tessbinController.getDashboardStats);

@@ -50,23 +50,23 @@ const AgentsView = () => {
     <Box>
       <Box overflowX="auto" pb={2} mb={4} sx={{ scrollbarWidth: 'thin' }}>
         <Flex minW="1120px" gap={2} align="stretch">
-          <FilterControl label="Start Month" minW="178px">
+          <FilterControl label="Start Month" minW="210px">
             <Flex gap={2}>
-              <Select size="sm" value={startMonth} onChange={(event) => setStartMonth(Number(event.target.value))}>
+              <Select size="sm" flex="1" value={startMonth} onChange={(event) => setStartMonth(Number(event.target.value))}>
                 {MONTHS.map((month, index) => <option key={month} value={index}>{month}</option>)}
               </Select>
-              <Select size="sm" value={startYear} onChange={(event) => setStartYear(Number(event.target.value))}>
+              <Select size="sm" flex="1" value={startYear} onChange={(event) => setStartYear(Number(event.target.value))}>
                 {years.map((year) => <option key={year}>{year}</option>)}
               </Select>
             </Flex>
           </FilterControl>
 
-          <FilterControl label="End Month" minW="178px">
+          <FilterControl label="End Month" minW="210px">
             <Flex gap={2}>
-              <Select size="sm" value={endMonth} onChange={(event) => setEndMonth(Number(event.target.value))}>
+              <Select size="sm" flex="1" value={endMonth} onChange={(event) => setEndMonth(Number(event.target.value))}>
                 {MONTHS.map((month, index) => <option key={month} value={index}>{month}</option>)}
               </Select>
-              <Select size="sm" value={endYear} onChange={(event) => setEndYear(Number(event.target.value))}>
+              <Select size="sm" flex="1" value={endYear} onChange={(event) => setEndYear(Number(event.target.value))}>
                 {years.map((year) => <option key={year}>{year}</option>)}
               </Select>
             </Flex>
