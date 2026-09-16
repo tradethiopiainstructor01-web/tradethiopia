@@ -334,42 +334,6 @@ const handleLogin = async (event) => {
                             </Text>
                         </Box>
 
-                        {/* Witty Amharic New Year Message Banner */}
-                        <Box
-                            bg="linear-gradient(135deg, rgba(217, 154, 0, 0.2) 0%, rgba(0, 44, 96, 0.65) 100%)"
-                            borderWidth="1.5px"
-                            borderColor="rgba(217, 154, 0, 0.55)"
-                            borderRadius="16px"
-                            p={3.5}
-                            mb={4}
-                            textAlign="center"
-                            boxShadow="0 6px 20px rgba(217, 154, 0, 0.18)"
-                            position="relative"
-                            overflow="hidden"
-                        >
-                            <HStack justify="center" spacing={1.5} mb={1}>
-                                <Text fontSize="14px">🌼</Text>
-                                <Text
-                                    color="#FFD700"
-                                    fontSize="14px"
-                                    fontWeight="900"
-                                    letterSpacing="0.5px"
-                                    textShadow="0 0 10px rgba(255, 215, 0, 0.6)"
-                                >
-                                    መልካም አዲስ ዓመት!
-                                </Text>
-                                <Text fontSize="14px">🌼</Text>
-                            </HStack>
-                            <Text
-                                color="#FFFFFF"
-                                fontSize="11px"
-                                fontWeight="600"
-                                lineHeight="1.55"
-                                fontFamily="'Noto Sans Ethiopic', sans-serif"
-                            >
-                                “አዲሱ ዓመት &apos;የይለፍ ቃል (Password) ረሳሁ&apos; የማንልበት፣ ኮምፒውተራችን የማይዘጋብን (የማይደናቀፍብን) እና ቡናችን ሳይቀዘቅዝ በደስታ የምንጠጣበት የስኬትና የሰላም ዓመት ይሁንልን! ☕💻”
-                            </Text>
-                        </Box>
 
                         <Box textAlign="center" mb={4}>
                             <Text color="white" fontSize="20px" fontWeight="900" lineHeight="1">Welcome Back!</Text>
