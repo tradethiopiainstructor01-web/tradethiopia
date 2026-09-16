@@ -39,10 +39,10 @@ import CustomerDepartmentKpiReport from '../../components/customer/CustomerDepar
 import { getFinanceDepartmentKpis } from '../../services/financeDepartmentKpiService';
 import TessbinDepartmentView from './TessbinDepartmentView';
 import SocialMediaDepartmentView from './SocialMediaDepartmentView';
-import { getSocialKpiReports } from '../../services/socialKpiService';
+import axiosInstance from '../../services/axiosInstance';
+import { buildDepartmentSnapshot } from './departmentSnapshot';
 import {
   CUSTOMER_SUCCESS_KPI_DETAILS,
-  DEPARTMENT_KPI_SUMMARY,
   FINANCE_KPI_DETAILS,
   HR_KPI_DETAILS,
   IT_KPI_DETAILS,
@@ -55,6 +55,7 @@ const STATUS_STYLES = {
   'On Track': { background: '#d9ead3', color: '#166534' },
   'At Risk': { background: '#ffe599', color: '#854d0e' },
   Behind: { background: '#f9cb9c', color: '#9a3412' },
+  'No measurable target': { background: '#f1f5f9', color: '#475569' },
   'Not Reported': { background: '#ffffff', color: '#475569' },
   Completed: { background: '#dcfce7', color: '#166534' },
   Exceeded: { background: '#bbf7d0', color: '#14532d' },
@@ -1182,19 +1183,28 @@ const OverviewView = ({
   const activePeriodKey = propPeriodKey || defaultPeriod.periodKey;
   const activeDisplayPeriod = periodDisplayLabel || dateRange;
 
-  const [liveSalesKpi, setLiveSalesKpi] = useState(null);
   const [liveHrKpi, setLiveHrKpi] = useState(null);
   const [liveFinanceKpi, setLiveFinanceKpi] = useState(null);
-  const [liveSocialKpi, setLiveSocialKpi] = useState(null);
+  const [snapshotRequest, setSnapshotRequest] = useState({ loading: true, data: null, error: '' });
+  const [snapshotRevision, setSnapshotRevision] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setSnapshotRequest({ loading: true, data: null, error: '' });
+    axiosInstance.get('/coo-dashboard/department-analytics', {
+      signal: controller.signal,
+      params: { periodType: activePeriodType, periodKey: activePeriodKey },
+    }).then(({ data }) => {
+      if (!Array.isArray(data.departments) || !Array.isArray(data.metrics)) throw new Error('Invalid department response');
+      if (!controller.signal.aborted) setSnapshotRequest({ loading: false, data, error: '' });
+    }).catch(() => {
+      if (!controller.signal.aborted) setSnapshotRequest({ loading: false, data: null, error: 'Unable to load department data. Please retry.' });
+    });
+    return () => controller.abort();
+  }, [activePeriodType, activePeriodKey, snapshotRevision]);
 
   useEffect(() => {
     let isMounted = true;
-    getSalesDepartmentKpis({ periodType: activePeriodType, periodKey: activePeriodKey })
-      .then((data) => {
-        if (isMounted) setLiveSalesKpi(data?.currentReport || data?.report || data || null);
-      })
-      .catch(() => {});
-
     getHrKpis({ periodType: activePeriodType, periodKey: activePeriodKey })
       .then((data) => {
         if (isMounted) setLiveHrKpi(data?.currentReport || data?.report || data || null);
@@ -1204,12 +1214,6 @@ const OverviewView = ({
     getFinanceDepartmentKpis({ periodType: activePeriodType, periodKey: activePeriodKey })
       .then((data) => {
         if (isMounted) setLiveFinanceKpi(data?.currentReport || data?.report || data || null);
-      })
-      .catch(() => {});
-
-    getSocialKpiReports(activePeriodType, activePeriodKey)
-      .then((data) => {
-        if (isMounted) setLiveSocialKpi(data?.report || data?.currentReport || data?.reports?.[0] || null);
       })
       .catch(() => {});
 
@@ -1267,102 +1271,10 @@ const OverviewView = ({
     });
   }, [liveFinanceKpi]);
 
-  const dynamicDepartmentSummary = useMemo(() => {
-    const revRow = (liveSalesKpi?.measurements || []).find((m) => m.kpi === 'Total Revenue');
-    const actual = Number(revRow?.actual) || 0;
-    const target = Number(revRow?.target) || 0;
-    const achievement = target > 0 ? Math.round((actual / target) * 100) : 0;
-    let status = revRow?.status;
-    if (!status || status === 'Pending') {
-      status = (target === 0 && actual === 0) ? 'Not Reported' : achievement >= 80 ? 'On Track' : achievement >= 50 ? 'At Risk' : 'Behind';
-    }
-
-    const servicesRow = liveSalesKpi?.services || [];
-    const totalServicesActual = servicesRow.reduce((s, r) => s + (Number(r.actual) || 0), 0);
-    const totalServicesTarget = servicesRow.reduce((s, r) => s + (Number(r.target) || 0), 0);
-    const servicesAchieve = totalServicesTarget > 0 ? Math.round((totalServicesActual / totalServicesTarget) * 100) : 0;
-
-    const hrTotalTarget = HR_DASHBOARD_KPIS.reduce((s, k) => s + (Number(liveHrKpi?.[k.key]?.target) || 0), 0);
-    const hrTotalActual = HR_DASHBOARD_KPIS.reduce((s, k) => s + (Number(liveHrKpi?.[k.key]?.actual) || 0), 0);
-    const hrAchieve = hrTotalTarget > 0 ? Math.round((hrTotalActual / hrTotalTarget) * 100) : 0;
-    const isHrZero = hrTotalTarget === 0 && hrTotalActual === 0;
-
-    return DEPARTMENT_KPI_SUMMARY.map((row) => {
-      if (row.department === 'Sales') {
-        const isReported = Boolean(liveSalesKpi?.submittedAt);
-        return {
-          ...row,
-          keyMetric: isReported ? 'Total Revenue (Reported)' : actual > 0 ? 'Total Revenue (Live DB)' : 'Total Revenue',
-          target,
-          actual,
-          achievement,
-          status: (target === 0 && actual === 0 && !isReported) ? 'Not Reported' : status,
-        };
-      }
-      if (row.department === 'Services') {
-        return {
-          ...row,
-          target: totalServicesTarget,
-          actual: totalServicesActual,
-          achievement: servicesAchieve,
-          status: (totalServicesTarget === 0 && totalServicesActual === 0) ? 'Not Reported' : row.status,
-        };
-      }
-      if (row.department === 'HR & Development') {
-        return {
-          ...row,
-          deptId: 'hr',
-          keyMetric: 'Workforce & Talent KPIs',
-          target: hrTotalTarget,
-          actual: hrTotalActual,
-          achievement: hrAchieve,
-          status: isHrZero ? 'Not Reported' : hrAchieve >= 80 ? 'On Track' : hrAchieve >= 50 ? 'At Risk' : 'Behind',
-        };
-      }
-      if (row.department === 'Finance') {
-        const isReported = Boolean(liveFinanceKpi?.submittedAt);
-        const financials = liveFinanceKpi?.financials || [];
-        const netRow = financials.find((f) => f.kpi === 'Net Position');
-        const finTarget = Number(netRow?.target) || 0;
-        const finActual = Number(netRow?.actual) || 0;
-        const finAchieve = finTarget > 0 ? Math.round((finActual / finTarget) * 100) : 0;
-        let finStatus = netRow?.status;
-        if (!finStatus || finStatus === 'Pending') {
-          finStatus = (finTarget === 0 && finActual === 0) ? 'Not Reported' : finAchieve >= 80 ? 'On Track' : finAchieve >= 50 ? 'At Risk' : 'Behind';
-        }
-        return {
-          ...row,
-          deptId: 'finance',
-          keyMetric: isReported ? 'Net Position (Reported)' : finActual !== 0 ? 'Net Position (Live DB)' : 'Net Weekly Position (ETB)',
-          target: finTarget,
-          actual: finActual,
-          achievement: finAchieve,
-          status: (finTarget === 0 && finActual === 0 && !isReported) ? 'Not Reported' : finStatus,
-        };
-      }
-      if (row.department === 'Social Media & Marketing' || row.deptId === 'social_media') {
-        const isReported = Boolean(liveSocialKpi?.submittedAt || liveSocialKpi?._id);
-        const leads = liveSocialKpi?.overall?.leadsGenerated;
-        const target = leads ? Number(leads.target) || 0 : (liveSocialKpi?.summary?.totalTarget || 0);
-        const actual = leads ? Number(leads.actual) || 0 : (liveSocialKpi?.summary?.totalActual || 0);
-        const achievement = target > 0 ? Math.round((actual / target) * 100) : (actual > 0 ? 100 : (liveSocialKpi?.summary?.overallAchievement || 0));
-        let socStatus = leads?.status;
-        if (!socStatus || socStatus === 'Pending') {
-          socStatus = (!isReported && target === 0 && actual === 0) ? 'Not Reported' : achievement >= 80 ? 'On Track' : achievement >= 50 ? 'At Risk' : 'Behind';
-        }
-        return {
-          ...row,
-          deptId: 'social_media',
-          keyMetric: isReported ? 'Leads Generated (Reported)' : 'Leads Generated',
-          target,
-          actual,
-          achievement,
-          status: (!isReported && target === 0 && actual === 0) ? 'Not Reported' : socStatus,
-        };
-      }
-      return row;
-    });
-  }, [liveSalesKpi, liveHrKpi, liveFinanceKpi, liveSocialKpi]);
+  const dynamicDepartmentSummary = useMemo(
+    () => buildDepartmentSnapshot(snapshotRequest.data || {}),
+    [snapshotRequest.data],
+  );
 
   const filteredDepartmentSummary = useMemo(() => {
     return dynamicDepartmentSummary.filter((row) => {
@@ -1480,6 +1392,15 @@ const OverviewView = ({
     );
   }
 
+  if (snapshotRequest.loading) {
+    return <HStack justify="center" py={12}><Spinner /><Text>Loading department data...</Text></HStack>;
+  }
+  if (snapshotRequest.error) {
+    return <Alert status="error"><AlertIcon />{snapshotRequest.error}
+      <Button ml={4} onClick={() => setSnapshotRevision((value) => value + 1)}>Retry</Button>
+    </Alert>;
+  }
+
   return (
     <Box maxW="1400px" mx="auto">
       <Box bg="#213f70" color="white" px={{ base: 5, md: 7 }} py={4} mb={7}>
@@ -1571,13 +1492,13 @@ const OverviewView = ({
                         {row.keyMetric}
                       </Td>
                       <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                        {formatNumber(row.target)}
+                        {row.target === null ? 'N/A' : formatNumber(row.target)}
                       </Td>
                       <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                        {formatNumber(row.actual)}
+                        {row.actual === null ? 'N/A' : formatNumber(row.actual)}
                       </Td>
                       <Td textAlign="center" fontSize="14px" borderColor="#d1d5db">
-                        {row.achievement}%
+                        {row.achievement === null ? 'N/A' : `${Number(row.achievement.toFixed(1))}%`}
                       </Td>
                       <Td
                         textAlign="center"
@@ -1601,11 +1522,13 @@ const OverviewView = ({
 
       <Box mt={7} bg="white" border="1px solid #d1d5db" px={{ base: 3, md: 6 }} pt={5} pb={2}>
         <Heading as="h2" textAlign="center" fontSize={{ base: '21px', md: '29px' }} mb={3}>
-          Department Achievement % (where target is set)
+          Department Achievement % (average of measurable KPIs)
         </Heading>
-        <Box h={{ base: '390px', md: '460px' }}>
+        {!filteredDepartmentSummary.some((row) => row.departmentAchievement !== null) ? (
+          <Text textAlign="center" py={12} color="#64748b">No measurable targets are available for this period.</Text>
+        ) : <Box h={{ base: '390px', md: '460px' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={filteredDepartmentSummary} margin={{ top: 28, right: 20, left: 12, bottom: 125 }}>
+            <BarChart data={filteredDepartmentSummary.filter((row) => row.departmentAchievement !== null).map((row) => ({ ...row, achievement: Number(row.departmentAchievement.toFixed(1)) }))} margin={{ top: 28, right: 20, left: 12, bottom: 125 }}>
               <CartesianGrid stroke="#9ca3af" vertical={false} />
               <XAxis
                 dataKey="department"
@@ -1617,8 +1540,7 @@ const OverviewView = ({
                 axisLine={{ stroke: '#6b7280' }}
               />
               <YAxis
-                domain={[0, 250]}
-                ticks={[0, 50, 100, 150, 200, 250]}
+                domain={[0, (max) => Math.max(100, max)]}
                 tickFormatter={(value) => `${value}%`}
                 tick={{ fill: '#111827', fontSize: 12 }}
                 label={{ value: 'Achievement %', angle: -90, position: 'insideLeft', offset: -2, style: { fontWeight: 700 } }}
@@ -1629,7 +1551,7 @@ const OverviewView = ({
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </Box>
+        </Box>}
       </Box>
 
       {/* Live HR Department Operational KPIs Display on COO2 Dashboard */}
