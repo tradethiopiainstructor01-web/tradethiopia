@@ -20,6 +20,7 @@ import {
   Button
 } from '@chakra-ui/react';
 import { FaBell, FaUserCircle, FaMoon, FaSun, FaBars, FaCheck, FaComments, FaEnvelope, FaSignOutAlt } from 'react-icons/fa';
+import DocumentReminderToast from './DocumentReminderToast';
 import NotesLauncher from '../notes/NotesLauncher';
 import ChatLauncher from '../chat/ChatLauncher';
 import { useUserStore } from '../../store/user';
@@ -27,7 +28,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../services/notificationService';
 import { rememberReturnPath } from '../../utils/authStorage';
 
-const Snavbar = ({ onToggleSidebar }) => {
+const Snavbar = ({ onToggleSidebar, documentReminder }) => {
   const { colorMode, toggleColorMode } = useColorMode();
   const navigate = useNavigate();
   const location = useLocation();
@@ -203,7 +204,7 @@ const Snavbar = ({ onToggleSidebar }) => {
               icon={
                 <Box position="relative">
                   <FaBell />
-                  {unreadCount > 0 && (
+                  {(unreadCount > 0 || documentReminder?.total > 0) && (
                     <Badge
                       colorScheme="red"
                       borderRadius="full"
@@ -217,7 +218,7 @@ const Snavbar = ({ onToggleSidebar }) => {
                       alignItems="center"
                       justifyContent="center"
                     >
-                      {unreadCount}
+                      {unreadCount + (documentReminder?.total > 0 ? 1 : 0)}
                     </Badge>
                   )}
                 </Box>
@@ -226,7 +227,7 @@ const Snavbar = ({ onToggleSidebar }) => {
               variant="ghost"
               color="white"
             />
-            <MenuList zIndex="popover" minW="320px" p={0} overflow="hidden">
+            <MenuList zIndex="popover" minW="min(320px, calc(100vw - 24px))" maxW="calc(100vw - 24px)" w="400px" p={0} overflow="hidden">
               <Box
                 px={4}
                 py={3}
@@ -249,7 +250,8 @@ const Snavbar = ({ onToggleSidebar }) => {
                   }}
                 />
               </Box>
-              <Box maxH="300px" overflowY="auto">
+              <Box maxH="min(500px, 70vh)" overflowY="auto">
+                {documentReminder?.total > 0 && <Box p={3}><DocumentReminderToast {...documentReminder} /></Box>}
                 {notifications.length > 0 ? (
                   notifications.map((notification) => (
                     <MenuItem
@@ -278,11 +280,11 @@ const Snavbar = ({ onToggleSidebar }) => {
                       </Flex>
                     </MenuItem>
                   ))
-                ) : (
+                ) : !documentReminder?.total ? (
                   <Box p={4} textAlign="center">
                     <Text color="gray.500">No new notifications</Text>
                   </Box>
-                )}
+                ) : null}
               </Box>
             </MenuList>
           </Menu>

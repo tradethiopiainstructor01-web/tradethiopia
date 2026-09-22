@@ -1,8 +1,9 @@
 import React from 'react';
-import { Box, Flex, Heading, IconButton } from '@chakra-ui/react';
+import { Box, Flex, Heading, IconButton, Badge, Menu, MenuButton, MenuList, Text } from '@chakra-ui/react';
+import DocumentReminderToast from '../../sales/DocumentReminderToast';
 import { FiBell, FiMenu, FiPlus } from 'react-icons/fi';
 
-const MobileSalesTopBar = ({ title = 'Sales', onMenu, onAdd }) => (
+const MobileSalesTopBar = ({ title = 'Sales', onMenu, onAdd, documentReminder }) => (
   <Box bg="#001f4d" borderBottom="1px solid" borderColor="#001a42" px={4} py={3}>
     <Flex align="center" justify="space-between">
       <Flex align="center" gap={2} minW={0}>
@@ -23,14 +24,20 @@ const MobileSalesTopBar = ({ title = 'Sales', onMenu, onAdd }) => (
         </Heading>
       </Flex>
       <Flex align="center" gap={2}>
-        <IconButton
+        <Menu>
+        <MenuButton as={IconButton}
           aria-label="Notifications"
-          icon={<FiBell />}
+          icon={<Box position="relative"><FiBell />{documentReminder?.total > 0 && <Badge position="absolute" top="-10px" right="-10px" colorScheme="orange" borderRadius="full">1</Badge>}</Box>}
           variant="ghost"
           color="white"
           fontSize="20px"
           _hover={{ bg: 'whiteAlpha.200' }}
         />
+        <MenuList w="360px" minW={0} maxW="calc(100vw - 24px)" p={3} maxH="70vh" overflowY="auto" zIndex="popover">
+          <Text fontWeight="bold" mb={3}>Notifications</Text>
+          {documentReminder?.total > 0 ? <DocumentReminderToast {...documentReminder} /> : <Text color="gray.500" fontSize="sm">No new notifications</Text>}
+        </MenuList>
+        </Menu>
         <IconButton
           aria-label="Add"
           icon={<FiPlus />}

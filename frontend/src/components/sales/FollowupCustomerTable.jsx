@@ -123,26 +123,64 @@ const ImageUploadCard = ({
   isRequired = false
 }) => {
   const fileInputRef = useRef(null);
+  const busyRef = useRef(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const toast = useToast();
   const borderColor = useColorModeValue('gray.300', 'gray.600');
   const bg = useColorModeValue('gray.50', 'gray.700');
 
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const acceptImage = async (file) => {
+    if (!file || busyRef.current) return;
+    busyRef.current = true;
+    setIsProcessing(true);
     try {
-      const base64 = await processImageFile(file);
-      onChange(base64);
+      onChange(await processImageFile(file));
     } catch (err) {
-      alert(err.message || 'Failed to upload image');
+      toast({ title: err.message || 'Failed to upload image', status: 'error', isClosable: true });
     } finally {
-      e.target.value = '';
+      busyRef.current = false;
+      setIsProcessing(false);
     }
   };
 
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    void acceptImage(file);
+  };
+
+  const handlePaste = (event) => {
+    const imageItem = Array.from(event.clipboardData?.items || [])
+      .find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    const file = imageItem?.getAsFile()
+      || Array.from(event.clipboardData?.files || []).find((item) => item.type.startsWith('image/'));
+    if (!file) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void acceptImage(file);
+  };
+
   return (
-    <Box borderWidth="1px" borderColor={value ? 'green.400' : borderColor} borderRadius="xl" p={3} bg={bg}>
-      <Flex justify="space-between" align="center" mb={2} gap={1}>
-        <Text fontSize="xs" fontWeight="bold" noOfLines={1} title={label}>
+    <Box
+      borderWidth="1px"
+      borderColor={value ? 'green.400' : borderColor}
+      borderRadius="xl"
+      p={3}
+      bg={bg}
+      minW={0}
+      tabIndex={0}
+      role="group"
+      aria-label={label + '. Select this card and paste an image with Ctrl+V or Command+V.'}
+      aria-busy={isProcessing}
+      onPaste={handlePaste}
+      onClick={(event) => {
+        if (!event.target.closest('button, input')) event.currentTarget.focus();
+      }}
+      _focusVisible={{ outline: '2px solid', outlineColor: 'teal.500', outlineOffset: '2px' }}
+      _focusWithin={{ borderColor: 'teal.500', boxShadow: '0 0 0 1px var(--chakra-colors-teal-500)' }}
+    >
+      <Flex justify="space-between" align="start" mb={3} gap={2} flexWrap="wrap">
+        <Text fontSize="xs" fontWeight="bold" title={label} overflowWrap="anywhere">
           {label} {isRequired && <Text as="span" color="red.500">*</Text>}
         </Text>
         {value && (
@@ -155,7 +193,7 @@ const ImageUploadCard = ({
         <VStack spacing={2} align="center">
           <Box
             w="100%"
-            h="110px"
+            h="150px"
             borderRadius="md"
             overflow="hidden"
             bg="blackAlpha.100"
@@ -167,14 +205,15 @@ const ImageUploadCard = ({
           >
             <Image src={value} alt={label} maxH="100%" maxW="100%" objectFit="contain" />
           </Box>
-          <HStack spacing={1.5} w="100%">
+          <Flex gap={2} w="100%" flexWrap="wrap">
             <Button
               size="xs"
               variant="outline"
               colorScheme="teal"
               leftIcon={<Icon as={FiUploadCloud} />}
               onClick={() => fileInputRef.current?.click()}
-              flex="1"
+              flex="1 0 auto"
+              isDisabled={isProcessing}
             >
               Change
             </Button>
@@ -184,7 +223,8 @@ const ImageUploadCard = ({
               colorScheme="blue"
               leftIcon={<Icon as={FiEye} />}
               onClick={() => onPreview && onPreview(value, label)}
-              flex="1"
+              flex="1 0 auto"
+              isDisabled={isProcessing}
             >
               View
             </Button>
@@ -194,11 +234,12 @@ const ImageUploadCard = ({
               colorScheme="red"
               leftIcon={<Icon as={FiTrash2} />}
               onClick={onRemove}
-              flex="1"
+              flex="1 0 auto"
+              isDisabled={isProcessing}
             >
               Remove
             </Button>
-          </HStack>
+          </Flex>
         </VStack>
       ) : (
         <VStack
@@ -209,7 +250,6 @@ const ImageUploadCard = ({
           borderColor={borderColor}
           borderRadius="md"
           cursor="pointer"
-          onClick={() => fileInputRef.current?.click()}
           _hover={{ borderColor: 'teal.500', bg: 'teal.50' }}
           transition="all 0.2s"
         >
@@ -217,11 +257,14 @@ const ImageUploadCard = ({
           <Text fontSize="2xs" color="gray.500" textAlign="center">
             {subtitle}
           </Text>
-          <Button size="xs" colorScheme="blue" variant="outline" pointerEvents="none">
+          <Button size="xs" colorScheme="blue" variant="outline" isDisabled={isProcessing} onClick={() => fileInputRef.current?.click()}>
             {buttonLabel}
           </Button>
         </VStack>
       )}
+      <Text fontSize="xs" color="gray.500" mt={3} textAlign="center" aria-live="polite">
+        {isProcessing ? 'Processing image...' : 'Click this card, then Ctrl+V / Command+V to paste an image'}
+      </Text>
       <input
         ref={fileInputRef}
         type="file"
@@ -1924,7 +1967,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
                   <FormControl isRequired>
                     <FormLabel fontSize="xs" fontWeight="bold">
-                      Payment Option <Text as="span" color="red.500">*</Text>
+                      Payment Option
                     </FormLabel>
                     <Select
                       value={completionProofData.paymentOption || 'Full Payment'}
@@ -1942,7 +1985,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
                   <FormControl isRequired>
                     <FormLabel fontSize="xs" fontWeight="bold">
-                      Payment Bank <Text as="span" color="red.500">*</Text>
+                      Payment Bank
                     </FormLabel>
                     <Select
                       value={completionProofData.paymentBank || ''}
@@ -1975,7 +2018,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 </SimpleGrid>
 
                 {/* 4 Image Upload Cards */}
-                <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={3}>
+                <SimpleGrid templateColumns="repeat(auto-fit, minmax(min(100%, 240px), 1fr))" spacing={3}>
                   <ImageUploadCard
                     label="3×4 Passport Photo"
                     subtitle="PNG, JPG or WEBP"
@@ -2210,7 +2253,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                     <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3} mb={4}>
                       <FormControl isRequired>
                         <FormLabel fontSize="xs" fontWeight="bold">
-                          Payment Option <Text as="span" color="red.500">*</Text>
+                          Payment Option
                         </FormLabel>
                         <Select
                           name="paymentOption"
@@ -2230,7 +2273,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
                       <FormControl isRequired>
                         <FormLabel fontSize="xs" fontWeight="bold">
-                          Payment Bank <Text as="span" color="red.500">*</Text>
+                          Payment Bank
                         </FormLabel>
                         <Select
                           name="paymentBank"
@@ -2266,7 +2309,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                       </FormControl>
                     </SimpleGrid>
 
-                    <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={3}>
+                    <SimpleGrid templateColumns="repeat(auto-fit, minmax(min(100%, 240px), 1fr))" spacing={3}>
                       <ImageUploadCard
                         label="3×4 Passport Photo"
                         subtitle="PNG, JPG or WEBP"
