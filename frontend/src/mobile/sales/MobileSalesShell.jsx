@@ -28,7 +28,7 @@ const titleByItem = {
   Help: 'Help & Support'
 };
 
-const MobileSalesShell = ({ activeItem }) => {
+const MobileSalesShell = ({ activeItem, documentReminder }) => {
   const sidebarDisclosure = useDisclosure();
   const [mobileItem, setMobileItem] = useState(() => (
     ['Home', 'Followup', 'Package Sales', 'Tasks'].includes(activeItem) ? activeItem : 'Home'
@@ -86,7 +86,7 @@ const MobileSalesShell = ({ activeItem }) => {
     <Box minH="100vh" bg="#FAFBFD" color="#081A34" pb="92px">
       {currentItem !== 'Home' && (
         <Box position="sticky" top={0} zIndex={10}>
-          <MobileSalesTopBar
+          <MobileSalesTopBar documentReminder={documentReminder}
             title={titleByItem[currentItem] || currentItem || 'Sales'}
             onMenu={sidebarDisclosure.onOpen}
             onAdd={handleAdd}

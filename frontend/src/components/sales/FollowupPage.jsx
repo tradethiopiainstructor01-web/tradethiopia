@@ -71,7 +71,7 @@ const defaultCourses = [
   { _id: 'external-seed-6', name: 'coldcall', price: 0 },
 ];
 
-const FollowupPage = () => {
+const FollowupPage = ({ documentsOnly = false }) => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -309,13 +309,16 @@ const FollowupPage = () => {
         schedulePreference: updatedCustomer.schedulePreference || updatedCustomer.schedule || 'Regular'
       };
       setCustomers(prev => prev.map(cust => (cust.id === targetId || cust._id === targetId) ? mappedCustomer : cust));
+      window.dispatchEvent(new Event('sales:documents-updated'));
       // Refresh stats after successful save
       fetchStats();
+      const needsDocuments = mappedCustomer.followupStatus === 'Completed' &&
+        ['paymentScreenshot', 'nationalIdFrontImage', 'nationalIdBackImage'].some(field => !mappedCustomer[field]?.trim());
       toast({
-        title: customerData.followupStatus === 'Completed' ? "Follow-up completed — submit documents" : "Customer updated",
-        description: customerData.followupStatus === 'Completed' ? 'Please make sure the bank slip, ID front, and ID back are submitted.' : undefined,
-        status: customerData.followupStatus === 'Completed' ? "info" : "success",
-        duration: customerData.followupStatus === 'Completed' ? 9000 : 2500,
+        title: needsDocuments ? "Follow-up completed — submit documents" : "Customer updated",
+        description: needsDocuments ? 'Please make sure the bank slip, ID front, and ID back are submitted.' : undefined,
+        status: needsDocuments ? "info" : "success",
+        duration: needsDocuments ? 9000 : 2500,
         isClosable: true,
       });
     } catch (err) {
@@ -738,6 +741,19 @@ const FollowupPage = () => {
       }
     }
   };
+
+  if (documentsOnly) {
+    if (loading) return <Flex justify="center" p={8}><Spinner color="teal.500" /><Text ml={3}>Loading document records...</Text></Flex>;
+    if (error) return <Text role="alert" color="red.600" p={4}>{error}</Text>;
+    return (
+      <Box>
+        <Text fontSize="sm" color={secondaryTextColor} px={4} pt={2}>
+          Only completed follow-ups missing a bank slip or ID image appear here. Use Edit to upload or paste documents.
+        </Text>
+        <FollowupCompletedTable documentsOnly customers={customers} courses={courses} onUpdate={handleUpdate} onDelete={handleDelete} />
+      </Box>
+    );
+  }
 
   return (
     <Box pt={4}>
@@ -1173,7 +1189,7 @@ const FollowupPage = () => {
 
       {/* Main Tabs Panel */}
       <Box bg="transparent" w="100%" maxW="100%">
-        <Tabs variant="unstyled" colorScheme="teal" defaultIndex={0}>
+        <Tabs variant="unstyled" colorScheme="teal" defaultIndex={documentsOnly ? 1 : 0}>
           <TabList 
             mb={4} 
             bg="white" 
@@ -1285,6 +1301,7 @@ const FollowupPage = () => {
                 </Box>
               ) : (
                 <FollowupCompletedTable
+                  documentsOnly={documentsOnly}
                   customers={customers}
                   courses={courses}
                   onUpdate={handleUpdate}

@@ -1,41 +1,66 @@
-import { useEffect } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 import { useToast } from '@chakra-ui/react';
+import DocumentReminderToast from '../components/sales/DocumentReminderToast';
 import axios from '../services/axiosInstance';
 import { startVisibleRefresh } from '../utils/visibleRefresh';
 
 export default function useSalesDocumentReminder() {
+  const [reminder, setReminder] = useState({ total: 0, items: [] });
   const toast = useToast();
+  const lastShownSignature = useRef('');
+
+  useEffect(() => {
+    const id = 'sales-document-reminder';
+    if (!reminder.total) {
+      toast.close(id);
+      lastShownSignature.current = '';
+      return;
+    }
+    const signature = JSON.stringify(reminder);
+    if (signature === lastShownSignature.current) return;
+    lastShownSignature.current = signature;
+    const message = {
+      duration: null,
+      position: 'top-right',
+      containerStyle: { width: '420px', maxWidth: 'calc(100vw - 24px)' },
+      render: () => createElement(DocumentReminderToast, {
+        ...reminder,
+        onDismiss: () => toast.close(id),
+      }),
+    };
+    if (toast.isActive(id)) toast.update(id, message);
+    else toast({ id, ...message });
+  }, [reminder, toast]);
+
+  useEffect(() => () => toast.close('sales-document-reminder'), [toast]);
+
   useEffect(() => {
     let active = true;
     let pending = false;
-    const id = 'sales-document-reminder';
-    const remind = async () => {
-      if (pending) return;
+    let refreshAgain = false;
+    const refresh = async () => {
+      if (pending) { refreshAgain = true; return; }
       pending = true;
       try {
         const { data } = await axios.get('/sales-customers/document-reminders', { timeout: 15000 });
-        if (!active) return;
-        if (!data.total) { toast.close(id); return; }
-        const message = {
-          title: `Documents needed for ${data.total} completed follow-up${data.total === 1 ? '' : 's'}`,
-          description: data.items.map((item) => `${item.customerName}: ${item.missingDocuments.join(', ')}`).join('; ') +
-            (data.total > data.items.length ? '. Open completed follow-ups to review the remaining records.' : '. Open the completed follow-up to upload these documents.'),
-          status: 'warning', duration: 15000, isClosable: true, position: 'top-right',
-        };
-        if (toast.isActive(id)) toast.update(id, message);
-        else toast({ id, ...message });
+        if (active) setReminder({ total: Number(data.total) || 0, items: Array.isArray(data.items) ? data.items : [] });
       } catch {
-        // A reminder lookup should not interrupt sales work.
-      } finally { pending = false; }
+        // Keep the last successful result when a background refresh fails.
+      } finally {
+        pending = false;
+        if (active && refreshAgain) { refreshAgain = false; void refresh(); }
+      }
     };
-    remind();
-    window.addEventListener('sales:new-followup', remind);
-    const stopRefresh = startVisibleRefresh(remind, 300000);
+    void refresh();
+    window.addEventListener('sales:new-followup', refresh);
+    window.addEventListener('sales:documents-updated', refresh);
+    const stopRefresh = startVisibleRefresh(refresh, 300000);
     return () => {
       active = false;
-      window.removeEventListener('sales:new-followup', remind);
+      window.removeEventListener('sales:new-followup', refresh);
+      window.removeEventListener('sales:documents-updated', refresh);
       stopRefresh();
-      toast.close(id);
     };
-  }, [toast]);
+  }, []);
+  return reminder;
 }

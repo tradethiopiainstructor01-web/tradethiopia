@@ -24,7 +24,7 @@ const DESKTOP_NAV_HEIGHT = '80px';
 const StudentRegistrationPage = lazy(() => import('../customer/StudentRegistrationPage.jsx'));
 
 const Layout = ({ initialActiveItem }) => {
-  useSalesDocumentReminder();
+  const documentReminder = useSalesDocumentReminder();
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
 
   // Load initial state from localStorage or default to 'Home'
@@ -103,14 +103,14 @@ const Layout = ({ initialActiveItem }) => {
   };
 
   if (isMobile) {
-    return <MobileSalesShell activeItem={activeItem} />;
+    return <MobileSalesShell activeItem={activeItem} documentReminder={documentReminder} />;
   }
 
   return (
     <Box display="flex" flexDirection="column" height="100vh">
       {/* Navbar */}
       <Box position="fixed" top={0} left={0} width="100%" zIndex="1000">
-        <SNavbar onToggleSidebar={onOpen} /> {/* Pass `onOpen` to toggle the drawer */}
+        <SNavbar onToggleSidebar={onOpen} documentReminder={documentReminder} /> {/* Pass `onOpen` to toggle the drawer */}
       </Box>
 
       {/* Main Container */}
