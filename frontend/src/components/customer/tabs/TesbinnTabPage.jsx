@@ -1,5 +1,5 @@
 import PageNumberButtons from "./PageNumberButtons";
-import React, { useEffect, useMemo, useState, memo } from "react";
+import React, { useEffect, useMemo, useState, useRef, memo } from "react";
 import {
   Box,
   Button,
@@ -79,6 +79,7 @@ const TesbinnTabPage = ({
   handleCsvImport,
   isCsvImportingTesbinn,
 }) => {
+  const csvInputRef = useRef(null);
   const [pageSize, setPageSize] = useState(15);
   const [page, setPage] = useState(1);
   const { isOpen: isA4ReportOpen, onOpen: onA4ReportOpen, onClose: onA4ReportClose } = useDisclosure();
@@ -110,6 +111,7 @@ const TesbinnTabPage = ({
     trainingCourseFilter,
     trainingStartDateFilter,
     trainingSortAsc,
+    tesbinnFollowups.length,
   ]);
 
   const total = tesbinnFollowups.length;
@@ -142,23 +144,23 @@ const TesbinnTabPage = ({
               </Button>
               {isCustomerSuccessManager && (
                 <>
-                  <Tooltip label="Import TESBINN CSV from local file">
+                  <Tooltip label="Import CSV or the first sheet of an Excel file">
                     <Button
-                      as="label"
-                      htmlFor="tesbinn-csv-input"
+                      onClick={() => csvInputRef.current?.click()}
                       size="sm"
                       colorScheme="purple"
                       variant="outline"
                       leftIcon={<ArrowUpIcon />}
                       isLoading={isCsvImportingTesbinn}
                     >
-                      Import CSV
+                      Import CSV / Excel
                     </Button>
                   </Tooltip>
                   <input
-                    id="tesbinn-csv-input"
+                    ref={csvInputRef}
+                    disabled={isCsvImportingTesbinn}
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                     style={{ display: "none" }}
                     onChange={handleCsvImport}
                   />

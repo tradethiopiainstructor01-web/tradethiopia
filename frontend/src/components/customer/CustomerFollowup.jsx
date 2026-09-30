@@ -1,3 +1,4 @@
+import { readTrainingImportRows, prepareTrainingImport } from "../../utils/tesbinnCsv";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import Layout from "./Layout";
@@ -1666,144 +1667,22 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     downloadCsv(csvContent, "tesbinn-completed.csv");
   };
 
-  const prepareTesbinnBulkSelection = (ids, toastMessage) => {
-    if (!ids.length) return false;
-    setSelectedTrainingFollowupIds(ids);
-    const defaultDate = new Date().toISOString().split("T")[0];
-    setTrainingBulkStartDate(defaultDate);
-    setTrainingBulkEndDate(defaultDate);
-    setTrainingBulkStartTime("09:00");
-    setTrainingBulkEndTime("17:00");
-    setIsTesbinnBulkModalOpen(true);
-    if (toastMessage) {
-      toast({
-        title: toastMessage,
-        status: "success",
-        duration: 4000,
-        isClosable: true,
-      });
-    }
-    return true;
-  };
-
-  const parseCsvRows = (text) => {
-    const rows = [];
-    let current = "";
-    let inQuotes = false;
-    let row = [];
-
-    const pushCell = () => {
-      row.push(current);
-      current = "";
-    };
-
-    const pushRow = () => {
-      if (row.length) {
-        rows.push(row);
-        row = [];
-      }
-    };
-
-    for (let i = 0; i < text.length; i += 1) {
-      const char = text[i];
-
-      if (char === '"') {
-        if (inQuotes && text[i + 1] === '"') {
-          current += '"';
-          i += 1;
-          continue;
-        }
-        inQuotes = !inQuotes;
-        continue;
-      }
-
-      if (char === "," && !inQuotes) {
-        pushCell();
-        continue;
-      }
-
-      if ((char === "\n" || char === "\r") && !inQuotes) {
-        pushCell();
-        if (char === "\r" && text[i + 1] === "\n") {
-          i += 1;
-        }
-        pushRow();
-        continue;
-      }
-
-      current += char;
-    }
-
-    if (current || row.length) {
-      pushCell();
-      pushRow();
-    }
-
-    return rows.filter((r) => r.length > 1 || (r.length === 1 && r[0].trim() !== ""));
-  };
-
-  const normalizeCsvHeader = (value) =>
-    value?.toString().trim().toLowerCase().replace(/[^a-z0-9]/g, "") || "";
-
-  const getCsvRecordValue = (record, keys = []) => {
-    for (const key of keys) {
-      if (record[key]) {
-        const trimmed = record[key].trim();
-        if (trimmed) return trimmed;
-      }
-    }
-    return "";
-  };
-
-  const parseCsvDate = (value) => {
-    if (!value) return "";
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
-  };
-
-  const buildTrainingFollowupPayloadFromCsvRecord = (record) => {
-    const batchValue = getCsvRecordValue(record, ["batch", "group", "batchgroup"]);
-    const payload = {
-      customerName: getCsvRecordValue(record, ["customername", "customer"]),
-      email: getCsvRecordValue(record, ["email"]),
-      phoneNumber: getCsvRecordValue(record, ["phonenumber", "phone"]),
-      trainingType: getCsvRecordValue(record, ["course"]),
-      scheduleShift: getCsvRecordValue(record, ["schedule"]),
-      agentName: getCsvRecordValue(record, ["agent"]),
-      salesAgent: getCsvRecordValue(record, ["agent"]),
-      assignedInstructor: getCsvRecordValue(record, ["instructor"]),
-      progress: getCsvRecordValue(record, ["progress"]) || "Not Started",
-      materialStatus: "Not Delivered",
-    };
-    if (batchValue) {
-      payload.batch = batchValue;
-    }
-
-    const startDate = getCsvRecordValue(record, ["startdate"]);
-    const endDate = getCsvRecordValue(record, ["enddate"]);
-    const parsedStart = parseCsvDate(startDate);
-    const parsedEnd = parseCsvDate(endDate);
-    if (parsedStart) payload.startDate = parsedStart;
-    if (parsedEnd) payload.endDate = parsedEnd;
-
-    return payload;
-  };
-
   const handleTesbinnCsvImport = async (event) => {
     const file = event.target?.files?.[0];
-    if (!file) {
+    if (!file || isCsvImportingTesbinn) return;
+    event.target.value = "";
+    if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
+      toast({ title: "Select a CSV or Excel file", status: "warning", duration: 4000, isClosable: true });
       return;
     }
-    event.target.value = "";
 
     setIsCsvImportingTesbinn(true);
     try {
-      const text = await file.text();
-      const rows = parseCsvRows(text);
+      const rows = await readTrainingImportRows(file);
       if (!rows.length) {
         toast({
           title: "Empty file",
-          description: "The selected CSV file contains no data.",
+          description: "The selected file contains no data.",
           status: "warning",
           duration: 4000,
           isClosable: true,
@@ -1811,30 +1690,21 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
         return;
       }
 
-      const headers = rows[0].map(normalizeCsvHeader);
-      const records = rows.slice(1).map((line) => {
-        const record = {};
-        line.forEach((value, idx) => {
-          record[headers[idx] || `column${idx}`] = value || "";
-        });
-        return record;
-      }).filter((record) => Object.values(record).some((value) => value && value.trim()));
-
-      if (!records.length) {
+      const { payloads, skippedRows } = prepareTrainingImport(rows);
+      if (!payloads.length) {
         toast({
           title: "No valid rows",
-          description: "The CSV file does not contain recognizable TESBINN data.",
+          description: skippedRows.length
+            ? `All ${skippedRows.length} data row(s) are missing a customer name. Fill in the names and try again.`
+            : "The file contains no training records to import.",
           status: "warning",
-          duration: 4000,
+          duration: 5000,
           isClosable: true,
         });
         return;
       }
-
       const settled = await Promise.allSettled(
-        records.map((record) =>
-          createTrainingFollowup(buildTrainingFollowupPayloadFromCsvRecord(record))
-        )
+        payloads.map((payload) => createTrainingFollowup(payload))
       );
 
       const successful = settled
@@ -1856,20 +1726,36 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
         return;
       }
 
-      prepareTesbinnBulkSelection(successful, `Imported ${successful.length} TESBINN record(s) from CSV.`);
-      if (failedCount > 0) {
+      setTrainingSearch("");
+      setTrainingScheduleFilter("all");
+      setTrainingMaterialFilter("all");
+      setTrainingCourseFilter("all");
+      setTrainingStartDateFilter("");
+      setTrainingProgressFilter("all");
+      setTrainingSortAsc(true);
+      toast({
+        title: `Imported ${successful.length} TESBINN record(s) from ${file.name}.`,
+        description: "Completed records are shown here. Other progress values appear in Training Follow-ups.",
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+      });
+      if (failedCount > 0 || skippedRows.length > 0) {
         toast({
           title: "Partial import",
-          description: `${failedCount} row(s) failed to import.`,
+          description: [
+            skippedRows.length > 0 && `Skipped ${skippedRows.length} row(s) without a customer name: ${skippedRows.slice(0, 10).join(", ")}${skippedRows.length > 10 ? ", ?" : ""}.`,
+            failedCount > 0 && `${failedCount} row(s) could not be saved.`,
+          ].filter(Boolean).join(" "),
           status: "warning",
           duration: 4000,
           isClosable: true,
         });
       }
     } catch (err) {
-      console.error("CSV import failed", err);
+      console.error("File import failed", err);
       toast({
-        title: "CSV import failed",
+        title: "File import failed",
         description: err.message || "Unable to process the selected file.",
         status: "error",
         duration: 4000,
