@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { EventEmitter } = require('events');
 
 const StudentRegistrationSchema = new mongoose.Schema(
   {
@@ -220,4 +221,20 @@ const StudentRegistrationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model('StudentRegistration', StudentRegistrationSchema);
+// Change notifications keep the in-memory student list cache current.
+// 'change' carries one document id; 'bulkChange' means any record may differ.
+const listEvents = new EventEmitter();
+const emitDocumentChange = (doc) => {
+  if (doc?._id) listEvents.emit('change', String(doc._id));
+};
+StudentRegistrationSchema.post('save', emitDocumentChange);
+StudentRegistrationSchema.post(['findOneAndUpdate', 'findOneAndReplace', 'findOneAndDelete'], emitDocumentChange);
+StudentRegistrationSchema.post('insertMany', (docs) => (docs || []).forEach(emitDocumentChange));
+StudentRegistrationSchema.post(['updateOne', 'updateMany', 'replaceOne', 'deleteOne', 'deleteMany'], () => {
+  listEvents.emit('bulkChange');
+});
+
+const StudentRegistration = mongoose.model('StudentRegistration', StudentRegistrationSchema);
+StudentRegistration.listEvents = listEvents;
+
+module.exports = StudentRegistration;

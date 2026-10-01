@@ -1,4 +1,4 @@
-import { readTrainingImportRows, prepareTrainingImport } from "../../utils/tesbinnCsv";
+import { readTrainingImportRows, prepareTrainingImport, isSpreadsheetFile } from "../../utils/tesbinnCsv";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import Layout from "./Layout";
@@ -176,6 +176,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const [isApplyingTrainingDates, setIsApplyingTrainingDates] = useState(false);
   const [isTesbinnBulkModalOpen, setIsTesbinnBulkModalOpen] = useState(false);
   const [isCsvImportingTesbinn, setIsCsvImportingTesbinn] = useState(false);
+  const [isImportingTraining, setIsImportingTraining] = useState(false);
   const [assignableAgents, setAssignableAgents] = useState([]);
   const [selectedAgentForAssignment, setSelectedAgentForAssignment] = useState("");
   const [assignableInstructors, setAssignableInstructors] = useState([]);
@@ -1671,8 +1672,8 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
     const file = event.target?.files?.[0];
     if (!file || isCsvImportingTesbinn) return;
     event.target.value = "";
-    if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
-      toast({ title: "Select a CSV or Excel file", status: "warning", duration: 4000, isClosable: true });
+    if (!isSpreadsheetFile(file)) {
+      toast({ title: "Select an Excel or CSV file", status: "warning", duration: 4000, isClosable: true });
       return;
     }
 
@@ -1763,6 +1764,108 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       });
     } finally {
       setIsCsvImportingTesbinn(false);
+    }
+  };
+
+  const handleExportTraining = async () => {
+    if (!filteredTrainingFollowups.length) {
+      toast({
+        title: "No training data",
+        description: "There are no training follow-up records to export.",
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    const formatDate = (value) => {
+      if (!value) return "";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "" : date.toISOString().split("T")[0];
+    };
+    const rows = filteredTrainingFollowups.map((item) => ({
+      "Customer Name": item.customerName || "",
+      Email: item.email || "",
+      "Phone Number": item.phoneNumber || "",
+      "Field of Work": item.fieldOfWork || "",
+      Course: item.trainingType || "",
+      "Batch/Group": item.batch || item.group || item.batchGroup || "",
+      Schedule: item.scheduleShift || "",
+      "Start Date": formatDate(item.startDate),
+      "Start Time": item.startTime || "",
+      "End Date": formatDate(item.endDate),
+      "End Time": item.endTime || "",
+      Agent: item.agentName || "",
+      Instructor: item.assignedInstructor || "",
+      "Material Status": item.materialStatus || "",
+      Progress: item.progress || "",
+    }));
+    try {
+      const XLSX = await import("xlsx");
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      sheet["!cols"] = Object.keys(rows[0]).map((key) => ({
+        wch: Math.min(40, Math.max(key.length, ...rows.map((row) => String(row[key]).length)) + 2),
+      }));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, sheet, "Training Follow-Up");
+      XLSX.writeFile(workbook, `training-followups-${formatDate(new Date())}.xlsx`);
+    } catch (err) {
+      console.error("Training export failed", err);
+      toast({ title: "Export failed", description: err.message, status: "error", duration: 4000, isClosable: true });
+    }
+  };
+
+  const handleTrainingImport = async (event) => {
+    const file = event.target?.files?.[0];
+    if (event.target) event.target.value = "";
+    if (!file || isImportingTraining) return;
+    if (!isSpreadsheetFile(file)) {
+      toast({ title: "Select an Excel or CSV file", status: "warning", duration: 4000, isClosable: true });
+      return;
+    }
+
+    setIsImportingTraining(true);
+    try {
+      const rows = await readTrainingImportRows(file);
+      const { payloads, skippedRows } = prepareTrainingImport(rows, { defaultProgress: "Not Started" });
+      if (!payloads.length) {
+        toast({
+          title: "No valid rows",
+          description: skippedRows.length
+            ? `All ${skippedRows.length} data row(s) are missing a customer name.`
+            : "The file contains no training records to import.",
+          status: "warning",
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+      const settled = await Promise.allSettled(payloads.map((payload) => createTrainingFollowup(payload)));
+      const importedCount = settled.filter((result) => result.status === "fulfilled").length;
+      const failedCount = settled.length - importedCount;
+      await loadTrainingFollowups();
+
+      toast({
+        title: importedCount ? `Imported ${importedCount} training record(s) from ${file.name}.` : "Import failed",
+        description: [
+          skippedRows.length > 0 && `Skipped ${skippedRows.length} row(s) without a customer name: ${skippedRows.slice(0, 10).join(", ")}${skippedRows.length > 10 ? ", …" : ""}.`,
+          failedCount > 0 && `${failedCount} row(s) could not be saved.`,
+        ].filter(Boolean).join(" ") || undefined,
+        status: !importedCount ? "error" : failedCount || skippedRows.length ? "warning" : "success",
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (err) {
+      console.error("Training import failed", err);
+      toast({
+        title: "File import failed",
+        description: err.message || "Unable to process the selected file.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setIsImportingTraining(false);
     }
   };
 
@@ -4194,6 +4297,9 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
                       isMobile={isMobile}
                       tableMinWidth="900px"
                       handleBulkUpdate={handleBulkUpdate}
+                      handleExportTraining={handleExportTraining}
+                      handleTrainingImport={handleTrainingImport}
+                      isImportingTraining={isImportingTraining}
                     >
                       <TrainingFollowupGrouped
                         groupedTrainingFollowups={groupedTrainingFollowups}
