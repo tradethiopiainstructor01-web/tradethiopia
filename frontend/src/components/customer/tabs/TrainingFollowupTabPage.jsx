@@ -1,5 +1,6 @@
 import PageNumberButtons from "./PageNumberButtons";
-import React, { useEffect, useMemo, useState, memo } from "react";
+import React, { useEffect, useMemo, useRef, useState, memo } from "react";
+import { SPREADSHEET_ACCEPT } from "../../../utils/tesbinnCsv";
 import {
   Badge,
   Box,
@@ -87,8 +88,12 @@ const TrainingFollowupTabPage = ({
   isCustomerSuccessManager,
   isMobile,
   tableMinWidth = "900px",
+  handleExportTraining,
+  handleTrainingImport,
+  isImportingTraining = false,
   children, // for grouped cards
 }) => {
+  const importInputRef = useRef(null);
   const [pageSize, setPageSize] = useState(15);
   const [page, setPage] = useState(1);
 
@@ -119,9 +124,39 @@ const TrainingFollowupTabPage = ({
     <Card bg={cardBg} boxShadow="md" borderRadius="lg">
       <CardBody>
         <VStack spacing={4} align="stretch">
-          <Heading size="md" color={headerBg}>
-            Training Follow-Up
-          </Heading>
+          <Flex justify="space-between" align="center" gap={3} flexWrap="wrap">
+            <Heading size="md" color={headerBg}>
+              Training Follow-Up
+            </Heading>
+            <HStack spacing={2}>
+              {handleTrainingImport && (
+                <>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept={SPREADSHEET_ACCEPT}
+                    style={{ display: "none" }}
+                    onChange={handleTrainingImport}
+                  />
+                  <Button
+                    size="sm"
+                    colorScheme="teal"
+                    variant="outline"
+                    isLoading={isImportingTraining}
+                    loadingText="Importing"
+                    onClick={() => importInputRef.current?.click()}
+                  >
+                    Import Excel
+                  </Button>
+                </>
+              )}
+              {handleExportTraining && (
+                <Button size="sm" colorScheme="teal" onClick={handleExportTraining}>
+                  Export Excel
+                </Button>
+              )}
+            </HStack>
+          </Flex>
 
           {/* Training search / filter / sort controls */}
           <Flex

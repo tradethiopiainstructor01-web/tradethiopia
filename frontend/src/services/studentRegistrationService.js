@@ -26,9 +26,13 @@ export const getStudentRegistrationsInBatches = async ({ signal } = {}) => {
   return students;
 };
 
+// The server answers from its in-memory list within milliseconds; only the very
+// first load after a restart reads the whole collection, so allow it more time.
+const listRequestConfig = { timeout: 120000 };
+
 export const getStudentRegistrations = async (params = {}) => {
   const response = await axiosInstance.get("/student-registrations", {
-    ...requestConfig,
+    ...listRequestConfig,
     params,
   });
   return unwrap(response);

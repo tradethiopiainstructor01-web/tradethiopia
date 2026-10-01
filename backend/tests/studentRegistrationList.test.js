@@ -38,10 +38,10 @@ test('student list returns existing students without awaiting historical repairs
   assert.equal(response.data[0].fullName, 'Student');
   assert.equal(response.data[0].hasPassportPhoto, true);
   assert.equal(response.data[0].passportPhoto, '');
+  // Sorting happens in Node: an in-database sort exceeds Atlas's 32MB sort limit.
+  assert.equal(pipeline.findIndex((stage) => stage.$sort), -1);
   for (const field of ['passportPhoto', 'nationalIdImage', 'nationalIdFrontImage', 'nationalIdBackImage', 'paymentScreenshot', 'cocPaymentScreenshot', 'educationFile']) {
     const projectIndex = pipeline.findIndex((stage) => stage.$project);
-    const sortIndex = pipeline.findIndex((stage) => stage.$sort);
-    assert.ok(projectIndex < sortIndex, 'strip large attachments before sorting');
     assert.equal(pipeline[projectIndex].$project[field], 0);
   }
   await context.module.exports.getStudentRegistrations({ query: { autoSync: 'false' }, user: { role: 'customerservice' } }, res);

@@ -1,3 +1,4 @@
+import { SPREADSHEET_ACCEPT } from "../../../utils/tesbinnCsv";
 import PageNumberButtons from "./PageNumberButtons";
 import React, { useEffect, useMemo, useState, useRef, memo } from "react";
 import {
@@ -160,7 +161,7 @@ const TesbinnTabPage = ({
                     ref={csvInputRef}
                     disabled={isCsvImportingTesbinn}
                     type="file"
-                    accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    accept={SPREADSHEET_ACCEPT}
                     style={{ display: "none" }}
                     onChange={handleCsvImport}
                   />

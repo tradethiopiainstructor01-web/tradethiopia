@@ -411,6 +411,9 @@ if (require.main === module) {
           }
         });
 
+        // Load the student registration list into memory so the first page load is fast
+        require('./controllers/studentRegistrationController').warmStudentListCache();
+
         // Sync approaching and overdue company document licenses for HR
         syncAllApproachingLicenses(app).catch((err) =>
           console.error('Initial license reminder sync error:', err)

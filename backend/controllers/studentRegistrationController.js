@@ -620,6 +620,86 @@ const canAccessStudentRecord = (student, user) => {
   return false;
 };
 
+// In-memory copy of the attachment-free student list. Reading every record from
+// Atlas can take longer than the client timeout on slow links, so unfiltered list
+// requests are answered from memory. Model change events patch single records,
+// and a stale copy is served while a background reload runs.
+const LIST_CACHE_TTL_MS = 2 * 60 * 1000;
+const CACHEABLE_LIST_PARAMS = new Set(['workspace', 'sortOrder', 'sort', 'autoSync']);
+const listCache = { byId: null, loadedAt: 0, loading: null, dirtyIds: new Set(), patches: new Set() };
+
+const loadListedStudents = (match = {}) => StudentRegistration.aggregate([
+  { $match: match },
+  ...require('../utils/studentListProjection').studentListProjection,
+]);
+
+const patchCachedStudent = async (id) => {
+  if (!listCache.byId || !mongoose.Types.ObjectId.isValid(id)) return;
+  const [student] = await loadListedStudents({ _id: new mongoose.Types.ObjectId(id) });
+  if (student) listCache.byId.set(id, student);
+  else listCache.byId.delete(id);
+};
+
+const refreshCachedStudent = (id) => {
+  // Re-read after a reload finishes too, in case its snapshot predates this write.
+  if (listCache.loading) listCache.dirtyIds.add(id);
+  const patch = patchCachedStudent(id)
+    .catch((error) => {
+      console.warn('Student list cache patch failed:', error.message);
+      listCache.loadedAt = 0;
+    })
+    .finally(() => listCache.patches.delete(patch));
+  listCache.patches.add(patch);
+};
+
+const reloadListCache = () => {
+  if (listCache.loading) return listCache.loading;
+  listCache.dirtyIds.clear();
+  listCache.loading = (async () => {
+    const students = await loadListedStudents();
+    listCache.byId = new Map(students.map((student) => [String(student._id), student]));
+    listCache.loadedAt = Date.now();
+    const dirtyIds = [...listCache.dirtyIds];
+    listCache.dirtyIds.clear();
+    await Promise.all(dirtyIds.map((id) => patchCachedStudent(id).catch(() => { listCache.loadedAt = 0; })));
+    return listCache.byId;
+  })().finally(() => { listCache.loading = null; });
+  return listCache.loading;
+};
+
+const getCachedListedStudents = async () => {
+  if (!listCache.byId) return reloadListCache();
+  if (Date.now() - listCache.loadedAt > LIST_CACHE_TTL_MS) {
+    reloadListCache().catch((error) => console.warn('Student list cache refresh failed:', error.message));
+  }
+  // Writes that just finished must be visible to the reload that follows them.
+  if (listCache.patches.size) await Promise.all([...listCache.patches]);
+  return listCache.byId;
+};
+
+const warmStudentListCache = () => reloadListCache()
+  .then((students) => console.log(`Student list cache ready (${students.size} records)`))
+  .catch((error) => console.warn('Student list cache warm-up failed:', error.message));
+
+if (StudentRegistration.listEvents) {
+  StudentRegistration.listEvents.on('change', refreshCachedStudent);
+  StudentRegistration.listEvents.on('bulkChange', () => { listCache.loadedAt = 0; });
+}
+
+// Same ownership rules as the Sales workspace database query below.
+const isSalesOwnedStudent = (student, user = {}) => {
+  const userId = (user._id || user.id || '').toString();
+  const userEmail = (user.email || '').toString().trim().toLowerCase();
+  const normalizeName = (value) => (value || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+  const userNames = [user.fullName, user.name, user.username, [user.firstName, user.lastName].filter(Boolean).join(' ')]
+    .map(normalizeName)
+    .filter(Boolean);
+  if (userId && [student.createdBy, student.agentId].some((value) => value && value.toString() === userId)) return true;
+  if (userEmail && (student.registeredByEmail || '').toString().trim().toLowerCase() === userEmail) return true;
+  const studentName = normalizeName(student.registeredBy);
+  return Boolean(studentName && userNames.includes(studentName));
+};
+
 const getStudentRegistrations = async (req, res) => {
   try {
     const { department, status, readiness, payment, paymentOption, timeSlot, classCompletionStatus, cocPaymentStatus, search, startDate, endDate, dateField, autoSync } = req.query;
@@ -722,6 +802,16 @@ const getStudentRegistrations = async (req, res) => {
       }
     }
 
+    if (Object.keys(req.query).every((key) => CACHEABLE_LIST_PARAMS.has(key))) {
+      const ownRecordsOnly = isSalesWorkspace && !isCustomerServiceOrAdmin;
+      const students = [...(await getCachedListedStudents()).values()]
+        .filter((student) => !ownRecordsOnly || isSalesOwnedStudent(student, req.user));
+      const order = req.query.sortOrder === 'asc' || req.query.sort === 'asc' ? 1 : -1;
+      const createdTime = (student) => new Date(student.createdAt || 0).getTime() || 0;
+      students.sort((a, b) => (createdTime(a) - createdTime(b)) * order);
+      return res.json({ success: true, data: students.map((student) => normalizeStudent(student)) });
+    }
+
     if (department && department !== 'All') query.learningDepartment = department;
     if (status && status !== 'All') query.status = status;
     if (readiness && readiness !== 'All') query.readinessStatus = readiness;
@@ -781,11 +871,14 @@ const getStudentRegistrations = async (req, res) => {
         nextCursor: hasMore ? String(students[students.length - 1]._id) : null,
       });
     }
+    // Sort in Node: an in-pipeline $sort on createdAt exceeds Atlas's 32MB sort
+    // memory limit (allowDiskUse is not available on this tier).
     const students = await StudentRegistration.aggregate([
       { $match: query },
       ...require('../utils/studentListProjection').studentListProjection,
-      { $sort: { createdAt: sortOrder } },
     ]);
+    const createdTime = (student) => new Date(student.createdAt || 0).getTime() || 0;
+    students.sort((a, b) => (createdTime(a) - createdTime(b)) * sortOrder);
 
     res.json({ success: true, data: students.map((student) => normalizeStudent(student)) });
   } catch (error) {
@@ -1199,4 +1292,5 @@ module.exports = {
   verifyStudentRegistration,
   handleSyncAllFollowupStudents,
   syncAllFollowupStudentsToRegistrations,
+  warmStudentListCache,
 };
