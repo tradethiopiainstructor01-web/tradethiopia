@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const compression = require('compression');
 const dotenv = require('dotenv');
 const path = require('path');
 const mongoose = require('mongoose');
@@ -195,6 +196,8 @@ const corsOptions = {
 
 
 // Middleware
+// Gzip JSON responses: large lists (e.g. 12 MB of student registrations) shrink ~35x.
+app.use(compression());
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));

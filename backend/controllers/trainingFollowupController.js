@@ -9,6 +9,7 @@ const trainingListCache = createListCache({
   load: () => TrainingFollowup.find({}).lean(),
   loadOne: (id) => (mongoose.Types.ObjectId.isValid(id) ? TrainingFollowup.findById(id).lean() : null),
   events: TrainingFollowup.listEvents,
+  snapshotName: 'training-followups',
 });
 
 const warmTrainingFollowupCache = () => trainingListCache.warm();
