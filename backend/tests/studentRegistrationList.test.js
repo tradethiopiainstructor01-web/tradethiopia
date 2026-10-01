@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const projection = require('../utils/studentListProjection');
+const listCache = require('../utils/listCache');
 
 test('student list returns existing students without awaiting historical repairs', async () => {
   let scheduled = 0;
@@ -20,6 +21,7 @@ test('student list returns existing students without awaiting historical repairs
       ensureCompletedSalesSynced: () => { throw new Error('List must not await repair'); },
     },
     '../utils/studentListProjection': projection,
+    '../utils/listCache': listCache,
   };
   const context = { module: { exports: {} }, console, require: (name) => {
     assert.ok(dependencies[name], `Unexpected dependency: ${name}`);
@@ -62,6 +64,7 @@ test('cursor batches bound database work and preserve filters across pages', asy
       return ids.map((_id) => ({ _id, fullName: 'Student' }));
     } };
     if (name === '../utils/studentListProjection') return projection;
+    if (name === '../utils/listCache') return listCache;
     return {};
   } };
   vm.runInNewContext(controllerSource, context);
@@ -109,7 +112,7 @@ test('education upload rejects unsupported, mismatched, malformed and oversized 
 });
 
 test('list-based updates preserve education files and explicit removal clears them', () => {
-  const context = { module: { exports: {} }, Buffer, console, require: () => ({}) };
+  const context = { module: { exports: {} }, Buffer, console, require: (name) => (name === '../utils/listCache' ? listCache : {}) };
   vm.runInNewContext(controllerSource + ';globalThis.helpers = { buildPayload, normalizeStudent };', context);
   const { buildPayload, normalizeStudent } = context.helpers;
   const stored = { _id: 's1', fullName: 'Student', learningDepartment: 'Barista',

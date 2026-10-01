@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const StudentRegistration = require('../models/StudentRegistration');
 const TrainingFollowup = require('../models/TrainingFollowup');
 const SalesCustomer = require('../models/SalesCustomer');
+const { createListCache } = require('../utils/listCache');
 
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -620,71 +621,30 @@ const canAccessStudentRecord = (student, user) => {
   return false;
 };
 
-// In-memory copy of the attachment-free student list. Reading every record from
-// Atlas can take longer than the client timeout on slow links, so unfiltered list
-// requests are answered from memory. Model change events patch single records,
-// and a stale copy is served while a background reload runs.
-const LIST_CACHE_TTL_MS = 2 * 60 * 1000;
+// Unfiltered list requests are answered from an in-memory copy of the
+// attachment-free student list (see utils/listCache).
 const CACHEABLE_LIST_PARAMS = new Set(['workspace', 'sortOrder', 'sort', 'autoSync']);
-const listCache = { byId: null, loadedAt: 0, loading: null, dirtyIds: new Set(), patches: new Set() };
 
 const loadListedStudents = (match = {}) => StudentRegistration.aggregate([
   { $match: match },
   ...require('../utils/studentListProjection').studentListProjection,
 ]);
 
-const patchCachedStudent = async (id) => {
-  if (!listCache.byId || !mongoose.Types.ObjectId.isValid(id)) return;
-  const [student] = await loadListedStudents({ _id: new mongoose.Types.ObjectId(id) });
-  if (student) listCache.byId.set(id, student);
-  else listCache.byId.delete(id);
-};
+const studentListCache = createListCache({
+  name: 'Student list',
+  load: () => loadListedStudents(),
+  loadOne: async (id) => {
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+    const [student] = await loadListedStudents({ _id: new mongoose.Types.ObjectId(id) });
+    return student;
+  },
+  events: StudentRegistration.listEvents,
+});
 
-const refreshCachedStudent = (id) => {
-  // Re-read after a reload finishes too, in case its snapshot predates this write.
-  if (listCache.loading) listCache.dirtyIds.add(id);
-  const patch = patchCachedStudent(id)
-    .catch((error) => {
-      console.warn('Student list cache patch failed:', error.message);
-      listCache.loadedAt = 0;
-    })
-    .finally(() => listCache.patches.delete(patch));
-  listCache.patches.add(patch);
-};
-
-const reloadListCache = () => {
-  if (listCache.loading) return listCache.loading;
-  listCache.dirtyIds.clear();
-  listCache.loading = (async () => {
-    const students = await loadListedStudents();
-    listCache.byId = new Map(students.map((student) => [String(student._id), student]));
-    listCache.loadedAt = Date.now();
-    const dirtyIds = [...listCache.dirtyIds];
-    listCache.dirtyIds.clear();
-    await Promise.all(dirtyIds.map((id) => patchCachedStudent(id).catch(() => { listCache.loadedAt = 0; })));
-    return listCache.byId;
-  })().finally(() => { listCache.loading = null; });
-  return listCache.loading;
-};
-
-const getCachedListedStudents = async () => {
-  if (!listCache.byId) return reloadListCache();
-  if (Date.now() - listCache.loadedAt > LIST_CACHE_TTL_MS) {
-    reloadListCache().catch((error) => console.warn('Student list cache refresh failed:', error.message));
-  }
-  // Writes that just finished must be visible to the reload that follows them.
-  if (listCache.patches.size) await Promise.all([...listCache.patches]);
-  return listCache.byId;
-};
-
-const warmStudentListCache = () => reloadListCache()
-  .then((students) => console.log(`Student list cache ready (${students.size} records)`))
-  .catch((error) => console.warn('Student list cache warm-up failed:', error.message));
-
-if (StudentRegistration.listEvents) {
-  StudentRegistration.listEvents.on('change', refreshCachedStudent);
-  StudentRegistration.listEvents.on('bulkChange', () => { listCache.loadedAt = 0; });
-}
+const getCachedListedStudents = () => studentListCache.get();
+const warmStudentListCache = () => studentListCache.warm();
+// The loaded list, or null before the first load finishes; never waits on Atlas.
+const peekStudentList = () => studentListCache.peek();
 
 // Same ownership rules as the Sales workspace database query below.
 const isSalesOwnedStudent = (student, user = {}) => {
@@ -1293,4 +1253,5 @@ module.exports = {
   handleSyncAllFollowupStudents,
   syncAllFollowupStudentsToRegistrations,
   warmStudentListCache,
+  peekStudentList,
 };

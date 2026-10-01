@@ -1,6 +1,29 @@
+const mongoose = require("mongoose");
 const TrainingFollowup = require("../models/TrainingFollowup");
 const SalesCustomer = require("../models/SalesCustomer");
 const User = require("../models/user.model");
+const { createListCache } = require("../utils/listCache");
+
+const trainingListCache = createListCache({
+  name: 'Training follow-up list',
+  load: () => TrainingFollowup.find({}).lean(),
+  loadOne: (id) => (mongoose.Types.ObjectId.isValid(id) ? TrainingFollowup.findById(id).lean() : null),
+  events: TrainingFollowup.listEvents,
+});
+
+const warmTrainingFollowupCache = () => trainingListCache.warm();
+
+// Matches the database sort orders used for filtered requests.
+const sortFollowups = (followups, sortOptions) => {
+  const [[field, direction]] = Object.entries(sortOptions);
+  const key = (item) => (field === 'createdAt' ? new Date(item.createdAt || 0).getTime() || 0 : (item[field] || '').toString());
+  return followups.sort((a, b) => {
+    const left = key(a);
+    const right = key(b);
+    const byField = typeof left === 'number' ? left - right : left < right ? -1 : left > right ? 1 : 0;
+    return (byField || String(a._id).localeCompare(String(b._id))) * direction;
+  });
+};
 
 const isCustomerServiceIdentifier = (val, csSet) => {
   if (!val) return true;
@@ -83,9 +106,10 @@ const getTrainingFollowups = async (req, res) => {
       sortOptions = { customerName: -1 };
     }
 
-    const followups = await TrainingFollowup.find(filter)
-      .sort(sortOptions)
-      .lean();
+    // Unfiltered lists come from memory; filtered ones still query the database.
+    const followups = Object.keys(filter).length
+      ? await TrainingFollowup.find(filter).sort(sortOptions).lean()
+      : sortFollowups([...(await trainingListCache.get()).values()], sortOptions);
 
     // Enrich followups with real sales agents from SalesCustomer
     try {
@@ -106,19 +130,23 @@ const getTrainingFollowups = async (req, res) => {
       });
 
       // Find all followups needing sales agent lookup
-      const lookupCriteria = [];
+      // One $in per field instead of thousands of single-value $or clauses.
+      const salesLookup = { email: new Set(), customerName: new Set(), phone: new Set() };
       followups.forEach((f) => {
         const curSales = (f.salesAgent || '').trim();
         if (isCustomerServiceIdentifier(curSales, csSet)) {
-          if (f.email) lookupCriteria.push({ email: f.email.trim() });
-          if (f.customerName) lookupCriteria.push({ customerName: f.customerName.trim() });
-          if (f.phoneNumber) lookupCriteria.push({ phone: f.phoneNumber.trim() });
+          if (f.email) salesLookup.email.add(f.email.trim());
+          if (f.customerName) salesLookup.customerName.add(f.customerName.trim());
+          if (f.phoneNumber) salesLookup.phone.add(f.phoneNumber.trim());
         }
       });
+      const salesCriteria = Object.entries(salesLookup)
+        .filter(([, values]) => values.size)
+        .map(([field, values]) => ({ [field]: { $in: [...values] } }));
 
       let matchedSalesCustomers = [];
-      if (lookupCriteria.length > 0) {
-        matchedSalesCustomers = await SalesCustomer.find({ $or: lookupCriteria })
+      if (salesCriteria.length > 0) {
+        matchedSalesCustomers = await SalesCustomer.find({ $or: salesCriteria })
           .select('agentId customerName email phone')
           .lean();
       }
@@ -136,17 +164,25 @@ const getTrainingFollowups = async (req, res) => {
       // Also look up student registrations to populate preferredTimeSlot into scheduleShift
       let matchedStudents = [];
       try {
-        const StudentRegistration = require('../models/StudentRegistration');
-        const studentCriteria = [];
+        const studentLookup = { studentId: new Set(), email: new Set(), fullName: new Set(), phone: new Set() };
         followups.forEach((f) => {
-          if (f.idInfo) studentCriteria.push({ studentId: f.idInfo.trim() });
-          if (f.email) studentCriteria.push({ email: f.email.trim() });
-          if (f.customerName) studentCriteria.push({ fullName: f.customerName.trim() });
-          if (f.phoneNumber) studentCriteria.push({ phone: f.phoneNumber.trim() });
+          if (f.idInfo) studentLookup.studentId.add(f.idInfo.trim());
+          if (f.email) studentLookup.email.add(f.email.trim());
+          if (f.customerName) studentLookup.fullName.add(f.customerName.trim());
+          if (f.phoneNumber) studentLookup.phone.add(f.phoneNumber.trim());
         });
+        const lookupFields = Object.entries(studentLookup).filter(([, values]) => values.size);
 
-        if (studentCriteria.length > 0) {
-          matchedStudents = await StudentRegistration.find({ $or: studentCriteria })
+        // Prefer the in-memory student list; fall back to Atlas before it has loaded.
+        const cachedStudents = require('./studentRegistrationController').peekStudentList();
+        if (cachedStudents) {
+          matchedStudents = [...cachedStudents.values()]
+            .filter((student) => lookupFields.some(([field, values]) => values.has(student[field])));
+        } else if (lookupFields.length > 0) {
+          const StudentRegistration = require('../models/StudentRegistration');
+          matchedStudents = await StudentRegistration.find({
+            $or: lookupFields.map(([field, values]) => ({ [field]: { $in: [...values] } })),
+          })
             .select('studentId fullName email phone preferredTimeSlot')
             .lean();
         }
@@ -298,4 +334,5 @@ module.exports = {
   getWeeklyPopularTrainings,
   updateTrainingFollowup,
   deleteTrainingFollowup,
+  warmTrainingFollowupCache,
 };
