@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
     Box,
     Button,
@@ -49,13 +49,6 @@ const LoginPage = () => {
     const toast = useToast();
     const setCurrentUser = useUserStore((state) => state.setCurrentUser);
     const redirectAfterLogin = (path) => navigate(path, { replace: true });
-
-    useEffect(() => {
-        const img1 = new window.Image();
-        img1.src = '/assets/newyear/adey_abeba_bouquet.jpg';
-        const img2 = new window.Image();
-        img2.src = '/assets/newyear/ethiopian_newyear_art.jpg';
-    }, []);
 
 const handleLogin = async (event) => {
     event?.preventDefault();
@@ -149,14 +142,6 @@ const handleLogin = async (event) => {
     return (
         <Box position="relative" minH="100dvh" bg="#001f4d" overflow="hidden">
             <style>{`
-                @keyframes floatSwayLeft {
-                    0%, 100% { transform: translateY(0px) rotate(0deg); }
-                    50% { transform: translateY(-12px) rotate(1.2deg); }
-                }
-                @keyframes floatSwayRight {
-                    0%, 100% { transform: translateY(0px) rotate(0deg); }
-                    50% { transform: translateY(-10px) rotate(-1.2deg); }
-                }
                 @keyframes floatingPetal {
                     0% {
                         transform: translateY(-30px) translateX(0) rotate(0deg);
@@ -222,80 +207,6 @@ const handleLogin = async (event) => {
                     w="full"
                     maxW="1320px"
                 >
-                    {/* LEFT FLANK: Adey Abeba Floral Bouquet with Motion Graphics */}
-                    <Flex
-                        direction="column"
-                        align="center"
-                        justify="center"
-                        w={{ lg: '280px', xl: '330px' }}
-                        maxW="330px"
-                        display={{ base: 'none', lg: 'flex' }}
-                        animation="floatSwayLeft 7s ease-in-out infinite"
-                        position="relative"
-                        zIndex={2}
-                    >
-                        <Box
-                            bg="linear-gradient(165deg, rgba(0, 39, 88, 0.78) 0%, rgba(0, 31, 77, 0.94) 100%)"
-                            borderWidth="1.5px"
-                            borderColor="rgba(217, 154, 0, 0.45)"
-                            borderRadius="26px"
-                            p={5}
-                            boxShadow="0 24px 60px rgba(0, 0, 0, 0.45), 0 0 35px rgba(217, 154, 0, 0.2)"
-                            textAlign="center"
-                            position="relative"
-                            overflow="hidden"
-                            backdropFilter="blur(12px)"
-                        >
-                            <HStack justify="center" spacing={1.5} mb={3}>
-                                <Text fontSize="16px">🌼</Text>
-                                <Text color="#FFD700" fontSize="13px" fontWeight="900" letterSpacing="1px">
-                                    አደይ አበባ • ADEY ABEBA
-                                </Text>
-                                <Text fontSize="16px">🌼</Text>
-                            </HStack>
-
-                            <Box
-                                position="relative"
-                                borderRadius="20px"
-                                overflow="hidden"
-                                borderWidth="1.5px"
-                                borderColor="rgba(255, 215, 0, 0.4)"
-                                boxShadow="0 12px 32px rgba(217, 154, 0, 0.3)"
-                                mb={4}
-                            >
-                                <Image
-                                    src="/assets/newyear/adey_abeba_bouquet.jpg"
-                                    alt="Ethiopian Yellow Flowers Adey Abeba"
-                                    w="100%"
-                                    h="250px"
-                                    objectFit="cover"
-                                    loading="eager"
-                                    decoding="async"
-                                    transition="transform 0.4s ease"
-                                    _hover={{ transform: 'scale(1.04)' }}
-                                />
-                                <Box
-                                    position="absolute"
-                                    inset={0}
-                                    bg="radial-gradient(circle at center, transparent 45%, rgba(0, 31, 77, 0.4) 100%)"
-                                    pointerEvents="none"
-                                />
-                            </Box>
-
-                            <Text
-                                color="#FFD700"
-                                fontSize="16px"
-                                fontWeight="900"
-                                fontFamily="'Noto Sans Ethiopic', sans-serif"
-                                mb={1.5}
-                            >
-                                እንኳን አደረሳችሁ!
-                            </Text>
-                            <Text color="rgba(255, 255, 255, 0.82)" fontSize="11.5px" fontWeight="600" lineHeight="1.5">
-                                የአደይ አበባ ውበትና የብርሃን ወር አዲሱን ዓመት የተስፋ፣ የስኬትና የበረከት ያድርግልን!
-                            </Text>
-                        </Box>
-                    </Flex>
 
                     {/* CENTER: The Main Login Card */}
                     <Flex
@@ -331,43 +242,6 @@ const handleLogin = async (event) => {
                             </HStack>
                             <Text fontSize="11px" color="#D99A00" fontWeight="800" mt={2}>
                                 Connecting Markets, Empowering Business
-                            </Text>
-                        </Box>
-
-                        {/* Witty Amharic New Year Message Banner */}
-                        <Box
-                            bg="linear-gradient(135deg, rgba(217, 154, 0, 0.2) 0%, rgba(0, 44, 96, 0.65) 100%)"
-                            borderWidth="1.5px"
-                            borderColor="rgba(217, 154, 0, 0.55)"
-                            borderRadius="16px"
-                            p={3.5}
-                            mb={4}
-                            textAlign="center"
-                            boxShadow="0 6px 20px rgba(217, 154, 0, 0.18)"
-                            position="relative"
-                            overflow="hidden"
-                        >
-                            <HStack justify="center" spacing={1.5} mb={1}>
-                                <Text fontSize="14px">🌼</Text>
-                                <Text
-                                    color="#FFD700"
-                                    fontSize="14px"
-                                    fontWeight="900"
-                                    letterSpacing="0.5px"
-                                    textShadow="0 0 10px rgba(255, 215, 0, 0.6)"
-                                >
-                                    መልካም አዲስ ዓመት!
-                                </Text>
-                                <Text fontSize="14px">🌼</Text>
-                            </HStack>
-                            <Text
-                                color="#FFFFFF"
-                                fontSize="11px"
-                                fontWeight="600"
-                                lineHeight="1.55"
-                                fontFamily="'Noto Sans Ethiopic', sans-serif"
-                            >
-                                “አዲሱ ዓመት &apos;የይለፍ ቃል (Password) ረሳሁ&apos; የማንልበት፣ ኮምፒውተራችን የማይዘጋብን (የማይደናቀፍብን) እና ቡናችን ሳይቀዘቅዝ በደስታ የምንጠጣበት የስኬትና የሰላም ዓመት ይሁንልን! ☕💻”
                             </Text>
                         </Box>
 
@@ -475,80 +349,6 @@ const handleLogin = async (event) => {
                         </Text>
                     </Flex>
 
-                    {/* RIGHT FLANK: Traditional Ethiopian New Year Artwork with Motion Graphics */}
-                    <Flex
-                        direction="column"
-                        align="center"
-                        justify="center"
-                        w={{ lg: '280px', xl: '330px' }}
-                        maxW="330px"
-                        display={{ base: 'none', lg: 'flex' }}
-                        animation="floatSwayRight 8s ease-in-out infinite"
-                        position="relative"
-                        zIndex={2}
-                    >
-                        <Box
-                            bg="linear-gradient(165deg, rgba(0, 39, 88, 0.78) 0%, rgba(0, 31, 77, 0.94) 100%)"
-                            borderWidth="1.5px"
-                            borderColor="rgba(217, 154, 0, 0.45)"
-                            borderRadius="26px"
-                            p={5}
-                            boxShadow="0 24px 60px rgba(0, 0, 0, 0.45), 0 0 35px rgba(217, 154, 0, 0.2)"
-                            textAlign="center"
-                            position="relative"
-                            overflow="hidden"
-                            backdropFilter="blur(12px)"
-                        >
-                            <HStack justify="center" spacing={1.5} mb={3}>
-                                <Text fontSize="16px">✨</Text>
-                                <Text color="#FFD700" fontSize="13px" fontWeight="900" letterSpacing="1px">
-                                    እንቁጣጣሽ • ENKUTATASH
-                                </Text>
-                                <Text fontSize="16px">✨</Text>
-                            </HStack>
-
-                            <Box
-                                position="relative"
-                                borderRadius="20px"
-                                overflow="hidden"
-                                borderWidth="1.5px"
-                                borderColor="rgba(255, 215, 0, 0.4)"
-                                boxShadow="0 12px 32px rgba(217, 154, 0, 0.3)"
-                                mb={4}
-                            >
-                                <Image
-                                    src="/assets/newyear/ethiopian_newyear_art.jpg"
-                                    alt="Ethiopian New Year Celebration"
-                                    w="100%"
-                                    h="250px"
-                                    objectFit="cover"
-                                    loading="eager"
-                                    decoding="async"
-                                    transition="transform 0.4s ease"
-                                    _hover={{ transform: 'scale(1.04)' }}
-                                />
-                                <Box
-                                    position="absolute"
-                                    inset={0}
-                                    bg="radial-gradient(circle at center, transparent 45%, rgba(0, 31, 77, 0.4) 100%)"
-                                    pointerEvents="none"
-                                />
-                            </Box>
-
-                            <Text
-                                color="#FFD700"
-                                fontSize="16px"
-                                fontWeight="900"
-                                fontFamily="'Noto Sans Ethiopic', sans-serif"
-                                mb={1.5}
-                            >
-                                መልካም አዲስ ዓመት!
-                            </Text>
-                            <Text color="rgba(255, 255, 255, 0.82)" fontSize="11.5px" fontWeight="600" lineHeight="1.5">
-                                በአዲሱ ዓመት ንግዳችን የሚያድግበት፣ ደንበኞቻችን የሚረኩበት ድንቅ የስኬት ዘመን ይሁንልን!
-                            </Text>
-                        </Box>
-                    </Flex>
                 </HStack>
             </Flex>
         </Box>
