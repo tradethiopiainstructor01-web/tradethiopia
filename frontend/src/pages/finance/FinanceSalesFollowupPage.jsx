@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Flex,
@@ -163,7 +163,6 @@ const FinanceSalesFollowupPage = () => {
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('Completed');
   const [period, setPeriod] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -198,15 +197,15 @@ const FinanceSalesFollowupPage = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  useEffect(() => { setPage(1); }, [search, status, dateFrom, dateTo, limit]);
+  useEffect(() => { setPage(1); }, [search, dateFrom, dateTo, limit]);
 
   const filterParams = useCallback(() => ({
     fields: 'summary',
     ...(search ? { search } : {}),
-    ...(status ? { followupStatus: status } : {}),
+    followupStatus: 'Completed',
     ...(dateFrom ? { dateFrom: startOfLocalDay(dateFrom) } : {}),
     ...(dateTo ? { dateTo: endOfLocalDay(dateTo) } : {}),
-  }), [search, status, dateFrom, dateTo]);
+  }), [search, dateFrom, dateTo]);
 
   const loadRows = useCallback(async () => {
     const id = ++requestId.current;
@@ -301,11 +300,10 @@ const FinanceSalesFollowupPage = () => {
 
   const clearFilters = () => {
     setSearchInput('');
-    setStatus('Completed');
     choosePeriod('all');
   };
 
-  const hasFilters = searchInput || status !== 'Completed' || dateFrom || dateTo;
+  const hasFilters = searchInput || dateFrom || dateTo;
   const periodLabel = PERIODS.find((option) => option.value === period)?.label || 'Custom range';
   const rangeLabel = dateFrom || dateTo
     ? `${dateFrom ? formatDate(`${dateFrom}T00:00:00`) : 'Any date'} – ${dateTo ? formatDate(`${dateTo}T00:00:00`) : 'today'}`
@@ -320,7 +318,7 @@ const FinanceSalesFollowupPage = () => {
         <Box>
           <Heading size="lg">Sales Follow-up Details</Heading>
           <Text color="gray.500" fontSize="sm" mt={1}>
-            Customers, trainings, registration dates, sales agents and payment slips in one place.
+            Completed sales follow-ups with customers, trainings, registration dates, sales agents and payment slips.
           </Text>
         </Box>
         <HStack>
@@ -378,12 +376,7 @@ const FinanceSalesFollowupPage = () => {
             </Box>
             <Box>
               <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>Status</Text>
-              <Select size="sm" borderRadius="md" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="">All statuses</option>
-                {['Completed', 'Pending', 'Prospect', 'Scheduled', 'Cancelled', 'Imported'].map((value) => (
-                  <option key={value} value={value}>{value}</option>
-                ))}
-              </Select>
+              <Badge colorScheme="green" borderRadius="full" px={3} py={1}>Completed only</Badge>
             </Box>
             <Box>
               <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>Registered from</Text>
