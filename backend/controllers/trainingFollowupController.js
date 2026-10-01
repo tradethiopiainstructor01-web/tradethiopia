@@ -7,7 +7,7 @@ const { createListCache } = require("../utils/listCache");
 const trainingListCache = createListCache({
   name: 'Training follow-up list',
   load: () => TrainingFollowup.find({}).lean(),
-  loadOne: (id) => (mongoose.Types.ObjectId.isValid(id) ? TrainingFollowup.findById(id).lean() : null),
+  loadMany: (ids) => TrainingFollowup.find({ _id: { $in: ids.filter((id) => mongoose.Types.ObjectId.isValid(id)) } }).lean(),
   events: TrainingFollowup.listEvents,
   snapshotName: 'training-followups',
 });
@@ -51,10 +51,15 @@ const createTrainingFollowup = async (req, res) => {
         filter.customerName = customerName;
       }
       
-      // Update the followupStatus to "Imported" for matching customers
-      await SalesCustomer.updateMany(filter, {
-        followupStatus: "Imported"
-      });
+      // Update the followupStatus to "Imported" for matching customers. Updating by
+      // id lets the in-memory sales list patch these rows instead of reloading.
+      const matches = await SalesCustomer.find(filter).select("_id").lean();
+      if (matches.length) {
+        await SalesCustomer.updateMany(
+          { _id: { $in: matches.map((match) => match._id) } },
+          { followupStatus: "Imported" }
+        );
+      }
     }
 
     // Automatically sync into Tessbin StudentRegistration

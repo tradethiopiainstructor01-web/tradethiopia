@@ -44,7 +44,8 @@ import {
   FaChartLine,
   FaExclamationTriangle,
   FaFileAlt,
-  FaFileUpload
+  FaFileUpload,
+  FaReceipt
 } from 'react-icons/fa';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUserStore } from '../../store/user';
@@ -108,6 +109,7 @@ const FinanceLayout = ({ children }) => {
   const navItems = [
     { label: 'Dashboard', icon: FaHome, path: '/finance-dashboard' },
     { label: 'Financial Reports', icon: FaChartBar, path: '/finance-dashboard/reports' },
+    { label: 'Sales Follow-up', icon: FaReceipt, path: '/finance-dashboard/sales-followup' },
     { label: 'COO KPI Reports', icon: FaChartLine, path: '/finance-dashboard/coo-kpis' },
     { label: 'Inventory', icon: FaBoxes, path: '/finance-dashboard/inventory' },
     { label: 'Orders', icon: FaShoppingCart, path: '/finance-dashboard/orders' },

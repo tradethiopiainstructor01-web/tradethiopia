@@ -6,6 +6,7 @@ const {
   getCustomers,
   getDocumentReminders,
   getCustomerById,
+  getCustomerPaymentSlip,
   createCustomer,
   updateCustomer,
   sendCustomerEmail,
@@ -27,6 +28,8 @@ router.get('/document-reminders', protect, getDocumentReminders);
 
 router.post('/:id/email', protect, sendCustomerEmail);
 router.post('/:id/sms', protect, sendCustomerSms);
+
+router.get('/:id/payment-slip', protect, getCustomerPaymentSlip);
 
 router.route('/:id')
   .get(protect, getCustomerById)

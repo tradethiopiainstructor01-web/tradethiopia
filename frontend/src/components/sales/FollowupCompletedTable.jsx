@@ -87,6 +87,7 @@ import {
   FiDownload
 } from 'react-icons/fi';
 import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
+import { withDocuments } from '../../utils/salesDocuments';
 
 const formatCurrency = (amount) => {
   const numeric = Number(amount);
@@ -344,6 +345,16 @@ const FollowupCompletedTable = ({
 
   const toast = useToast();
 
+  // List rows carry document markers; load the real images before showing or editing them.
+  const loadDocuments = async (customer) => {
+    try {
+      return await withDocuments(customer);
+    } catch {
+      toast({ title: 'Could not load documents', description: 'Check your connection and try again.', status: 'error', isClosable: true });
+      return null;
+    }
+  };
+
   const userRole = localStorage.getItem('userRole') || 'agent';
   const headerBg = useColorModeValue('teal.700', 'teal.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -486,7 +497,9 @@ const FollowupCompletedTable = ({
   }, [sortedCompleted, safePage, pageSize]);
 
   // Handle Edit Action
-  const handleOpenEdit = (customer) => {
+  const handleOpenEdit = async (listCustomer) => {
+    const customer = await loadDocuments(listCustomer);
+    if (!customer) return;
     setEditCustomer({
       ...customer,
       customerName: customer.customerName || '',
@@ -1028,11 +1041,13 @@ const FollowupCompletedTable = ({
                               py={0.5}
                               borderRadius="md"
                               cursor={customer.passportPhoto ? "pointer" : "default"}
-                              onClick={() => {
+                              onClick={async () => {
                                 if (customer.passportPhoto) {
+                                  const full = await loadDocuments(customer);
+                                  if (!full?.passportPhoto) return;
                                   setFullImageModal({
                                     isOpen: true,
-                                    src: customer.passportPhoto,
+                                    src: full.passportPhoto,
                                     title: '3×4 Passport Photo',
                                     subtitle: customer.customerName
                                   });
@@ -1052,11 +1067,13 @@ const FollowupCompletedTable = ({
                               py={0.5}
                               borderRadius="md"
                               cursor={customer.nationalIdFrontImage ? "pointer" : "default"}
-                              onClick={() => {
+                              onClick={async () => {
                                 if (customer.nationalIdFrontImage) {
+                                  const full = await loadDocuments(customer);
+                                  if (!full?.nationalIdFrontImage) return;
                                   setFullImageModal({
                                     isOpen: true,
-                                    src: customer.nationalIdFrontImage,
+                                    src: full.nationalIdFrontImage,
                                     title: 'National ID Card (Front)',
                                     subtitle: customer.customerName
                                   });
@@ -1076,11 +1093,13 @@ const FollowupCompletedTable = ({
                               py={0.5}
                               borderRadius="md"
                               cursor={customer.nationalIdBackImage ? "pointer" : "default"}
-                              onClick={() => {
+                              onClick={async () => {
                                 if (customer.nationalIdBackImage) {
+                                  const full = await loadDocuments(customer);
+                                  if (!full?.nationalIdBackImage) return;
                                   setFullImageModal({
                                     isOpen: true,
-                                    src: customer.nationalIdBackImage,
+                                    src: full.nationalIdBackImage,
                                     title: 'National ID Card (Back)',
                                     subtitle: customer.customerName
                                   });
@@ -1100,11 +1119,13 @@ const FollowupCompletedTable = ({
                               py={0.5}
                               borderRadius="md"
                               cursor={customer.paymentScreenshot ? "pointer" : "default"}
-                              onClick={() => {
+                              onClick={async () => {
                                 if (customer.paymentScreenshot) {
+                                  const full = await loadDocuments(customer);
+                                  if (!full?.paymentScreenshot) return;
                                   setFullImageModal({
                                     isOpen: true,
-                                    src: customer.paymentScreenshot,
+                                    src: full.paymentScreenshot,
                                     title: 'Payment Screenshot / Receipt',
                                     subtitle: `${customer.customerName} - ${customer.paymentBank || 'Bank'}`
                                   });
@@ -1157,7 +1178,7 @@ const FollowupCompletedTable = ({
                               size="xs"
                               variant="ghost"
                               aria-label="View Details"
-                              onClick={() => setDrawerCustomer(customer)}
+                              onClick={async () => { const full = await loadDocuments(customer); if (full) setDrawerCustomer(full); }}
                             />
                           </Tooltip>
 

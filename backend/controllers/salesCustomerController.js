@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const SalesCustomer = require('../models/SalesCustomer');
 const User = require('../models/user.model');
 const Notification = require('../models/Notification');
@@ -6,6 +7,7 @@ const TrainingFollowup = require('../models/TrainingFollowup');
 const asyncHandler = require('express-async-handler');
 const { calculateCommission } = require('../utils/commission');
 const nodemailer = require('nodemailer');
+const { createListCache } = require('../utils/listCache');
 
 const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase();
 const PRIVILEGED_ROLES = new Set([
@@ -24,6 +26,86 @@ const PRIVILEGED_ROLES = new Set([
 ]);
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Old follow-up syncs stored generated SVG "receipt" placeholders as payment
+// slips; only uploaded images, PDFs and links count as real slips.
+const PLACEHOLDER_SLIP_PREFIX = 'data:image/svg+xml';
+const REAL_SLIP_QUERY = { $nin: ['', null], $not: /^data:image\/svg\+xml/ };
+
+// Lightweight lists send this marker in place of each stored document image.
+// Saving the marker back means "unchanged", so a list row can never wipe a document.
+const DOCUMENT_FIELDS = ['passportPhoto', 'nationalIdFrontImage', 'nationalIdBackImage', 'paymentScreenshot'];
+const STORED_DOCUMENT = '__stored_document__';
+const isDocumentChange = (value) => value !== undefined && value !== STORED_DOCUMENT;
+
+// Flags which documents a sale has (and whether its linked student registration
+// holds a real payment slip), then drops the base64 images (~95% of the bytes).
+const summaryStages = () => [
+  { $addFields: {
+    _documents: Object.fromEntries(DOCUMENT_FIELDS.map((field) => [
+      field, { $ne: [{ $trim: { input: { $ifNull: [`$${field}`, ''] } } }, ''] },
+    ])),
+    _ownSlip: isRealSlipExpression('$paymentScreenshot'),
+  } },
+  { $project: Object.fromEntries(DOCUMENT_FIELDS.map((field) => [field, 0])) },
+  // localField/foreignField uses the _id index; an $expr match scans (~40x slower).
+  { $lookup: {
+    from: StudentRegistration.collection.name,
+    localField: 'studentRegistrationId',
+    foreignField: '_id',
+    pipeline: [{ $project: { _id: 0, slip: isRealSlipExpression('$paymentScreenshot') } }],
+    as: '_registration',
+  } },
+  { $addFields: { _registrationSlip: { $in: [true, '$_registration.slip'] } } },
+  { $project: { _registration: 0 } },
+];
+
+// In-memory copy of every sale's summary row (see utils/listCache). Agents' own
+// lists and unpaginated status lists are answered from memory in milliseconds.
+const CACHEABLE_LIST_PARAMS = new Set(['fields', 'followupStatus']);
+const salesListCache = createListCache({
+  name: 'Sales follow-up list',
+  load: () => SalesCustomer.aggregate(summaryStages()),
+  loadMany: (ids) => SalesCustomer.aggregate([
+    { $match: { _id: { $in: ids.filter((id) => mongoose.Types.ObjectId.isValid(id)).map((id) => new mongoose.Types.ObjectId(id)) } } },
+    ...summaryStages(),
+  ]),
+  events: SalesCustomer.listEvents,
+  snapshotName: 'sales-customers',
+});
+const warmSalesCustomerCache = () => salesListCache.warm();
+
+// Sales rows carry their registration's slip flag, so re-read the sales linked to
+// a student registration whenever that registration changes.
+StudentRegistration.listEvents?.on('change', (registrationId) => {
+  const rows = salesListCache.peek();
+  if (!rows) return;
+  const linked = [...rows.values()]
+    .filter((row) => row.studentRegistrationId && String(row.studentRegistrationId) === registrationId)
+    .map((row) => row._id);
+  if (linked.length) salesListCache.refresh(linked);
+});
+
+const AGENT_NAME_TTL_MS = 60 * 1000;
+const agentNameCache = new Map(); // id -> { name, at }
+const getAgentNames = async (ids) => {
+  const now = Date.now();
+  const missing = ids.filter((id) => !(now - (agentNameCache.get(id)?.at || 0) < AGENT_NAME_TTL_MS)
+    && mongoose.Types.ObjectId.isValid(id));
+  if (missing.length) {
+    const users = await User.find({ _id: { $in: missing } }).select('username name fullName').lean();
+    const found = new Map(users.map((u) => [u._id.toString(), u.username || u.name || u.fullName || '']));
+    missing.forEach((id) => agentNameCache.set(id, { name: found.get(id) || '', at: now }));
+  }
+  return Object.fromEntries(ids.map((id) => [id, agentNameCache.get(id)?.name || '']));
+};
+const isRealSlip = (value) => typeof value === 'string' && value.trim() !== '' && !value.startsWith(PLACEHOLDER_SLIP_PREFIX);
+const isRealSlipExpression = (field) => ({
+  $and: [
+    { $ne: [{ $ifNull: [field, ''] }, ''] },
+    { $ne: [{ $substrCP: [{ $ifNull: [field, ''] }, 0, PLACEHOLDER_SLIP_PREFIX.length] }, PLACEHOLDER_SLIP_PREFIX] },
+  ],
+});
 
 const generateStudentRegistrationId = async () => {
   const prefix = 'CS-STU-';
@@ -376,42 +458,102 @@ const getCustomers = asyncHandler(async (req, res) => {
     }
   }
 
-  const customerQuery = SalesCustomer.find(filter)
-    .sort({ createdAt: -1, _id: -1 })
-    .lean();
-  // Lists that never show documents can skip the base64 images (~95% of the bytes).
-  if (req.query.fields === 'summary') {
-    customerQuery.select('-passportPhoto -nationalIdFrontImage -nationalIdBackImage -paymentScreenshot');
-  }
-  if (paginationRequested) customerQuery.skip(skip).limit(limit);
+  const summaryMode = req.query.fields === 'summary';
+  const sortOrder = { createdAt: -1, _id: -1 };
+  // Plain summary lists (an agent's own sales, or one status) come from memory.
+  const fromCache = summaryMode && !paginationRequested
+    && Object.keys(req.query).every((key) => CACHEABLE_LIST_PARAMS.has(key));
+  const readCachedCustomers = async () => {
+    const status = (req.query.followupStatus || '').toString().toLowerCase();
+    const createdTime = (c) => new Date(c.createdAt || 0).getTime() || 0;
+    return [...(await salesListCache.get()).values()]
+      .filter((c) => canViewAll || String(c.agentId) === String(req.user.id))
+      .filter((c) => !status || (c.followupStatus || '').toLowerCase() === status)
+      .sort((a, b) => (createdTime(b) - createdTime(a)) || String(b._id).localeCompare(String(a._id)));
+  };
+  const customerQuery = fromCache
+    ? readCachedCustomers()
+    : summaryMode
+      ? SalesCustomer.aggregate([
+        { $match: SalesCustomer.find(filter).cast(SalesCustomer) },
+        { $sort: sortOrder },
+        ...(paginationRequested ? [{ $skip: skip }, { $limit: limit }] : []),
+        ...summaryStages(),
+      ])
+      : SalesCustomer.find(filter).sort(sortOrder).lean();
+  if (!summaryMode && paginationRequested) customerQuery.skip(skip).limit(limit);
 
   const [customers, total] = await Promise.all([
     customerQuery,
     paginationRequested ? SalesCustomer.countDocuments(filter) : Promise.resolve(0)
   ]);
 
-  // Attach agentName by looking up user records
-  const agentIds = [...new Set(customers.map((c) => c.agentId).filter(Boolean))];
-  const users = agentIds.length
-    ? await User.find({ _id: { $in: agentIds } }).select('username name fullName').lean()
-    : [];
-  const userMap = users.reduce((acc, u) => {
-    acc[u._id.toString()] = u.username || u.name || u.fullName || '';
-    return acc;
-  }, {});
+  // Agent display names change rarely; cache them briefly instead of a query per request.
+  const agentIds = [...new Set(customers.map((c) => c.agentId).filter(Boolean).map(String))];
+  const userMap = await getAgentNames(agentIds);
+  const getSlipSource = (c) => {
+    if (c._ownSlip) return 'sales';
+    if (c._registrationSlip) return 'registration';
+    return null;
+  };
 
-  const withAgentName = customers.map((c) => ({
-    ...c,
-    agentName: userMap[c.agentId?.toString()] || c.agentId || 'Unknown',
-  }));
+  const withAgentName = customers.map(({ _documents, _ownSlip, _registrationSlip, ...c }) => {
+    const slipSource = summaryMode ? getSlipSource({ _ownSlip, _registrationSlip }) : undefined;
+    return {
+      ...c,
+      agentName: userMap[c.agentId?.toString()] || c.agentId || 'Unknown',
+      ...(summaryMode ? {
+        // Documents are replaced by a marker; the full record loads them on demand.
+        ...Object.fromEntries(DOCUMENT_FIELDS.map((field) => [field, _documents?.[field] ? STORED_DOCUMENT : ''])),
+        hasPaymentScreenshot: Boolean(slipSource),
+        paymentSlipSource: slipSource,
+      } : {}),
+    };
+  });
 
   if (!paginationRequested) {
     res.json(withAgentName);
     return;
   }
 
+  // Totals across every page of the current filter, for dashboard stat cards.
+  let summary;
+  if (req.query.includeSummary === 'true') {
+    const [totals] = await SalesCustomer.aggregate([
+      { $match: SalesCustomer.find(filter).cast(SalesCustomer) },
+      { $project: {
+        coursePrice: 1,
+        followupStatus: 1,
+        studentRegistrationId: 1,
+        ownSlip: isRealSlipExpression('$paymentScreenshot'),
+      } },
+      // localField/foreignField uses the _id index; an $expr match scans (~40x slower).
+      { $lookup: {
+        from: StudentRegistration.collection.name,
+        localField: 'studentRegistrationId',
+        foreignField: '_id',
+        pipeline: [{ $project: { _id: 0, slip: isRealSlipExpression('$paymentScreenshot') } }],
+        as: 'registration',
+      } },
+      { $group: {
+        _id: null,
+        total: { $sum: 1 },
+        totalCoursePrice: { $sum: { $ifNull: ['$coursePrice', 0] } },
+        withSlip: { $sum: { $cond: [{ $or: ['$ownSlip', { $in: [true, '$registration.slip'] }] }, 1, 0] } },
+        completed: { $sum: { $cond: [{ $eq: [{ $toLower: { $ifNull: ['$followupStatus', ''] } }, 'completed'] }, 1, 0] } },
+      } },
+    ]);
+    summary = {
+      total: totals?.total || 0,
+      totalCoursePrice: totals?.totalCoursePrice || 0,
+      withSlip: totals?.withSlip || 0,
+      completed: totals?.completed || 0,
+    };
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / limit));
   res.json({
+    ...(summary ? { summary } : {}),
     data: withAgentName,
     pagination: {
       page,
@@ -475,6 +617,40 @@ const getCustomerById = asyncHandler(async (req, res) => {
     agentName = u ? (u.username || u.name || u.fullName || customer.agentId) : customer.agentId;
   }
   res.json({ ...customer, agentName });
+});
+
+// @desc    Get a customer's payment slip (the sale's own, else its student registration's)
+// @route   GET /api/sales-customers/:id/payment-slip
+// @access  Private
+const getCustomerPaymentSlip = asyncHandler(async (req, res) => {
+  const customer = await SalesCustomer.findById(req.params.id)
+    .select('agentId paymentScreenshot studentRegistrationId')
+    .lean();
+  if (!customer) {
+    res.status(404);
+    throw new Error('Customer not found');
+  }
+
+  const ownsRecord = customer.agentId && customer.agentId.toString() === req.user.id.toString();
+  if (!ownsRecord && !PRIVILEGED_ROLES.has(normalizeRoleValue(req.user.role))) {
+    res.status(403);
+    throw new Error('You do not have permission to view this payment slip');
+  }
+
+  if (isRealSlip(customer.paymentScreenshot)) {
+    res.json({ src: customer.paymentScreenshot, source: 'sales' });
+    return;
+  }
+  if (customer.studentRegistrationId) {
+    const registration = await StudentRegistration.findById(customer.studentRegistrationId)
+      .select('+paymentScreenshot')
+      .lean();
+    if (isRealSlip(registration?.paymentScreenshot)) {
+      res.json({ src: registration.paymentScreenshot, source: 'registration' });
+      return;
+    }
+  }
+  res.json({ src: '', source: null });
 });
 
 // @desc    Create new customer
@@ -631,10 +807,10 @@ const updateCustomer = asyncHandler(async (req, res) => {
   if (supervisorComment !== undefined) customer.supervisorComment = supervisorComment;
   if (courseName !== undefined) customer.courseName = courseName;
   if (courseId !== undefined) customer.courseId = courseId;
-  if (passportPhoto !== undefined) customer.passportPhoto = passportPhoto;
-  if (nationalIdFrontImage !== undefined) customer.nationalIdFrontImage = nationalIdFrontImage;
-  if (nationalIdBackImage !== undefined) customer.nationalIdBackImage = nationalIdBackImage;
-  if (paymentScreenshot !== undefined) customer.paymentScreenshot = paymentScreenshot;
+  if (isDocumentChange(passportPhoto)) customer.passportPhoto = passportPhoto;
+  if (isDocumentChange(nationalIdFrontImage)) customer.nationalIdFrontImage = nationalIdFrontImage;
+  if (isDocumentChange(nationalIdBackImage)) customer.nationalIdBackImage = nationalIdBackImage;
+  if (isDocumentChange(paymentScreenshot)) customer.paymentScreenshot = paymentScreenshot;
   if (paymentOption !== undefined) customer.paymentOption = paymentOption;
   if (paymentBank !== undefined) customer.paymentBank = paymentBank;
   if (fsNumber !== undefined) customer.fsNumber = fsNumber;
@@ -928,8 +1104,10 @@ const getDocumentReminders = asyncHandler(async (req, res) => {
 
 module.exports = {
   getDocumentReminders,
+  warmSalesCustomerCache,
   getCustomers,
   getCustomerById,
+  getCustomerPaymentSlip,
   createCustomer,
   updateCustomer,
   sendCustomerEmail,

@@ -3,7 +3,9 @@ import axiosInstance from './axiosInstance';
 // Get all customers for logged in agent
 export const getAllCustomers = async () => {
   try {
-    const response = await axiosInstance.get('/sales-customers');
+    // Summary rows mark stored documents instead of sending the images; screens
+    // load a record's images on demand with withDocuments (utils/salesDocuments).
+    const response = await axiosInstance.get('/sales-customers', { params: { fields: 'summary' } });
     return response.data;
   } catch (error) {
     // Re-throw the error so the calling function can handle it appropriately

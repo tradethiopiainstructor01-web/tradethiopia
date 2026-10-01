@@ -73,6 +73,7 @@ import {
   FiAward
 } from 'react-icons/fi';
 import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
+import { withDocuments } from '../../utils/salesDocuments';
 
 const processImageFile = (file) => {
   return new Promise((resolve, reject) => {
@@ -348,6 +349,16 @@ const readColumnPrefs = () => {
 
 const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }) => {
   const toast = useToast();
+
+  // List rows carry document markers; load the real images before showing or editing them.
+  const loadDocuments = async (customer) => {
+    try {
+      return await withDocuments(customer);
+    } catch {
+      toast({ title: 'Could not load documents', description: 'Check your connection and try again.', status: 'error', isClosable: true });
+      return null;
+    }
+  };
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [isStatusWarningOpen, setIsStatusWarningOpen] = useState(false);
@@ -397,7 +408,9 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     return customers.slice(start, start + pageSize);
   }, [customers, safeCurrentPage, pageSize]);
 
-  const handleOpenEditModal = (customer) => {
+  const handleOpenEditModal = async (listCustomer) => {
+    if (!listCustomer) return;
+    const customer = await loadDocuments(listCustomer);
     if (!customer) return;
     setEditModalCustomer({
       ...customer,
@@ -698,17 +711,20 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       const value = forcedValue !== null ? forcedValue : editValue;
 
       if (editingCell.field === 'followupStatus' && value === 'Completed' && forcedValue === null) {
-        setCompletionProofData({
-          customer,
-          passportPhoto: customer.passportPhoto || '',
-          nationalIdFrontImage: customer.nationalIdFrontImage || '',
-          nationalIdBackImage: customer.nationalIdBackImage || '',
-          paymentScreenshot: customer.paymentScreenshot || '',
-          paymentOption: customer.paymentOption || 'Full Payment',
-          paymentBank: customer.paymentBank || '',
-          fsNumber: customer.fsNumber || ''
+        loadDocuments(customer).then((full) => {
+          if (!full) return;
+          setCompletionProofData({
+            customer: full,
+            passportPhoto: full.passportPhoto || '',
+            nationalIdFrontImage: full.nationalIdFrontImage || '',
+            nationalIdBackImage: full.nationalIdBackImage || '',
+            paymentScreenshot: full.paymentScreenshot || '',
+            paymentOption: full.paymentOption || 'Full Payment',
+            paymentBank: full.paymentBank || '',
+            fsNumber: full.fsNumber || ''
+          });
+          setIsCompletionProofOpen(true);
         });
-        setIsCompletionProofOpen(true);
         return;
       }
 
@@ -1188,8 +1204,10 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   colorScheme="blue"
                   size="xs"
                   variant="ghost"
-                  onClick={() => {
-                    setDrawerCustomer(customer);
+                  onClick={async () => {
+                    const full = await loadDocuments(customer);
+                    if (!full) return;
+                    setDrawerCustomer(full);
                     onOpen();
                   }}
                   aria-label="View details"
@@ -1305,8 +1323,10 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 icon={<InfoIcon />}
                 colorScheme="blue"
                 size="xs"
-                onClick={() => {
-                  setDrawerCustomer(customer);
+                onClick={async () => {
+                  const full = await loadDocuments(customer);
+                  if (!full) return;
+                  setDrawerCustomer(full);
                   onOpen();
                 }}
                 aria-label="View details"

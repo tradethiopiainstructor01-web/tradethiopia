@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Box, Center, Spinner, useDisclosure } from '@chakra-ui/react';
 import MobileSalesTopBar from '../../components/mobile/navigation/MobileSalesTopBar';
 import MobileBottomNav from '../../components/mobile/navigation/MobileBottomNav';
@@ -36,6 +36,15 @@ const MobileSalesShell = ({ activeItem, documentReminder }) => {
   const [followupAddSignal, setFollowupAddSignal] = useState(0);
   const [taskAddSignal, setTaskAddSignal] = useState(0);
   const currentItem = mobileItem || 'Home';
+
+  // The missing-documents warning opens follow-ups (mobile has no documents-only view).
+  useEffect(() => {
+    const openSection = (event) => {
+      if (event.detail?.section === 'Missing Documents') setMobileItem('Followup');
+    };
+    window.addEventListener('navigateToSection', openSection);
+    return () => window.removeEventListener('navigateToSection', openSection);
+  }, []);
 
   const handleAdd = () => {
     if (currentItem === 'Tasks') {
