@@ -9,6 +9,7 @@ import {
   Flex,
   Heading,
   HStack,
+  Spinner,
   Input,
   Select,
   Table,
@@ -79,6 +80,9 @@ const TesbinnTabPage = ({
   handleExportTesbinn,
   handleCsvImport,
   isCsvImportingTesbinn,
+  isLoadingTraining = false,
+  trainingLoadError = "",
+  onRetryTraining,
 }) => {
   const csvInputRef = useRef(null);
   const [pageSize, setPageSize] = useState(15);
@@ -297,9 +301,23 @@ const TesbinnTabPage = ({
                 ) : (
                   <Tr>
                     <Td colSpan={trainingFollowupColumnsToRender.length || 1} textAlign="center" py={10}>
-                      <Text color="gray.500">
-                        No completed training records found.
-                      </Text>
+                      {isLoadingTraining ? (
+                        <HStack justify="center" spacing={3} color="gray.500">
+                          <Spinner size="sm" />
+                          <Text>Loading TESBINN records…</Text>
+                        </HStack>
+                      ) : trainingLoadError ? (
+                        <VStack spacing={2}>
+                          <Text color="red.500">{trainingLoadError}</Text>
+                          {onRetryTraining && (
+                            <Button size="sm" colorScheme="red" variant="outline" onClick={onRetryTraining}>
+                              Retry
+                            </Button>
+                          )}
+                        </VStack>
+                      ) : (
+                        <Text color="gray.500">No completed training records found.</Text>
+                      )}
                     </Td>
                   </Tr>
                 )}

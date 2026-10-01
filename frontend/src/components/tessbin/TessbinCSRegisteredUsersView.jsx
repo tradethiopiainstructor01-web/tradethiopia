@@ -64,7 +64,7 @@ import {
   FiPrinter,
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
-import { getStudentRegistrationsInBatches, getStudentRegistrationById } from '../../services/studentRegistrationService';
+import { getStudentRegistrations, getStudentRegistrationById } from '../../services/studentRegistrationService';
 import StudentEducationDocument from './StudentEducationDocument';
 import TessbinCocPaymentEditor from './TessbinCocPaymentEditor';
 import TessbinStudentA4Dossier from './TessbinStudentA4Dossier';
@@ -174,7 +174,7 @@ export default function TessbinCSRegisteredUsersView() {
     setLoading(true);
     setLoadError('');
     try {
-      const data = await getStudentRegistrationsInBatches({ signal: request.signal });
+      const data = await getStudentRegistrations({ autoSync: 'false' }, { signal: request.signal });
       if (request.signal.aborted) return;
       let studentList = Array.isArray(data) ? data : [];
 

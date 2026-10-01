@@ -12,6 +12,7 @@ import {
   HStack,
   Input,
   Select,
+  Spinner,
   Table,
   Tbody,
   Td,
@@ -91,6 +92,9 @@ const TrainingFollowupTabPage = ({
   handleExportTraining,
   handleTrainingImport,
   isImportingTraining = false,
+  isLoadingTraining = false,
+  trainingLoadError = "",
+  onRetryTraining,
   children, // for grouped cards
 }) => {
   const importInputRef = useRef(null);
@@ -394,9 +398,23 @@ const TrainingFollowupTabPage = ({
                 ) : (
                   <Tr>
                     <Td colSpan={trainingFollowupColumnsToRender.length || 1} textAlign="center" py={10}>
-                      <Text color="gray.500">
-                        No training follow-up records found.
-                      </Text>
+                      {isLoadingTraining ? (
+                        <HStack justify="center" spacing={3} color="gray.500">
+                          <Spinner size="sm" />
+                          <Text>Loading training follow-ups…</Text>
+                        </HStack>
+                      ) : trainingLoadError ? (
+                        <VStack spacing={2}>
+                          <Text color="red.500">{trainingLoadError}</Text>
+                          {onRetryTraining && (
+                            <Button size="sm" colorScheme="red" variant="outline" onClick={onRetryTraining}>
+                              Retry
+                            </Button>
+                          )}
+                        </VStack>
+                      ) : (
+                        <Text color="gray.500">No training follow-up records found.</Text>
+                      )}
                     </Td>
                   </Tr>
                 )}

@@ -379,6 +379,10 @@ const getCustomers = asyncHandler(async (req, res) => {
   const customerQuery = SalesCustomer.find(filter)
     .sort({ createdAt: -1, _id: -1 })
     .lean();
+  // Lists that never show documents can skip the base64 images (~95% of the bytes).
+  if (req.query.fields === 'summary') {
+    customerQuery.select('-passportPhoto -nationalIdFrontImage -nationalIdBackImage -paymentScreenshot');
+  }
   if (paginationRequested) customerQuery.skip(skip).limit(limit);
 
   const [customers, total] = await Promise.all([

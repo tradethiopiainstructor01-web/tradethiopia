@@ -3,36 +3,14 @@ import axiosInstance from "./axiosInstance";
 const unwrap = (response) => response.data?.data || response.data || [];
 const requestConfig = { timeout: 30000 };
 
-// Collect small, indexed batches so filters and exports still cover all records.
-export const getStudentRegistrationsInBatches = async ({ signal } = {}) => {
-  const students = [];
-  let cursor;
-  do {
-    const response = await axiosInstance.get('/student-registrations', {
-      ...requestConfig,
-      signal,
-      params: { batchSize: 100, cursor, autoSync: 'false' },
-    });
-    if (!Array.isArray(response.data?.data)) {
-      throw new Error('The server returned an invalid registration list. Please retry.');
-    }
-    students.push(...response.data.data);
-    const nextCursor = response.data.nextCursor;
-    if (nextCursor && nextCursor === cursor) {
-      throw new Error('The registration list could not finish loading. Please retry.');
-    }
-    cursor = nextCursor;
-  } while (cursor);
-  return students;
-};
-
 // The server answers from its in-memory list within milliseconds; only the very
 // first load after a restart reads the whole collection, so allow it more time.
 const listRequestConfig = { timeout: 120000 };
 
-export const getStudentRegistrations = async (params = {}) => {
+export const getStudentRegistrations = async (params = {}, { signal } = {}) => {
   const response = await axiosInstance.get("/student-registrations", {
     ...listRequestConfig,
+    signal,
     params,
   });
   return unwrap(response);

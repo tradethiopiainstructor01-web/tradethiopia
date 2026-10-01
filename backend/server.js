@@ -411,8 +411,9 @@ if (require.main === module) {
           }
         });
 
-        // Load the student registration list into memory so the first page load is fast
+        // Load large lists into memory so the first dashboard load is fast
         require('./controllers/studentRegistrationController').warmStudentListCache();
+        require('./controllers/trainingFollowupController').warmTrainingFollowupCache();
 
         // Sync approaching and overdue company document licenses for HR
         syncAllApproachingLicenses(app).catch((err) =>

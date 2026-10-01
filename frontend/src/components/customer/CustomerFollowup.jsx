@@ -177,6 +177,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   const [isTesbinnBulkModalOpen, setIsTesbinnBulkModalOpen] = useState(false);
   const [isCsvImportingTesbinn, setIsCsvImportingTesbinn] = useState(false);
   const [isImportingTraining, setIsImportingTraining] = useState(false);
+  const [trainingLoadState, setTrainingLoadState] = useState({ loading: false, error: "" });
   const [assignableAgents, setAssignableAgents] = useState([]);
   const [selectedAgentForAssignment, setSelectedAgentForAssignment] = useState("");
   const [assignableInstructors, setAssignableInstructors] = useState([]);
@@ -598,6 +599,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       try {
         const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers`, {
           params: {
+            fields: "summary",
             followupStatus: "Completed"
           },
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -702,6 +704,7 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
       }
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/sales-customers`, {
         params: {
+          fields: "summary",
           page,
           limit,
           ...(search.trim() ? { search: search.trim() } : {}),
@@ -1047,12 +1050,20 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
   };
 
   const loadTrainingFollowups = useCallback(async ({ background = false } = {}) => {
+    if (!background) setTrainingLoadState((prev) => ({ ...prev, loading: true }));
     try {
       const result = await fetchTrainingFollowups();
       setTrainingFollowups(Array.isArray(result) ? result : []);
+      setTrainingLoadState({ loading: false, error: "" });
     } catch (err) {
       console.error("Failed to load training follow-ups", err);
-      if (!background) setTrainingFollowups([]);
+      // Keep rows already on screen; a failed background refresh is retried on the next tick.
+      if (!background) {
+        setTrainingLoadState({
+          loading: false,
+          error: err.response?.data?.message || err.message || "Could not load training follow-ups.",
+        });
+      }
     }
   }, []);
 
@@ -4300,6 +4311,9 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
                       handleExportTraining={handleExportTraining}
                       handleTrainingImport={handleTrainingImport}
                       isImportingTraining={isImportingTraining}
+                      isLoadingTraining={trainingLoadState.loading}
+                      trainingLoadError={trainingLoadState.error}
+                      onRetryTraining={() => loadTrainingFollowups()}
                     >
                       <TrainingFollowupGrouped
                         groupedTrainingFollowups={groupedTrainingFollowups}
@@ -4342,6 +4356,9 @@ const CustomerFollowup = ({ embedLayout = false, ensraOnly = false }) => {
                       handleExportTesbinn={handleExportTesbinn}
                       handleCsvImport={handleTesbinnCsvImport}
                       isCsvImportingTesbinn={isCsvImportingTesbinn}
+                      isLoadingTraining={trainingLoadState.loading}
+                      trainingLoadError={trainingLoadState.error}
+                      onRetryTraining={() => loadTrainingFollowups()}
                     />
                   )}
                 </TabPanel>

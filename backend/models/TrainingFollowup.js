@@ -1,4 +1,5 @@
 const { Schema, model } = require("mongoose");
+const { attachListEvents } = require("../utils/listCache");
 
 const trainingFollowupSchema = new Schema(
   {
@@ -32,4 +33,10 @@ const trainingFollowupSchema = new Schema(
   }
 );
 
-module.exports = model("TrainingFollowup", trainingFollowupSchema);
+// Change notifications keep the in-memory training follow-up list current.
+const listEvents = attachListEvents(trainingFollowupSchema);
+
+const TrainingFollowup = model("TrainingFollowup", trainingFollowupSchema);
+TrainingFollowup.listEvents = listEvents;
+
+module.exports = TrainingFollowup;
