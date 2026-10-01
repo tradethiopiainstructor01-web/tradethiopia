@@ -33,7 +33,7 @@ const attachListEvents = (schema) => {
 // With `snapshotName`, the list is also saved to the OS temp folder so a restart
 // (nodemon reload, serverless cold start) serves the saved copy instantly while
 // the fresh list loads in the background.
-const createListCache = ({ name, load, loadOne, events, ttlMs = 2 * 60 * 1000, snapshotName }) => {
+const createListCache = ({ name, load, loadMany, events, ttlMs = 2 * 60 * 1000, snapshotName }) => {
   const state = { byId: null, loadedAt: 0, loading: null, dirtyIds: new Set(), patches: new Set(), mustReload: false };
   // Keyed by database so different environments never share a snapshot.
   const snapshotFile = snapshotName && process.env.MONGO_URI
@@ -75,24 +75,39 @@ const createListCache = ({ name, load, loadOne, events, ttlMs = 2 * 60 * 1000, s
     snapshotTimer.unref?.();
   };
 
-  const patch = async (id) => {
-    if (!state.byId) return;
-    const doc = await loadOne(id);
-    if (doc) state.byId.set(id, doc);
-    else state.byId.delete(id);
+  // Re-reads changed records with one query (loadMany) and applies them.
+  const patchMany = async (ids) => {
+    if (!state.byId || !ids.length) return;
+    const docs = await loadMany(ids);
+    const found = new Map(docs.map((doc) => [String(doc._id), doc]));
+    ids.forEach((id) => {
+      if (found.has(id)) state.byId.set(id, found.get(id));
+      else state.byId.delete(id);
+    });
     saveSnapshot();
   };
 
+  // Changes made in the same tick (e.g. insertMany) are patched together.
+  let queuedIds = null;
   const onChange = (id) => {
     // Re-read after a reload finishes too, in case its snapshot predates this write.
     if (state.loading) state.dirtyIds.add(id);
-    const pending = patch(id)
-      .catch((error) => {
-        console.warn(`${name} cache patch failed:`, error.message);
-        state.mustReload = true;
-      })
-      .finally(() => state.patches.delete(pending));
-    state.patches.add(pending);
+    if (!queuedIds) {
+      queuedIds = new Set();
+      const pending = Promise.resolve()
+        .then(() => {
+          const ids = [...queuedIds];
+          queuedIds = null;
+          return patchMany(ids);
+        })
+        .catch((error) => {
+          console.warn(`${name} cache patch failed:`, error.message);
+          state.mustReload = true;
+        })
+        .finally(() => state.patches.delete(pending));
+      state.patches.add(pending);
+    }
+    queuedIds.add(id);
   };
 
   const reload = () => {
@@ -105,7 +120,7 @@ const createListCache = ({ name, load, loadOne, events, ttlMs = 2 * 60 * 1000, s
       state.loadedAt = Date.now();
       const dirtyIds = [...state.dirtyIds];
       state.dirtyIds.clear();
-      await Promise.all(dirtyIds.map((id) => patch(id).catch(() => { state.mustReload = true; })));
+      await patchMany(dirtyIds).catch(() => { state.mustReload = true; });
       saveSnapshot();
       return state.byId;
     })().finally(() => { state.loading = null; });
@@ -138,7 +153,8 @@ const createListCache = ({ name, load, loadOne, events, ttlMs = 2 * 60 * 1000, s
     events.on('bulkChange', () => { state.mustReload = true; });
   }
 
-  return { get, warm, peek: () => state.byId };
+  // refresh: re-read specific records after a change this cache cannot observe itself.
+  return { get, warm, peek: () => state.byId, refresh: (ids) => ids.forEach((id) => onChange(String(id))) };
 };
 
 module.exports = { attachListEvents, createListCache };

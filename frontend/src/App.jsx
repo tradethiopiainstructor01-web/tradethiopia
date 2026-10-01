@@ -94,6 +94,7 @@ const CSManagerTaskMonitor = lazy(() => import("./components/customer/CSManagerT
 const FinanceERPPage = lazy(() => import("./pages/sales/FinanceERPPage.jsx"));
 const FinanceDashboardPage = lazy(() => import("./pages/sales/FinanceDashboardPage.jsx"));
 const FinanceReportsPage = lazy(() => import("./pages/sales/FinanceReportsPage.jsx"));
+const FinanceSalesFollowupPage = lazy(() => import("./pages/finance/FinanceSalesFollowupPage.jsx"));
 const InventoryPage = lazy(() => import("./pages/sales/InventoryPage.jsx"));
 const OrdersPage = lazy(() => import("./pages/sales/OrdersPage.jsx"));
 const FinanceDemandsPage = lazy(() => import("./components/finance/DemandsPage.jsx"));
@@ -153,7 +154,7 @@ function LayoutWrapper({ children }) {
   const noNavSidebarRoutes = [
     "/", "/login", "/secondpage", "/employee-info",
     ...(isHrOrAdmin ? [] : ["/employee-file-upload"]),
-    "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/sales", "/sales/dashboard", "/finance-dashboard", "/finance-dashboard/reports",
+    "/thirdpage", "/ttv", "/fourthpage", "/fifthpage", "/exam", "/sdashboard", "/sales", "/sales/dashboard", "/finance-dashboard", "/finance-dashboard/reports", "/finance-dashboard/sales-followup",
     "/finance-dashboard/inventory", "/finance-dashboard/orders", "/finance-dashboard/pricing", "/finance-dashboard/revenue", "/finance-dashboard/purchase",
     "/finance/messages", "/finance/team-requests", "/finance/demands", "/finance/payments", "/finance/inventory", "/finance/orders",
     "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
@@ -204,6 +205,7 @@ function App() {
       <Route path="/finance-dashboard/tax" element={<DashboardPermitRoute><FinanceLayout><FinanceERPPage /></FinanceLayout></DashboardPermitRoute>} />
       <Route path="/finance-dashboard/settings" element={<DashboardPermitRoute><FinanceLayout><FinanceERPPage /></FinanceLayout></DashboardPermitRoute>} />
       <Route path="/finance-dashboard/reports" element={<DashboardPermitRoute><FinanceLayout><FinanceReportsPage /></FinanceLayout></DashboardPermitRoute>} />
+      <Route path="/finance-dashboard/sales-followup" element={<DashboardPermitRoute><FinanceLayout><FinanceSalesFollowupPage /></FinanceLayout></DashboardPermitRoute>} />
       <Route path="/finance-dashboard/coo-kpis" element={<DashboardPermitRoute><FinanceLayout><FinanceCooKpiPage /></FinanceLayout></DashboardPermitRoute>} />
       <Route path="/finance/coo-kpis" element={<Navigate to="/finance-dashboard/coo-kpis" replace />} />
       <Route path="/finance-dashboard/inventory" element={<DashboardPermitRoute><FinanceLayout><InventoryPage /></FinanceLayout></DashboardPermitRoute>} />

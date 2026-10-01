@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { attachListEvents } = require('../utils/listCache');
 
 const commissionSchema = new mongoose.Schema({
   grossCommission: { type: Number, default: 0 },
@@ -163,4 +164,10 @@ salesCustomerSchema.index({ customerName: 1 });
 salesCustomerSchema.index({ phone: 1 });
 salesCustomerSchema.index({ email: 1 });
 
-module.exports = mongoose.model('SalesCustomer', salesCustomerSchema);
+// Change notifications keep the in-memory sales follow-up list current.
+const listEvents = attachListEvents(salesCustomerSchema);
+
+const SalesCustomer = mongoose.model('SalesCustomer', salesCustomerSchema);
+SalesCustomer.listEvents = listEvents;
+
+module.exports = SalesCustomer;

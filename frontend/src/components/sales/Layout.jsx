@@ -62,6 +62,8 @@ const Layout = ({ initialActiveItem }) => {
     switch (activeItem) {
       case 'Home':
         return <Dashboard />;
+      case 'Missing Documents':
+        return <FollowupPage documentsOnly />;
       case 'Followup':
         return <FollowupPage />;
       case 'Student Registration':

@@ -633,11 +633,9 @@ const loadListedStudents = (match = {}) => StudentRegistration.aggregate([
 const studentListCache = createListCache({
   name: 'Student list',
   load: () => loadListedStudents(),
-  loadOne: async (id) => {
-    if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    const [student] = await loadListedStudents({ _id: new mongoose.Types.ObjectId(id) });
-    return student;
-  },
+  loadMany: (ids) => loadListedStudents({
+    _id: { $in: ids.filter((id) => mongoose.Types.ObjectId.isValid(id)).map((id) => new mongoose.Types.ObjectId(id)) },
+  }),
   events: StudentRegistration.listEvents,
   snapshotName: 'student-list',
 });
