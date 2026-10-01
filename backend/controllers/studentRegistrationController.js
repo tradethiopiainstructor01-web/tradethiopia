@@ -639,6 +639,7 @@ const studentListCache = createListCache({
     return student;
   },
   events: StudentRegistration.listEvents,
+  snapshotName: 'student-list',
 });
 
 const getCachedListedStudents = () => studentListCache.get();
