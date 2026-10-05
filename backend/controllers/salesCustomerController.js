@@ -65,7 +65,7 @@ const summaryStages = () => [
 // follow-up page with search, date range, pages and totals) are answered from
 // memory in milliseconds.
 const CACHEABLE_LIST_PARAMS = new Set([
-  'fields', 'followupStatus', 'search', 'dateFrom', 'dateTo', 'page', 'limit', 'includeSummary',
+  'fields', 'followupStatus', 'pipelineStatus', 'search', 'dateFrom', 'dateTo', 'page', 'limit', 'includeSummary',
 ]);
 const SEARCH_FIELDS = ['customerName', 'phone', 'email', 'productInterest', 'contactTitle', 'courseName'];
 const salesListCache = createListCache({
@@ -79,6 +79,8 @@ const salesListCache = createListCache({
   snapshotName: 'sales-customers',
 });
 const warmSalesCustomerCache = () => salesListCache.warm();
+// Every sale's summary row (no document images), for dashboards that total sales in memory.
+const getSalesSummaryRows = async () => [...(await salesListCache.get()).values()];
 
 // Sales rows carry their registration's slip flag, so re-read the sales linked to
 // a student registration whenever that registration changes.
@@ -487,6 +489,7 @@ const getCustomers = asyncHandler(async (req, res) => {
   const readCachedCustomers = async () => {
     const rows = [...(await salesListCache.get()).values()];
     const status = (req.query.followupStatus || '').toString().toLowerCase();
+    const pipelineStatus = (req.query.pipelineStatus || '').toString().toLowerCase();
     const { $gte: from, $lte: to } = filter.date || {};
     const fromTime = from ? from.getTime() : null;
     const toTime = to ? to.getTime() : null;
@@ -508,6 +511,7 @@ const getCustomers = asyncHandler(async (req, res) => {
     return rows
       .filter((c) => canViewAll || String(c.agentId) === String(req.user.id))
       .filter((c) => !status || (c.followupStatus || '').toLowerCase() === status)
+      .filter((c) => !pipelineStatus || (c.pipelineStatus || '').toLowerCase() === pipelineStatus)
       .filter(matchesDate)
       .filter(matchesSearch)
       .sort((a, b) => (createdTime(b) - createdTime(a)) || String(b._id).localeCompare(String(a._id)));
@@ -1188,6 +1192,7 @@ const getDocumentReminders = asyncHandler(async (req, res) => {
 module.exports = {
   getDocumentReminders,
   warmSalesCustomerCache,
+  getSalesSummaryRows,
   getCustomers,
   getCustomerById,
   getCustomerPaymentSlip,
