@@ -60,9 +60,14 @@ const summaryStages = () => [
   { $project: { _registration: 0 } },
 ];
 
-// In-memory copy of every sale's summary row (see utils/listCache). Agents' own
-// lists and unpaginated status lists are answered from memory in milliseconds.
-const CACHEABLE_LIST_PARAMS = new Set(['fields', 'followupStatus']);
+// In-memory copy of every sale's summary row (see utils/listCache). Summary lists
+// using only these parameters (agents' own lists, status lists and the finance
+// follow-up page with search, date range, pages and totals) are answered from
+// memory in milliseconds.
+const CACHEABLE_LIST_PARAMS = new Set([
+  'fields', 'followupStatus', 'search', 'dateFrom', 'dateTo', 'page', 'limit', 'includeSummary',
+]);
+const SEARCH_FIELDS = ['customerName', 'phone', 'email', 'productInterest', 'contactTitle', 'courseName'];
 const salesListCache = createListCache({
   name: 'Sales follow-up list',
   load: () => SalesCustomer.aggregate(summaryStages()),
@@ -87,17 +92,32 @@ StudentRegistration.listEvents?.on('change', (registrationId) => {
 });
 
 const AGENT_NAME_TTL_MS = 60 * 1000;
-const agentNameCache = new Map(); // id -> { name, at }
-const getAgentNames = async (ids) => {
+const agentNameCache = new Map(); // id -> { name, aliases, at }
+const loadAgents = async (ids) => {
   const now = Date.now();
   const missing = ids.filter((id) => !(now - (agentNameCache.get(id)?.at || 0) < AGENT_NAME_TTL_MS)
     && mongoose.Types.ObjectId.isValid(id));
   if (missing.length) {
     const users = await User.find({ _id: { $in: missing } }).select('username name fullName').lean();
-    const found = new Map(users.map((u) => [u._id.toString(), u.username || u.name || u.fullName || '']));
-    missing.forEach((id) => agentNameCache.set(id, { name: found.get(id) || '', at: now }));
+    const found = new Map(users.map((u) => [u._id.toString(), u]));
+    missing.forEach((id) => {
+      const user = found.get(id);
+      agentNameCache.set(id, {
+        name: user ? user.username || user.name || user.fullName || '' : '',
+        aliases: user ? [user.username, user.name, user.fullName].filter(Boolean) : [],
+        at: now,
+      });
+    });
   }
+};
+const getAgentNames = async (ids) => {
+  await loadAgents(ids);
   return Object.fromEntries(ids.map((id) => [id, agentNameCache.get(id)?.name || '']));
+};
+// Agents whose username, name or full name matches, for in-memory search.
+const getMatchingAgentIds = async (ids, regex) => {
+  await loadAgents(ids);
+  return new Set(ids.filter((id) => agentNameCache.get(id)?.aliases.some((alias) => regex.test(alias))));
 };
 const isRealSlip = (value) => typeof value === 'string' && value.trim() !== '' && !value.startsWith(PLACEHOLDER_SLIP_PREFIX);
 const isRealSlipExpression = (field) => ({
@@ -428,10 +448,14 @@ const getCustomers = asyncHandler(async (req, res) => {
     };
   }
 
+  const summaryMode = req.query.fields === 'summary';
+  const fromCache = summaryMode && Object.keys(req.query).every((key) => CACHEABLE_LIST_PARAMS.has(key));
+  const searchText = req.query.search?.trim() || '';
+
   // Search is intentionally handled on the server so pagination never searches
   // just the current 15-row page.
-  if (req.query.search?.trim()) {
-    const searchRegex = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+  if (searchText && !fromCache) {
+    const searchRegex = new RegExp(escapeRegex(searchText), 'i');
     const matchingAgents = await User.find({
       $or: [
         { username: searchRegex },
@@ -458,22 +482,56 @@ const getCustomers = asyncHandler(async (req, res) => {
     }
   }
 
-  const summaryMode = req.query.fields === 'summary';
   const sortOrder = { createdAt: -1, _id: -1 };
-  // Plain summary lists (an agent's own sales, or one status) come from memory.
-  const fromCache = summaryMode && !paginationRequested
-    && Object.keys(req.query).every((key) => CACHEABLE_LIST_PARAMS.has(key));
+  // Applies the same filters as the database query to the in-memory rows.
   const readCachedCustomers = async () => {
+    const rows = [...(await salesListCache.get()).values()];
     const status = (req.query.followupStatus || '').toString().toLowerCase();
+    const { $gte: from, $lte: to } = filter.date || {};
+    const fromTime = from ? from.getTime() : null;
+    const toTime = to ? to.getTime() : null;
+    let matchesSearch = () => true;
+    if (searchText) {
+      const searchRegex = new RegExp(escapeRegex(searchText), 'i');
+      const agentIds = [...new Set(rows.map((c) => c.agentId).filter(Boolean).map(String))];
+      const matchingAgents = await getMatchingAgentIds(agentIds, searchRegex);
+      matchesSearch = (c) => matchingAgents.has(String(c.agentId))
+        || SEARCH_FIELDS.some((field) => typeof c[field] === 'string' && searchRegex.test(c[field]));
+    }
+    const matchesDate = (c) => {
+      if (fromTime === null && toTime === null) return true;
+      if (!c.date) return false;
+      const time = new Date(c.date).getTime();
+      return (fromTime === null || time >= fromTime) && (toTime === null || time <= toTime);
+    };
     const createdTime = (c) => new Date(c.createdAt || 0).getTime() || 0;
-    return [...(await salesListCache.get()).values()]
+    return rows
       .filter((c) => canViewAll || String(c.agentId) === String(req.user.id))
       .filter((c) => !status || (c.followupStatus || '').toLowerCase() === status)
+      .filter(matchesDate)
+      .filter(matchesSearch)
       .sort((a, b) => (createdTime(b) - createdTime(a)) || String(b._id).localeCompare(String(a._id)));
   };
-  const customerQuery = fromCache
-    ? readCachedCustomers()
-    : summaryMode
+
+  let customers;
+  let total = 0;
+  let cachedSummary;
+  if (fromCache) {
+    const matched = await readCachedCustomers();
+    total = matched.length;
+    customers = paginationRequested ? matched.slice(skip, skip + limit) : matched;
+    if (req.query.includeSummary === 'true') {
+      cachedSummary = matched.reduce((totals, c) => ({
+        total: totals.total + 1,
+        totalCoursePrice: totals.totalCoursePrice + (typeof c.coursePrice === 'number' ? c.coursePrice : 0),
+        withSlip: totals.withSlip + (c._ownSlip || c._registrationSlip ? 1 : 0),
+        completed: totals.completed + ((c.followupStatus || '').toLowerCase() === 'completed' ? 1 : 0),
+      }), { total: 0, totalCoursePrice: 0, withSlip: 0, completed: 0 });
+      // Plain float addition drifts (…07000002); prices are in cents at most.
+      cachedSummary.totalCoursePrice = Math.round(cachedSummary.totalCoursePrice * 100) / 100;
+    }
+  } else {
+    const customerQuery = summaryMode
       ? SalesCustomer.aggregate([
         { $match: SalesCustomer.find(filter).cast(SalesCustomer) },
         { $sort: sortOrder },
@@ -481,12 +539,13 @@ const getCustomers = asyncHandler(async (req, res) => {
         ...summaryStages(),
       ])
       : SalesCustomer.find(filter).sort(sortOrder).lean();
-  if (!summaryMode && paginationRequested) customerQuery.skip(skip).limit(limit);
+    if (!summaryMode && paginationRequested) customerQuery.skip(skip).limit(limit);
 
-  const [customers, total] = await Promise.all([
-    customerQuery,
-    paginationRequested ? SalesCustomer.countDocuments(filter) : Promise.resolve(0)
-  ]);
+    [customers, total] = await Promise.all([
+      customerQuery,
+      paginationRequested ? SalesCustomer.countDocuments(filter) : Promise.resolve(0)
+    ]);
+  }
 
   // Agent display names change rarely; cache them briefly instead of a query per request.
   const agentIds = [...new Set(customers.map((c) => c.agentId).filter(Boolean).map(String))];
@@ -517,8 +576,8 @@ const getCustomers = asyncHandler(async (req, res) => {
   }
 
   // Totals across every page of the current filter, for dashboard stat cards.
-  let summary;
-  if (req.query.includeSummary === 'true') {
+  let summary = cachedSummary;
+  if (req.query.includeSummary === 'true' && !summary) {
     const [totals] = await SalesCustomer.aggregate([
       { $match: SalesCustomer.find(filter).cast(SalesCustomer) },
       { $project: {
@@ -545,7 +604,7 @@ const getCustomers = asyncHandler(async (req, res) => {
     ]);
     summary = {
       total: totals?.total || 0,
-      totalCoursePrice: totals?.totalCoursePrice || 0,
+      totalCoursePrice: Math.round((totals?.totalCoursePrice || 0) * 100) / 100,
       withSlip: totals?.withSlip || 0,
       completed: totals?.completed || 0,
     };
@@ -1081,17 +1140,44 @@ const getSalesStats = asyncHandler(async (req, res) => {
   }
 });
 
+// A document counts as submitted only if it is a real upload: not blank and not
+// one of the generated SVG placeholder receipts from old follow-up syncs.
+const isRealDocumentExpression = (field) => ({
+  $and: [
+    { $ne: [{ $trim: { input: { $ifNull: [field, ''] } } }, ''] },
+    { $ne: [{ $substrCP: [{ $ifNull: [field, ''] }, 0, PLACEHOLDER_SLIP_PREFIX.length] }, PLACEHOLDER_SLIP_PREFIX] },
+  ],
+});
+
 const getDocumentReminders = asyncHandler(async (req, res) => {
   const userId = String(req.user._id || req.user.id);
-  const fields = [['paymentScreenshot', 'Bank slip'], ['nationalIdFrontImage', 'ID front'], ['nationalIdBackImage', 'ID back']];
   const rows = await SalesCustomer.aggregate([
     { $match: { agentId: userId, followupStatus: 'Completed' } },
+    // Reduce each sale to flags first so the base64 images are not carried along.
+    { $project: {
+      customerName: 1,
+      studentRegistrationId: 1,
+      hasSlip: isRealDocumentExpression('$paymentScreenshot'),
+      hasIdFront: isRealDocumentExpression('$nationalIdFrontImage'),
+      hasIdBack: isRealDocumentExpression('$nationalIdBackImage'),
+    } },
+    // A bank slip uploaded on the linked student registration also counts
+    // (the same rule the finance follow-up page uses).
+    { $lookup: {
+      from: StudentRegistration.collection.name,
+      localField: 'studentRegistrationId',
+      foreignField: '_id',
+      pipeline: [{ $project: { _id: 0, slip: isRealSlipExpression('$paymentScreenshot') } }],
+      as: 'registration',
+    } },
     { $project: {
       customerName: 1,
       missingDocuments: { $filter: {
-        input: fields.map(([field, label]) => ({ $cond: [
-          { $eq: [{ $trim: { input: { $ifNull: [`$${field}`, ''] } } }, ''] }, label, null,
-        ] })),
+        input: [
+          { $cond: [{ $or: ['$hasSlip', { $in: [true, '$registration.slip'] }] }, null, 'Bank slip'] },
+          { $cond: ['$hasIdFront', null, 'ID front'] },
+          { $cond: ['$hasIdBack', null, 'ID back'] },
+        ],
         as: 'label', cond: { $ne: ['$$label', null] },
       } },
     } },

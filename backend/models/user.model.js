@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { attachListEvents } = require('../utils/listCache');
 
 const userSchema = new mongoose.Schema({
     points: {
@@ -277,6 +278,10 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
+// Change notifications drop the user from the auth middleware's short-lived cache.
+const listEvents = attachListEvents(userSchema);
+
 const User = mongoose.model('User', userSchema);
+User.listEvents = listEvents;
 
 module.exports = User;

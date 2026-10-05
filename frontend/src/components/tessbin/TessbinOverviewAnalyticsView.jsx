@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Flex,
@@ -249,6 +249,10 @@ const PIE_PALETTE = [
   '#14B8A6',
 ];
 
+// Last loaded data, kept across tab switches so the overview paints instantly
+// and refreshes in the background instead of starting empty each time.
+const overviewCache = { students: null, backendExamStats: null, examAnalytics: {}, lastRefreshed: null };
+
 export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: parentStats = {} }) {
   const toast = useToast();
 
@@ -269,10 +273,11 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
 
   // Live Data States
   const [loading, setLoading] = useState(true);
-  const [students, setStudents] = useState([]);
-  const [backendExamStats, setBackendExamStats] = useState(null);
+  const [students, setStudents] = useState(() => overviewCache.students || []);
+  const [backendExamStats, setBackendExamStats] = useState(() => overviewCache.backendExamStats);
   const [examAnalytics, setExamAnalytics] = useState(null);
-  const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [lastRefreshed, setLastRefreshed] = useState(() => overviewCache.lastRefreshed);
+  const latestExamKey = useRef('');
 
   // Table Search Filter & Chart Controls
   const [matrixSearch, setMatrixSearch] = useState('');
@@ -314,30 +319,40 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
         examAnchor = '2025-01-01';
       }
 
-      // Fetch in parallel: real registrations, real backend exam stats & KPIs, external analytics
-      const [studentsData, backendStatsRes, examRes] = await Promise.all([
-        getStudentRegistrations().catch((err) => {
-          console.warn('[Overview] Error fetching students:', err);
-          return [];
-        }),
-        axiosInstance.get('/tessbin/dashboard-stats').catch((err) => {
-          console.warn('[Overview] Error fetching backend stats:', err);
-          return null;
-        }),
-        fetchExternalDataAnalytics({ period: examPeriod, anchor: examAnchor }).catch((err) => {
-          console.warn('[Overview] Error fetching exam analytics:', err);
-          return null;
-        }),
+      // Show the last exam analytics for this period at once while it refreshes.
+      const examKey = `${examPeriod}|${examAnchor}`;
+      latestExamKey.current = examKey;
+      setExamAnalytics(overviewCache.examAnalytics[examKey] || null);
+
+      // Fetch in parallel and show each source as soon as it arrives, so the slow
+      // external exam API never holds back registrations and backend stats.
+      await Promise.all([
+        getStudentRegistrations()
+          .then((studentsData) => {
+            if (!Array.isArray(studentsData)) return;
+            overviewCache.students = studentsData;
+            setStudents(studentsData);
+          })
+          .catch((err) => console.warn('[Overview] Error fetching students:', err)),
+        axiosInstance.get('/tessbin/dashboard-stats')
+          .then((backendStatsRes) => {
+            if (!backendStatsRes?.data?.success || !backendStatsRes?.data?.data) return;
+            overviewCache.backendExamStats = backendStatsRes.data.data;
+            setBackendExamStats(backendStatsRes.data.data);
+          })
+          .catch((err) => console.warn('[Overview] Error fetching backend stats:', err)),
+        fetchExternalDataAnalytics({ period: examPeriod, anchor: examAnchor })
+          .then((examRes) => {
+            if (!examRes?.success || !examRes.data) return;
+            overviewCache.examAnalytics[examKey] = examRes.data;
+            // Ignore a late answer for a period the user has already left.
+            setExamAnalytics((current) => (latestExamKey.current === examKey ? examRes.data : current));
+          })
+          .catch((err) => console.warn('[Overview] Error fetching exam analytics:', err)),
       ]);
 
-      setStudents(Array.isArray(studentsData) ? studentsData : []);
-      if (backendStatsRes?.data?.success && backendStatsRes?.data?.data) {
-        setBackendExamStats(backendStatsRes.data.data);
-      }
-      if (examRes?.success && examRes.data) {
-        setExamAnalytics(examRes.data);
-      }
-      setLastRefreshed(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      overviewCache.lastRefreshed = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastRefreshed(overviewCache.lastRefreshed);
     } catch (err) {
       console.error('[Overview] Error refreshing data:', err);
       toast({
@@ -1538,7 +1553,7 @@ export default function TessbinOverviewAnalyticsView({ kpiList = [], stats: pare
               </Tr>
             </Thead>
             <Tbody>
-              {loading ? (
+              {loading && !students.length ? (
                 <Tr>
                   <Td colSpan={6} py={10} textAlign="center">
                     <VStack spacing={2}>

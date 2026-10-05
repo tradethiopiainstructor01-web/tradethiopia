@@ -3,6 +3,7 @@ const TessbinKpi = require('../models/TessbinKpi');
 const TrainingFollowup = require('../models/TrainingFollowup');
 const Course = require('../models/Course');
 const axios = require('axios');
+const { createResponseCache } = require('../utils/responseCache');
 
 // Supported courses in Tessbin
 // Supported courses in Tessbin (Official TradeEthiopia Academic & Professional Curricula)
@@ -198,26 +199,39 @@ const initialSampleRecords = [
   }
 ];
 
-const seedIfNeeded = async () => {
-  const count = await TessbinExamRecord.countDocuments();
-  if (count === 0) {
-    await TessbinExamRecord.insertMany(initialSampleRecords);
-  }
+// Checked once per process instead of on every request.
+let seedChecked = null;
+const seedIfNeeded = () => {
+  seedChecked ??= (async () => {
+    const exists = await TessbinExamRecord.exists({});
+    if (!exists) await TessbinExamRecord.insertMany(initialSampleRecords);
+  })().catch((error) => {
+    seedChecked = null;
+    throw error;
+  });
+  return seedChecked;
 };
 
-// GET Dashboard Stats & KPIs
-exports.getDashboardStats = async (req, res) => {
-  try {
+// Dashboard stats are recomputed only after an exam record changes.
+const statsCache = createResponseCache({ name: 'Tessbin dashboard stats', ttlMs: 5 * 60 * 1000 });
+TessbinExamRecord.listEvents.on('change', statsCache.clear);
+TessbinExamRecord.listEvents.on('bulkChange', statsCache.clear);
+// The external analytics API is remote and slow; answer from memory and refresh behind the scenes.
+const externalAnalyticsCache = createResponseCache({ name: 'Tessbin external analytics', ttlMs: 60 * 1000 });
+
+const computeDashboardStats = async () => {
     await seedIfNeeded();
 
-    const allRecords = await TessbinExamRecord.find(tessbinCourseFilter);
+    const allRecords = await TessbinExamRecord.find(tessbinCourseFilter)
+      .select('studentId studentName courseName examType status certificateStatus')
+      .lean();
 
     // Key requested KPIs:
     // 1. number of coc exam student takes
     // 2. how many students take online final exams
     // 3. total number of students
-    const cocExamStudentsCount = await TessbinExamRecord.countDocuments({ ...tessbinCourseFilter, examType: 'COC Exam' });
-    const onlineFinalExamStudentsCount = await TessbinExamRecord.countDocuments({ ...tessbinCourseFilter, examType: 'Online Final Exam' });
+    const cocExamStudentsCount = allRecords.filter((r) => r.examType === 'COC Exam').length;
+    const onlineFinalExamStudentsCount = allRecords.filter((r) => r.examType === 'Online Final Exam').length;
     const totalExamRecordsCount = allRecords.length;
 
     // Get unique student IDs or count total student records
@@ -256,22 +270,30 @@ exports.getDashboardStats = async (req, res) => {
 
     const courseBreakdown = Object.values(courseBreakdownMap);
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        cocExamStudentsCount,
-        onlineFinalExamStudentsCount,
-        totalStudentsCount,
-        totalExamRecordsCount,
-        passedCount,
-        failedCount,
-        scheduledCount,
-        inProgressCount,
-        certificatesIssuedCount,
-        passRate,
-        courseBreakdown,
-      },
-    });
+    return {
+      cocExamStudentsCount,
+      onlineFinalExamStudentsCount,
+      totalStudentsCount,
+      totalExamRecordsCount,
+      passedCount,
+      failedCount,
+      scheduledCount,
+      inProgressCount,
+      certificatesIssuedCount,
+      passRate,
+      courseBreakdown,
+    };
+};
+
+// Loads the stats into memory at startup so the first dashboard visit is instant.
+exports.warmTessbinCache = () => statsCache.get('all', computeDashboardStats)
+  .catch((error) => console.warn('Tessbin dashboard stats warm-up failed:', error.message));
+
+// GET Dashboard Stats & KPIs
+exports.getDashboardStats = async (req, res) => {
+  try {
+    const data = await statsCache.get('all', computeDashboardStats);
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     console.error('Error in getDashboardStats:', error);
     return res.status(500).json({ success: false, message: 'Server error retrieving Tessbin dashboard stats', error: error.message });
@@ -916,16 +938,20 @@ exports.getExternalDataAnalytics = async (req, res) => {
 
     const targetUrl = `${baseUrl.replace(/\/$/, '')}/api/v1/external/data-analytics`;
 
-    const response = await axios.get(targetUrl, {
-      params: queryParams,
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-      },
-      timeout: 10000,
+    const cacheKey = JSON.stringify([targetUrl, apiKey, queryParams]);
+    const data = await externalAnalyticsCache.get(cacheKey, async () => {
+      const response = await axios.get(targetUrl, {
+        params: queryParams,
+        headers: {
+          'x-api-key': apiKey,
+          'Accept': 'application/json',
+        },
+        timeout: 10000,
+      });
+      return response.data;
     });
 
-    return res.status(200).json(response.data);
+    return res.status(200).json(data);
   } catch (error) {
     console.error('Error in getExternalDataAnalytics proxy:', error.response?.data || error.message);
     const statusCode = error.response?.status || 500;

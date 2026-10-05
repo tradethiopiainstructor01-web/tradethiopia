@@ -51,7 +51,8 @@ import {
   FiUpload,
   FiCalendar,
   FiX,
-  FiLayers
+  FiLayers,
+  FiAlertTriangle
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
 import FollowupCompletedTable from './FollowupCompletedTable';
@@ -60,6 +61,7 @@ import PackageSalesTab from './PackageSalesTab';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
 import { fetchExternalCourses as fetchCoursesApi } from '../../services/api';
 import axios from '../../services/axiosInstance';
+import { isMissingDocuments } from '../../utils/salesDocuments';
 
 const defaultCourses = [
   { _id: 'external-seed-0', name: 'Logistic', price: 9917 },
@@ -518,6 +520,8 @@ const FollowupPage = ({ documentsOnly = false }) => {
   const completedCount = useMemo(() => {
     return (customers || []).filter(c => (c.followupStatus || '').toString().trim().toLowerCase() === 'completed').length;
   }, [customers]);
+
+  const missingDocumentsCount = useMemo(() => (customers || []).filter(isMissingDocuments).length, [customers]);
 
   const handleFilterChange = (filterName, value) => {
     setFilters(prev => ({
@@ -1268,6 +1272,36 @@ const FollowupPage = ({ documentsOnly = false }) => {
                 <Text>Package Sales</Text>
               </HStack>
             </Tab>
+            <Tab 
+              borderRadius="lg" 
+              px={4} 
+              py={2} 
+              fontSize="sm" 
+              fontWeight="600" 
+              color="gray.600"
+              _selected={{ bg: 'teal.500', color: 'white', shadow: 'sm' }}
+              _hover={{ bg: 'gray.100', _selected: { bg: 'teal.500' } }}
+              transition="all 0.2s"
+              whiteSpace="nowrap"
+            >
+              <HStack spacing={2}>
+                <Icon as={FiAlertTriangle} boxSize={3.5} />
+                <Text>Missing Documents</Text>
+                {missingDocumentsCount > 0 && (
+                  <Badge 
+                    bg="red.500" 
+                    color="white" 
+                    borderRadius="full" 
+                    px={2} 
+                    py={0.5} 
+                    fontSize="xs"
+                    fontWeight="bold"
+                  >
+                    {missingDocumentsCount}
+                  </Badge>
+                )}
+              </HStack>
+            </Tab>
           </TabList>
 
           <TabPanels>
@@ -1311,6 +1345,25 @@ const FollowupPage = ({ documentsOnly = false }) => {
             </TabPanel>
             <TabPanel p={0}>
               <PackageSalesTab />
+            </TabPanel>
+            <TabPanel p={0}>
+              {loading ? (
+                <Flex justify="center" align="center" minH="300px" bg="white" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
+                  <Spinner size="xl" color="teal.500" thickness="4px" />
+                </Flex>
+              ) : error ? (
+                <Box bg="red.50" p={4} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
+                  <Text color="red.600" fontWeight="medium">{error}</Text>
+                </Box>
+              ) : (
+                <FollowupCompletedTable
+                  documentsOnly
+                  customers={customers}
+                  courses={courses}
+                  onUpdate={handleUpdate}
+                  onDelete={handleDelete}
+                />
+              )}
             </TabPanel>
           </TabPanels>
         </Tabs>

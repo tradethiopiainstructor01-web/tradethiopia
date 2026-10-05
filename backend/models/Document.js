@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { attachListEvents } = require('../utils/listCache');
 
 const documentSchema = new mongoose.Schema({
     userId: {
@@ -42,4 +43,10 @@ const documentSchema = new mongoose.Schema({
     timestamps: true // Add createdAt and updatedAt timestamps
 });
 
-module.exports = mongoose.model('Document', documentSchema);
+// Change notifications clear the cached employee directory (file completeness).
+const listEvents = attachListEvents(documentSchema);
+
+const Document = mongoose.model('Document', documentSchema);
+Document.listEvents = listEvents;
+
+module.exports = Document;
