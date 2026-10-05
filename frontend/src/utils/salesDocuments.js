@@ -35,7 +35,8 @@ const hasBankSlip = (customer) => {
   return isUploaded(slip);
 };
 
-// Completed sales still missing the bank slip, ID front or ID back.
+// Completed sales still missing the payment slip. Only the slip is mandatory;
+// ID front and back are optional.
 export const isMissingDocuments = (customer) =>
   (customer?.followupStatus || '').toString().trim().toLowerCase() === 'completed'
-  && (!hasBankSlip(customer) || !isUploaded(customer?.nationalIdFrontImage) || !isUploaded(customer?.nationalIdBackImage));
+  && !hasBankSlip(customer);
