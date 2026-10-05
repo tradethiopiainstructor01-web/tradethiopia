@@ -20,3 +20,22 @@ export const withDocuments = async (customer) => {
     ...Object.fromEntries(DOCUMENT_FIELDS.map((field) => [field, data?.[field] || ''])),
   };
 };
+
+// Generated "receipt" placeholders from old follow-up syncs are not real slips.
+const PLACEHOLDER_PREFIX = 'data:image/svg+xml';
+const isUploaded = (value) => typeof value === 'string' && value.trim() !== '' && !value.startsWith(PLACEHOLDER_PREFIX);
+
+// Same rule as the server's document reminder: a bank slip counts when it is a
+// real upload on the sale or its student registration (hasPaymentScreenshot from
+// the list), or a real image just uploaded in this session.
+const hasBankSlip = (customer) => {
+  const slip = customer?.paymentScreenshot;
+  if (customer?.hasPaymentScreenshot) return true;
+  if (slip === STORED_DOCUMENT) return customer?.hasPaymentScreenshot === undefined;
+  return isUploaded(slip);
+};
+
+// Completed sales still missing the bank slip, ID front or ID back.
+export const isMissingDocuments = (customer) =>
+  (customer?.followupStatus || '').toString().trim().toLowerCase() === 'completed'
+  && (!hasBankSlip(customer) || !isUploaded(customer?.nationalIdFrontImage) || !isUploaded(customer?.nationalIdBackImage));

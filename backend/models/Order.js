@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { attachListEvents } = require('../utils/listCache');
 
 const orderItemSchema = new mongoose.Schema({
   stockItemId: {
@@ -113,4 +114,10 @@ orderSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('Order', orderSchema);
+// Change notifications clear the cached order dashboard stats.
+const listEvents = attachListEvents(orderSchema);
+
+const Order = mongoose.model('Order', orderSchema);
+Order.listEvents = listEvents;
+
+module.exports = Order;

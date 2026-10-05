@@ -3,6 +3,12 @@ const Followup = require("../models/Followup.js");
 const Order = require("../models/Order");
 const OrderCustomer = require("../models/OrderCustomer");
 const mongoose = require("mongoose");
+const { createResponseCache, cacheHandler } = require("../utils/responseCache");
+
+// Follow-up stats scan the whole collection; keep the answer fresh by recomputing it in the background whenever a follow-up changes.
+const followupStatsCache = createResponseCache({ name: "Follow-up stats", ttlMs: 60 * 1000 });
+Followup.listEvents.on("change", followupStatsCache.refresh);
+Followup.listEvents.on("bulkChange", followupStatsCache.refresh);
 const nodemailer = require("nodemailer");
 
 // @desc    Get analytics data for dashboard
@@ -701,5 +707,5 @@ module.exports = {
   editCustomer,
   importB2BCustomers,
   getPendingB2BCustomers,
-  getFollowupStats
+  getFollowupStats: cacheHandler(followupStatsCache, getFollowupStats)
 };

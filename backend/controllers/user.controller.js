@@ -2,6 +2,23 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/user.model.js');
 const jwt = require('jsonwebtoken');
+const { createResponseCache, cacheHandler } = require('../utils/responseCache');
+
+// The employee directory and HR dashboard stats take many Atlas round trips
+// (seconds each), so their answers are kept in memory. A user or document write
+// clears the directory at once (so a new employee shows up immediately) and
+// recomputes the HR stats in the background; other sources refresh after the TTL.
+const userDirectoryCache = createResponseCache({ name: 'Employee directory', ttlMs: 60 * 1000 });
+const hrStatsCache = createResponseCache({ name: 'HR dashboard stats', ttlMs: 60 * 1000 });
+const onUserChange = () => {
+    userDirectoryCache.clear();
+    hrStatsCache.refresh();
+};
+User.listEvents.on('change', onUserChange);
+User.listEvents.on('bulkChange', onUserChange);
+const DocumentModel = require('../models/Document');
+DocumentModel.listEvents.on('change', userDirectoryCache.clear);
+DocumentModel.listEvents.on('bulkChange', userDirectoryCache.clear);
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -255,11 +272,13 @@ const getuser = async (req, res) => {
         console.log('Fetching users from database');
         // Directory consumers receive summary data only. Sensitive HR fields
         // are available through the protected /:id/details endpoint.
-        const users = await User.find({}).select(
-            '_id username email role status fullName jobTitle photo guarantorFile phone gender education location digitalId managerId employmentType hireDate salary infoStatus trainingStatus examStatus examBypass createdAt updatedAt'
-        );
         const Document = mongoose.models.Document || require('../models/Document');
-        const documents = await Document.find({}).select('userId employeeName').lean();
+        const [users, documents] = await Promise.all([
+            User.find({}).select(
+                '_id username email role status fullName jobTitle photo guarantorFile phone gender education location digitalId managerId employmentType hireDate salary infoStatus trainingStatus examStatus examBypass createdAt updatedAt'
+            ),
+            Document.find({}).select('userId employeeName').lean(),
+        ]);
         
         // Add Appwrite file URLs to each user
         const usersWithUrls = users.map(user => {
@@ -594,62 +613,112 @@ const getHRDashboardStats = async (req, res) => {
         const CalendarEvent = mongoose.models.CalendarEvent || require('../models/CalendarEvent');
         const Request = mongoose.models.Request || require('../models/Request');
 
-        // General Counts
-        const totalUsers = await User.countDocuments();
-        const activeUsers = await User.countDocuments({ status: 'active' });
-        
+        // Independent counts run in parallel (each is a separate Atlas round trip).
+        const [
+            totalUsers,
+            activeUsers,
+            onLeaveRaw,
+            openPositionsRaw,
+            totalAssets,
+            assignedAssets,
+            totalCandidates,
+        ] = await Promise.all([
+            User.countDocuments(),
+            User.countDocuments({ status: 'active' }),
+            User.countDocuments({ status: 'active', infoStatus: 'on-leave' }),
+            CandidatePool.countDocuments({ hiredStatus: 'pending' }),
+            Asset.countDocuments(),
+            Asset.countDocuments({ assignedTo: { $ne: null, $ne: '' } }),
+            CandidatePool.countDocuments(),
+        ]);
+
         // Present Today (simulated based on active status, e.g. ~88% of active users)
         const presentTodayCount = Math.round(activeUsers * 0.88) || 0;
         const lateTodayCount = Math.round(activeUsers * 0.05) || 0;
         const absentTodayCount = totalUsers - presentTodayCount - lateTodayCount;
         
         // On Leave count
-        const onLeaveCount = await User.countDocuments({ status: 'active', infoStatus: 'on-leave' }) || 18; 
+        const onLeaveCount = onLeaveRaw || 18;
 
         // Open Positions
-        const openPositionsCount = await CandidatePool.countDocuments({ hiredStatus: 'pending' }) || 12;
-
-        // Total Assets
-        const totalAssets = await Asset.countDocuments();
-        const assignedAssets = await Asset.countDocuments({ assignedTo: { $ne: null, $ne: '' } });
-
-        // Candidates Pool Counts
-        const totalCandidates = await CandidatePool.countDocuments();
+        const openPositionsCount = openPositionsRaw || 12;
 
         // Generate 6 months workforce trend dynamically
-        const trendData = [];
         const monthNames = ["Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov"];
-        
-        for (let i = 5; i >= 0; i--) {
+
+        const trendData = await Promise.all([5, 4, 3, 2, 1, 0].map(async (i) => {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
             const year = d.getFullYear();
             const month = d.getMonth();
-            
+
             const startOfMonth = new Date(year, month, 1);
             const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
-            
-            const cumulativeCount = await User.countDocuments({ createdAt: { $lte: endOfMonth } });
-            const newHiresCount = await User.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } });
-            
-            trendData.push({
+
+            const [cumulativeCount, newHiresCount] = await Promise.all([
+                User.countDocuments({ createdAt: { $lte: endOfMonth } }),
+                User.countDocuments({ createdAt: { $gte: startOfMonth, $lte: endOfMonth } }),
+            ]);
+
+            return {
                 name: `${monthNames[month]} '${String(year).slice(-2)}`,
                 total: cumulativeCount || 190 + (5 - i) * 12, // realistic fallback if DB is empty
                 newHires: newHiresCount || 10 + (5 - i) * 2     // realistic fallback
-            });
-        }
+            };
+        }));
 
         // Department Breakdown
-        const deptStatsRaw = await User.aggregate([
-            {
-                $group: {
-                    _id: { $ifNull: [ "$jobTitle", "Unassigned" ] },
-                    count: { $sum: 1 }
+        // The remaining queries are independent; start them together.
+        const [
+            deptStatsRaw,
+            employmentStats,
+            salaryStats,
+            upcomingEventsDb,
+            pendingLeavesRaw,
+            pendingExpensesRaw,
+            pendingProfileUpdatesRaw,
+        ] = await Promise.all([
+            User.aggregate([
+                {
+                    $group: {
+                        _id: { $ifNull: [ "$jobTitle", "Unassigned" ] },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $sort: { count: -1 } }
+            ]),
+            // Group headcount by employment type
+            User.aggregate([
+                {
+                    $group: {
+                        _id: { $ifNull: [ "$employmentType", "full-time" ] },
+                        count: { $sum: 1 }
+                    }
                 }
-            },
-            { $sort: { count: -1 } }
+            ]),
+            // Aggregate salary data
+            User.aggregate([
+                {
+                    $group: {
+                        _id: null,
+                        totalPayroll: { $sum: "$salary" },
+                        avgSalary: { $avg: "$salary" },
+                        maxSalary: { $max: "$salary" },
+                        minSalary: { $min: "$salary" }
+                    }
+                }
+            ]),
+            // Upcoming Events (limit to 3)
+            CalendarEvent.find({ start: { $gte: new Date() } })
+                .sort({ start: 1 })
+                .limit(3)
+                .lean(),
+            // Pending Approvals Counts
+            Request.countDocuments({ status: "Pending", title: { $regex: /leave/i } }),
+            Request.countDocuments({ status: "Pending", title: { $regex: /expense/i } }),
+            User.countDocuments({ infoStatus: 'pending' }),
         ]);
-        
+
         const deptStats = deptStatsRaw.map(d => {
             let name = d._id;
             if (name.toLowerCase().includes('sale')) name = 'Sales';
@@ -669,29 +738,6 @@ const getHRDashboardStats = async (req, res) => {
             value: deptMap[name]
         }));
 
-        // Group headcount by employment type
-        const employmentStats = await User.aggregate([
-            {
-                $group: {
-                    _id: { $ifNull: [ "$employmentType", "full-time" ] },
-                    count: { $sum: 1 }
-                }
-            }
-        ]);
-
-        // Aggregate salary data
-        const salaryStats = await User.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    totalPayroll: { $sum: "$salary" },
-                    avgSalary: { $avg: "$salary" },
-                    maxSalary: { $max: "$salary" },
-                    minSalary: { $min: "$salary" }
-                }
-            }
-        ]);
-
         const salaryData = salaryStats.length > 0 ? salaryStats[0] : {
             totalPayroll: 0,
             avgSalary: 0,
@@ -699,12 +745,6 @@ const getHRDashboardStats = async (req, res) => {
             minSalary: 0
         };
 
-        // Upcoming Events (limit to 3)
-        const upcomingEventsDb = await CalendarEvent.find({ start: { $gte: new Date() } })
-            .sort({ start: 1 })
-            .limit(3)
-            .lean();
-        
         const fallbackEvents = [
             {
                 _id: "event-1",
@@ -738,9 +778,9 @@ const getHRDashboardStats = async (req, res) => {
         })) : fallbackEvents;
 
         // Pending Approvals Counts
-        const pendingLeaves = await Request.countDocuments({ status: "Pending", title: { $regex: /leave/i } }) || 6;
-        const pendingExpenses = await Request.countDocuments({ status: "Pending", title: { $regex: /expense/i } }) || 3;
-        const pendingProfileUpdates = await User.countDocuments({ infoStatus: 'pending' }) || 2;
+        const pendingLeaves = pendingLeavesRaw || 6;
+        const pendingExpenses = pendingExpensesRaw || 3;
+        const pendingProfileUpdates = pendingProfileUpdatesRaw || 2;
 
         // Sparklines values for top cards
         const totalEmployeesSparkline = [220, 225, 230, 235, 240, totalUsers];
@@ -803,11 +843,16 @@ module.exports = {
     loginUser,
     getCurrentUser,
     createuser,
-    getuser,
+    getuser: cacheHandler(userDirectoryCache, getuser),
     getEmployeeDetails,
     updateuser,
     deleteuser,
     getUserCounts,
     updateUserInfo,
-    getHRDashboardStats
+    getHRDashboardStats: cacheHandler(hrStatsCache, getHRDashboardStats),
+    warmUserCaches: () => {
+        const warm = (handler) => handler({ query: {}, params: {}, headers: {} }, { status() { return this; }, json() {} }, () => {});
+        warm(module.exports.getuser);
+        warm(module.exports.getHRDashboardStats);
+    },
 };

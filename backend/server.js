@@ -418,6 +418,8 @@ if (require.main === module) {
         require('./controllers/studentRegistrationController').warmStudentListCache();
         require('./controllers/trainingFollowupController').warmTrainingFollowupCache();
         require('./controllers/salesCustomerController').warmSalesCustomerCache();
+        require('./controllers/tessbinController').warmTessbinCache();
+        require('./controllers/user.controller').warmUserCaches();
 
         // Sync approaching and overdue company document licenses for HR
         syncAllApproachingLicenses(app).catch((err) =>

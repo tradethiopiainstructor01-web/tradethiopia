@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Schema, model } = mongoose;
+const { attachListEvents } = require('../utils/listCache');
 
 const followupSchema = new Schema(
   {
@@ -139,4 +140,10 @@ followupSchema.pre("findOneAndUpdate", function (next) {
   next();
 });
 
-module.exports = model("Followup", followupSchema);
+// Change notifications clear the cached follow-up dashboard stats.
+const listEvents = attachListEvents(followupSchema);
+
+const Followup = model("Followup", followupSchema);
+Followup.listEvents = listEvents;
+
+module.exports = Followup;

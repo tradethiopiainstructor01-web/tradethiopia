@@ -131,6 +131,9 @@ const formatMoney = (value) => `${Number(value || 0).toLocaleString(undefined, {
 
 const getTraining = (row) => row.courseName || row.contactTitle || row.productInterest || '—';
 
+// Recent page answers by request, so returning to the page or a filter paints instantly.
+const responseCache = new Map();
+
 const isPdf = (src = '') => src.startsWith('data:application/pdf') || /\.pdf($|\?)/i.test(src);
 
 const StatCard = ({ label, value, helper, icon, color }) => (
@@ -209,13 +212,25 @@ const FinanceSalesFollowupPage = () => {
 
   const loadRows = useCallback(async () => {
     const id = ++requestId.current;
+    const params = { ...filterParams(), page, limit, includeSummary: 'true' };
+    const cacheKey = JSON.stringify(params);
+    // Show the last answer for these filters at once, then refresh it.
+    const cached = responseCache.get(cacheKey);
+    if (cached) {
+      setRows(cached.rows);
+      setSummary(cached.summary);
+      setPagination(cached.pagination);
+    }
     setLoading(true);
     setError('');
     try {
-      const { data } = await apiClient.get('/sales-customers', {
-        params: { ...filterParams(), page, limit, includeSummary: 'true' },
-        timeout: 60000,
+      const { data } = await apiClient.get('/sales-customers', { params, timeout: 60000 });
+      responseCache.set(cacheKey, {
+        rows: Array.isArray(data?.data) ? data.data : [],
+        summary: data?.summary || null,
+        pagination: data?.pagination || { page: 1, totalPages: 1, total: 0 },
       });
+      if (responseCache.size > 50) responseCache.delete(responseCache.keys().next().value);
       if (id !== requestId.current) return;
       setRows(Array.isArray(data?.data) ? data.data : []);
       setSummary(data?.summary || null);

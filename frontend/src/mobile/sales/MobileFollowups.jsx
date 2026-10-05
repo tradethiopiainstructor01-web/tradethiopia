@@ -517,6 +517,11 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
     }
   }, [openAddSignal, addDisclosure]);
 
+  // Starting a training follow-up shows the missing-documents warning (see useSalesDocumentReminder).
+  useEffect(() => {
+    if (addDisclosure.isOpen && section !== 'packages') window.dispatchEvent(new Event('sales:new-followup'));
+  }, [addDisclosure.isOpen, section]);
+
   const loadCustomers = useCallback(async () => {
     try {
       setLoading(true);

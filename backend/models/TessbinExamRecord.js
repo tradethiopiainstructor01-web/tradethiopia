@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { attachListEvents } = require('../utils/listCache');
 
 const tessbinExamRecordSchema = new mongoose.Schema(
   {
@@ -76,6 +77,10 @@ const tessbinExamRecordSchema = new mongoose.Schema(
   }
 );
 
+// Change notifications clear the cached Tessbin dashboard stats.
+const listEvents = attachListEvents(tessbinExamRecordSchema);
+
 const TessbinExamRecord = mongoose.model('TessbinExamRecord', tessbinExamRecordSchema);
+TessbinExamRecord.listEvents = listEvents;
 
 module.exports = TessbinExamRecord;

@@ -87,7 +87,7 @@ import {
   FiDownload
 } from 'react-icons/fi';
 import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
-import { withDocuments } from '../../utils/salesDocuments';
+import { isMissingDocuments, withDocuments } from '../../utils/salesDocuments';
 
 const formatCurrency = (amount) => {
   const numeric = Number(amount);
@@ -399,7 +399,7 @@ const FollowupCompletedTable = ({
       // Must have Completed status
       const status = (cust.followupStatus || '').toString().trim().toLowerCase();
       if (status !== 'completed') return false;
-      if (documentsOnly && !['paymentScreenshot', 'nationalIdFrontImage', 'nationalIdBackImage'].some(field => !cust[field]?.trim())) return false;
+      if (documentsOnly && !isMissingDocuments(cust)) return false;
 
       // Search term
       if (searchTerm.trim()) {

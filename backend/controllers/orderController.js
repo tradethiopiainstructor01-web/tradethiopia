@@ -2,6 +2,12 @@ const Order = require('../models/Order');
 const Stock = require('../models/Stock');
 const OrderCustomer = require('../models/OrderCustomer');
 const asyncHandler = require('express-async-handler');
+const { createResponseCache, cacheHandler } = require('../utils/responseCache');
+
+// Order stats scan the whole collection; keep the answer fresh by recomputing it in the background whenever an order changes.
+const orderStatsCache = createResponseCache({ name: 'Order stats', ttlMs: 60 * 1000 });
+Order.listEvents.on('change', orderStatsCache.refresh);
+Order.listEvents.on('bulkChange', orderStatsCache.refresh);
 
 // @desc    Get all orders
 // @route   GET /api/orders
@@ -501,7 +507,7 @@ module.exports = {
   updateOrder,
   deleteOrder,
   getOrdersByCustomerId,
-  getOrderStats,
+  getOrderStats: cacheHandler(orderStatsCache, getOrderStats),
   reserveForFollowup,
   simulateReserveForFollowup,
   fulfillOrder
