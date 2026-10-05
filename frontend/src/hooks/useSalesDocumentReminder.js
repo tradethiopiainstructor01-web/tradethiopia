@@ -33,8 +33,8 @@ export default function useSalesDocumentReminder() {
         position: 'top',
         duration: 5000,
         isClosable: true,
-        title: `${total} completed sale${total === 1 ? ' is' : 's are'} missing documents`,
-        description: 'Submit the missing documents, otherwise your account will be locked or deactivated.',
+        title: `${total} completed sale${total === 1 ? ' is' : 's are'} missing a payment slip`,
+        description: 'Submit the missing payment slips, otherwise your account will be locked or deactivated.',
       });
     };
     window.addEventListener('sales:new-followup', warn);

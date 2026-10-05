@@ -351,7 +351,7 @@ const notifyCompletionDocuments = async (customer, user) => {
   try {
     await createNotifications({
       userIds: [customer.agentId || user._id || user.id],
-      text: `${customer.customerName}: Sales follow-up completed. Please make sure the bank slip, ID front, and ID back are submitted.`,
+      text: `${customer.customerName}: Sales follow-up completed. Please make sure the payment slip is submitted (ID front and back are optional).`,
     });
   } catch (error) {
     console.warn('Could not save completion document reminder:', error.message);
@@ -1153,13 +1153,12 @@ const getDocumentReminders = asyncHandler(async (req, res) => {
   const userId = String(req.user._id || req.user.id);
   const rows = await SalesCustomer.aggregate([
     { $match: { agentId: userId, followupStatus: 'Completed' } },
-    // Reduce each sale to flags first so the base64 images are not carried along.
+    // Only the payment slip is mandatory; ID front and back are optional.
+    // Reduce each sale to a flag first so the base64 images are not carried along.
     { $project: {
       customerName: 1,
       studentRegistrationId: 1,
       hasSlip: isRealDocumentExpression('$paymentScreenshot'),
-      hasIdFront: isRealDocumentExpression('$nationalIdFrontImage'),
-      hasIdBack: isRealDocumentExpression('$nationalIdBackImage'),
     } },
     // A bank slip uploaded on the linked student registration also counts
     // (the same rule the finance follow-up page uses).
@@ -1174,9 +1173,7 @@ const getDocumentReminders = asyncHandler(async (req, res) => {
       customerName: 1,
       missingDocuments: { $filter: {
         input: [
-          { $cond: [{ $or: ['$hasSlip', { $in: [true, '$registration.slip'] }] }, null, 'Bank slip'] },
-          { $cond: ['$hasIdFront', null, 'ID front'] },
-          { $cond: ['$hasIdBack', null, 'ID back'] },
+          { $cond: [{ $or: ['$hasSlip', { $in: [true, '$registration.slip'] }] }, null, 'Payment slip'] },
         ],
         as: 'label', cond: { $ne: ['$$label', null] },
       } },

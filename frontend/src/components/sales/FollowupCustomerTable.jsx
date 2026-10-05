@@ -1965,7 +1965,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               <Box>
                 <Text fontSize="md" fontWeight="bold">Complete Sale & Verification Proof</Text>
                 <Text fontSize="xs" fontWeight="normal" color="teal.100">
-                  Please submit the bank slip, ID front, and ID back for this completed follow-up.
+                  The payment slip is required for this completed follow-up. ID front and back are optional.
                 </Text>
               </Box>
             </Flex>

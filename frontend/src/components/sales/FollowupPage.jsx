@@ -258,8 +258,8 @@ const FollowupPage = ({ documentsOnly = false }) => {
       });
       // Refresh stats
       fetchStats();
-      if (newCustomer.followupStatus === 'Completed') {
-        toast({ title: 'Follow-up completed — submit documents', description: 'Please make sure the bank slip, ID front, and ID back are submitted.', status: 'info', duration: 9000, isClosable: true });
+      if (isMissingDocuments(newCustomer)) {
+        toast({ title: 'Follow-up completed — submit the payment slip', description: 'The payment slip is required. ID front and back are optional.', status: 'info', duration: 9000, isClosable: true });
       }
     } catch (err) {
       setCustomers((previous) => previous.filter((customer) => customer.id !== temporaryId));
@@ -314,11 +314,10 @@ const FollowupPage = ({ documentsOnly = false }) => {
       window.dispatchEvent(new Event('sales:documents-updated'));
       // Refresh stats after successful save
       fetchStats();
-      const needsDocuments = mappedCustomer.followupStatus === 'Completed' &&
-        ['paymentScreenshot', 'nationalIdFrontImage', 'nationalIdBackImage'].some(field => !mappedCustomer[field]?.trim());
+      const needsDocuments = isMissingDocuments(mappedCustomer);
       toast({
-        title: needsDocuments ? "Follow-up completed — submit documents" : "Customer updated",
-        description: needsDocuments ? 'Please make sure the bank slip, ID front, and ID back are submitted.' : undefined,
+        title: needsDocuments ? "Follow-up completed — submit the payment slip" : "Customer updated",
+        description: needsDocuments ? 'The payment slip is required. ID front and back are optional.' : undefined,
         status: needsDocuments ? "info" : "success",
         duration: needsDocuments ? 9000 : 2500,
         isClosable: true,
@@ -752,7 +751,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
     return (
       <Box>
         <Text fontSize="sm" color={secondaryTextColor} px={4} pt={2}>
-          Only completed follow-ups missing a bank slip or ID image appear here. Use Edit to upload or paste documents.
+          Only completed follow-ups missing the payment slip appear here (ID front and back are optional). Use Edit to upload it.
         </Text>
         <FollowupCompletedTable documentsOnly customers={customers} courses={courses} onUpdate={handleUpdate} onDelete={handleDelete} />
       </Box>
@@ -1286,7 +1285,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
             >
               <HStack spacing={2}>
                 <Icon as={FiAlertTriangle} boxSize={3.5} />
-                <Text>Missing Documents</Text>
+                <Text>Missing Payment Slips</Text>
                 {missingDocumentsCount > 0 && (
                   <Badge 
                     bg="red.500" 

@@ -28,11 +28,11 @@ export default function DocumentReminderToast({ total, items, onDismiss, onOpenD
         <Box flex={1} minW={0}>
           <Text fontSize="xs" fontWeight="black" letterSpacing="wider" color="red.500">ACTION REQUIRED</Text>
           <Text fontWeight="extrabold" fontSize="md" lineHeight="short">
-            Upload the missing documents now
+            Upload the missing payment slips now
           </Text>
           <Text fontSize="sm" color={muted} mt={1}>
-            <b>{total}</b> of your completed sale{total === 1 ? ' is' : 's are'} missing documents.
-            Finance cannot verify a sale until its bank slip and ID are uploaded.
+            <b>{total}</b> of your completed sale{total === 1 ? ' is' : 's are'} missing a payment slip.
+            Finance cannot verify a sale until its payment slip is uploaded.
           </Text>
         </Box>
         {onDismiss && <CloseButton size="sm" aria-label="Dismiss document warning" onClick={onDismiss} />}
@@ -55,7 +55,7 @@ export default function DocumentReminderToast({ total, items, onDismiss, onOpenD
 
       <Flex align="center" justify="space-between" gap={3} mt={2} flexWrap="wrap">
         <Text fontSize="xs" color={muted} fontWeight="semibold">
-          {remaining > 0 ? `+ ${remaining} more sale${remaining === 1 ? '' : 's'} waiting for documents` : 'Fix these before your next follow-up.'}
+          {remaining > 0 ? `+ ${remaining} more sale${remaining === 1 ? '' : 's'} waiting for a payment slip` : 'Fix these before your next follow-up.'}
         </Text>
         {onOpenDocuments && (
           <Button size="sm" colorScheme="red" leftIcon={<FiUploadCloud />}

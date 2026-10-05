@@ -65,17 +65,17 @@ export default function DocumentWarningOverlay({ isOpen, total, items = [], onCl
                 WARNING
               </Text>
               <Heading size={{ base: 'md', md: 'lg' }} mt={1}>
-                Submit your missing documents now
+                Submit your missing payment slips now
               </Heading>
             </Box>
 
             <Text fontSize={{ base: 'sm', md: 'md' }}>
-              <b>{total}</b> of your completed sale{total === 1 ? ' is' : 's are'} missing the bank slip or ID.
+              <b>{total}</b> of your completed sale{total === 1 ? ' is' : 's are'} missing the payment slip.
             </Text>
 
             <Box bg="blackAlpha.400" borderRadius="lg" px={4} py={3} borderWidth="2px" borderColor="yellow.300" w="100%">
               <Text fontSize={{ base: 'sm', md: 'md' }} fontWeight="bold">
-                If you do not submit the missing documents, your account will be locked or deactivated.
+                If you do not submit the missing payment slips, your account will be locked or deactivated.
               </Text>
             </Box>
 
@@ -95,7 +95,7 @@ export default function DocumentWarningOverlay({ isOpen, total, items = [], onCl
               ))}
               {remaining > 0 && (
                 <Text fontSize="xs" py={1.5} borderTopWidth="1px" borderColor="whiteAlpha.300">
-                  + {remaining} more sale{remaining === 1 ? '' : 's'} missing documents
+                  + {remaining} more sale{remaining === 1 ? '' : 's'} missing a payment slip
                 </Text>
               )}
             </Box>
