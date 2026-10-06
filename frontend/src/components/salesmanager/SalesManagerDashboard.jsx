@@ -194,19 +194,16 @@ const getCurrentWeekRange = (referenceDate = new Date()) => {
 // };
 
 const SalesManagerDashboard = () => {
-  console.log('SalesManagerDashboard component rendering...');
-  console.log('Environment:', process.env.NODE_ENV);
   
   // Get current user from store
   const currentUser = useUserStore((state) => state.currentUser);
   const toast = useToast();
-  console.log('Current user in dashboard:', currentUser);
-  console.log('User role:', currentUser?.role);
-  console.log('LocalStorage userRole:', localStorage.getItem('userRole'));
   
   const [activeTab, setActiveTab] = useState(0);
   const [weeklyView, setWeeklyView] = useState(true);
   const timeRange = weeklyView ? 'week' : 'month';
+  const timeRangeRef = useRef(timeRange);
+  timeRangeRef.current = timeRange;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalAgents: 0,
@@ -256,7 +253,7 @@ const SalesManagerDashboard = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const chartRef = useRef(null);
   const navigate = useNavigate();
-  const initialContentLoadRef = useRef(true);
+
   const hasLoadedOnceRef = useRef(false);
   const contentSummaryMap = useMemo(() => mapSummariesByKey(contentSummaries), [contentSummaries]);
   const contentBonusTotal = useMemo(
@@ -545,7 +542,6 @@ const SalesManagerDashboard = () => {
     fetchRecentActivities();
     fetchTaskData();
     loadWeeklyContentCounts();
-    loadContentSummaries();
     fetchAgentRoster();
     fetchPendingAssignments();
 
@@ -559,19 +555,33 @@ const SalesManagerDashboard = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [weeklyView, fetchAgentRoster, fetchPendingAssignments, loadWeeklyContentCounts, loadContentSummaries]);
+  }, [fetchAgentRoster, fetchPendingAssignments, loadWeeklyContentCounts]);
 
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
 
+  // Changing the month only reloads content; changing the range only reloads performance.
   useEffect(() => {
-    if (initialContentLoadRef.current) {
-      initialContentLoadRef.current = false;
-      return;
-    }
     loadContentSummaries();
-  }, [contentMonth, loadContentSummaries]);
+  }, [loadContentSummaries]);
+
+  const previousRangeRef = useRef(timeRange);
+  useEffect(() => {
+    if (previousRangeRef.current === timeRange) return;
+    previousRangeRef.current = timeRange;
+    setError(null);
+    let cancelled = false;
+    getTeamPerformance(timeRange).then((data) => {
+      if (!cancelled) setTeamPerformance({ agentPerformance: [], ...data });
+    }).catch((err) => {
+      if (!cancelled) setError('Failed to load team performance. ' + (err.message || ''));
+    });
+    getSalesForecast({ range: timeRange }).then((data) => {
+      if (!cancelled) setForecastData(data);
+    }).catch((err) => console.error('Error fetching sales forecast:', err));
+    return () => { cancelled = true; };
+  }, [timeRange]);
 
   // Fetch dashboard stats
   const fetchDashboardStats = async () => {
@@ -585,7 +595,7 @@ const SalesManagerDashboard = () => {
   // Fetch sales forecast data
   const fetchSalesForecast = async () => {
     try {
-      const data = await getSalesForecast({ range: timeRange });
+      const data = await getSalesForecast({ range: timeRangeRef.current });
       setForecastData(data);
     } catch (err) {
       console.error('Error fetching sales forecast:', err);
@@ -597,8 +607,9 @@ const SalesManagerDashboard = () => {
   // Fetch team performance data
   // Team performance includes each agent's deals and commission (one request).
   const fetchTeamPerformance = async () => {
-    const data = await getTeamPerformance(timeRange);
-    setTeamPerformance({ agentPerformance: [], ...data });
+    const range = timeRangeRef.current;
+    const data = await getTeamPerformance(range);
+    if (range === timeRangeRef.current) setTeamPerformance({ agentPerformance: [], ...data });
   };
 
   // Fetch recent activities
@@ -652,6 +663,7 @@ const SalesManagerDashboard = () => {
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchAllData();
+    loadContentSummaries();
   };
 
   // Calculate progress percentage
@@ -1205,7 +1217,7 @@ const SalesManagerDashboard = () => {
         </Grid>
 
         <Box mt={6}>
-          <CompletedSalesTable title="Completed Sales Follow-ups" compact />
+          <CompletedSalesTable title="Completed Sales Follow-ups" compact availableAgents={agentRoster} />
         </Box>
       </Box>
   );

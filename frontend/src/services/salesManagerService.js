@@ -2,8 +2,11 @@ import axiosInstance from './axiosInstance';
 
 // Get all sales for sales manager (supports pagination)
 export const getAllSales = async (filters = {}) => {
+  const token = localStorage.getItem('userToken');
+  // token will be attached by axiosInstance interceptor; keep local logging
   
   try {
+    console.log('Fetching all sales with token:', token ? token.substring(0, 10) + '...' : 'null');
     console.log('Filters:', filters);
     const response = await axiosInstance.get('/sales-manager/all-sales', { params: filters });
     console.log('All sales response:', response.data);
@@ -17,8 +20,11 @@ export const getAllSales = async (filters = {}) => {
 
 // Get all agents
 export const getAllAgents = async () => {
+  const token = localStorage.getItem('userToken');
+  // token attached by axiosInstance
   
   try {
+    console.log('Fetching all agents with token:', token ? token.substring(0, 10) + '...' : 'null');
     const response = await axiosInstance.get('/sales-manager/agents');
     console.log('All agents response:', response.data);
     return response.data;
@@ -31,8 +37,11 @@ export const getAllAgents = async () => {
 
 // Update supervisor comment
 export const updateSupervisorComment = async (saleId, supervisorComment) => {
+  const token = localStorage.getItem('userToken');
+  // token attached by axiosInstance
   
   try {
+    console.log('Updating supervisor comment with token:', token ? token.substring(0, 10) + '...' : 'null');
     console.log('Sale ID:', saleId);
     console.log('Supervisor comment:', supervisorComment);
     const response = await axiosInstance.put(`/sales-manager/sales/${saleId}/supervisor-comment`, { supervisorComment });
@@ -47,8 +56,11 @@ export const updateSupervisorComment = async (saleId, supervisorComment) => {
 
 // Get dashboard stats
 export const getDashboardStats = async () => {
+  const token = localStorage.getItem('userToken');
+  // token attached by axiosInstance
   
   try {
+    console.log('Fetching dashboard stats with token:', token ? token.substring(0, 10) + '...' : 'null');
     const response = await axiosInstance.get('/sales-manager/dashboard-stats');
     console.log('Dashboard stats response:', response.data);
     return response.data;
@@ -61,8 +73,11 @@ export const getDashboardStats = async () => {
 
 // Get team performance stats
 export const getTeamPerformance = async (timeRange = 'all') => {
+  const token = localStorage.getItem('userToken');
+  // token attached by axiosInstance
   
   try {
+    console.log('Fetching team performance with token:', token ? token.substring(0, 10) + '...' : 'null');
     const response = await axiosInstance.get(`/sales-manager/team-performance?timeRange=${timeRange}`);
     console.log('Team performance response:', response.data);
     return response.data;
@@ -153,8 +168,11 @@ export const getAgentCommissionByUsername = async (username, month, year) => {
 
 // Import sales rows
 export const importSales = async (sales = []) => {
+  const token = localStorage.getItem('userToken');
+  // token attached by axiosInstance
 
   try {
+    console.log('Importing sales with token:', token ? token.substring(0, 10) + '...' : 'null');
     const response = await axiosInstance.post('/sales-manager/import-sales', { sales });
     console.log('Import sales response:', response.data);
     return response.data;
