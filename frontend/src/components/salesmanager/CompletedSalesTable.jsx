@@ -64,6 +64,7 @@ const toDateInputValue = (value) => {
 export default function CompletedSalesTable({
   title = 'Completed Sales Follow-ups',
   compact = false,
+  availableAgents,
   dateFrom,
   dateTo,
 }) {
@@ -145,7 +146,10 @@ export default function CompletedSalesTable({
 
   useEffect(() => {
     let active = true;
-    axiosInstance.get('/sales-manager/agents').then(({ data }) => {
+    const roster = availableAgents !== undefined
+      ? Promise.resolve({ data: availableAgents })
+      : axiosInstance.get('/sales-manager/agents');
+    roster.then(({ data }) => {
       if (!active) return;
       setAgents((Array.isArray(data) ? data : [])
         .filter((agent) => String(agent.role || '').trim().toLowerCase() === 'sales')
@@ -157,7 +161,7 @@ export default function CompletedSalesTable({
       if (active) setAgents([]);
     });
     return () => { active = false; };
-  }, []);
+  }, [availableAgents]);
 
   const filteredSales = useMemo(() => {
     const term = search.trim().toLowerCase();

@@ -194,19 +194,16 @@ const getCurrentWeekRange = (referenceDate = new Date()) => {
 // };
 
 const SalesManagerDashboard = () => {
-  console.log('SalesManagerDashboard component rendering...');
-  console.log('Environment:', process.env.NODE_ENV);
   
   // Get current user from store
   const currentUser = useUserStore((state) => state.currentUser);
   const toast = useToast();
-  console.log('Current user in dashboard:', currentUser);
-  console.log('User role:', currentUser?.role);
-  console.log('LocalStorage userRole:', localStorage.getItem('userRole'));
   
   const [activeTab, setActiveTab] = useState(0);
   const [weeklyView, setWeeklyView] = useState(true);
   const timeRange = weeklyView ? 'week' : 'month';
+  const timeRangeRef = useRef(timeRange);
+  timeRangeRef.current = timeRange;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalAgents: 0,
@@ -240,6 +237,7 @@ const SalesManagerDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [pendingAssignments, setPendingAssignments] = useState([]);
+  const [pendingTotal, setPendingTotal] = useState(0);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [assigningCustomerId, setAssigningCustomerId] = useState(null);
   const [agentRoster, setAgentRoster] = useState([]);
@@ -255,7 +253,8 @@ const SalesManagerDashboard = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const chartRef = useRef(null);
   const navigate = useNavigate();
-  const initialContentLoadRef = useRef(true);
+
+  const hasLoadedOnceRef = useRef(false);
   const contentSummaryMap = useMemo(() => mapSummariesByKey(contentSummaries), [contentSummaries]);
   const contentBonusTotal = useMemo(
     () => contentSummaries.reduce((sum, summary) => sum + (summary.bonusAmount || 0), 0),
@@ -397,23 +396,6 @@ const SalesManagerDashboard = () => {
     ]
   };
 
-  // Debug log when component mounts
-  const applyStatsFallback = () => {
-    setStats({
-      totalAgents: 12,
-      activeAgents: 9,
-      totalCustomers: 1287,
-      newCustomers: 42,
-      totalDeals: 356,
-      closedDeals: 243,
-      totalTeamGrossCommission: 1256800,
-      revenueTarget: 1500000,
-      monthlyGrowth: 8.5,
-      quarterlyGrowth: 22.3,
-      ytdGrowth: 45.7
-    });
-  };
-
   const fetchAgentRoster = useCallback(async () => {
     try {
       const roster = await getAllAgents();
@@ -426,8 +408,12 @@ const SalesManagerDashboard = () => {
   const fetchPendingAssignments = useCallback(async () => {
     setAssignmentLoading(true);
     try {
-      const data = await getPendingReceptionCustomers();
-      setPendingAssignments(Array.isArray(data) ? data : []);
+      // The panel shows the 5 newest leads and the queue size; ask for exactly that
+      // (summary rows without document images) instead of every pending lead.
+      const data = await getPendingReceptionCustomers({ fields: 'summary', page: 1, limit: 5 });
+      const rows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+      setPendingAssignments(rows);
+      setPendingTotal(data?.pagination?.total ?? rows.length);
     } catch (error) {
       console.error('Error fetching pending assignments:', error);
     } finally {
@@ -546,77 +532,70 @@ const SalesManagerDashboard = () => {
   }, [contentMonth]);
 
   const fetchAllData = useCallback(async () => {
-    console.log('Starting data fetch...');
-    console.log('Weekly view:', weeklyView, 'timeRange:', timeRange);
+    // The full-page spinner is only for the first load; later refreshes and the
+    // weekly/monthly toggle update the page in place.
+    if (!hasLoadedOnceRef.current) setLoading(true);
+    setError(null);
+
+    // Side panels have their own loading states and never hold back the page.
+    fetchSalesForecast();
+    fetchRecentActivities();
+    fetchTaskData();
+    loadWeeklyContentCounts();
+    fetchAgentRoster();
+    fetchPendingAssignments();
+
     try {
-      setLoading(true);
-      setError(null);
-      await Promise.all([
-        fetchDashboardStats(),
-        fetchSalesForecast(),
-        fetchTeamPerformance(),
-        fetchAgentData(),
-        fetchRecentActivities(),
-        fetchTaskData(),
-        loadWeeklyContentCounts(),
-        loadContentSummaries(),
-        fetchAgentRoster(),
-        fetchPendingAssignments()
-      ]);
+      await Promise.all([fetchDashboardStats(), fetchTeamPerformance()]);
     } catch (err) {
-      // soften the failure: use mock data and keep page usable
-      const message = err?.response?.status === 404
-        ? 'Data not available yet; showing sample data.'
-        : 'Failed to load dashboard data. ' + (err.message || '');
-      setError(message);
+      setError('Failed to load dashboard data. ' + (err.response?.data?.message || err.message || ''));
       console.error('Error loading dashboard data:', err);
-      applyStatsFallback();
-      setForecastData(generateMockForecast());
     } finally {
+      hasLoadedOnceRef.current = true;
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [weeklyView, fetchAgentRoster, fetchPendingAssignments, loadWeeklyContentCounts, loadContentSummaries]);
+  }, [fetchAgentRoster, fetchPendingAssignments, loadWeeklyContentCounts]);
 
   useEffect(() => {
-    console.log('SalesManagerDashboard mounted or updated');
     fetchAllData();
   }, [fetchAllData]);
 
+  // Changing the month only reloads content; changing the range only reloads performance.
   useEffect(() => {
-    if (initialContentLoadRef.current) {
-      initialContentLoadRef.current = false;
-      return;
-    }
     loadContentSummaries();
-  }, [contentMonth, loadContentSummaries]);
+  }, [loadContentSummaries]);
+
+  const previousRangeRef = useRef(timeRange);
+  useEffect(() => {
+    if (previousRangeRef.current === timeRange) return;
+    previousRangeRef.current = timeRange;
+    setError(null);
+    let cancelled = false;
+    getTeamPerformance(timeRange).then((data) => {
+      if (!cancelled) setTeamPerformance({ agentPerformance: [], ...data });
+    }).catch((err) => {
+      if (!cancelled) setError('Failed to load team performance. ' + (err.message || ''));
+    });
+    getSalesForecast({ range: timeRange }).then((data) => {
+      if (!cancelled) setForecastData(data);
+    }).catch((err) => console.error('Error fetching sales forecast:', err));
+    return () => { cancelled = true; };
+  }, [timeRange]);
 
   // Fetch dashboard stats
   const fetchDashboardStats = async () => {
-    try {
-      console.log('🔍 Fetching dashboard stats...');
-      console.log('Token:', localStorage.getItem('userToken')?.substring(0, 20) + '...');
-      const data = await getDashboardStats();
-      console.log('✅ Dashboard stats received:', data);
-      setStats(prev => ({
-        ...prev,
-        ...data
-      }));
-    } catch (err) {
-      console.error('❌ Error fetching dashboard stats:', err);
-      console.error('Error details:', err.response?.data || err.message);
-      applyStatsFallback();
-      // Propagate only for non-404 to avoid breaking UX when endpoints are missing
-      if (err?.response?.status !== 404) {
-        throw err;
-      }
-    }
+    const data = await getDashboardStats();
+    setStats(prev => ({
+      ...prev,
+      ...data
+    }));
   };
 
   // Fetch sales forecast data
   const fetchSalesForecast = async () => {
     try {
-      const data = await getSalesForecast({ range: timeRange });
+      const data = await getSalesForecast({ range: timeRangeRef.current });
       setForecastData(data);
     } catch (err) {
       console.error('Error fetching sales forecast:', err);
@@ -626,41 +605,11 @@ const SalesManagerDashboard = () => {
   };
 
   // Fetch team performance data
+  // Team performance includes each agent's deals and commission (one request).
   const fetchTeamPerformance = async () => {
-    try {
-      const data = await getTeamPerformance(timeRange);
-      setTeamPerformance(data);
-    } catch (err) {
-      console.error('Error fetching team performance:', err);
-      // Mock team performance data
-      setTeamPerformance([
-        { id: 1, name: 'John D.', dealsClosed: 42, target: 50, revenue: 125000 },
-        { id: 2, name: 'Sarah M.', dealsClosed: 38, target: 45, revenue: 118000 },
-        { id: 3, name: 'Mike T.', dealsClosed: 35, target: 40, revenue: 98500 },
-        { id: 4, name: 'Emma L.', dealsClosed: 31, target: 40, revenue: 87500 },
-        { id: 5, name: 'David K.', dealsClosed: 28, target: 35, revenue: 78500 }
-      ]);
-      if (err?.response?.status !== 404) {
-        throw err;
-      }
-    }
-  };
-
-  // Fetch agent data with commissions
-  const fetchAgentData = async () => {
-    try {
-      const agentData = await getTeamPerformance(timeRange);
-      // Update teamPerformance with agent data if it doesn't already contain it
-      setTeamPerformance(prev => ({
-        ...prev,
-        agentPerformance: agentData.agentPerformance
-      }));
-    } catch (err) {
-      console.error('Error fetching agent data:', err);
-      if (err?.response?.status !== 404) {
-        throw err;
-      }
-    }
+    const range = timeRangeRef.current;
+    const data = await getTeamPerformance(range);
+    if (range === timeRangeRef.current) setTeamPerformance({ agentPerformance: [], ...data });
   };
 
   // Fetch recent activities
@@ -687,9 +636,9 @@ const SalesManagerDashboard = () => {
   // Fetch task data
   const fetchTaskData = async () => {
     try {
-      // Fetch tasks assigned by the current sales manager
-      const tasksResponse = await getTasksForManager();
-      
+      // Tasks assigned by the current sales manager, and their statistics
+      const [tasksResponse, statsResponse] = await Promise.all([getTasksForManager(), getTaskStats()]);
+
       // Process tasks to include agent names
       const processedTasks = tasksResponse.map(task => ({
         ...task,
@@ -698,9 +647,6 @@ const SalesManagerDashboard = () => {
       }));
       
       setTasks(processedTasks);
-      
-      // Get task statistics
-      const statsResponse = await getTaskStats();
       setTaskStats(statsResponse);
     } catch (err) {
       console.error('Error fetching task data:', err);
@@ -717,6 +663,7 @@ const SalesManagerDashboard = () => {
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchAllData();
+    loadContentSummaries();
   };
 
   // Calculate progress percentage
@@ -728,10 +675,7 @@ const SalesManagerDashboard = () => {
     return weeklyContentCounts[key]?.count ?? 0;
   };
 
-  console.log('Rendering dashboard with state:', { loading, error, stats });
-
   if (loading && !isRefreshing) {
-    console.log('Loading state: true');
     return (
       <Flex justify="center" align="center" minH="300px">
         <VStack spacing={4}>
@@ -744,7 +688,6 @@ const SalesManagerDashboard = () => {
   }
 
   if (error) {
-    console.error('Error in SalesManagerDashboard:', error);
     return (
       <Box bg="red.50" p={6} borderRadius="lg" mb={4}>
         <VStack spacing={3} align="stretch">
@@ -1165,7 +1108,7 @@ const SalesManagerDashboard = () => {
                   </Button>
                 </Flex>
                 <Text fontSize="xs" color="gray.500" mt={1}>
-                  {pendingAssignments.length} new leads in queue
+                  {pendingTotal.toLocaleString()} new leads in queue
                 </Text>
               </CardHeader>
               <CardBody pt={0}>
@@ -1274,7 +1217,7 @@ const SalesManagerDashboard = () => {
         </Grid>
 
         <Box mt={6}>
-          <CompletedSalesTable title="Completed Sales Follow-ups" compact />
+          <CompletedSalesTable title="Completed Sales Follow-ups" compact availableAgents={agentRoster} />
         </Box>
       </Box>
   );

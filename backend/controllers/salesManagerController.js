@@ -612,17 +612,17 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       throw new Error('Access denied. Sales managers, HR, Finance, or Admin only.');
     }
 
-    // Get all sales agents count
-    const totalAgents = await User.countDocuments({ role: 'sales' });
-
-    // Get all customers from all agents
-    const totalCustomers = await SalesCustomer.countDocuments();
-
-    // Get all completed deals from all agents
-    const totalCompletedDeals = await SalesCustomer.countDocuments({ followupStatus: 'Completed' });
-
-    // Get all completed sales to calculate revenue
-    const completedSales = await SalesCustomer.find({ followupStatus: 'Completed' });
+    // Independent queries run concurrently; commission calculations need no documents or images.
+    const [totalAgents, totalCustomers, totalCompletedDeals, completedSales, recentSales] = await Promise.all([
+      User.countDocuments({ role: 'sales' }),
+      SalesCustomer.countDocuments(),
+      SalesCustomer.countDocuments({ followupStatus: 'Completed' }),
+      SalesCustomer.find({ followupStatus: 'Completed' }).select('commission coursePrice'),
+      SalesCustomer.countDocuments({
+        followupStatus: 'Completed',
+        createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+      })
+    ]);
 
     // Calculate total gross and net commission
     let totalGrossCommission = 0;
@@ -632,12 +632,6 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       const commissionData = resolveSaleCommission(sale);
       totalGrossCommission += commissionData.grossCommission;
       totalNetCommission += commissionData.netCommission;
-    });
-
-    // Get recent sales (last 30 days)
-    const recentSales = await SalesCustomer.countDocuments({
-      followupStatus: 'Completed',
-      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     });
 
     res.json({
