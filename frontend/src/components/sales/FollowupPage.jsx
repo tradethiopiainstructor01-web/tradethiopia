@@ -259,7 +259,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
       // Refresh stats
       fetchStats();
       if (isMissingDocuments(newCustomer)) {
-        toast({ title: 'Follow-up completed — submit the payment slip', description: 'The payment slip is required. ID front and back are optional.', status: 'info', duration: 9000, isClosable: true });
+        toast({ title: 'Follow-up completed — submit the payment slip', description: 'Please upload the payment slip for this sale.', status: 'info', duration: 9000, isClosable: true });
       }
     } catch (err) {
       setCustomers((previous) => previous.filter((customer) => customer.id !== temporaryId));
@@ -317,7 +317,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
       const needsDocuments = isMissingDocuments(mappedCustomer);
       toast({
         title: needsDocuments ? "Follow-up completed — submit the payment slip" : "Customer updated",
-        description: needsDocuments ? 'The payment slip is required. ID front and back are optional.' : undefined,
+        description: needsDocuments ? 'Please upload the payment slip for this sale.' : undefined,
         status: needsDocuments ? "info" : "success",
         duration: needsDocuments ? 9000 : 2500,
         isClosable: true,
@@ -751,7 +751,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
     return (
       <Box>
         <Text fontSize="sm" color={secondaryTextColor} px={4} pt={2}>
-          Only completed follow-ups missing the payment slip appear here (ID front and back are optional). Use Edit to upload it.
+          Only completed follow-ups without a payment slip appear here. Use Edit to upload it.
         </Text>
         <FollowupCompletedTable documentsOnly customers={customers} courses={courses} onUpdate={handleUpdate} onDelete={handleDelete} />
       </Box>

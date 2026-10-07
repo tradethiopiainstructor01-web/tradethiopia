@@ -87,7 +87,7 @@ import {
   FiDownload
 } from 'react-icons/fi';
 import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
-import { isMissingDocuments, withDocuments } from '../../utils/salesDocuments';
+import { hasBankSlip, isMissingDocuments, withDocuments } from '../../utils/salesDocuments';
 
 const formatCurrency = (amount) => {
   const numeric = Number(amount);
@@ -1032,7 +1032,9 @@ const FollowupCompletedTable = ({
 
                       <Td py={3}>
                         <HStack spacing={1.5} wrap="wrap">
-                          <Tooltip label={customer.passportPhoto ? "3×4 Passport Photo (Click to preview)" : "Passport Photo Missing"} hasArrow>
+                          {/* Only the payment slip is mandatory: optional documents show only once uploaded. */}
+                          {customer.passportPhoto && (
+                          <Tooltip label="3×4 Passport Photo (Click to preview)" hasArrow>
                             <Badge
                               colorScheme={customer.passportPhoto ? "blue" : "gray"}
                               variant={customer.passportPhoto ? "solid" : "outline"}
@@ -1057,8 +1059,10 @@ const FollowupCompletedTable = ({
                               Photo
                             </Badge>
                           </Tooltip>
+                          )}
 
-                          <Tooltip label={customer.nationalIdFrontImage ? "Front ID (Verified - Click to preview)" : "Front ID Missing"} hasArrow>
+                          {customer.nationalIdFrontImage && (
+                          <Tooltip label="Front ID (Verified - Click to preview)" hasArrow>
                             <Badge
                               colorScheme={customer.nationalIdFrontImage ? "green" : "gray"}
                               variant={customer.nationalIdFrontImage ? "solid" : "outline"}
@@ -1083,8 +1087,10 @@ const FollowupCompletedTable = ({
                               Front ID
                             </Badge>
                           </Tooltip>
+                          )}
 
-                          <Tooltip label={customer.nationalIdBackImage ? "Back ID (Verified - Click to preview)" : "Back ID Missing"} hasArrow>
+                          {customer.nationalIdBackImage && (
+                          <Tooltip label="Back ID (Verified - Click to preview)" hasArrow>
                             <Badge
                               colorScheme={customer.nationalIdBackImage ? "green" : "gray"}
                               variant={customer.nationalIdBackImage ? "solid" : "outline"}
@@ -1109,18 +1115,19 @@ const FollowupCompletedTable = ({
                               Back ID
                             </Badge>
                           </Tooltip>
+                          )}
 
-                          <Tooltip label={customer.paymentScreenshot ? "Payment Receipt (Verified - Click to preview)" : "Payment Screenshot Missing"} hasArrow>
+                          <Tooltip label={hasBankSlip(customer) ? "Payment Slip (Verified - Click to preview)" : "Payment Slip Missing - required"} hasArrow>
                             <Badge
-                              colorScheme={customer.paymentScreenshot ? "purple" : "gray"}
-                              variant={customer.paymentScreenshot ? "solid" : "outline"}
+                              colorScheme={hasBankSlip(customer) ? "purple" : "gray"}
+                              variant={hasBankSlip(customer) ? "solid" : "outline"}
                               fontSize="2xs"
                               px={1.5}
                               py={0.5}
                               borderRadius="md"
-                              cursor={customer.paymentScreenshot ? "pointer" : "default"}
+                              cursor={hasBankSlip(customer) ? "pointer" : "default"}
                               onClick={async () => {
-                                if (customer.paymentScreenshot) {
+                                if (hasBankSlip(customer)) {
                                   const full = await loadDocuments(customer);
                                   if (!full?.paymentScreenshot) return;
                                   setFullImageModal({

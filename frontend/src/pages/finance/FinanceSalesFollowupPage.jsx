@@ -127,6 +127,20 @@ const formatDate = (value) => {
     : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+const formatDateTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+// When the follow-up was marked Completed. Sales completed before completion
+// times were recorded fall back to their last update, flagged as approximate.
+const getCompletedTime = (row) => (row.completedAt
+  ? { text: formatDateTime(row.completedAt), approximate: false }
+  : { text: formatDateTime(row.updatedAt), approximate: Boolean(row.updatedAt) });
+
 const formatMoney = (value) => `${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} ETB`;
 
 const getTraining = (row) => row.courseName || row.contactTitle || row.productInterest || '—';
@@ -169,6 +183,26 @@ const FinanceSalesFollowupPage = () => {
   const [period, setPeriod] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [agent, setAgent] = useState('');
+  const [agents, setAgents] = useState([]);
+
+  // Sales agents for the filter (the employee directory is cached on the server).
+  useEffect(() => {
+    let active = true;
+    apiClient.get('/users', { timeout: 30000 })
+      .then(({ data }) => {
+        const users = Array.isArray(data) ? data : data?.data || [];
+        const salesAgents = users
+          .filter((user) => String(user.role || '').trim().toLowerCase() === 'sales')
+          .map((user) => ({ id: String(user._id), name: user.fullName || user.username || user.email || 'Unnamed agent' }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (active) setAgents(salesAgents);
+      })
+      .catch(() => {
+        // The page works without the filter list; agents can still be found by search.
+      });
+    return () => { active = false; };
+  }, []);
 
   const choosePeriod = (value) => {
     setPeriod(value);
@@ -200,15 +234,16 @@ const FinanceSalesFollowupPage = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  useEffect(() => { setPage(1); }, [search, dateFrom, dateTo, limit]);
+  useEffect(() => { setPage(1); }, [search, agent, dateFrom, dateTo, limit]);
 
   const filterParams = useCallback(() => ({
     fields: 'summary',
     ...(search ? { search } : {}),
+    ...(agent ? { agent } : {}),
     followupStatus: 'Completed',
     ...(dateFrom ? { dateFrom: startOfLocalDay(dateFrom) } : {}),
     ...(dateTo ? { dateTo: endOfLocalDay(dateTo) } : {}),
-  }), [search, dateFrom, dateTo]);
+  }), [search, agent, dateFrom, dateTo]);
 
   const loadRows = useCallback(async () => {
     const id = ++requestId.current;
@@ -290,6 +325,10 @@ const FinanceSalesFollowupPage = () => {
         Email: row.email || '',
         Training: getTraining(row) === '—' ? '' : getTraining(row),
         'Registered Date': formatDate(row.date || row.createdAt),
+        'Completed At': (() => {
+          const completed = getCompletedTime(row);
+          return completed.approximate ? `${completed.text} (approx.)` : completed.text;
+        })(),
         'Sales Agent': row.agentName || '',
         Status: row.followupStatus || '',
         'Payment Option': row.paymentOption || '',
@@ -305,7 +344,9 @@ const FinanceSalesFollowupPage = () => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, sheet, 'Sales Follow-up');
       const rangePart = dateFrom || dateTo ? `${dateFrom || 'start'}_to_${dateTo || 'now'}` : 'all-time';
-      XLSX.writeFile(workbook, `finance-sales-followup-${rangePart}.xlsx`);
+      const agentName = agents.find((option) => option.id === agent)?.name;
+      const agentPart = agentName ? `-${agentName.replace(/[^\w-]+/g, '-')}` : '';
+      XLSX.writeFile(workbook, `finance-sales-followup-${rangePart}${agentPart}.xlsx`);
     } catch (err) {
       toast({ title: 'Export failed', description: err.message, status: 'error', duration: 4000, isClosable: true });
     } finally {
@@ -315,10 +356,11 @@ const FinanceSalesFollowupPage = () => {
 
   const clearFilters = () => {
     setSearchInput('');
+    setAgent('');
     choosePeriod('all');
   };
 
-  const hasFilters = searchInput || dateFrom || dateTo;
+  const hasFilters = searchInput || agent || dateFrom || dateTo;
   const periodLabel = PERIODS.find((option) => option.value === period)?.label || 'Custom range';
   const rangeLabel = dateFrom || dateTo
     ? `${dateFrom ? formatDate(`${dateFrom}T00:00:00`) : 'Any date'} – ${dateTo ? formatDate(`${dateTo}T00:00:00`) : 'today'}`
@@ -376,7 +418,7 @@ const FinanceSalesFollowupPage = () => {
               <b>{periodLabel}:</b> {rangeLabel}
             </Text>
           </Flex>
-          <SimpleGrid columns={{ base: 1, md: 2, xl: 5 }} spacing={3} alignItems="end">
+          <SimpleGrid columns={{ base: 1, md: 2, xl: 6 }} spacing={3} alignItems="end">
             <Box gridColumn={{ xl: 'span 2' }}>
               <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>Search</Text>
               <InputGroup size="sm">
@@ -388,6 +430,13 @@ const FinanceSalesFollowupPage = () => {
                   borderRadius="md"
                 />
               </InputGroup>
+            </Box>
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>Sales agent</Text>
+              <Select size="sm" borderRadius="md" value={agent} onChange={(e) => setAgent(e.target.value)}>
+                <option value="">All agents</option>
+                {agents.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+              </Select>
             </Box>
             <Box>
               <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={1}>Status</Text>
@@ -426,6 +475,7 @@ const FinanceSalesFollowupPage = () => {
                   <Th>Customer</Th>
                   <Th>Training</Th>
                   <Th>Registered</Th>
+                  <Th>Completed</Th>
                   <Th>Sales agent</Th>
                   <Th>Status</Th>
                   <Th>Payment</Th>
@@ -436,7 +486,7 @@ const FinanceSalesFollowupPage = () => {
               <Tbody>
                 {loading && !rows.length ? (
                   <Tr>
-                    <Td colSpan={9} py={12}>
+                    <Td colSpan={10} py={12}>
                       <HStack justify="center" color="gray.500" spacing={3}>
                         <Spinner size="sm" />
                         <Text>Loading sales follow-ups…</Text>
@@ -445,7 +495,7 @@ const FinanceSalesFollowupPage = () => {
                   </Tr>
                 ) : !rows.length ? (
                   <Tr>
-                    <Td colSpan={9} py={12} textAlign="center" color="gray.500">
+                    <Td colSpan={10} py={12} textAlign="center" color="gray.500">
                       No sales follow-ups match these filters.
                     </Td>
                   </Tr>
@@ -458,6 +508,20 @@ const FinanceSalesFollowupPage = () => {
                     </Td>
                     <Td maxW="220px" whiteSpace="normal">{getTraining(row)}</Td>
                     <Td whiteSpace="nowrap">{formatDate(row.date || row.createdAt)}</Td>
+                    <Td whiteSpace="nowrap">
+                      {(() => {
+                        const completed = getCompletedTime(row);
+                        if (!completed.text) return '—';
+                        return completed.approximate ? (
+                          <Tooltip label="Completed before completion times were recorded; showing the last update time" hasArrow>
+                            <Box>
+                              <Text color="gray.600">{completed.text}</Text>
+                              <Text fontSize="10px" color="gray.500">approx.</Text>
+                            </Box>
+                          </Tooltip>
+                        ) : completed.text;
+                      })()}
+                    </Td>
                     <Td>{row.agentName || '—'}</Td>
                     <Td>
                       <Badge colorScheme={STATUS_COLORS[(row.followupStatus || '').toLowerCase()] || 'gray'} borderRadius="full" px={2}>

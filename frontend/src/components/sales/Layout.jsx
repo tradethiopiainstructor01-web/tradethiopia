@@ -19,7 +19,6 @@ import useIsMobile from '../../hooks/useIsMobile';
 import MobileSalesShell from '../../mobile/sales/MobileSalesShell';
 import ErrorBoundary from '../ErrorBoundary';
 import useSalesDocumentReminder from '../../hooks/useSalesDocumentReminder';
-import DocumentWarningOverlay from './DocumentWarningOverlay';
 
 const DESKTOP_NAV_HEIGHT = '80px';
 const StudentRegistrationPage = lazy(() => import('../customer/StudentRegistrationPage.jsx'));
@@ -105,27 +104,12 @@ const Layout = ({ initialActiveItem }) => {
     }
   };
 
-  const documentWarning = (
-    <DocumentWarningOverlay
-      isOpen={documentReminder.isWarningOpen}
-      total={documentReminder.total}
-      items={documentReminder.items}
-      onClose={documentReminder.closeWarning}
-    />
-  );
-
   if (isMobile) {
-    return (
-      <>
-        <MobileSalesShell activeItem={activeItem} documentReminder={documentReminder} />
-        {documentWarning}
-      </>
-    );
+    return <MobileSalesShell activeItem={activeItem} documentReminder={documentReminder} />;
   }
 
   return (
     <Box display="flex" flexDirection="column" height="100vh">
-      {documentWarning}
       {/* Navbar */}
       <Box position="fixed" top={0} left={0} width="100%" zIndex="1000">
         <SNavbar onToggleSidebar={onOpen} documentReminder={documentReminder} /> {/* Pass `onOpen` to toggle the drawer */}

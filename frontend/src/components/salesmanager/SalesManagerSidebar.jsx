@@ -39,7 +39,9 @@ import {
   FiClipboard,
   FiBookOpen,
   FiAlertTriangle,
-  FiAward
+  FiAward,
+  FiActivity,
+  FiArchive
 } from 'react-icons/fi';
 
 const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
@@ -67,6 +69,8 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
     { name: 'Dashboard', icon: FiHome, path: '/salesmanager' },
     { name: 'Course', icon: FiBookOpen, path: '/salesmanager/course' },
     { name: 'All Sales', icon: FiDollarSign, path: '/salesmanager/all-sales' },
+    { name: 'Activity Log', icon: FiActivity, path: '/salesmanager/activity-log' },
+    { name: 'Removed & Deleted', icon: FiArchive, path: '/salesmanager/removed' },
     { name: 'Performance', icon: FiTrendingUp, path: '/salesmanager/performance' },
     { name: 'Agent Scorecard', icon: FiAward, path: '/salesmanager/kpi' },
     { name: 'COO KPI Submission', icon: FiBarChart2, path: '/salesmanager/coo-kpi' },

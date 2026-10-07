@@ -3,6 +3,7 @@ const TrainingFollowup = require("../models/TrainingFollowup");
 const SalesCustomer = require("../models/SalesCustomer");
 const User = require("../models/user.model");
 const { createListCache } = require("../utils/listCache");
+const { snapshotSale, logSalesActivity, SNAPSHOT_SELECT } = require("../utils/salesActivity");
 
 const trainingListCache = createListCache({
   name: 'Training follow-up list',
@@ -53,12 +54,20 @@ const createTrainingFollowup = async (req, res) => {
       
       // Update the followupStatus to "Imported" for matching customers. Updating by
       // id lets the in-memory sales list patch these rows instead of reloading.
-      const matches = await SalesCustomer.find(filter).select("_id").lean();
+      const matches = await SalesCustomer.find(filter).select(SNAPSHOT_SELECT).lean();
       if (matches.length) {
         await SalesCustomer.updateMany(
           { _id: { $in: matches.map((match) => match._id) } },
           { followupStatus: "Imported" }
         );
+        matches.forEach((match) => logSalesActivity({
+          action: 'updated',
+          before: snapshotSale(match),
+          after: snapshotSale({ ...match, followupStatus: 'Imported' }),
+          user: req.user,
+          source: 'training_followup',
+          valuesOnly: true,
+        }));
       }
     }
 
