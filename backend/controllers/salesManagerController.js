@@ -4,6 +4,9 @@ const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
 const { calculateCommission, resolveSaleCommission } = require('../utils/commission');
 const mongoose = require('mongoose');
+const { snapshotSale, logSalesActivity, logSalesActivityMany, SNAPSHOT_SELECT } = require('../utils/salesActivity');
+const SalesActivityLog = require('../models/SalesActivityLog');
+const { backfillSalesActivityHistory } = require('../utils/salesActivityHistory');
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase().replace(/[\s_-]/g, '');
@@ -331,6 +334,9 @@ const updateSupervisorComment = asyncHandler(async (req, res) => {
     const saleId = req.params.id;
 
     // Update the supervisor comment
+    const before = mongoose.Types.ObjectId.isValid(saleId)
+      ? await SalesCustomer.findById(saleId).select(SNAPSHOT_SELECT).lean()
+      : null;
     const updatedSale = await SalesCustomer.findByIdAndUpdate(
       saleId,
       { supervisorComment },
@@ -342,6 +348,14 @@ const updateSupervisorComment = asyncHandler(async (req, res) => {
       throw new Error('Sale not found');
     }
 
+    logSalesActivity({
+      action: 'updated',
+      before: snapshotSale(before),
+      after: snapshotSale(updatedSale),
+      user: req.user,
+      source: 'sales_manager',
+      valuesOnly: true,
+    });
     res.json(updatedSale);
   } catch (error) {
     res.status(500).json({ 
@@ -761,6 +775,7 @@ const importSales = asyncHandler(async (req, res) => {
   }
 
   const inserted = await SalesCustomer.insertMany(prepared, { ordered: false });
+  logSalesActivityMany({ sales: inserted, user: req.user, source: 'import' });
 
   res.status(201).json({
     importedCount: inserted.length,
@@ -769,12 +784,232 @@ const importSales = asyncHandler(async (req, res) => {
   });
 });
 
+const ACTIVITY_TIMEZONE = 'Africa/Addis_Ababa';
+const countIf = (condition) => ({ $sum: { $cond: [condition, 1, 0] } });
+const hasType = (type) => ({ $in: [type, '$changeTypes'] });
+const hasRemoved = (type) => ({ $in: [type, '$removedTypes'] });
+
+// @desc    Read-only sales follow-up activity log with summary analysis
+// @route   GET /api/sales-manager/activity-log
+// @access  Private (Sales Manager and management roles)
+const getSalesActivityLog = asyncHandler(async (req, res) => {
+  if (!isAllowedManagerRole(req.user?.role)) {
+    res.status(403);
+    throw new Error('Access denied. Sales managers only.');
+  }
+  // Rebuilds earlier activity once if the server start did not, and waits for a
+  // rebuild in progress so the first visit never shows an empty log (instant afterwards).
+  await backfillSalesActivityHistory();
+
+  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 25));
+  const filter = {};
+
+  const from = req.query.from ? new Date(req.query.from) : null;
+  const to = req.query.to ? new Date(req.query.to) : null;
+  if ((from && !Number.isNaN(from.getTime())) || (to && !Number.isNaN(to.getTime()))) {
+    filter.createdAt = {};
+    if (from && !Number.isNaN(from.getTime())) filter.createdAt.$gte = from;
+    if (to && !Number.isNaN(to.getTime())) filter.createdAt.$lte = to;
+  }
+  if (['created', 'updated', 'deleted'].includes(req.query.action)) filter.action = req.query.action;
+  if (req.query.changeType) filter.changeTypes = String(req.query.changeType);
+  // An agent's activity: follow-ups they own, or changes they made.
+  if (req.query.agent && mongoose.Types.ObjectId.isValid(req.query.agent)) {
+    filter.$or = [{ agentId: String(req.query.agent) }, { actorId: new mongoose.Types.ObjectId(req.query.agent) }];
+  }
+  if (req.query.search?.trim()) {
+    const regex = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+    const searchOr = [{ customerName: regex }, { phone: regex }, { courseName: regex }, { actorName: regex }, { agentName: regex }];
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, { $or: searchOr }];
+      delete filter.$or;
+    } else {
+      filter.$or = searchOr;
+    }
+  }
+
+  const [result] = await SalesActivityLog.aggregate([
+    { $match: filter },
+    { $facet: {
+      rows: [{ $sort: { createdAt: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit }],
+      totals: [{ $group: {
+        _id: null,
+        total: { $sum: 1 },
+        created: countIf({ $eq: ['$action', 'created'] }),
+        updated: countIf({ $eq: ['$action', 'updated'] }),
+        deleted: countIf({ $eq: ['$action', 'deleted'] }),
+        completed: countIf(hasType('completed')),
+        slipAdded: countIf(hasType('payment_slip_added')),
+        slipReplaced: countIf(hasType('payment_slip_replaced')),
+        slipRemoved: countIf({ $or: [hasType('payment_slip_removed'), hasType('payment_slip_deleted')] }),
+      } }],
+      byPerson: [
+        { $group: {
+          _id: { $ifNull: ['$actorId', '$actorName'] },
+          name: { $first: '$actorName' },
+          role: { $first: '$actorRole' },
+          total: { $sum: 1 },
+          created: countIf({ $eq: ['$action', 'created'] }),
+          updated: countIf({ $eq: ['$action', 'updated'] }),
+          deleted: countIf({ $eq: ['$action', 'deleted'] }),
+          slipAdded: countIf(hasType('payment_slip_added')),
+          slipRemoved: countIf({ $or: [hasType('payment_slip_removed'), hasType('payment_slip_deleted')] }),
+          lastActivity: { $max: '$createdAt' },
+        } },
+        { $sort: { total: -1 } },
+        { $limit: 50 },
+      ],
+      byDay: [
+        { $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: ACTIVITY_TIMEZONE } },
+          created: countIf({ $eq: ['$action', 'created'] }),
+          updated: countIf({ $eq: ['$action', 'updated'] }),
+          deleted: countIf({ $eq: ['$action', 'deleted'] }),
+        } },
+        { $sort: { _id: -1 } },
+        { $limit: 31 },
+        { $sort: { _id: 1 } },
+      ],
+    } },
+  ]);
+
+  const totals = result?.totals?.[0] || {};
+  const total = totals.total || 0;
+  res.json({
+    data: result?.rows || [],
+    pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    summary: {
+      total,
+      created: totals.created || 0,
+      updated: totals.updated || 0,
+      deleted: totals.deleted || 0,
+      completed: totals.completed || 0,
+      slipAdded: totals.slipAdded || 0,
+      slipReplaced: totals.slipReplaced || 0,
+      slipRemoved: totals.slipRemoved || 0,
+      byPerson: (result?.byPerson || []).map(({ _id, ...person }) => ({ id: String(_id || ''), ...person })),
+      byDay: (result?.byDay || []).map(({ _id, ...day }) => ({ date: _id, ...day })),
+    },
+  });
+});
+
+// @desc    Read-only archive of removed payment slips/documents and deleted follow-ups
+// @route   GET /api/sales-manager/removals
+// @access  Private (Sales Manager and management roles)
+const getSalesRemovals = asyncHandler(async (req, res) => {
+  if (!isAllowedManagerRole(req.user?.role)) {
+    res.status(403);
+    throw new Error('Access denied. Sales managers only.');
+  }
+  const { SalesRemovalArchive } = require('../models/SalesRemovalArchive');
+  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 25));
+  const filter = {};
+
+  const from = req.query.from ? new Date(req.query.from) : null;
+  const to = req.query.to ? new Date(req.query.to) : null;
+  if ((from && !Number.isNaN(from.getTime())) || (to && !Number.isNaN(to.getTime()))) {
+    filter.createdAt = {};
+    if (from && !Number.isNaN(from.getTime())) filter.createdAt.$gte = from;
+    if (to && !Number.isNaN(to.getTime())) filter.createdAt.$lte = to;
+  }
+  if (req.query.type === 'followup_deleted') filter.kind = 'followup_deleted';
+  else if (req.query.type === 'slip_removed') filter.removedTypes = { $in: ['payment_slip_removed', 'payment_slip_deleted'] };
+  else if (req.query.type === 'slip_replaced') filter.removedTypes = 'payment_slip_replaced';
+  else if (req.query.type === 'other_document') {
+    filter.kind = 'document_removed';
+    filter['documents.field'] = { $ne: 'paymentScreenshot' };
+  }
+  if (req.query.agent && mongoose.Types.ObjectId.isValid(req.query.agent)) {
+    filter.$or = [{ agentId: String(req.query.agent) }, { actorId: new mongoose.Types.ObjectId(req.query.agent) }];
+  }
+  if (req.query.search?.trim()) {
+    const regex = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+    const searchOr = [{ customerName: regex }, { phone: regex }, { courseName: regex }, { actorName: regex }, { agentName: regex }];
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, { $or: searchOr }];
+      delete filter.$or;
+    } else {
+      filter.$or = searchOr;
+    }
+  }
+
+  const [result] = await SalesRemovalArchive.aggregate([
+    { $match: filter },
+    { $facet: {
+      rows: [{ $sort: { createdAt: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit }],
+      totals: [{ $group: {
+        _id: null,
+        total: { $sum: 1 },
+        followupsDeleted: countIf({ $eq: ['$kind', 'followup_deleted'] }),
+        slipsRemoved: countIf({ $or: [hasRemoved('payment_slip_removed'), hasRemoved('payment_slip_deleted')] }),
+        slipsReplaced: countIf(hasRemoved('payment_slip_replaced')),
+        otherDocuments: { $sum: { $size: { $filter: { input: '$documents', as: 'doc', cond: { $ne: ['$$doc.field', 'paymentScreenshot'] } } } } },
+      } }],
+      byPerson: [
+        { $group: {
+          _id: { $ifNull: ['$actorId', '$actorName'] },
+          name: { $first: '$actorName' },
+          role: { $first: '$actorRole' },
+          total: { $sum: 1 },
+          followupsDeleted: countIf({ $eq: ['$kind', 'followup_deleted'] }),
+          slipsRemoved: countIf({ $or: [hasRemoved('payment_slip_removed'), hasRemoved('payment_slip_deleted')] }),
+          slipsReplaced: countIf(hasRemoved('payment_slip_replaced')),
+          lastRemoval: { $max: '$createdAt' },
+        } },
+        { $sort: { total: -1 } },
+        { $limit: 50 },
+      ],
+    } },
+  ]);
+
+  const totals = result?.totals?.[0] || {};
+  const total = totals.total || 0;
+  res.json({
+    data: result?.rows || [],
+    pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    summary: {
+      total,
+      followupsDeleted: totals.followupsDeleted || 0,
+      slipsRemoved: totals.slipsRemoved || 0,
+      slipsReplaced: totals.slipsReplaced || 0,
+      otherDocuments: totals.otherDocuments || 0,
+      byPerson: (result?.byPerson || []).map(({ _id, ...person }) => ({ id: String(_id || ''), ...person })),
+    },
+  });
+});
+
+// @desc    One archived (removed) document image, for viewing
+// @route   GET /api/sales-manager/removals/documents/:documentId
+// @access  Private (Sales Manager and management roles)
+const getSalesRemovedDocument = asyncHandler(async (req, res) => {
+  if (!isAllowedManagerRole(req.user?.role)) {
+    res.status(403);
+    throw new Error('Access denied. Sales managers only.');
+  }
+  if (!mongoose.Types.ObjectId.isValid(req.params.documentId)) {
+    res.status(404);
+    throw new Error('Removed document not found');
+  }
+  const { SalesRemovedDocument } = require('../models/SalesRemovalArchive');
+  const document = await SalesRemovedDocument.findById(req.params.documentId).select('field label data createdAt').lean();
+  if (!document) {
+    res.status(404);
+    throw new Error('Removed document not found');
+  }
+  res.json(document);
+});
+
 module.exports = {
+  getSalesRemovals,
+  getSalesRemovedDocument,
   getAllSales,
   updateSupervisorComment,
   getAllAgents,
   getTeamPerformance,
   getDashboardStats,
   getAgentSales,
-  importSales
+  importSales,
+  getSalesActivityLog
 };

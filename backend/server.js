@@ -420,6 +420,8 @@ if (require.main === module) {
         require('./controllers/salesCustomerController').warmSalesCustomerCache();
         require('./controllers/tessbinController').warmTessbinCache();
         require('./controllers/user.controller').warmUserCaches();
+        // One-time: rebuild sales activity from before the activity log existed.
+        require('./utils/salesActivityHistory').backfillSalesActivityHistory();
 
         // Sync approaching and overdue company document licenses for HR
         syncAllApproachingLicenses(app).catch((err) =>

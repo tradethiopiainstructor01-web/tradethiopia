@@ -9,7 +9,10 @@ const {
   getTeamPerformance,
   getDashboardStats,
   getAgentSales,
-  importSales
+  importSales,
+  getSalesActivityLog,
+  getSalesRemovals,
+  getSalesRemovedDocument
 } = require('../controllers/salesManagerController');
 
 // All routes are protected
@@ -61,6 +64,17 @@ router.route('/agent-sales/:agentId')
 
 router.route('/import-sales')
   .post(protect, authorize('salesmanager', 'hr', 'HR', 'finance', 'Finance', 'admin'), importSales);
+
+// Read-only: the activity log has no create, update or delete routes.
+router.route('/activity-log')
+  .get(protect, authorize('salesmanager', 'admin', 'coo', 'COO', 'coo2', 'COO2', 'ceo', 'CEO'), getSalesActivityLog);
+
+// Read-only: removed slips/documents and deleted follow-ups (no create, update or delete routes).
+const MANAGEMENT_ROLES = ['salesmanager', 'admin', 'coo', 'COO', 'coo2', 'COO2', 'ceo', 'CEO'];
+router.route('/removals')
+  .get(protect, authorize(...MANAGEMENT_ROLES), getSalesRemovals);
+router.route('/removals/documents/:documentId')
+  .get(protect, authorize(...MANAGEMENT_ROLES), getSalesRemovedDocument);
 
 router.use('/kpis', require('./salesKpiRoutes'));
 

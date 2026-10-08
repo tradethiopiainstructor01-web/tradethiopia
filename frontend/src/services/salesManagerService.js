@@ -54,6 +54,24 @@ export const updateSupervisorComment = async (saleId, supervisorComment) => {
   }
 };
 
+// Read-only sales follow-up activity log with summary analysis
+export const getSalesActivityLog = async (params = {}) => {
+  const response = await axiosInstance.get('/sales-manager/activity-log', { params, timeout: 30000 });
+  return response.data;
+};
+
+// Read-only archive of removed payment slips/documents and deleted follow-ups
+export const getSalesRemovals = async (params = {}) => {
+  const response = await axiosInstance.get('/sales-manager/removals', { params, timeout: 30000 });
+  return response.data;
+};
+
+// One archived (removed) document image
+export const getSalesRemovedDocument = async (documentId) => {
+  const response = await axiosInstance.get(`/sales-manager/removals/documents/${documentId}`, { timeout: 60000 });
+  return response.data;
+};
+
 // Get dashboard stats
 export const getDashboardStats = async () => {
   const token = localStorage.getItem('userToken');

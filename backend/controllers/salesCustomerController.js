@@ -8,6 +8,7 @@ const asyncHandler = require('express-async-handler');
 const { calculateCommission } = require('../utils/commission');
 const nodemailer = require('nodemailer');
 const { createListCache } = require('../utils/listCache');
+const { snapshotSale, logSalesActivity } = require('../utils/salesActivity');
 
 const normalizeRoleValue = (value) => (value || '').toString().trim().toLowerCase();
 const PRIVILEGED_ROLES = new Set([
@@ -65,7 +66,7 @@ const summaryStages = () => [
 // follow-up page with search, date range, pages and totals) are answered from
 // memory in milliseconds.
 const CACHEABLE_LIST_PARAMS = new Set([
-  'fields', 'followupStatus', 'search', 'dateFrom', 'dateTo', 'page', 'limit', 'includeSummary',
+  'fields', 'followupStatus', 'agent', 'search', 'dateFrom', 'dateTo', 'page', 'limit', 'includeSummary',
 ]);
 const SEARCH_FIELDS = ['customerName', 'phone', 'email', 'productInterest', 'contactTitle', 'courseName'];
 const salesListCache = createListCache({
@@ -217,7 +218,8 @@ const syncSalesCustomerToStudentRegistration = async (salesCustomer, authUser) =
       nationalIdFrontImage: salesCustomer.nationalIdFrontImage || '',
       nationalIdImage: salesCustomer.nationalIdFrontImage || '',
       nationalIdBackImage: salesCustomer.nationalIdBackImage || '',
-      paymentScreenshot: salesCustomer.paymentScreenshot || '',
+      // A generated placeholder is not a slip and must never replace a real one.
+      paymentScreenshot: isRealSlip(salesCustomer.paymentScreenshot) ? salesCustomer.paymentScreenshot : '',
       salesCallStatus: salesCustomer.callStatus || 'Called',
       salesFollowupStatus: salesCustomer.followupStatus || 'Completed',
       salesSchedulePreference: salesCustomer.schedulePreference || 'Regular',
@@ -351,7 +353,7 @@ const notifyCompletionDocuments = async (customer, user) => {
   try {
     await createNotifications({
       userIds: [customer.agentId || user._id || user.id],
-      text: `${customer.customerName}: Sales follow-up completed. Please make sure the bank slip, ID front, and ID back are submitted.`,
+      text: `${customer.customerName}: Sales follow-up completed. Please make sure the payment slip is submitted.`,
     });
   } catch (error) {
     console.warn('Could not save completion document reminder:', error.message);
@@ -396,8 +398,8 @@ const getCustomers = asyncHandler(async (req, res) => {
     filter.phone = { $regex: new RegExp(normalizedPhone, 'i') };
   }
   
-  // Agent filter
-  if (req.query.agent) {
+  // Agent filter (managers and finance only; an agent always sees just their own sales)
+  if (req.query.agent && canViewAll) {
     filter.agentId = req.query.agent;
   }
 
@@ -487,6 +489,7 @@ const getCustomers = asyncHandler(async (req, res) => {
   const readCachedCustomers = async () => {
     const rows = [...(await salesListCache.get()).values()];
     const status = (req.query.followupStatus || '').toString().toLowerCase();
+    const agent = canViewAll && req.query.agent ? String(req.query.agent) : '';
     const { $gte: from, $lte: to } = filter.date || {};
     const fromTime = from ? from.getTime() : null;
     const toTime = to ? to.getTime() : null;
@@ -507,6 +510,7 @@ const getCustomers = asyncHandler(async (req, res) => {
     const createdTime = (c) => new Date(c.createdAt || 0).getTime() || 0;
     return rows
       .filter((c) => canViewAll || String(c.agentId) === String(req.user.id))
+      .filter((c) => !agent || String(c.agentId) === agent)
       .filter((c) => !status || (c.followupStatus || '').toLowerCase() === status)
       .filter(matchesDate)
       .filter(matchesSearch)
@@ -564,6 +568,8 @@ const getCustomers = asyncHandler(async (req, res) => {
       ...(summaryMode ? {
         // Documents are replaced by a marker; the full record loads them on demand.
         ...Object.fromEntries(DOCUMENT_FIELDS.map((field) => [field, _documents?.[field] ? STORED_DOCUMENT : ''])),
+        // A generated placeholder "receipt" is not a payment slip, so it gets no marker.
+        paymentScreenshot: _ownSlip ? STORED_DOCUMENT : '',
         hasPaymentScreenshot: Boolean(slipSource),
         paymentSlipSource: slipSource,
       } : {}),
@@ -785,6 +791,12 @@ const createCustomer = asyncHandler(async (req, res) => {
   });
 
   const createdCustomer = await customer.save();
+  logSalesActivity({
+    action: 'created',
+    after: snapshotSale(createdCustomer),
+    user: req.user,
+    source: isReception ? 'reception' : 'sales_portal',
+  });
 
   if (createdCustomer.followupStatus === 'Completed') {
     await notifyCompletionDocuments(createdCustomer, req.user);
@@ -854,6 +866,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
   if (!customer.createdBy) {
     customer.createdBy = req.user._id;
   }
+  const before = snapshotSale(customer); // for the sales activity log
   const wasCompleted = customer.followupStatus === 'Completed';
   if (customerName !== undefined) customer.customerName = customerName;
   if (contactTitle !== undefined) customer.contactTitle = contactTitle;
@@ -869,7 +882,10 @@ const updateCustomer = asyncHandler(async (req, res) => {
   if (isDocumentChange(passportPhoto)) customer.passportPhoto = passportPhoto;
   if (isDocumentChange(nationalIdFrontImage)) customer.nationalIdFrontImage = nationalIdFrontImage;
   if (isDocumentChange(nationalIdBackImage)) customer.nationalIdBackImage = nationalIdBackImage;
-  if (isDocumentChange(paymentScreenshot)) customer.paymentScreenshot = paymentScreenshot;
+  // Never store a generated placeholder "receipt" as the payment slip.
+  if (isDocumentChange(paymentScreenshot) && !String(paymentScreenshot).startsWith(PLACEHOLDER_SLIP_PREFIX)) {
+    customer.paymentScreenshot = paymentScreenshot;
+  }
   if (paymentOption !== undefined) customer.paymentOption = paymentOption;
   if (paymentBank !== undefined) customer.paymentBank = paymentBank;
   if (fsNumber !== undefined) customer.fsNumber = fsNumber;
@@ -880,6 +896,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
   if (packageScope !== undefined) customer.packageScope = packageScope;
 
   const updatedCustomer = await customer.save();
+  logSalesActivity({ action: 'updated', before, after: snapshotSale(updatedCustomer), user: req.user });
 
   if (!wasCompleted && updatedCustomer.followupStatus === 'Completed') {
     await notifyCompletionDocuments(updatedCustomer, req.user);
@@ -1090,7 +1107,10 @@ const deleteCustomer = asyncHandler(async (req, res) => {
     throw new Error('Not authorized to delete this customer');
   }
 
+  const before = snapshotSale(customer);
   await SalesCustomer.findByIdAndDelete(req.params.id);
+  // The full record and its documents are archived for the sales manager.
+  logSalesActivity({ action: 'deleted', before, user: req.user, record: customer });
   res.json({ message: 'Customer removed', id: req.params.id });
 });
 
@@ -1153,13 +1173,12 @@ const getDocumentReminders = asyncHandler(async (req, res) => {
   const userId = String(req.user._id || req.user.id);
   const rows = await SalesCustomer.aggregate([
     { $match: { agentId: userId, followupStatus: 'Completed' } },
-    // Reduce each sale to flags first so the base64 images are not carried along.
+    // Only the payment slip is mandatory; ID front and back are optional.
+    // Reduce each sale to a flag first so the base64 images are not carried along.
     { $project: {
       customerName: 1,
       studentRegistrationId: 1,
       hasSlip: isRealDocumentExpression('$paymentScreenshot'),
-      hasIdFront: isRealDocumentExpression('$nationalIdFrontImage'),
-      hasIdBack: isRealDocumentExpression('$nationalIdBackImage'),
     } },
     // A bank slip uploaded on the linked student registration also counts
     // (the same rule the finance follow-up page uses).
@@ -1174,9 +1193,7 @@ const getDocumentReminders = asyncHandler(async (req, res) => {
       customerName: 1,
       missingDocuments: { $filter: {
         input: [
-          { $cond: [{ $or: ['$hasSlip', { $in: [true, '$registration.slip'] }] }, null, 'Bank slip'] },
-          { $cond: ['$hasIdFront', null, 'ID front'] },
-          { $cond: ['$hasIdBack', null, 'ID back'] },
+          { $cond: [{ $or: ['$hasSlip', { $in: [true, '$registration.slip'] }] }, null, 'Payment slip'] },
         ],
         as: 'label', cond: { $ne: ['$$label', null] },
       } },

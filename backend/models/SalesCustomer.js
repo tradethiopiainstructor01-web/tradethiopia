@@ -150,9 +150,41 @@ const salesCustomerSchema = new mongoose.Schema({
   approvedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+  // When the follow-up was marked Completed (set by the hooks below; empty for
+  // sales completed before this field existed).
+  completedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
+});
+
+const isCompletedStatus = (status) => String(status || '').trim().toLowerCase() === 'completed';
+
+// Stamp completedAt when a follow-up becomes Completed and clear it if it is
+// reopened. Only a status change stamps it, so editing an old completed sale
+// never gives it a made-up completion time.
+salesCustomerSchema.pre('save', function stampCompletedAt() {
+  if (!this.isNew && !this.isModified('followupStatus')) return;
+  if (isCompletedStatus(this.followupStatus)) {
+    if (!this.completedAt) this.completedAt = new Date();
+  } else if (this.completedAt) {
+    this.completedAt = null;
+  }
+});
+
+salesCustomerSchema.pre('findOneAndUpdate', async function stampCompletedAtOnUpdate() {
+  const update = this.getUpdate() || {};
+  const status = update.$set?.followupStatus !== undefined ? update.$set.followupStatus : update.followupStatus;
+  if (status === undefined) return;
+  const before = await this.model.findOne(this.getFilter()).select('followupStatus completedAt').lean();
+  if (isCompletedStatus(status)) {
+    if (!before || !isCompletedStatus(before.followupStatus)) this.set('completedAt', new Date());
+  } else if (before?.completedAt) {
+    this.set('completedAt', null);
+  }
 });
 
 // Support high-speed querying and sorting without collection scans

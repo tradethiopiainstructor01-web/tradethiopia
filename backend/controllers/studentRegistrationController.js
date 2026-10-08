@@ -4,6 +4,7 @@ const StudentRegistration = require('../models/StudentRegistration');
 const TrainingFollowup = require('../models/TrainingFollowup');
 const SalesCustomer = require('../models/SalesCustomer');
 const { createListCache } = require('../utils/listCache');
+const { snapshotSale, logSalesActivity, logRegistrationSlipChange, SNAPSHOT_SELECT } = require('../utils/salesActivity');
 
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -44,7 +45,8 @@ const syncStudentToSalesFollowup = async (student, user) => {
       updateSet.agentId = agentId;
     }
 
-    return await SalesCustomer.findOneAndUpdate(
+    const before = await SalesCustomer.findOne({ studentRegistrationId: student._id }).select(SNAPSHOT_SELECT).lean();
+    const sale = await SalesCustomer.findOneAndUpdate(
       { studentRegistrationId: student._id },
       {
         $set: updateSet,
@@ -59,6 +61,15 @@ const syncStudentToSalesFollowup = async (student, user) => {
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
+    logSalesActivity({
+      action: before ? 'updated' : 'created',
+      before: snapshotSale(before),
+      after: snapshotSale(sale),
+      user,
+      source: 'student_registration',
+      valuesOnly: true,
+    });
+    return sale;
   } catch (err) {
     console.error('Error syncing student registration to SalesCustomer:', err);
     return null;
@@ -192,7 +203,7 @@ const syncAllFollowupStudentsToRegistrations = async () => {
           status: f.packageStatus || (isCompleted ? 'Completed' : 'Active'),
           notes: f.specialRequirements || f.previousTraining || '',
           registeredBy: f.agentName || 'Customer Success',
-          paymentScreenshot: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="100%" height="100%" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="sans-serif" font-size="16">Followup Verified Receipt</text></svg>',
+          // No generated placeholder receipt: a missing slip must stay visibly missing.
         });
         createdCount++;
 
@@ -272,7 +283,7 @@ const syncAllFollowupStudentsToRegistrations = async () => {
           status: isPaid ? 'Completed' : 'Active',
           notes: cf.notes || '',
           registeredBy: 'Customer Service Followup',
-          paymentScreenshot: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="100%" height="100%" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="sans-serif" font-size="16">CS Followup Receipt</text></svg>',
+          // No generated placeholder receipt: a missing slip must stay visibly missing.
         });
         createdCount++;
       }
@@ -952,6 +963,8 @@ const createStudentRegistration = async (req, res) => {
     // Automatically add registered student to All TESBINN Users data
     await syncStudentToTrainingFollowup(student);
     if (syncToSalesFollowup) await syncStudentToSalesFollowup(student, req.user);
+    // Sales activity log: a slip uploaded with the registration is the linked sale's slip.
+    logRegistrationSlipChange({ registrationId: student._id, beforeSlip: '', afterSlip: student.paymentScreenshot, user: req.user });
 
     res.status(201).json({ success: true, data: normalizeStudent(student, true) });
   } catch (error) {
@@ -1102,6 +1115,12 @@ const updateStudentRegistration = async (req, res) => {
     // Update synced record in All TESBINN Users data
     await syncStudentToTrainingFollowup(student);
     if (syncToSalesFollowup) await syncStudentToSalesFollowup(student, req.user);
+    logRegistrationSlipChange({
+      registrationId: student._id,
+      beforeSlip: existingStudent.paymentScreenshot,
+      afterSlip: student.paymentScreenshot,
+      user: req.user,
+    });
 
     res.json({ success: true, data: normalizeStudent(student, true) });
   } catch (error) {
@@ -1118,7 +1137,7 @@ const updateStudentRegistration = async (req, res) => {
 const deleteStudentRegistration = async (req, res) => {
   if (isTessbinUser(req.user)) return res.status(403).json({ success: false, message: 'Tessbin can update COC payment fields only.' });
   try {
-    const existingStudent = await StudentRegistration.findById(req.params.id).lean();
+    const existingStudent = await StudentRegistration.findById(req.params.id).select('+paymentScreenshot').lean();
     if (!existingStudent) {
       return res.status(404).json({ success: false, message: 'Student registration not found.' });
     }
@@ -1126,6 +1145,14 @@ const deleteStudentRegistration = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You do not have permission to delete this student registration.' });
     }
     const student = await StudentRegistration.findByIdAndDelete(req.params.id);
+    // Sales activity log: the linked sale loses the slip held on this registration.
+    logRegistrationSlipChange({
+      registrationId: existingStudent._id,
+      beforeSlip: existingStudent.paymentScreenshot,
+      afterSlip: '',
+      user: req.user,
+      reason: 'student registration deleted',
+    });
     res.json({ success: true, data: normalizeStudent(student) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete student registration', error: error.message });
