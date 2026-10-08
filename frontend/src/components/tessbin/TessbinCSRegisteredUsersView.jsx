@@ -65,6 +65,8 @@ import {
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { getStudentRegistrations, getStudentRegistrationById } from '../../services/studentRegistrationService';
+import { fetchUsers } from '../../services/api';
+import { normalizeRoleValue } from '../../utils/dashboardAccess';
 import StudentEducationDocument from './StudentEducationDocument';
 import TessbinCocPaymentEditor from './TessbinCocPaymentEditor';
 import TessbinStudentA4Dossier from './TessbinStudentA4Dossier';
@@ -75,6 +77,16 @@ import './TessbinA4Print.css';
 import { TESSBIN_DEPARTMENTS as DEPARTMENTS } from '../../utils/tessbinDepartments';
 
 const ITEMS_PER_PAGE = 15;
+
+// Which team a registrar belongs to, keyed by normalized role (see dashboardAccess.normalizeRoleValue)
+const SALES_ROLES = new Set(['sales', 'salesmanager']);
+const CS_ROLES = new Set(['customerservice', 'customersuccessmanager', 'cs', 'csm']);
+
+const REGISTRAR_TEAM_LABELS = {
+  sales: 'Sales Team',
+  cs: 'Customer Success',
+  all: 'All Teams',
+};
 
 const formatDate = (dateStr) => {
   if (!dateStr) return 'N/A';
@@ -118,6 +130,9 @@ export default function TessbinCSRegisteredUsersView() {
   const [loadError, setLoadError] = useState('');
   const listRequest = useRef(null);
 
+  // Staff directory used to classify each registration as Sales vs Customer Success
+  const [staff, setStaff] = useState([]);
+
   // Standard Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [timePeriod, setTimePeriod] = useState('all');
@@ -126,6 +141,7 @@ export default function TessbinCSRegisteredUsersView() {
   const [departmentFilter, setDepartmentFilter] = useState('All Departments');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('All');
   const [completionFilter, setCompletionFilter] = useState('All');
+  const [registrarTeamFilter, setRegistrarTeamFilter] = useState('sales'); // Default: students registered by Sales
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = latest to oldest (Default)
 
   // Pagination
@@ -201,6 +217,63 @@ export default function TessbinCSRegisteredUsersView() {
     fetchData();
     return () => listRequest.current?.abort();
   }, [fetchData]);
+
+  // Load the staff directory once so registrations can be grouped by registrar's team
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await fetchUsers();
+        if (active) setStaff(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.warn('Could not load staff directory for registrar filtering:', err);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Lookup: registrar email/name -> normalized role
+  const registrarRoleLookup = useMemo(() => {
+    const byEmail = new Map();
+    const byName = new Map();
+    staff.forEach((u) => {
+      const role = normalizeRoleValue(u.role || '');
+      if (!role) return;
+      const email = (u.email || '').trim().toLowerCase();
+      if (email) byEmail.set(email, role);
+      [u.fullName, u.username, u.name].forEach((n) => {
+        const key = (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        if (key) byName.set(key, role);
+      });
+    });
+    return { byEmail, byName };
+  }, [staff]);
+
+  // Classify a student by the team that registered them: 'sales' | 'cs' | 'unknown'
+  const classifyRegistrarTeam = useCallback(
+    (student) => {
+      const email = (student.registeredByEmail || '').trim().toLowerCase();
+      const name = (student.registeredBy || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+      let role = '';
+      if (email && registrarRoleLookup.byEmail.has(email)) {
+        role = registrarRoleLookup.byEmail.get(email);
+      } else if (name && registrarRoleLookup.byName.has(name)) {
+        role = registrarRoleLookup.byName.get(name);
+      }
+
+      if (SALES_ROLES.has(role)) return 'sales';
+      if (CS_ROLES.has(role)) return 'cs';
+
+      // Fallback for records whose registrar is not (or no longer) in the directory
+      if (name.includes('sales')) return 'sales';
+      if (name.includes('customer') || name.includes('cs member') || name.includes('followup')) return 'cs';
+      return 'unknown';
+    },
+    [registrarRoleLookup]
+  );
 
   // Standard Time Filtering Logic
   const filterByTime = useCallback(
@@ -307,6 +380,10 @@ export default function TessbinCSRegisteredUsersView() {
     return students
       .filter(filterByTime)
       .filter((s) => {
+        if (registrarTeamFilter === 'all') return true;
+        return classifyRegistrarTeam(s) === registrarTeamFilter;
+      })
+      .filter((s) => {
         if (departmentFilter === 'All Departments') return true;
         return (s.learningDepartment || '').toLowerCase() === departmentFilter.toLowerCase();
       })
@@ -340,6 +417,8 @@ export default function TessbinCSRegisteredUsersView() {
   }, [
     students,
     filterByTime,
+    registrarTeamFilter,
+    classifyRegistrarTeam,
     departmentFilter,
     paymentStatusFilter,
     completionFilter,
@@ -378,6 +457,7 @@ export default function TessbinCSRegisteredUsersView() {
     setDepartmentFilter('All Departments');
     setPaymentStatusFilter('All');
     setCompletionFilter('All');
+    setRegistrarTeamFilter('sales'); // Restore the default (Sales) team view
     setSortOrder('desc');
     setCurrentPage(1);
   };
@@ -385,6 +465,7 @@ export default function TessbinCSRegisteredUsersView() {
   const isFiltered =
     searchQuery !== '' ||
     timePeriod !== 'all' ||
+    registrarTeamFilter !== 'all' ||
     departmentFilter !== 'All Departments' ||
     paymentStatusFilter !== 'All' ||
     completionFilter !== 'All';
@@ -672,7 +753,7 @@ export default function TessbinCSRegisteredUsersView() {
       <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" borderRadius="2xl" p={5} mb={6}>
         <VStack spacing={4} align="stretch">
           {/* Main Filter Row */}
-          <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 5 }} spacing={3}>
+          <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 6 }} spacing={3}>
             {/* 1. Search Box */}
             <Box>
               <Text fontSize="11px" fontWeight="700" color={mutedColor} mb={1.5}>
@@ -695,7 +776,29 @@ export default function TessbinCSRegisteredUsersView() {
               </InputGroup>
             </Box>
 
-            {/* 2. Standard Time Period Dropdown */}
+            {/* 2. Registered By Team Dropdown */}
+            <Box>
+              <Text fontSize="11px" fontWeight="700" color={mutedColor} mb={1.5}>
+                Registered By
+              </Text>
+              <Select
+                size="sm"
+                value={registrarTeamFilter}
+                onChange={(e) => {
+                  setRegistrarTeamFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                borderRadius="lg"
+                bg={inputBg}
+                fontWeight="600"
+              >
+                <option value="sales">Sales Team</option>
+                <option value="cs">Customer Success</option>
+                <option value="all">All Teams</option>
+              </Select>
+            </Box>
+
+            {/* 3. Standard Time Period Dropdown */}
             <Box>
               <Text fontSize="11px" fontWeight="700" color={mutedColor} mb={1.5}>
                 Date / Time Filter
@@ -877,6 +980,13 @@ export default function TessbinCSRegisteredUsersView() {
                 Active Filters:
               </Text>
 
+              {registrarTeamFilter !== 'all' && (
+                <Tag size="sm" colorScheme="pink" borderRadius="full">
+                  <TagLabel>Team: {REGISTRAR_TEAM_LABELS[registrarTeamFilter]}</TagLabel>
+                  <TagCloseButton onClick={() => setRegistrarTeamFilter('all')} />
+                </Tag>
+              )}
+
               {timePeriod !== 'all' && (
                 <Tag size="sm" colorScheme="purple" borderRadius="full">
                   <TagLabel>{getTimePeriodLabel(timePeriod)}</TagLabel>
@@ -999,7 +1109,7 @@ export default function TessbinCSRegisteredUsersView() {
                       REGISTERED DATE
                     </Th>
                     <Th py={3.5} color={mutedColor} fontSize="11px" fontWeight="800">
-                      REGISTERED BY (CS)
+                      REGISTERED BY
                     </Th>
                     <Th py={3.5} color={mutedColor} fontSize="11px" fontWeight="800">
                       PAYMENT
@@ -1097,6 +1207,23 @@ export default function TessbinCSRegisteredUsersView() {
                           >
                             {s.registeredBy || 'Customer Success'}
                           </Badge>
+                          {(() => {
+                            const team = classifyRegistrarTeam(s);
+                            if (team === 'unknown') return null;
+                            return (
+                              <Badge
+                                mt={0.5}
+                                ml={1}
+                                colorScheme={team === 'sales' ? 'pink' : 'purple'}
+                                fontSize="9px"
+                                px={1.5}
+                                py={0.2}
+                                borderRadius="full"
+                              >
+                                {team === 'sales' ? 'Sales' : 'Customer Success'}
+                              </Badge>
+                            );
+                          })()}
                           {s.registeredByEmail && (
                             <Text fontSize="10px" color={mutedColor} mt={0.5}>
                               {s.registeredByEmail}
