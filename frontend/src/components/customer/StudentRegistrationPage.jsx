@@ -76,6 +76,7 @@ import {
   FiUsers,
   FiCamera,
   FiUploadCloud,
+  FiClipboard,
   FiTrash2,
   FiRefreshCw,
   FiPhoneCall,
@@ -915,6 +916,39 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleImagePaste = (field) => (event) => {
+    const file = Array.from(event.clipboardData?.items || [])
+      .find((item) => item.kind === "file" && item.type.startsWith("image/"))
+      ?.getAsFile();
+    if (!file) return;
+    event.preventDefault();
+    handleImageUpload(field, file);
+  };
+
+  const pasteTargetProps = (field) => ({
+    tabIndex: 0,
+    onPaste: handleImagePaste(field),
+    title: "Click here and press Ctrl+V to paste an image",
+    _focus: { outline: "none", borderColor: "blue.400", boxShadow: "0 0 0 2px rgba(66, 153, 225, 0.5)" },
+  });
+
+  const pasteImageFromClipboard = async (field) => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find((value) => value.startsWith("image/"));
+        if (type) {
+          const blob = await item.getType(type);
+          handleImageUpload(field, new File([blob], "pasted-image", { type }));
+          return;
+        }
+      }
+      toast({ title: "No image in clipboard", description: "Copy a photo first, then paste it here.", status: "info", duration: 3000, isClosable: true });
+    } catch {
+      toast({ title: "Clipboard access blocked", description: "Click the photo box and press Ctrl+V to paste instead.", status: "info", duration: 4000, isClosable: true });
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -2083,7 +2117,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                       </Heading>
                     </HStack>
                     <Text fontSize="xs" color={mutedText} mb={4}>
-                      National ID front/back is optional. The payment receipt photo is required.
+                      National ID front/back is optional. The payment receipt photo is required. Tip: click a box and press Ctrl+V to paste a copied photo.
                     </Text>
 
                     <SimpleGrid columns={{ base: 1, md: 2, xl: 5 }} spacing={4}>
@@ -2095,6 +2129,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         p={3}
                         bg={fieldBg}
                         textAlign="center"
+                        {...pasteTargetProps("passportPhoto")}
                       >
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="xs" fontWeight="800" color={headingColor}>
@@ -2147,6 +2182,9 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               style={{ display: "none" }}
                               onChange={(e) => handleImageUpload("passportPhoto", e.target.files[0])}
                             />
+                            <Button size="xs" variant="ghost" leftIcon={<FiClipboard />} onClick={() => pasteImageFromClipboard("passportPhoto")}>
+                              Paste Image
+                            </Button>
                           </VStack>
                         )}
                       </Box>
@@ -2159,6 +2197,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         p={3}
                         bg={fieldBg}
                         textAlign="center"
+                        {...pasteTargetProps("nationalIdFrontImage")}
                       >
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="xs" fontWeight="800" color={headingColor}>
@@ -2211,6 +2250,9 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               style={{ display: "none" }}
                               onChange={(e) => handleImageUpload("nationalIdFrontImage", e.target.files[0])}
                             />
+                            <Button size="xs" variant="ghost" leftIcon={<FiClipboard />} onClick={() => pasteImageFromClipboard("nationalIdFrontImage")}>
+                              Paste Image
+                            </Button>
                           </VStack>
                         )}
                       </Box>
@@ -2223,6 +2265,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         p={3}
                         bg={fieldBg}
                         textAlign="center"
+                        {...pasteTargetProps("nationalIdBackImage")}
                       >
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="xs" fontWeight="800" color={headingColor}>
@@ -2275,6 +2318,9 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               style={{ display: "none" }}
                               onChange={(e) => handleImageUpload("nationalIdBackImage", e.target.files[0])}
                             />
+                            <Button size="xs" variant="ghost" leftIcon={<FiClipboard />} onClick={() => pasteImageFromClipboard("nationalIdBackImage")}>
+                              Paste Image
+                            </Button>
                           </VStack>
                         )}
                       </Box>
@@ -2287,6 +2333,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         p={3}
                         bg={form.paymentScreenshot ? fieldBg : useColorModeValue("red.50", "rgba(239, 68, 68, 0.05)")}
                         textAlign="center"
+                        {...pasteTargetProps("paymentScreenshot")}
                       >
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="xs" fontWeight="800" color={headingColor}>
@@ -2341,6 +2388,9 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               style={{ display: "none" }}
                               onChange={(e) => handleImageUpload("paymentScreenshot", e.target.files[0])}
                             />
+                            <Button size="xs" variant="ghost" leftIcon={<FiClipboard />} onClick={() => pasteImageFromClipboard("paymentScreenshot")}>
+                              Paste Image
+                            </Button>
                           </VStack>
                         )}
                       </Box>
@@ -2353,6 +2403,7 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                         p={3}
                         bg={fieldBg}
                         textAlign="center"
+                        {...pasteTargetProps("cocPaymentScreenshot")}
                       >
                         <Flex justify="space-between" align="center" mb={2}>
                           <Text fontSize="xs" fontWeight="800" color={headingColor}>
@@ -2407,6 +2458,9 @@ const StudentRegistrationPage = ({ embedded = false, workspaceLabel = "Customer 
                               style={{ display: "none" }}
                               onChange={(e) => handleImageUpload("cocPaymentScreenshot", e.target.files[0])}
                             />
+                            <Button size="xs" variant="ghost" leftIcon={<FiClipboard />} onClick={() => pasteImageFromClipboard("cocPaymentScreenshot")}>
+                              Paste Image
+                            </Button>
                           </VStack>
                         )}
                       </Box>
