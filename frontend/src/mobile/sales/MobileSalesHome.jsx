@@ -1,238 +1,256 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Avatar,
-  Badge,
   Box,
   Button,
   Flex,
   HStack,
   Icon,
-  IconButton,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
   SimpleGrid,
+  Spinner,
   Text,
   VStack
 } from '@chakra-ui/react';
-import {
-  FiBell,
-  FiCalendar,
-  FiCheckCircle,
-  FiChevronRight,
-  FiClock,
-  FiDollarSign,
-  FiMenu,
-  FiMic,
-  FiPhone,
-  FiPlus,
-  FiUserPlus,
-  FiUsers
-} from 'react-icons/fi';
+import { Bar } from 'react-chartjs-2';
+import { Chart, registerables } from 'chart.js';
+import { MdCheckCircle, MdError, MdNote, MdPendingActions, MdPeople } from 'react-icons/md';
+import { FiCheck, FiCheckCircle, FiClock } from 'react-icons/fi';
+import axiosInstance from '../../services/axiosInstance';
+import { getTaskStats } from '../../services/taskService';
 
-const metricCards = [
-  { label: 'Total Customers', value: '69', detail: '+8% this month', icon: FiUsers, color: '#3182ce', bg: '#ebf8ff' },
-  { label: 'Completed Deals', value: '12', detail: '+20% this month', icon: FiCheckCircle, color: '#22a66a', bg: '#e9fbf1' },
-  { label: 'Total Commission', value: 'ETB 14,408.64', detail: '+12% this month', icon: FiDollarSign, color: '#d9901f', bg: '#fff7df' }
-];
-
-const followups = [
-  { time: '10:00 AM', title: 'Call Alemayehu', detail: 'Regular follow-up', status: 'Callback', color: 'purple', iconColor: '#ef4444' },
-  { time: '11:30 AM', title: 'Call Tesfaye', detail: 'Discuss proposal', status: 'Completed', color: 'green', iconColor: '#f59e0b' },
-  { time: '02:00 PM', title: 'Follow-up Chamo', detail: 'Product demo', status: 'Pending', color: 'orange', iconColor: '#22c55e' }
-];
-
-const quickActions = [
-  { label: 'Add Contact', icon: FiUserPlus, color: '#19a56b', bg: '#e7fbf1' },
-  { label: 'Schedule Call', icon: FiPhone, color: '#8956dc', bg: '#f2ecff' },
-  { label: 'New Follow-up', icon: FiCheckCircle, color: '#3182ce', bg: '#eaf4ff' },
-  { label: 'Create Task', icon: FiCalendar, color: '#d9901f', bg: '#fff5dc' }
-];
+// Same data and sections as the desktop Sales Dashboard (components/sales/SalesDashboard.jsx).
+Chart.register(...registerables);
 
 const theme = {
-  navy: '#001f4d',
-  navyLight: '#062b63',
-  gold: '#D99A00',
-  goldSoft: '#FFF7DE',
+  teal: '#0E8C80',
+  tealSoft: '#E3F4F1',
   ink: '#081A34',
   muted: '#6E7890',
   border: '#E8EDF5'
 };
 
-const getFirstName = () => {
-  const storedName = localStorage.getItem('userName') || localStorage.getItem('name') || 'Amanuel';
-  return storedName.split(' ')[0] || storedName;
-};
+const formatNumber = (value) => (Number(value) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
-const MobileSalesHome = ({ onNavigate, onMenu }) => {
-  const firstName = getFirstName();
+const formatCurrency = (value) => (Number(value) || 0).toLocaleString('en-US', { style: 'currency', currency: 'ETB' });
+
+const SectionCard = ({ title, children }) => (
+  <Box bg="white" borderRadius="14px" borderWidth="1px" borderColor={theme.border} p={4}>
+    {title && <Text fontSize="16px" fontWeight="800" color={theme.ink} mb={3}>{title}</Text>}
+    {children}
+  </Box>
+);
+
+const MobileSalesHome = ({ onNavigate }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [followupMetrics, setFollowupMetrics] = useState({ total: 0, completed: 0, pending: 0, overdue: 0 });
+  const [deliveredOrders, setDeliveredOrders] = useState(0);
+  const [totalCommission, setTotalCommission] = useState(0);
+  const [taskStats, setTaskStats] = useState({ completedTasks: 0, pendingTasks: 0, overdueTasks: 0 });
+  const [notes, setNotes] = useState([]);
+  const [selectedNote, setSelectedNote] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    axiosInstance.get('/notes', { timeout: 8000 })
+      .then((response) => {
+        if (isMounted) setNotes(Array.isArray(response.data) ? response.data : []);
+      })
+      .catch((err) => console.error('Error fetching notes:', err));
+    return () => { isMounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      const requestOptions = { timeout: 8000 };
+      const results = await Promise.allSettled([
+        axiosInstance.get('/followups/stats', requestOptions),
+        getTaskStats(requestOptions),
+        axiosInstance.get('/orders/stats', requestOptions),
+        axiosInstance.get('/sales-customers/stats', requestOptions)
+      ]);
+      if (!isMounted) return;
+
+      const [followupsResult, tasksResult, ordersResult, salesResult] = results;
+      if (followupsResult.status === 'fulfilled') {
+        const stats = followupsResult.value.data || {};
+        setFollowupMetrics({
+          total: stats.total || 0,
+          completed: stats.completed || 0,
+          pending: stats.pending || 0,
+          overdue: stats.overdue || 0
+        });
+      }
+      if (tasksResult.status === 'fulfilled') setTaskStats(tasksResult.value || {});
+      if (ordersResult.status === 'fulfilled') setDeliveredOrders(ordersResult.value.data?.deliveredOrders || 0);
+      if (salesResult.status === 'fulfilled') setTotalCommission(salesResult.value.data?.totalCommission || 0);
+
+      const failedCount = results.filter((result) => result.status === 'rejected').length;
+      if (failedCount) setError(`${failedCount} dashboard section${failedCount > 1 ? 's are' : ' is'} temporarily unavailable.`);
+      setLoading(false);
+    };
+
+    fetchData();
+    return () => { isMounted = false; };
+  }, []);
+
+  const openNote = async (noteId) => {
+    try {
+      const response = await axiosInstance.get(`/notes/${noteId}`);
+      setSelectedNote(response.data);
+    } catch (err) {
+      console.error('Error fetching note details:', err);
+    }
+  };
+
+  const statCards = [
+    { icon: MdPeople, value: formatNumber(followupMetrics.total), label: 'Total Follow-ups' },
+    { icon: MdCheckCircle, value: formatNumber(followupMetrics.completed), label: 'Completed Follow-ups' },
+    { icon: MdPendingActions, value: formatNumber(followupMetrics.pending), label: 'Pending Follow-ups' },
+    { icon: MdError, value: formatNumber(followupMetrics.overdue), label: 'Overdue Follow-ups' },
+    { icon: FiCheckCircle, value: formatNumber(deliveredOrders), label: 'Delivered Orders' },
+    { icon: MdNote, value: formatCurrency(totalCommission), label: 'Total Commission' }
+  ];
+
+  const taskCards = [
+    {
+      icon: FiCheckCircle,
+      label: 'Pending Tasks',
+      value: taskStats.pendingTasks || 0,
+      hint: taskStats.pendingTasks > 0 ? `${Math.min(2, taskStats.pendingTasks)} due soon` : 'No pending tasks'
+    },
+    { icon: FiCheck, label: 'Completed Tasks', value: taskStats.completedTasks || 0, hint: 'This week' },
+    {
+      icon: FiClock,
+      label: 'Overdue Tasks',
+      value: taskStats.overdueTasks || 0,
+      hint: taskStats.overdueTasks > 0 ? 'Requires immediate attention' : 'No overdue tasks'
+    }
+  ];
+
+  const chartData = {
+    labels: ['Completed', 'Pending', 'Overdue'],
+    datasets: [
+      {
+        label: 'Follow-ups',
+        data: [followupMetrics.completed, followupMetrics.pending, followupMetrics.overdue],
+        backgroundColor: ['#4CAF50', '#FFC107', '#F44336'],
+        borderRadius: 5
+      }
+    ]
+  };
 
   return (
-    <VStack align="stretch" spacing={5}>
-      <Flex align="flex-start" justify="space-between">
-        <HStack spacing={3} align="flex-start" minW={0}>
-          <IconButton
-            aria-label="Open menu"
-            icon={<FiMenu />}
-            size="sm"
-            variant="ghost"
-            color={theme.ink}
-            fontSize="21px"
-            mt="-4px"
-            onClick={onMenu}
-          />
-          <Box minW={0}>
-            <Text fontSize="12px" color={theme.muted} fontWeight="800" mb={1}>
-              Good Morning,
-            </Text>
-            <Text fontSize="24px" color={theme.ink} fontWeight="900" lineHeight="1" noOfLines={1}>
-              {firstName}
-            </Text>
-            <Text fontSize="11px" color={theme.muted} fontWeight="700" mt={4}>
-              Here's what's happening with your sales today.
-            </Text>
-          </Box>
-        </HStack>
-        <HStack spacing={3} align="center">
-          <Box position="relative">
-            <IconButton
-              aria-label="Notifications"
-              icon={<FiBell />}
-              variant="ghost"
-              color={theme.ink}
-              fontSize="20px"
-              size="sm"
-            />
-            <Badge
-              position="absolute"
-              top="-1px"
-              right="-1px"
-              bg="#ef4444"
-              color="white"
-              borderRadius="full"
-              fontSize="9px"
-              minW="16px"
-              h="16px"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-            >
-              3
-            </Badge>
-          </Box>
-          <Avatar name={firstName} size="sm" bg={theme.navy} color="white" />
-        </HStack>
-      </Flex>
+    <VStack align="stretch" spacing={4}>
+      <Text as="h1" fontSize="22px" fontWeight="800" color={theme.ink}>Sales Dashboard</Text>
 
-      <Flex
-        align="center"
-        justify="space-between"
-        bg={`linear-gradient(135deg, ${theme.navy} 0%, ${theme.navyLight} 100%)`}
-        color="white"
-        borderRadius="16px"
-        px={4}
-        py={4}
-        boxShadow="0 14px 32px rgba(0, 31, 77, 0.18)"
-        position="relative"
-        overflow="hidden"
-      >
-        <Box position="absolute" right="-32px" top="-42px" w="132px" h="132px" borderRadius="full" bg="rgba(217,154,0,0.18)" />
-        <HStack spacing={3}>
-          <Flex w="38px" h="38px" borderRadius="10px" bg="whiteAlpha.200" align="center" justify="center">
-            <Icon as={FiCalendar} boxSize={5} />
-          </Flex>
-          <Box>
-            <HStack spacing={2} align="baseline">
-              <Text fontSize="27px" fontWeight="900" lineHeight="1">12</Text>
-              <Box>
-                <Text fontSize="11px" fontWeight="900" lineHeight="1.1">Follow-ups</Text>
-                <Text fontSize="10px" fontWeight="700" opacity={0.9}>Today</Text>
-              </Box>
+      {loading && (
+        <HStack spacing={2} color={theme.muted}>
+          <Spinner size="sm" color={theme.teal} />
+          <Text fontSize="13px">Loading the latest dashboard totals...</Text>
+        </HStack>
+      )}
+      {error && <Text fontSize="13px" color="orange.600">{error}</Text>}
+
+      <SimpleGrid columns={2} spacing={2}>
+        {statCards.map((card) => (
+          <Box key={card.label} bg="white" borderRadius="14px" borderWidth="1px" borderColor={theme.border} p={3} minW={0}>
+            <HStack spacing={1.5} color={theme.muted} minW={0}>
+              <Icon as={card.icon} boxSize={4} color={theme.teal} flexShrink={0} />
+              <Text fontSize="11px" noOfLines={1}>{card.label}</Text>
             </HStack>
+            <Text mt={1} fontSize={card.label === 'Total Commission' ? '15px' : '20px'} fontWeight="800" color={theme.ink} noOfLines={1} title={card.value}>
+              {card.value}
+            </Text>
           </Box>
+        ))}
+      </SimpleGrid>
+
+      <SectionCard title="Notes Summary">
+        <HStack spacing={2} mb={3}>
+          <Text fontSize="14px" color={theme.muted}>Total Notes:</Text>
+          <Text fontSize="13px" fontWeight="700" px={2} borderRadius="full" bg={theme.tealSoft} color={theme.teal}>
+            {notes.length}
+          </Text>
         </HStack>
-        <Button
-          size="xs"
-          rightIcon={<FiChevronRight />}
-          bg="whiteAlpha.200"
-          color="white"
-          _hover={{ bg: 'whiteAlpha.300' }}
-          onClick={() => onNavigate('Followup')}
-        >
-          View schedule
-        </Button>
-      </Flex>
+        <Text fontSize="14px" color={theme.muted} mb={2}>Latest Notes:</Text>
+        <VStack align="stretch" spacing={2}>
+          {notes.length > 0 ? (
+            notes.slice(-3).reverse().map((note) => (
+              <HStack
+                key={note._id}
+                as="button"
+                type="button"
+                spacing={2}
+                textAlign="left"
+                p={3}
+                borderRadius="10px"
+                borderWidth="1px"
+                borderColor={theme.border}
+                bg="#FAFBFD"
+                _active={{ bg: theme.tealSoft }}
+                onClick={() => openNote(note._id)}
+              >
+                <Icon as={MdNote} boxSize={5} color={theme.teal} flexShrink={0} />
+                <Text fontSize="14px" fontWeight="600" color={theme.ink} noOfLines={1}>{note.title}</Text>
+              </HStack>
+            ))
+          ) : (
+            <Text fontSize="13px" color={theme.muted}>No notes available.</Text>
+          )}
+        </VStack>
+      </SectionCard>
 
-      <Box>
-        <Flex justify="space-between" align="center" mb={3}>
-          <Text fontSize="13px" color={theme.ink} fontWeight="900">Overview</Text>
-          <Button variant="link" color={theme.gold} size="xs" onClick={() => onNavigate('Followup')}>See all</Button>
-        </Flex>
-        <SimpleGrid columns={3} spacing={2}>
-          {metricCards.map((item) => (
-            <Box key={item.label} bg="white" borderRadius="14px" p={3} borderWidth="1px" borderColor={theme.border} boxShadow="0 10px 26px rgba(8, 26, 52, 0.05)">
-              <Flex w="30px" h="30px" bg={item.label === 'Total Commission' ? theme.goldSoft : item.bg} color={item.label === 'Total Commission' ? theme.gold : item.color} borderRadius="9px" align="center" justify="center" mb={4}>
-                <Icon as={item.icon} boxSize={4} />
-              </Flex>
-              <Text fontSize="9px" color={theme.muted} fontWeight="800" minH="24px">{item.label}</Text>
-              <Text fontSize={item.label === 'Total Commission' ? '13px' : '23px'} color={theme.ink} fontWeight="900" lineHeight="1.1" mt={1}>
-                {item.value}
-              </Text>
-              <Text fontSize="8px" color="#16a163" fontWeight="800" mt={1}>{item.detail}</Text>
-            </Box>
-          ))}
-        </SimpleGrid>
-      </Box>
+      <SectionCard>
+        <Box h="220px">
+          <Bar data={chartData} options={{ maintainAspectRatio: false, responsive: true, plugins: { legend: { display: true, position: 'top' } } }} />
+        </Box>
+      </SectionCard>
 
-      <Box>
-        <Flex justify="space-between" align="center" mb={3}>
-          <Text fontSize="13px" color={theme.ink} fontWeight="900">Today's Follow-ups</Text>
-          <Button variant="link" color={theme.gold} size="xs" onClick={() => onNavigate('Followup')}>View all</Button>
-        </Flex>
-        <Box bg="white" borderRadius="14px" borderWidth="1px" borderColor={theme.border} boxShadow="0 10px 26px rgba(8, 26, 52, 0.05)" overflow="hidden">
-          {followups.map((item, index) => (
-            <Flex key={item.title} align="center" gap={3} px={3} py={3} borderBottom={index === followups.length - 1 ? 'none' : '1px solid'} borderColor={theme.border}>
-              <Text w="52px" fontSize="10px" color={theme.ink} fontWeight="800">{item.time}</Text>
-              <Flex w="30px" h="30px" bg={`${item.color}.50`} color={item.iconColor} borderRadius="8px" align="center" justify="center" flexShrink={0}>
-                <Icon as={FiPhone} boxSize={4} />
-              </Flex>
-              <Box minW={0} flex="1">
-                <Text fontSize="11px" color={theme.ink} fontWeight="900" noOfLines={1}>{item.title}</Text>
-                <Text fontSize="9px" color={theme.muted} fontWeight="700" noOfLines={1}>{item.detail}</Text>
+      <SectionCard title="Task Reminders">
+        <VStack align="stretch" spacing={2}>
+          {taskCards.map((card) => (
+            <Flex key={card.label} align="center" justify="space-between" p={3} borderRadius="10px" borderWidth="1px" borderColor={theme.border}>
+              <Box minW={0}>
+                <HStack spacing={1.5}>
+                  <Icon as={card.icon} color={theme.teal} boxSize={4} />
+                  <Text fontSize="14px" fontWeight="700" color={theme.ink}>{card.label}</Text>
+                </HStack>
+                <Text fontSize="12px" color={theme.muted} mt={0.5}>{card.hint}</Text>
               </Box>
-              <Badge colorScheme={item.color} fontSize="8px" px={2} py={1} borderRadius="md">
-                {item.status}
-              </Badge>
+              <Text fontSize="22px" fontWeight="800" color={theme.ink}>{card.value}</Text>
             </Flex>
           ))}
-        </Box>
-      </Box>
-
-      <Box>
-        <Text fontSize="13px" color={theme.ink} fontWeight="900" mb={3}>Quick Actions</Text>
-        <SimpleGrid columns={4} spacing={2}>
-          {quickActions.map((item) => (
-            <Box key={item.label} bg="white" borderRadius="14px" p={3} textAlign="center" borderWidth="1px" borderColor={theme.border} boxShadow="0 10px 26px rgba(8, 26, 52, 0.05)">
-              <Flex w="32px" h="32px" mx="auto" bg={item.bg} color={item.color} borderRadius="8px" align="center" justify="center" mb={2}>
-                <Icon as={item.icon} boxSize={4} />
-              </Flex>
-              <Text fontSize="8px" color={theme.ink} fontWeight="900" lineHeight="1.1">{item.label}</Text>
-            </Box>
-          ))}
-        </SimpleGrid>
-      </Box>
-
-      <Flex bg="white" borderWidth="1px" borderColor={theme.border} borderRadius="14px" p={3} gap={3} align="center" boxShadow="0 10px 26px rgba(8, 26, 52, 0.05)">
-        <Flex w="42px" h="42px" bg={theme.goldSoft} color={theme.gold} borderRadius="10px" align="center" justify="center" flexShrink={0}>
-          <Icon as={FiMic} boxSize={6} />
-        </Flex>
-        <Box minW={0} flex="1">
-          <Text fontSize="12px" color={theme.ink} fontWeight="900">AI Sales Assistant</Text>
-          <Text fontSize="9px" color={theme.muted} fontWeight="700" noOfLines={2}>
-            Ask anything about your leads, follow-ups, and get instant insights.
-          </Text>
-        </Box>
-        <Button size="xs" bg={theme.gold} color="white" _hover={{ bg: '#C98D00' }}>
-          Ask AI
+        </VStack>
+        <Button mt={3} w="100%" bg={theme.teal} color="white" _hover={{ bg: '#0A6F66' }} _active={{ bg: '#0A6F66' }} onClick={() => onNavigate('Tasks')}>
+          View All Tasks
         </Button>
-      </Flex>
+      </SectionCard>
+
+      <Modal isOpen={Boolean(selectedNote)} onClose={() => setSelectedNote(null)} size="full">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader pr={12}>{selectedNote?.title}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text whiteSpace="pre-wrap">{selectedNote?.content}</Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button bg={theme.teal} color="white" _hover={{ bg: '#0A6F66' }} onClick={() => setSelectedNote(null)}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </VStack>
   );
 };

@@ -1,91 +1,76 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Box, Center, Spinner, useDisclosure } from '@chakra-ui/react';
+import { Box, Center, Spinner, Text, useDisclosure } from '@chakra-ui/react';
 import MobileSalesTopBar from '../../components/mobile/navigation/MobileSalesTopBar';
 import MobileBottomNav from '../../components/mobile/navigation/MobileBottomNav';
 import MobileSalesSidebar from '../../components/mobile/navigation/MobileSalesSidebar';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import MobileFollowups from './MobileFollowups';
 import MobileProfile from './MobileProfile';
 import MobileSalesHome from './MobileSalesHome';
-import MobileSalesPlaceholder from './MobileSalesPlaceholder';
 import MobileTasks from './MobileTasks';
-const StudentRegistrationPage = lazy(() => import('../../components/customer/StudentRegistrationPage'));
 
-const titleByItem = {
-  Home: 'Sales',
-  Followup: 'Followup',
-  'Package Sales': 'Deals',
-  Tasks: 'My Tasks',
-  'Student Registration': 'Student Registration',
-  Search: 'Search',
-  More: 'Profile',
-  Meetings: 'Meetings',
-  Performance: 'Performance',
-  Reports: 'Reports',
-  Messages: 'Messages',
-  Notifications: 'Notifications',
-  Documents: 'Documents',
-  Settings: 'Settings',
-  Help: 'Help & Support'
+// Sections without a dedicated mobile screen reuse the desktop pages (see components/sales/Layout.jsx).
+const StudentRegistrationPage = lazy(() => import('../../components/customer/StudentRegistrationPage'));
+const OrderFollowup = lazy(() => import('../../components/sales/OrderFollowup.jsx'));
+const ContentTrackerPage = lazy(() => import('../../components/sales/ContentTrackerPage.jsx'));
+const MonthlyReport = lazy(() => import('../../components/sales/MonthlyReport.jsx'));
+const SalesMessagesPage = lazy(() => import('../../pages/SalesMessagesPage'));
+const EmployeeRequestsPage = lazy(() => import('../../pages/EmployeeRequestsPage'));
+const EmployeeFileUploadForm = lazy(() => import('../../pages/EmployeeFileUploadForm'));
+const EmployeeWarningsPage = lazy(() => import('../../pages/EmployeeWarningsPage'));
+
+const mobileSections = [
+  'Home', 'Followup', 'Package Sales', 'Orders', 'Tasks', 'Content Tracker', 'Monthly Report',
+  'Notice Board', 'Requests', 'Upload Documents', 'My Warnings', 'Student Registration', 'More'
+];
+
+const resolveSection = (section) => {
+  if (section === 'Missing Documents') return 'Followup';
+  return mobileSections.includes(section) ? section : 'Home';
 };
 
 const MobileSalesShell = ({ activeItem, documentReminder }) => {
   const sidebarDisclosure = useDisclosure();
-  const [mobileItem, setMobileItem] = useState(() => (
-    ['Home', 'Followup', 'Package Sales', 'Tasks'].includes(activeItem) ? activeItem : 'Home'
-  ));
-  const [followupAddSignal, setFollowupAddSignal] = useState(0);
-  const [taskAddSignal, setTaskAddSignal] = useState(0);
+  const [mobileItem, setMobileItem] = useState(() => resolveSection(activeItem));
   const currentItem = mobileItem || 'Home';
 
-  // The missing-documents warning opens follow-ups (mobile has no documents-only view).
+  // Same in-app navigation events the desktop layout listens to.
   useEffect(() => {
     const openSection = (event) => {
-      if (event.detail?.section === 'Missing Documents') setMobileItem('Followup');
+      if (event.detail?.section) setMobileItem(resolveSection(event.detail.section));
     };
     window.addEventListener('navigateToSection', openSection);
     return () => window.removeEventListener('navigateToSection', openSection);
   }, []);
 
-  const handleAdd = () => {
-    if (currentItem === 'Tasks') {
-      setTaskAddSignal((value) => value + 1);
-      return;
-    }
-
-    setMobileItem('Followup');
-    setFollowupAddSignal((value) => value + 1);
-  };
-
   const renderMobileContent = () => {
     switch (currentItem) {
       case 'Home':
-        return <MobileSalesHome onNavigate={setMobileItem} onMenu={sidebarDisclosure.onOpen} />;
+        return <MobileSalesHome onNavigate={setMobileItem} />;
       case 'Followup':
-        return <MobileFollowups openAddSignal={followupAddSignal} />;
+        return <MobileFollowups key="followups" />;
       case 'Package Sales':
-        return <MobileSalesPlaceholder title="Deals" description="Mobile deal and package sales views will live here." />;
+        return <MobileFollowups key="packages" initialSection="packages" />;
+      case 'Orders':
+        return <OrderFollowup />;
       case 'Tasks':
-        return <MobileTasks openAddSignal={taskAddSignal} />;
+        return <MobileTasks />;
+      case 'Content Tracker':
+        return <ContentTrackerPage />;
+      case 'Monthly Report':
+        return <MonthlyReport />;
+      case 'Notice Board':
+        return <SalesMessagesPage />;
+      case 'Requests':
+        return <EmployeeRequestsPage />;
+      case 'Upload Documents':
+        return <EmployeeFileUploadForm embedded />;
+      case 'My Warnings':
+        return <EmployeeWarningsPage mode="employee" />;
       case 'Student Registration':
         return <StudentRegistrationPage embedded workspaceLabel="Sales" />;
-      case 'Search':
-        return <MobileSalesPlaceholder title="Search" description="Mobile global search for contacts, tasks, deals, and resources will live here." />;
       case 'More':
-        return <MobileProfile onNavigate={setMobileItem} />;
-      case 'Meetings':
-      case 'Performance':
-      case 'Reports':
-      case 'Messages':
-      case 'Notifications':
-      case 'Documents':
-      case 'Settings':
-      case 'Help':
-        return (
-          <MobileSalesPlaceholder
-            title={titleByItem[currentItem]}
-            description={`${titleByItem[currentItem]} mobile tools will live here.`}
-          />
-        );
+        return <MobileProfile />;
       default:
         return <MobileSalesHome onNavigate={setMobileItem} />;
     }
@@ -93,21 +78,24 @@ const MobileSalesShell = ({ activeItem, documentReminder }) => {
 
   return (
     <Box minH="100vh" bg="#FAFBFD" color="#081A34" pb="92px">
-      {currentItem !== 'Home' && (
-        <Box position="sticky" top={0} zIndex={10}>
-          <MobileSalesTopBar documentReminder={documentReminder}
-            title={titleByItem[currentItem] || currentItem || 'Sales'}
-            onMenu={sidebarDisclosure.onOpen}
-            onAdd={handleAdd}
-          />
-        </Box>
-      )}
-      <Box px={3} py={currentItem === 'Home' ? 5 : 4}>
-        <Suspense fallback={<Center minH="220px"><Spinner size="sm" /></Center>}>
-          {renderMobileContent()}
-        </Suspense>
+      <Box position="sticky" top={0} zIndex={10}>
+        <MobileSalesTopBar
+          documentReminder={documentReminder}
+          onMenu={sidebarDisclosure.onOpen}
+          onProfile={() => setMobileItem('More')}
+        />
       </Box>
-      <MobileBottomNav activeItem={currentItem} onChange={setMobileItem} onAdd={handleAdd} />
+      <Box px={3} py={4}>
+        {currentItem === 'Tasks' && (
+          <Text as="h1" fontSize="22px" fontWeight="800" mb={3}>Tasks</Text>
+        )}
+        <ErrorBoundary key={currentItem}>
+          <Suspense fallback={<Center minH="220px"><Spinner size="sm" /></Center>}>
+            {renderMobileContent()}
+          </Suspense>
+        </ErrorBoundary>
+      </Box>
+      <MobileBottomNav activeItem={currentItem} onChange={setMobileItem} />
       <MobileSalesSidebar
         isOpen={sidebarDisclosure.isOpen}
         onClose={sidebarDisclosure.onClose}

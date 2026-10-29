@@ -1,5 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Badge,
   Box,
   Button,
@@ -7,12 +13,17 @@ import {
   Flex,
   FormControl,
   FormLabel,
+  GridItem,
   HStack,
   Icon,
   IconButton,
   Input,
   InputGroup,
   InputLeftElement,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuList,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -20,6 +31,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
+  Portal,
   Select,
   SimpleGrid,
   Spinner,
@@ -33,19 +45,23 @@ import {
   FiArrowLeft,
   FiCalendar,
   FiCheckCircle,
+  FiDollarSign,
   FiEdit3,
+  FiEye,
   FiFilter,
   FiMail,
   FiMessageCircle,
   FiMoreVertical,
+  FiPackage,
   FiPhone,
   FiPlus,
   FiSearch,
-  FiSliders,
   FiTarget,
-  FiUser
+  FiTrash2,
+  FiUser,
+  FiUsers
 } from 'react-icons/fi';
-import { getAllCustomers, createCustomer, updateCustomer, sendCustomerEmail, sendCustomerSms } from '../../services/customerService';
+import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer, sendCustomerEmail, sendCustomerSms } from '../../services/customerService';
 import { fetchExternalCourses } from '../../services/api';
 import {
   fetchPackageSales,
@@ -54,37 +70,27 @@ import {
   logPackageSalesActivity
 } from '../../services/packageService';
 
-const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
-
-const mobileColumns = [
-  { key: 'customerName', label: 'Customer Name', required: true },
-  { key: 'phone', label: 'Phone' },
-  { key: 'email', label: 'Email' },
-  { key: 'contactTitle', label: 'Training Title' },
-  { key: 'callStatus', label: 'Call Status' },
-  { key: 'followupStatus', label: 'Follow-up Status' },
-  { key: 'schedulePreference', label: 'Schedule' },
-  { key: 'packageScope', label: 'Package Scope' },
-  { key: 'date', label: 'Date' },
-  { key: 'note', label: 'Note' }
+const listTabs = [
+  { key: 'followups', label: 'Followups', icon: FiUsers },
+  { key: 'completed', label: 'Completed' },
+  { key: 'packages', label: 'Packages', icon: FiPackage }
 ];
 
-const filterOptions = [
-  { label: 'All', value: '' },
-  { label: 'Called', value: 'call:Called' },
-  { label: 'Not Called', value: 'call:Not Called' },
-  { label: 'Callback', value: 'call:Callback' },
-  { label: 'Completed', value: 'followup:Completed' },
-  { label: 'Pending', value: 'followup:Pending' }
-];
+const emptyListFilters = { call: '', followup: '', schedule: '', status: '', date: '' };
 
-const packageFilterOptions = [
-  { label: 'All', value: '' },
-  { label: 'Called', value: 'call:Called' },
-  { label: 'Not Called', value: 'call:Not Called' },
-  { label: 'Active', value: 'status:Active' },
-  { label: 'Pending', value: 'status:Pending' },
-  { label: 'Expired', value: 'status:Expired' }
+const toOptions = (values) => values.map((value) => ({ label: value, value }));
+const callStatusOptions = toOptions(['Called', 'Not Called', 'Callback', 'Busy']);
+const followupStatusOptions = toOptions(['Pending', 'Prospect', 'Scheduled', 'Completed', 'Cancelled']);
+const packageStatusOptions = toOptions(['Active', 'Pending', 'Expired']);
+const dateRangeOptions = [
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: 'week' },
+  { label: 'This Month', value: 'month' }
+];
+const sortOptions = [
+  { label: 'Date (Latest)', value: 'latest' },
+  { label: 'Date (Oldest)', value: 'oldest' },
+  { label: 'Name (A-Z)', value: 'name' }
 ];
 
 const theme = {
@@ -95,7 +101,10 @@ const theme = {
   ink: '#081A34',
   muted: '#6E7890',
   border: '#E8EDF5',
-  page: '#FAFBFD'
+  page: '#FAFBFD',
+  teal: '#0E8C80',
+  tealDark: '#0A6F66',
+  tealSoft: '#E3F4F1'
 };
 
 const defaultCourses = [
@@ -239,249 +248,167 @@ const detailTabs = [
   { key: 'notes', label: 'Notes' }
 ];
 
-const readVisibleColumns = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(TABLE_PREF_KEY) || 'null');
-    const known = mobileColumns.map((column) => column.key);
-    const savedOrder = Array.isArray(saved?.order) ? saved.order.filter((key) => known.includes(key)) : [];
-    const hidden = Array.isArray(saved?.hidden) ? saved.hidden : [];
-    const order = [...savedOrder, ...known.filter((key) => !savedOrder.includes(key))];
-
-    return order
-      .map((key) => mobileColumns.find((column) => column.key === key))
-      .filter((column) => column && !hidden.includes(column.key));
-  } catch {
-    return mobileColumns;
-  }
+const isWithinRange = (value, range) => {
+  if (!range) return true;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (range === 'week') start.setDate(start.getDate() - start.getDay());
+  if (range === 'month') start.setDate(1);
+  return date >= start;
 };
 
-const getFieldValue = (customer, key) => {
-  switch (key) {
-    case 'customerName':
-      return customer.customerName || 'Unnamed customer';
-    case 'contactTitle':
-      return customer.contactTitle || customer.courseName || 'N/A';
-    case 'date':
-      return formatDate(customer.date || customer.createdAt);
-    case 'schedulePreference':
-      return customer.schedulePreference || customer.schedule || 'Regular';
-    case 'packageScope':
-      return customer.packageScope || 'Local';
-    default:
-      return customer[key] || 'N/A';
-  }
+const sortItems = (items, order, getName, getDate) => {
+  const timeOf = (item) => new Date(getDate(item) || 0).getTime() || 0;
+  return [...items].sort((a, b) => {
+    if (order === 'name') return String(getName(a) || '').localeCompare(String(getName(b) || ''));
+    return order === 'oldest' ? timeOf(a) - timeOf(b) : timeOf(b) - timeOf(a);
+  });
 };
 
-const MobileFollowupCard = ({ customer, visibleColumns, onOpenDetail }) => {
-  const extraColumns = visibleColumns.filter(
-    (column) => !['customerName', 'phone', 'email', 'callStatus', 'followupStatus', 'date'].includes(column.key)
-  );
+const stopRowClick = (event) => event.stopPropagation();
 
-  return (
-    <Box
-      as="button"
-      type="button"
-      textAlign="left"
-      w="100%"
-      bg="white"
-      borderRadius="14px"
-      p={4}
-      boxShadow="0 10px 26px rgba(8, 26, 52, 0.05)"
-      borderWidth="1px"
-      borderColor={theme.border}
-      transition="transform 0.18s ease, box-shadow 0.18s ease"
-      _active={{ transform: 'scale(0.99)' }}
-      onClick={() => onOpenDetail(customer)}
-    >
-      <Flex align="flex-start" justify="space-between" gap={3}>
-        <HStack align="flex-start" spacing={3} minW={0}>
-          <Center w="42px" h="42px" borderRadius="12px" bg={theme.goldSoft} color={theme.gold} flexShrink={0} fontWeight="900">
-            {getInitials(customer.customerName)}
-          </Center>
-          <Box minW={0}>
-            <Text color={theme.ink} fontSize="15px" fontWeight="900" noOfLines={1}>
-              {customer.customerName || 'Unnamed customer'}
-            </Text>
-            <HStack spacing={1.5} mt={1} color={theme.muted}>
-              <Icon as={FiPhone} boxSize={3} />
-              <Text fontSize="11px" fontWeight="700" noOfLines={1}>{customer.phone || 'No phone'}</Text>
-            </HStack>
-            <HStack spacing={1.5} mt={1} color={theme.muted}>
-              <Icon as={FiMail} boxSize={3} />
-              <Text fontSize="11px" fontWeight="700" noOfLines={1}>{customer.email || 'No email'}</Text>
-            </HStack>
-          </Box>
-        </HStack>
-        <Box textAlign="right" flexShrink={0}>
-          <Text fontSize="10px" color={theme.ink} fontWeight="700">{formatDate(customer.date || customer.createdAt)}</Text>
-          <Text fontSize="10px" color={theme.ink} fontWeight="700" mt={1}>{formatTime(customer.date || customer.createdAt)}</Text>
-        </Box>
-      </Flex>
+const RowActionButton = ({ label, icon, href }) => (
+  <Center
+    as="a"
+    href={href}
+    aria-label={label}
+    aria-disabled={!href}
+    onClick={stopRowClick}
+    w="34px"
+    h="34px"
+    borderRadius="full"
+    bg={theme.tealSoft}
+    color={theme.teal}
+    opacity={href ? 1 : 0.4}
+    pointerEvents={href ? 'auto' : 'none'}
+  >
+    <Icon as={icon} boxSize={4} />
+  </Center>
+);
 
-      <HStack spacing={2} mt={4} flexWrap="wrap">
-        {customer.callStatus && (
-          <Badge colorScheme={statusColor(customer.callStatus)} fontSize="9px" px={2} py={1} borderRadius="md">
-            {customer.callStatus}
-          </Badge>
-        )}
-        {customer.followupStatus && (
-          <Badge colorScheme={statusColor(customer.followupStatus)} fontSize="9px" px={2} py={1} borderRadius="md">
-            {customer.followupStatus}
-          </Badge>
-        )}
+const FollowupRow = ({ name, subtitle, phone, status, date, note, onOpen, onEdit, onDelete }) => (
+  <Flex
+    role="button"
+    tabIndex={0}
+    onClick={onOpen}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter') onOpen();
+    }}
+    align="center"
+    gap={3}
+    w="100%"
+    bg="white"
+    borderRadius="14px"
+    px={3}
+    py={3}
+    borderWidth="1px"
+    borderColor={theme.border}
+    cursor="pointer"
+    _active={{ bg: theme.page }}
+  >
+    <Center w="40px" h="40px" borderRadius="full" bg={theme.tealSoft} color={theme.teal} fontWeight="700" fontSize="14px" flexShrink={0}>
+      {getInitials(name)}
+    </Center>
+    <Box flex="1" minW={0}>
+      <Text color={theme.ink} fontSize="15px" fontWeight="700" noOfLines={1}>{name}</Text>
+      <Text color={theme.muted} fontSize="12px" noOfLines={1}>{subtitle}</Text>
+      <Text color={theme.muted} fontSize="12px" noOfLines={1}>{phone || 'No phone'}</Text>
+      <HStack spacing={1.5} mt={1} color={theme.muted} fontSize="11px" minW={0}>
+        <Text
+          flexShrink={0}
+          px={2}
+          borderRadius="full"
+          bg={theme.tealSoft}
+          color={theme.tealDark}
+          fontSize="10px"
+          fontWeight="700"
+          textTransform="uppercase"
+        >
+          {status || 'Pending'}
+        </Text>
+        <Icon as={FiCalendar} boxSize={3} flexShrink={0} />
+        <Text flexShrink={0}>{formatDate(date)}</Text>
       </HStack>
-
-      {extraColumns.length > 0 && (
-        <SimpleGrid columns={2} spacing={2} mt={4}>
-          {extraColumns.slice(0, 4).map((column) => (
-            <Box key={column.key} bg={theme.page} borderRadius="10px" p={2} minW={0} borderWidth="1px" borderColor={theme.border}>
-              <Text fontSize="8px" color={theme.muted} fontWeight="900" textTransform="uppercase" noOfLines={1}>
-                {column.label}
-              </Text>
-              <Text fontSize="10px" color={theme.ink} fontWeight="800" noOfLines={1}>
-                {getFieldValue(customer, column.key)}
-              </Text>
-            </Box>
-          ))}
-        </SimpleGrid>
-      )}
-
-      <Flex align="center" justify="space-between" mt={4}>
-        <HStack spacing={3}>
-          <Center as="span" w="30px" h="30px" borderRadius="9px" bg="#EAF8F0" color="#128650">
-            <Icon as={FiPhone} boxSize={4} />
-          </Center>
-          <Center as="span" w="30px" h="30px" borderRadius="9px" bg="#EAF2FF" color="#1C62C9">
-            <Icon as={FiMail} boxSize={4} />
-          </Center>
-          <Center as="span" w="30px" h="30px" borderRadius="9px" bg={theme.goldSoft} color={theme.gold}>
-            <Icon as={FiCalendar} boxSize={4} />
-          </Center>
-        </HStack>
-        <Icon as={FiMoreVertical} color={theme.ink} />
-      </Flex>
+      {note && <Text color={theme.muted} fontSize="12px" mt={0.5} noOfLines={1}>{note}</Text>}
     </Box>
-  );
-};
+    <HStack spacing={1.5} flexShrink={0}>
+      <RowActionButton label="Call" icon={FiPhone} href={phone ? `tel:${phone}` : undefined} />
+      <RowActionButton label="Message" icon={FiMessageCircle} href={phone ? `sms:${phone}` : undefined} />
+      <Box onClick={stopRowClick}>
+        <Menu placement="bottom-end" isLazy>
+          <MenuButton
+            as={IconButton}
+            aria-label="More actions"
+            icon={<FiMoreVertical />}
+            variant="ghost"
+            size="sm"
+            minW="28px"
+            color={theme.muted}
+          />
+          <Portal>
+            <MenuList minW="160px" fontSize="14px" zIndex="popover">
+              <MenuItem icon={<FiEye />} onClick={onOpen}>View details</MenuItem>
+              {onEdit && <MenuItem icon={<FiEdit3 />} onClick={onEdit}>Edit</MenuItem>}
+              {onDelete && <MenuItem icon={<FiTrash2 />} color="red.500" onClick={onDelete}>Delete</MenuItem>}
+            </MenuList>
+          </Portal>
+        </Menu>
+      </Box>
+    </HStack>
+  </Flex>
+);
 
-const MobilePackageCard = ({ sale, onOpenDetail }) => {
-  const packageValue = Number(sale.packageValue || (Number(sale.packageType) || 0) * 1000 || 0);
+const StatCard = ({ icon, label, value, title, hint }) => (
+  <Box bg="white" borderRadius="14px" p={3} minW={0} borderWidth="1px" borderColor={theme.border}>
+    <HStack spacing={1.5} color={theme.muted} minW={0}>
+      <Icon as={icon} boxSize={3.5} color={theme.teal} flexShrink={0} />
+      <Text fontSize="11px" noOfLines={1}>{label}</Text>
+    </HStack>
+    <Text mt={1} fontSize="20px" fontWeight="800" color={theme.ink} lineHeight="1.2" noOfLines={1} title={title}>
+      {value}
+    </Text>
+    <Text fontSize="11px" color={theme.muted} noOfLines={1}>{hint}</Text>
+  </Box>
+);
 
-  return (
-    <Box
-      as="button"
-      type="button"
-      textAlign="left"
-      w="100%"
-      bg="white"
-      borderRadius="14px"
-      p={4}
-      boxShadow="0 10px 26px rgba(8, 26, 52, 0.05)"
-      borderWidth="1px"
-      borderColor={theme.border}
-      transition="transform 0.18s ease, box-shadow 0.18s ease"
-      _active={{ transform: 'scale(0.99)' }}
-      onClick={() => onOpenDetail(sale)}
-    >
-      <Flex align="flex-start" justify="space-between" gap={3}>
-        <HStack align="flex-start" spacing={3} minW={0}>
-          <Center w="42px" h="42px" borderRadius="12px" bg={theme.goldSoft} color={theme.gold} flexShrink={0} fontWeight="900">
-            {getInitials(sale.customerName || sale.companyName || sale.contactPerson)}
-          </Center>
-          <Box minW={0}>
-            <Text color={theme.ink} fontSize="15px" fontWeight="900" noOfLines={1}>
-              {sale.customerName || sale.companyName || 'Package customer'}
-            </Text>
-            <HStack spacing={1.5} mt={1} color={theme.muted}>
-              <Icon as={FiPhone} boxSize={3} />
-              <Text fontSize="11px" fontWeight="700" noOfLines={1}>{sale.phoneNumber || sale.phone || 'No phone'}</Text>
-            </HStack>
-            <HStack spacing={1.5} mt={1} color={theme.muted}>
-              <Icon as={FiMail} boxSize={3} />
-              <Text fontSize="11px" fontWeight="700" noOfLines={1}>{sale.email || 'No email'}</Text>
-            </HStack>
-          </Box>
-        </HStack>
-        <Box textAlign="right" flexShrink={0}>
-          <Text fontSize="10px" color={theme.ink} fontWeight="700">{formatDate(sale.purchaseDate || sale.createdAt)}</Text>
-          <Text fontSize="10px" color={theme.ink} fontWeight="700" mt={1}>{sale.customerType || 'Package'}</Text>
-        </Box>
-      </Flex>
+const FilterSelect = ({ placeholder, value, onChange, options }) => (
+  <Select
+    size="sm"
+    w="auto"
+    flexShrink={0}
+    value={value}
+    onChange={(event) => onChange(event.target.value)}
+    bg="white"
+    borderColor={theme.border}
+    borderRadius="10px"
+    color={theme.ink}
+    fontSize="13px"
+    h="36px"
+  >
+    <option value="">{placeholder}</option>
+    {options.map((option) => (
+      <option key={option.value} value={option.value}>{option.label}</option>
+    ))}
+  </Select>
+);
 
-      <HStack spacing={2} mt={4} flexWrap="wrap">
-        <Badge colorScheme="orange" fontSize="9px" px={2} py={1} borderRadius="md">
-          {sale.packageName || 'Package Sale'}
-        </Badge>
-        <Badge colorScheme={statusColor(packageCallStatus(sale))} fontSize="9px" px={2} py={1} borderRadius="md">
-          {packageCallStatus(sale)}
-        </Badge>
-        <Badge colorScheme={statusColor(sale.status)} fontSize="9px" px={2} py={1} borderRadius="md">
-          {sale.status || 'Active'}
-        </Badge>
-      </HStack>
-
-      <SimpleGrid columns={2} spacing={2} mt={4}>
-        <Box bg={theme.page} borderRadius="10px" p={2} minW={0}>
-          <Text fontSize="8px" color="#718096" fontWeight="900" textTransform="uppercase" noOfLines={1}>
-            Package Type
-          </Text>
-          <Text fontSize="10px" color={theme.ink} fontWeight="800" noOfLines={1}>
-            {sale.packageType ? `#${sale.packageType}` : 'N/A'}
-          </Text>
-        </Box>
-        <Box bg={theme.page} borderRadius="10px" p={2} minW={0}>
-          <Text fontSize="8px" color="#718096" fontWeight="900" textTransform="uppercase" noOfLines={1}>
-            Value
-          </Text>
-          <Text fontSize="10px" color={theme.ink} fontWeight="800" noOfLines={1}>
-            ETB {packageValue.toLocaleString()}
-          </Text>
-        </Box>
-        <Box bg={theme.page} borderRadius="10px" p={2} minW={0}>
-          <Text fontSize="8px" color="#718096" fontWeight="900" textTransform="uppercase" noOfLines={1}>
-            Agent
-          </Text>
-          <Text fontSize="10px" color={theme.ink} fontWeight="800" noOfLines={1}>
-            {sale.agentName || 'N/A'}
-          </Text>
-        </Box>
-        <Box bg={theme.page} borderRadius="10px" p={2} minW={0}>
-          <Text fontSize="8px" color="#718096" fontWeight="900" textTransform="uppercase" noOfLines={1}>
-            Contact
-          </Text>
-          <Text fontSize="10px" color={theme.ink} fontWeight="800" noOfLines={1}>
-            {sale.contactPerson || 'N/A'}
-          </Text>
-        </Box>
-      </SimpleGrid>
-
-      <Flex align="center" justify="space-between" mt={4}>
-        <HStack spacing={3}>
-          <Center as="span" w="30px" h="30px" borderRadius="8px" bg="#e9fbf1" color="#19a56b">
-            <Icon as={FiPhone} boxSize={4} />
-          </Center>
-          <Center as="span" w="30px" h="30px" borderRadius="8px" bg="#eaf4ff" color="#3182ce">
-            <Icon as={FiMail} boxSize={4} />
-          </Center>
-          <Center as="span" w="30px" h="30px" borderRadius="8px" bg="#fff7df" color="#d9901f">
-            <Icon as={FiCalendar} boxSize={4} />
-          </Center>
-        </HStack>
-        <Icon as={FiMoreVertical} color={theme.ink} />
-      </Flex>
-    </Box>
-  );
-};
-
-const MobileFollowups = ({ openAddSignal = 0 }) => {
+const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) => {
   const [customers, setCustomers] = useState([]);
   const [packageSales, setPackageSales] = useState([]);
   const [courses, setCourses] = useState(defaultCourses);
   const [loading, setLoading] = useState(true);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [section, setSection] = useState('trainings');
+  const [section, setSection] = useState(initialSection === 'packages' ? 'packages' : 'trainings');
+  const [listTab, setListTab] = useState(initialSection === 'packages' ? 'packages' : 'followups');
+  const [filters, setFilters] = useState(emptyListFilters);
+  const [sortOrder, setSortOrder] = useState('latest');
+  const [showFilters, setShowFilters] = useState(true);
+  const [customerToDelete, setCustomerToDelete] = useState(null);
+  const [deletingCustomer, setDeletingCustomer] = useState(false);
+  const deleteCancelRef = useRef(null);
   const [trainingForm, setTrainingForm] = useState(emptyTrainingForm);
   const [packageForm, setPackageForm] = useState(emptyPackageForm);
   const [saving, setSaving] = useState(false);
@@ -509,7 +436,6 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
   const smsDisclosure = useDisclosure();
   const packageDetailDisclosure = useDisclosure();
   const packageSmsDisclosure = useDisclosure();
-  const visibleColumns = useMemo(readVisibleColumns, []);
 
   useEffect(() => {
     if (openAddSignal > 0) {
@@ -578,9 +504,37 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
     loadCourses();
   }, []);
 
+  const scheduleOptions = useMemo(() => {
+    const values = new Set(['Regular']);
+    customers.forEach((customer) => {
+      const value = customer.schedulePreference || customer.schedule;
+      if (value) values.add(value);
+    });
+    return toOptions([...values]);
+  }, [customers]);
+
+  const stats = useMemo(() => {
+    const completed = customers.filter((customer) => normalizeStatus(customer.followupStatus) === 'completed');
+    return {
+      total: customers.length,
+      totalThisMonth: customers.filter((customer) => isWithinRange(customer.date || customer.createdAt, 'month')).length,
+      completed: completed.length,
+      completedThisMonth: completed.filter((customer) => isWithinRange(customer.updatedAt || customer.date || customer.createdAt, 'month')).length,
+      commission: completed.reduce((sum, customer) => {
+        const value = Number(customer?.commission?.netCommission ?? 0);
+        return sum + (Number.isFinite(value) ? value : 0);
+      }, 0),
+      called: customers.filter((customer) => normalizeStatus(customer.callStatus) === 'called').length,
+      prospectsThisWeek: customers.filter((customer) => (
+        normalizeStatus(customer.followupStatus) === 'prospect'
+        && isWithinRange(customer.date || customer.createdAt, 'week')
+      )).length
+    };
+  }, [customers]);
+
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return customers.filter((customer) => {
+    const matches = customers.filter((customer) => {
       const matchesSearch = !query || [
         customer.customerName,
         customer.phone,
@@ -589,22 +543,22 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
         customer.courseName
       ].some((value) => String(value || '').toLowerCase().includes(query));
 
-      const [filterType, filterValue] = statusFilter.includes(':') ? statusFilter.split(':') : ['', statusFilter];
-      const matchesStatus = !statusFilter
-        || (filterType === 'call' && normalizeStatus(customer.callStatus) === normalizeStatus(filterValue))
-        || (filterType === 'followup' && normalizeStatus(customer.followupStatus) === normalizeStatus(filterValue))
-        || (!filterType && (
-          normalizeStatus(customer.callStatus) === normalizeStatus(filterValue)
-          || normalizeStatus(customer.followupStatus) === normalizeStatus(filterValue)
-        ));
+      const followupStatus = normalizeStatus(customer.followupStatus);
+      const matchesTab = listTab !== 'completed' || followupStatus === 'completed';
+      const matchesCall = !filters.call || normalizeStatus(customer.callStatus) === normalizeStatus(filters.call);
+      const matchesFollowup = !filters.followup || followupStatus === normalizeStatus(filters.followup);
+      const matchesSchedule = !filters.schedule
+        || normalizeStatus(customer.schedulePreference || customer.schedule || 'Regular') === normalizeStatus(filters.schedule);
+      const matchesDate = isWithinRange(customer.date || customer.createdAt, filters.date);
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesTab && matchesCall && matchesFollowup && matchesSchedule && matchesDate;
     });
-  }, [customers, search, statusFilter]);
+    return sortItems(matches, sortOrder, (customer) => customer.customerName, (customer) => customer.date || customer.createdAt);
+  }, [customers, search, listTab, filters, sortOrder]);
 
   const filteredPackages = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return packageSales.filter((sale) => {
+    const matches = packageSales.filter((sale) => {
       const matchesSearch = !query || [
         sale.customerName,
         sale.companyName,
@@ -616,19 +570,31 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
         sale.packageType
       ].some((value) => String(value || '').toLowerCase().includes(query));
 
-      const [filterType, filterValue] = statusFilter.includes(':') ? statusFilter.split(':') : ['', statusFilter];
-      const matchesStatus = !statusFilter
-        || (filterType === 'call' && normalizeStatus(packageCallStatus(sale)) === normalizeStatus(filterValue))
-        || (filterType === 'status' && normalizeStatus(sale.status) === normalizeStatus(filterValue))
-        || (!filterType && normalizeStatus(sale.status) === normalizeStatus(filterValue));
+      const matchesCall = !filters.call || normalizeStatus(packageCallStatus(sale)) === normalizeStatus(filters.call);
+      const matchesStatus = !filters.status || normalizeStatus(sale.status) === normalizeStatus(filters.status);
+      const matchesDate = isWithinRange(sale.purchaseDate || sale.createdAt, filters.date);
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesCall && matchesStatus && matchesDate;
     });
-  }, [packageSales, search, statusFilter]);
+    return sortItems(
+      matches,
+      sortOrder,
+      (sale) => sale.customerName || sale.companyName,
+      (sale) => sale.purchaseDate || sale.createdAt
+    );
+  }, [packageSales, search, filters, sortOrder]);
 
-  const activeFilters = section === 'packages' ? packageFilterOptions : filterOptions;
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
   const isLoading = section === 'packages' ? packagesLoading : loading;
   const visibleItems = section === 'packages' ? filteredPackages : filteredCustomers;
+
+  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+
+  const handleTabChange = (tab) => {
+    setListTab(tab);
+    setSection(tab === 'packages' ? 'packages' : 'trainings');
+    setFilters(emptyListFilters);
+  };
   const modalTitle = section === 'packages' ? 'Add Package Sale' : 'Add Training Follow-up';
   const detailCourseOptions = getCourseOptions(courses, detailForm.contactTitle);
   const trainingCourseOptions = getCourseOptions(courses, trainingForm.contactTitle);
@@ -649,16 +615,38 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
     setDetailForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleOpenDetail = (customer) => {
+  const handleOpenDetail = (customer, { edit = false } = {}) => {
     setSelectedCustomer(customer);
     setDetailForm(buildCustomerDetailForm(customer));
-    setDetailEditMode(false);
-    setDetailTab('activity');
+    setDetailEditMode(edit);
+    setDetailTab(edit ? 'about' : 'activity');
     setEmailForm(buildDefaultEmailForm(customer));
     setSmsForm(buildDefaultSmsForm(customer));
     setSentEmails([]);
     setSentSmsMessages([]);
     detailDisclosure.onOpen();
+  };
+
+  const handleConfirmDelete = async () => {
+    const customerId = customerToDelete?._id || customerToDelete?.id;
+    if (!customerId) return;
+
+    setDeletingCustomer(true);
+    try {
+      await deleteCustomer(customerId);
+      setCustomers((prev) => prev.filter((customer) => (customer._id || customer.id) !== customerId));
+      setCustomerToDelete(null);
+      toast({ title: 'Customer deleted', status: 'info', duration: 2500 });
+    } catch (error) {
+      toast({
+        title: 'Error deleting customer',
+        description: error.response?.data?.message || error.message || 'Failed to delete customer',
+        status: 'error',
+        duration: 3200
+      });
+    } finally {
+      setDeletingCustomer(false);
+    }
   };
 
   const handleDetailClose = () => {
@@ -1023,126 +1011,249 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
 
   return (
     <Box position="relative" bg={theme.page} minH="calc(100vh - 158px)">
-      <InputGroup mb={3}>
-        <InputLeftElement pointerEvents="none">
-          <Icon as={FiSearch} color="#9AA4B5" />
-        </InputLeftElement>
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          bg="white"
-          borderColor={theme.border}
-          borderRadius="12px"
-          placeholder={section === 'packages' ? 'Search packages...' : 'Search contacts...'}
-          _placeholder={{ color: '#9AA4B5', fontWeight: 700 }}
-          fontSize="14px"
-          h="44px"
-          color={theme.ink}
-          fontWeight="800"
-          boxShadow="0 8px 22px rgba(8, 26, 52, 0.04)"
-        />
-      </InputGroup>
-
-      <Flex align="center" justify="space-between" mb={3} gap={2}>
-        <HStack spacing={1} borderWidth="1px" borderColor={theme.border} borderRadius="12px" p={0.5} bg="white" boxShadow="0 8px 22px rgba(8, 26, 52, 0.04)">
-          <Button
-            size="sm"
-            borderRadius="10px"
-            bg={section === 'trainings' ? theme.navy : 'transparent'}
-            color={section === 'trainings' ? 'white' : theme.muted}
-            _hover={{ bg: section === 'trainings' ? theme.navy : theme.goldSoft }}
-            onClick={() => {
-              setSection('trainings');
-              setStatusFilter('');
-            }}
-          >
-            Trainings
-          </Button>
-          <Button
-            size="sm"
-            borderRadius="10px"
-            bg={section === 'packages' ? theme.navy : 'transparent'}
-            color={section === 'packages' ? 'white' : theme.muted}
-            _hover={{ bg: section === 'packages' ? theme.navy : theme.goldSoft }}
-            onClick={() => {
-              setSection('packages');
-              setStatusFilter('');
-            }}
-          >
-            Packages
-          </Button>
-        </HStack>
-        <HStack spacing={1}>
-          <IconButton aria-label="Search" icon={<FiSearch />} variant="ghost" color={theme.ink} size="sm" />
-          <IconButton aria-label="Filters" icon={<FiFilter />} variant="ghost" color={theme.ink} size="sm" />
-        </HStack>
+      <Flex align="center" justify="space-between" gap={3} mb={4}>
+        <Box minW={0}>
+          <Text as="h1" color={theme.ink} fontSize="20px" fontWeight="800" lineHeight="1.2" noOfLines={1}>
+            Customer Followup
+          </Text>
+          <Text color={theme.muted} fontSize="12px" mt={0.5} noOfLines={1}>
+            Manage prospects and customer communications
+          </Text>
+        </Box>
+        <Button
+          leftIcon={<FiPlus />}
+          size="sm"
+          h="38px"
+          px={3}
+          flexShrink={0}
+          borderRadius="10px"
+          bg={theme.teal}
+          color="white"
+          _hover={{ bg: theme.tealDark }}
+          _active={{ bg: theme.tealDark }}
+          onClick={addDisclosure.onOpen}
+        >
+          {section === 'packages' ? 'Add Package' : 'Add Customer'}
+        </Button>
       </Flex>
 
-      <HStack spacing={2} overflowX="auto" pb={2} mb={3}>
-        {activeFilters.map((option) => {
-          const active = statusFilter === option.value;
+      <SimpleGrid columns={2} spacing={2} mb={4}>
+        <StatCard icon={FiUsers} label="Total Customers" value={stats.total} hint={`+${stats.totalThisMonth} this month`} />
+        <StatCard icon={FiCheckCircle} label="Completed Deals" value={stats.completed} hint={`+${stats.completedThisMonth} this month`} />
+        <StatCard
+          icon={FiPhone}
+          label="Called Customers"
+          value={stats.called}
+          hint={`${stats.total ? Math.round((stats.called / stats.total) * 100) : 0}% contacted`}
+        />
+        <StatCard icon={FiTarget} label="New Prospects" value={stats.prospectsThisWeek} hint="This week" />
+        <GridItem colSpan={2}>
+          <StatCard
+            icon={FiDollarSign}
+            label="Total Commission"
+            value={`ETB ${Math.round(stats.commission).toLocaleString()}`}
+            hint="From closed sales"
+          />
+        </GridItem>
+      </SimpleGrid>
+
+      <SimpleGrid columns={3} spacing={1} mb={3} p={1} bg="white" borderRadius="12px" borderWidth="1px" borderColor={theme.border}>
+        {listTabs.map((tab) => {
+          const active = listTab === tab.key;
           return (
             <Button
-              key={option.label}
-              size="sm"
-              flexShrink={0}
-              borderRadius="10px"
-              bg={active ? theme.gold : 'white'}
-              color={active ? 'white' : theme.ink}
-              borderWidth="1px"
-              borderColor={active ? theme.gold : theme.border}
-              _hover={{ bg: active ? '#C98D00' : theme.goldSoft }}
-              onClick={() => setStatusFilter(option.value)}
+              key={tab.key}
+              h="36px"
+              px={2}
+              borderRadius="9px"
+              fontSize="13px"
+              fontWeight="600"
+              bg={active ? theme.teal : 'transparent'}
+              color={active ? 'white' : theme.muted}
+              _hover={{ bg: active ? theme.tealDark : theme.page }}
+              _active={{ bg: active ? theme.tealDark : theme.page }}
+              aria-pressed={active}
+              onClick={() => handleTabChange(tab.key)}
             >
-              {option.label}
+              <Text as="span" noOfLines={1}>
+                {tab.label}
+                {tab.key === 'completed' && ` (${stats.completed})`}
+              </Text>
             </Button>
           );
         })}
-        <IconButton aria-label="Customize fields" icon={<FiSliders />} size="sm" variant="outline" color={theme.ink} borderColor={theme.border} flexShrink={0} />
+      </SimpleGrid>
+
+      <HStack spacing={2} mb={3}>
+        <InputGroup>
+          <InputLeftElement pointerEvents="none" h="42px">
+            <Icon as={FiSearch} color="#9AA4B5" />
+          </InputLeftElement>
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            bg="white"
+            borderColor={theme.border}
+            borderRadius="10px"
+            placeholder={section === 'packages' ? 'Search packages...' : 'Search customers...'}
+            _placeholder={{ color: '#9AA4B5' }}
+            fontSize="14px"
+            h="42px"
+            color={theme.ink}
+          />
+        </InputGroup>
+        <Box position="relative" flexShrink={0}>
+          <IconButton
+            aria-label={showFilters ? 'Hide filters' : 'Show filters'}
+            icon={<FiFilter />}
+            w="42px"
+            h="42px"
+            bg={showFilters ? theme.tealSoft : 'white'}
+            color={showFilters ? theme.teal : theme.ink}
+            borderWidth="1px"
+            borderColor={theme.border}
+            borderRadius="10px"
+            onClick={() => setShowFilters((value) => !value)}
+          />
+          {activeFilterCount > 0 && (
+            <Box position="absolute" top="6px" right="6px" w="8px" h="8px" borderRadius="full" bg={theme.teal} />
+          )}
+        </Box>
       </HStack>
+
+      {showFilters && (
+        <HStack spacing={2} overflowX="auto" pb={2} mb={1}>
+          <FilterSelect
+            placeholder="Call Status"
+            value={filters.call}
+            onChange={(value) => setFilter('call', value)}
+            options={callStatusOptions}
+          />
+          {section === 'packages' ? (
+            <FilterSelect
+              placeholder="Package Status"
+              value={filters.status}
+              onChange={(value) => setFilter('status', value)}
+              options={packageStatusOptions}
+            />
+          ) : (
+            <>
+              {listTab !== 'completed' && (
+                <FilterSelect
+                  placeholder="Follow-up Status"
+                  value={filters.followup}
+                  onChange={(value) => setFilter('followup', value)}
+                  options={followupStatusOptions}
+                />
+              )}
+              <FilterSelect
+                placeholder="Schedule"
+                value={filters.schedule}
+                onChange={(value) => setFilter('schedule', value)}
+                options={scheduleOptions}
+              />
+            </>
+          )}
+          <FilterSelect
+            placeholder="All Dates"
+            value={filters.date}
+            onChange={(value) => setFilter('date', value)}
+            options={dateRangeOptions}
+          />
+          {activeFilterCount > 0 && (
+            <Button size="sm" h="36px" variant="ghost" color={theme.teal} flexShrink={0} onClick={() => setFilters(emptyListFilters)}>
+              Clear
+            </Button>
+          )}
+        </HStack>
+      )}
+
+      <Flex align="center" justify="space-between" gap={2} mt={2} mb={3}>
+        <Text color={theme.ink} fontSize="16px" fontWeight="800">
+          {section === 'packages' ? 'Package Sales' : listTab === 'completed' ? 'Completed' : 'Customers'} ({visibleItems.length})
+        </Text>
+        <Select
+          size="sm"
+          w="auto"
+          value={sortOrder}
+          onChange={(event) => setSortOrder(event.target.value)}
+          bg="white"
+          borderColor={theme.border}
+          borderRadius="10px"
+          color={theme.ink}
+          fontSize="13px"
+          h="36px"
+        >
+          {sortOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </Select>
+      </Flex>
 
       {isLoading ? (
         <Center py={12}>
-          <Spinner color={theme.gold} />
+          <Spinner color={theme.teal} />
         </Center>
       ) : (
-        <VStack align="stretch" spacing={3}>
-          <Text fontSize="13px" color={theme.ink} fontWeight="900">
-            {visibleItems.length} results
-          </Text>
+        <VStack align="stretch" spacing={2}>
+          {visibleItems.length === 0 && (
+            <Center py={10} color={theme.muted} fontSize="14px">
+              No results match your filters.
+            </Center>
+          )}
           {section === 'packages'
             ? filteredPackages.map((sale) => (
-              <MobilePackageCard
+              <FollowupRow
                 key={sale.id || sale._id || `${sale.customerName}-${sale.packageName}`}
-                sale={sale}
-                onOpenDetail={handleOpenPackageDetail}
+                name={sale.customerName || sale.companyName || 'Package customer'}
+                subtitle={sale.packageName || 'Package Sale'}
+                phone={sale.phoneNumber || sale.phone}
+                status={sale.status || 'Active'}
+                date={sale.purchaseDate || sale.createdAt}
+                note={sale.notes || packageCallStatus(sale)}
+                onOpen={() => handleOpenPackageDetail(sale)}
               />
             ))
             : filteredCustomers.map((customer) => (
-              <MobileFollowupCard
+              <FollowupRow
                 key={customer._id || customer.id}
-                customer={customer}
-                visibleColumns={visibleColumns}
-                onOpenDetail={handleOpenDetail}
+                name={customer.customerName || 'Unnamed customer'}
+                subtitle={customer.contactTitle || customer.courseName || 'Training follow-up'}
+                phone={customer.phone}
+                status={customer.followupStatus || 'Pending'}
+                date={customer.date || customer.createdAt}
+                note={customer.note || customer.callStatus}
+                onOpen={() => handleOpenDetail(customer)}
+                onEdit={() => handleOpenDetail(customer, { edit: true })}
+                onDelete={() => setCustomerToDelete(customer)}
               />
             ))}
         </VStack>
       )}
 
-      <IconButton
-        aria-label={section === 'packages' ? 'Add package sale' : 'Add training follow-up'}
-        icon={<FiPlus />}
-        position="fixed"
-        right={5}
-        bottom="86px"
-        size="lg"
-        borderRadius="full"
-        bg={theme.gold}
-        color="white"
-        boxShadow="0 14px 30px rgba(217, 154, 0, 0.38)"
-        _hover={{ bg: '#C98D00' }}
-        onClick={addDisclosure.onOpen}
-      />
+      <AlertDialog
+        isOpen={Boolean(customerToDelete)}
+        leastDestructiveRef={deleteCancelRef}
+        onClose={() => !deletingCustomer && setCustomerToDelete(null)}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent mx={4} borderRadius="14px">
+            <AlertDialogHeader fontSize="17px" fontWeight="700">Delete customer</AlertDialogHeader>
+            <AlertDialogBody fontSize="14px">
+              Delete {customerToDelete?.customerName || 'this customer'}? This cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter gap={2}>
+              <Button ref={deleteCancelRef} variant="ghost" onClick={() => setCustomerToDelete(null)} isDisabled={deletingCustomer}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleConfirmDelete} isLoading={deletingCustomer}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
 
       <Modal isOpen={detailDisclosure.isOpen} onClose={handleDetailClose} size="full" motionPreset="slideInRight">
         <ModalOverlay />
@@ -1229,7 +1340,7 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
                   color={detailForm.email ? '#2F6FED' : '#94a3b8'}
                   boxShadow="0 8px 18px rgba(15, 23, 42, 0.16)"
                   onClick={handleOpenEmailComposer}
-                  isDisabled={!detailForm.email}
+                  disabled={!detailForm.email}
                 >
                   <Icon as={FiMail} boxSize={4.5} />
                 </Center>
@@ -1246,7 +1357,7 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
                   color={detailForm.phone ? '#7C3AED' : '#94a3b8'}
                   boxShadow="0 8px 18px rgba(15, 23, 42, 0.16)"
                   onClick={handleOpenSmsComposer}
-                  isDisabled={!detailForm.phone}
+                  disabled={!detailForm.phone}
                 >
                   <Icon as={FiMessageCircle} boxSize={4.5} />
                 </Center>
@@ -1342,13 +1453,13 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
                     <Text fontSize="11px" color="#334155" fontWeight="900" textAlign="center">Call</Text>
                   </VStack>
                   <VStack spacing={2} align="center">
-                    <Center as="button" type="button" w="48px" h="48px" borderRadius="full" bg="#eef5ff" color={detailForm.email ? '#3182ce' : '#94a3b8'} onClick={handleOpenEmailComposer} isDisabled={!detailForm.email}>
+                    <Center as="button" type="button" w="48px" h="48px" borderRadius="full" bg="#eef5ff" color={detailForm.email ? '#3182ce' : '#94a3b8'} onClick={handleOpenEmailComposer} disabled={!detailForm.email}>
                       <Icon as={FiMail} boxSize={5} />
                     </Center>
                     <Text fontSize="11px" color="#334155" fontWeight="900" textAlign="center">Email</Text>
                   </VStack>
                   <VStack spacing={2} align="center">
-                    <Center as="button" type="button" w="48px" h="48px" borderRadius="full" bg="#f2ecff" color={detailForm.phone ? '#7c3aed' : '#94a3b8'} onClick={handleOpenSmsComposer} isDisabled={!detailForm.phone}>
+                    <Center as="button" type="button" w="48px" h="48px" borderRadius="full" bg="#f2ecff" color={detailForm.phone ? '#7c3aed' : '#94a3b8'} onClick={handleOpenSmsComposer} disabled={!detailForm.phone}>
                       <Icon as={FiMessageCircle} boxSize={5} />
                     </Center>
                     <Text fontSize="11px" color="#334155" fontWeight="900" textAlign="center">SMS</Text>
@@ -1704,7 +1815,7 @@ const MobileFollowups = ({ openAddSignal = 0 }) => {
                   color={selectedPackageContact.phone ? theme.navy : '#94a3b8'}
                   boxShadow="0 8px 18px rgba(15, 23, 42, 0.16)"
                   onClick={handleOpenPackageSmsComposer}
-                  isDisabled={!selectedPackageContact.phone}
+                  disabled={!selectedPackageContact.phone}
                 >
                   <Icon as={FiMessageCircle} boxSize={5} />
                 </Center>

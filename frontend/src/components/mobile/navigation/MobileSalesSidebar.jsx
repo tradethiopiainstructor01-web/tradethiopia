@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import {
   Avatar,
   Badge,
@@ -16,53 +16,45 @@ import {
   VStack
 } from '@chakra-ui/react';
 import {
+  FiAlertTriangle,
   FiBarChart2,
-  FiBell,
-  FiBriefcase,
+  FiCalendar,
   FiCheckSquare,
-  FiFileText,
-  FiFolder,
-  FiGrid,
-  FiHeadphones,
-  FiHelpCircle,
+  FiClipboard,
+  FiHome,
   FiLogOut,
   FiMessageSquare,
-  FiPieChart,
-  FiSettings,
-  FiUser,
+  FiShoppingCart,
+  FiUploadCloud,
   FiUsers,
   FiX
 } from 'react-icons/fi';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useUserStore } from '../../../store/user';
 import { rememberReturnPath } from '../../../utils/authStorage';
+import { getNotifications } from '../../../services/notificationService';
 
 const theme = {
   navy: '#001f4d',
   navyDeep: '#001533',
   navyPanel: 'rgba(255,255,255,0.10)',
   gold: '#D99A00',
+  teal: '#0E8C80',
   red: '#F04438'
 };
 
-const primaryItems = [
-  { label: 'Dashboard', value: 'Home', icon: FiGrid },
+// Same sections as the desktop sales sidebar (components/sales/Ssidebar.jsx).
+const sidebarItems = [
+  { label: 'Home', value: 'Home', icon: FiHome },
   { label: 'Followup', value: 'Followup', icon: FiUsers },
+  { label: 'Orders', value: 'Orders', icon: FiShoppingCart },
   { label: 'Tasks', value: 'Tasks', icon: FiCheckSquare },
-  { label: 'Meetings', value: 'Meetings', icon: FiBriefcase },
-  { label: 'Performance', value: 'Performance', icon: FiBarChart2 },
-  { label: 'Reports', value: 'Reports', icon: FiPieChart }
-];
-
-const secondaryItems = [
-  { label: 'Messages', value: 'Messages', icon: FiMessageSquare, badge: 3 },
-  { label: 'Notifications', value: 'Notifications', icon: FiBell, badge: 5 },
-  { label: 'Documents', value: 'Documents', icon: FiFolder }
-];
-
-const supportItems = [
-  { label: 'Settings', value: 'Settings', icon: FiSettings },
-  { label: 'Help & Support', value: 'Help', icon: FiHeadphones }
+  { label: 'Content Tracker', value: 'Content Tracker', icon: FiCalendar },
+  { label: 'Monthly Report', value: 'Monthly Report', icon: FiBarChart2 },
+  { label: 'Notice Board', value: 'Notice Board', icon: FiMessageSquare },
+  { label: 'Requests', value: 'Requests', icon: FiClipboard },
+  { label: 'Upload Documents', value: 'Upload Documents', icon: FiUploadCloud },
+  { label: 'My Warnings', value: 'My Warnings', icon: FiAlertTriangle }
 ];
 
 const clean = (value, fallback) => {
@@ -76,7 +68,7 @@ const roleLabel = (value = '') => (
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 );
 
-const SidebarItem = ({ item, isActive, onClick, danger = false }) => (
+const SidebarItem = ({ item, isActive, onClick, danger = false, badge = 0 }) => (
   <Box as="button" type="button" w="100%" textAlign="left" onClick={onClick}>
     <Flex
       align="center"
@@ -95,8 +87,8 @@ const SidebarItem = ({ item, isActive, onClick, danger = false }) => (
           w="28px"
           h="28px"
           borderRadius={isActive ? '9px' : '8px'}
-          bg={isActive ? theme.gold : 'transparent'}
-          color={isActive ? theme.navy : danger ? theme.red : 'white'}
+          bg={isActive ? theme.teal : 'transparent'}
+          color={danger ? theme.red : 'white'}
         >
           <Icon as={item.icon} boxSize={5} strokeWidth={isActive ? 2.7 : 2.2} />
         </Center>
@@ -104,9 +96,9 @@ const SidebarItem = ({ item, isActive, onClick, danger = false }) => (
           {item.label}
         </Text>
       </HStack>
-      {item.badge && (
+      {badge > 0 && (
         <Badge
-          bg="#237BFF"
+          bg={theme.red}
           color="white"
           borderRadius="full"
           minW="22px"
@@ -117,7 +109,7 @@ const SidebarItem = ({ item, isActive, onClick, danger = false }) => (
           fontSize="10px"
           fontWeight="900"
         >
-          {item.badge}
+          {badge}
         </Badge>
       )}
     </Flex>
@@ -131,6 +123,18 @@ const MobileSalesSidebar = ({ isOpen, onClose, activeItem, onNavigate }) => {
   const clearUser = useUserStore((state) => state.clearUser);
   const navigate = useNavigate();
   const location = useLocation();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Unread broadcast messages, counted the same way as the desktop sidebar.
+  useEffect(() => {
+    if (!isOpen) return;
+    getNotifications()
+      .then((data) => {
+        const broadcasts = (Array.isArray(data) ? data : []).filter((msg) => msg.type === 'general');
+        setUnreadCount(broadcasts.filter((msg) => !msg.read).length);
+      })
+      .catch((err) => console.error('Error fetching notification count:', err));
+  }, [isOpen]);
 
   const fullName = clean(
     currentUser?.fullName || currentUser?.name || currentUser?.username || localStorage.getItem('userName'),
@@ -199,16 +203,14 @@ const MobileSalesSidebar = ({ isOpen, onClose, activeItem, onNavigate }) => {
             </HStack>
 
             <Box>
-              {primaryItems.map((item) => (
-                <SidebarItem key={item.value} item={item} isActive={activeItem === item.value} onClick={() => goTo(item.value)} />
-              ))}
-              <SectionDivider />
-              {secondaryItems.map((item) => (
-                <SidebarItem key={item.value} item={item} isActive={activeItem === item.value} onClick={() => goTo(item.value)} />
-              ))}
-              <SectionDivider />
-              {supportItems.map((item) => (
-                <SidebarItem key={item.value} item={item} isActive={activeItem === item.value} onClick={() => goTo(item.value)} />
+              {sidebarItems.map((item) => (
+                <SidebarItem
+                  key={item.value}
+                  item={item}
+                  isActive={activeItem === item.value}
+                  badge={item.value === 'Notice Board' ? unreadCount : 0}
+                  onClick={() => goTo(item.value)}
+                />
               ))}
               <SectionDivider />
               <SidebarItem item={{ label: 'Log Out', icon: FiLogOut }} danger onClick={logout} />
