@@ -17,6 +17,7 @@ import {
   HStack,
   Icon,
   IconButton,
+  Image,
   Input,
   InputGroup,
   InputLeftElement,
@@ -63,6 +64,7 @@ import {
 } from 'react-icons/fi';
 import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer, sendCustomerEmail, sendCustomerSms } from '../../services/customerService';
 import { fetchExternalCourses } from '../../services/api';
+import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
 import {
   fetchPackageSales,
   createPackageSale,
@@ -161,6 +163,32 @@ const buildCustomerDetailForm = (customer = {}) => ({
   schedulePreference: customer.schedulePreference || customer.schedule || 'Regular',
   packageScope: customer.packageScope || 'Local',
   note: customer.note || ''
+});
+
+const emptyCompletionSlip = { paymentScreenshot: '', paymentBank: '' };
+
+// Reads a payment slip photo as a compressed JPEG data URL.
+const readSlipImage = (file) => new Promise((resolve, reject) => {
+  if (!file?.type?.startsWith('image/')) {
+    reject(new Error('Please upload a valid image file (JPEG, PNG, WEBP).'));
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const scale = Math.min(1, 900 / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => reject(new Error('Failed to parse image.'));
+    img.src = event.target.result;
+  };
+  reader.onerror = () => reject(new Error('Failed to read file.'));
+  reader.readAsDataURL(file);
 });
 
 const buildDefaultEmailForm = (customer = {}) => ({
@@ -415,6 +443,7 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [detailForm, setDetailForm] = useState(emptyTrainingForm);
   const [savingDetail, setSavingDetail] = useState(false);
+  const [completionSlip, setCompletionSlip] = useState(emptyCompletionSlip);
   const [detailEditMode, setDetailEditMode] = useState(false);
   const [detailTab, setDetailTab] = useState('activity');
   const [emailForm, setEmailForm] = useState(emptyEmailForm);
@@ -597,6 +626,23 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
   };
   const modalTitle = section === 'packages' ? 'Add Package Sale' : 'Add Training Follow-up';
   const detailCourseOptions = getCourseOptions(courses, detailForm.contactTitle);
+  // Completing a follow-up requires a payment slip (one on the student registration also counts).
+  const needsCompletionSlip = detailEditMode
+    && normalizeStatus(detailForm.followupStatus) === 'completed'
+    && normalizeStatus(selectedCustomer?.followupStatus) !== 'completed';
+  const slipRequired = needsCompletionSlip && !selectedCustomer?.hasPaymentScreenshot;
+
+  const handleSlipFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const paymentScreenshot = await readSlipImage(file);
+      setCompletionSlip((prev) => ({ ...prev, paymentScreenshot }));
+    } catch (error) {
+      toast({ title: 'Could not read slip', description: error.message, status: 'error', duration: 3200 });
+    }
+  };
   const trainingCourseOptions = getCourseOptions(courses, trainingForm.contactTitle);
   const selectedPackageContact = buildPackageContact(selectedPackageSale || {});
 
@@ -618,6 +664,7 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
   const handleOpenDetail = (customer, { edit = false } = {}) => {
     setSelectedCustomer(customer);
     setDetailForm(buildCustomerDetailForm(customer));
+    setCompletionSlip({ paymentScreenshot: '', paymentBank: customer.paymentBank || '' });
     setDetailEditMode(edit);
     setDetailTab(edit ? 'about' : 'activity');
     setEmailForm(buildDefaultEmailForm(customer));
@@ -866,9 +913,22 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
     if (!selectedCustomer?._id && !selectedCustomer?.id) return;
     if (!detailEditMode) return;
 
+    if (needsCompletionSlip && !completionSlip.paymentBank.trim()) {
+      toast({ title: 'Payment Bank Required', description: 'Please select a bank for completed followups.', status: 'warning', duration: 3500 });
+      return;
+    }
+    if (slipRequired && !completionSlip.paymentScreenshot) {
+      toast({ title: 'Payment Slip Required', description: 'Please upload the payment bank slip / screenshot before marking as Completed.', status: 'warning', duration: 3500 });
+      return;
+    }
+
     const customerId = selectedCustomer._id || selectedCustomer.id;
     const selectedCourse = courses.find((course) => course.name === detailForm.contactTitle);
     const payload = {
+      ...(needsCompletionSlip ? {
+        paymentBank: completionSlip.paymentBank,
+        ...(completionSlip.paymentScreenshot ? { paymentScreenshot: completionSlip.paymentScreenshot } : {})
+      } : {}),
       ...detailForm,
       customerName: detailForm.customerName.trim() || detailForm.contactTitle || 'New Customer',
       contactTitle: detailForm.contactTitle,
@@ -1592,6 +1652,45 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
                     </Select>
                   </FormControl>
                 </SimpleGrid>
+                {needsCompletionSlip && (
+                  <VStack align="stretch" spacing={3} p={3} borderRadius="12px" border="1px solid" borderColor="teal.200" bg="teal.50">
+                    <Text fontSize="12px" color="teal.800" fontWeight="800">
+                      {slipRequired
+                        ? 'The payment slip is required to complete this follow-up.'
+                        : 'A payment slip is already on the student registration.'}
+                    </Text>
+                    <FormControl isRequired>
+                      <FormLabel fontSize="12px" color="#334155" fontWeight="800">Payment Bank</FormLabel>
+                      <Select
+                        value={completionSlip.paymentBank}
+                        onChange={(event) => setCompletionSlip((prev) => ({ ...prev, paymentBank: event.target.value }))}
+                        placeholder="Select bank"
+                        bg="white"
+                        h="44px"
+                        borderRadius="12px"
+                      >
+                        {ETHIOPIAN_BANKS.map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                      </Select>
+                    </FormControl>
+                    <FormControl isRequired={slipRequired}>
+                      <FormLabel fontSize="12px" color="#334155" fontWeight="800">Payment Slip</FormLabel>
+                      {completionSlip.paymentScreenshot && (
+                        <Image src={completionSlip.paymentScreenshot} alt="Payment slip" maxH="160px" objectFit="contain" borderRadius="10px" mb={2} bg="white" />
+                      )}
+                      <HStack spacing={2}>
+                        <Button as="label" flex={1} h="44px" borderRadius="12px" bg="white" border="1px solid" borderColor="teal.300" color="teal.700" cursor="pointer">
+                          {completionSlip.paymentScreenshot ? 'Replace slip' : 'Upload slip'}
+                          <Input type="file" accept="image/*" display="none" onChange={handleSlipFile} />
+                        </Button>
+                        {completionSlip.paymentScreenshot && (
+                          <Button h="44px" borderRadius="12px" variant="ghost" colorScheme="red" onClick={() => setCompletionSlip((prev) => ({ ...prev, paymentScreenshot: '' }))}>
+                            Remove
+                          </Button>
+                        )}
+                      </HStack>
+                    </FormControl>
+                  </VStack>
+                )}
                 <SimpleGrid columns={2} spacing={3}>
                   <FormControl>
                     <FormLabel fontSize="12px" color="#334155" fontWeight="800">Schedule</FormLabel>
@@ -2354,7 +2453,6 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
                     <Select name="followupStatus" value={trainingForm.followupStatus} onChange={handleTrainingChange} bg="white" h="44px" borderRadius="12px">
                       <option value="Prospect">Prospect</option>
                       <option value="Pending">Pending</option>
-                      <option value="Completed">Completed</option>
                       <option value="Scheduled">Scheduled</option>
                       <option value="Cancelled">Cancelled</option>
                       <option value="Imported">Imported</option>

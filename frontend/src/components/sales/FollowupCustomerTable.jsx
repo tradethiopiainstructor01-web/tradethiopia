@@ -898,6 +898,17 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       return;
     }
 
+    if (newCustomerData.followupStatus === 'Completed') {
+      toast({
+        title: 'Payment Slip Required',
+        description: 'Add the customer first, then mark the follow-up Completed and upload the payment slip.',
+        status: 'warning',
+        duration: 4000,
+        isClosable: true
+      });
+      return;
+    }
+
     const newCustomer = newCustomerData;
     // If the new customer has a "Completed" status, calculate commission
     let customerToAdd = { ...newCustomer };
@@ -1660,7 +1671,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 >
                   <option value="Pending">Pending</option>
                   <option value="Prospect">Prospect</option>
-                  <option value="Completed">Completed</option>
                   <option value="Scheduled">Scheduled</option>
                   <option value="Cancelled">Cancelled</option>
                   <option value="Imported">Imported</option>

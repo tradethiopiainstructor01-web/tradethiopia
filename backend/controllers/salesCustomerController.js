@@ -128,6 +128,20 @@ const isRealSlipExpression = (field) => ({
   ],
 });
 
+const PAYMENT_SLIP_REQUIRED_MESSAGE = 'A payment slip is required to complete this follow-up. Please upload the payment bank slip / screenshot.';
+const isCompletedStatus = (value) => (value || '').toString().trim().toLowerCase() === 'completed';
+
+// A sale has a payment slip when it holds a real one, or its linked student
+// registration does.
+const saleHasPaymentSlip = async (customer) => {
+  if (isRealSlip(customer.paymentScreenshot)) return true;
+  if (!customer.studentRegistrationId) return false;
+  const registration = await StudentRegistration.findById(customer.studentRegistrationId)
+    .select('+paymentScreenshot')
+    .lean();
+  return isRealSlip(registration?.paymentScreenshot);
+};
+
 const generateStudentRegistrationId = async () => {
   const prefix = 'CS-STU-';
   const latestStudent = await StudentRegistration.findOne({
@@ -750,6 +764,11 @@ const createCustomer = asyncHandler(async (req, res) => {
   const resolvedCallStatus = callStatus || 'Not Called';
   const resolvedFollowupStatus = followupStatus || 'Pending';
 
+  if (isCompletedStatus(resolvedFollowupStatus) && !isRealSlip(paymentScreenshot)) {
+    res.status(400);
+    throw new Error(PAYMENT_SLIP_REQUIRED_MESSAGE);
+  }
+
   const normalizedRole = normalizeRoleValue(req.user.role);
   const isReception = normalizedRole === 'reception';
   const assignedAgentId = isReception ? null : req.user.id;
@@ -894,6 +913,12 @@ const updateCustomer = asyncHandler(async (req, res) => {
     customer.commission = calculateCommission(customer.coursePrice);
   }
   if (packageScope !== undefined) customer.packageScope = packageScope;
+
+  // Completing a follow-up requires the payment slip.
+  if (!wasCompleted && isCompletedStatus(customer.followupStatus) && !(await saleHasPaymentSlip(customer))) {
+    res.status(400);
+    throw new Error(PAYMENT_SLIP_REQUIRED_MESSAGE);
+  }
 
   const updatedCustomer = await customer.save();
   logSalesActivity({ action: 'updated', before, after: snapshotSale(updatedCustomer), user: req.user });

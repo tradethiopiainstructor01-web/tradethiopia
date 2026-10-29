@@ -265,7 +265,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
       setCustomers((previous) => previous.filter((customer) => customer.id !== temporaryId));
       toast({
         title: "Error adding customer",
-        description: err.message || "Failed to add customer",
+        description: err.response?.data?.message || err.message || "Failed to add customer",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -327,7 +327,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
       if (previousCustomers) setCustomers(previousCustomers);
       toast({
         title: "Error updating customer",
-        description: err.message || "Failed to update customer",
+        description: err.response?.data?.message || err.message || "Failed to update customer",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -583,7 +583,8 @@ const FollowupPage = ({ documentsOnly = false }) => {
       note: noteRaw ? noteRaw.toString().trim() : undefined,
       supervisorComment: supervisorCommentRaw ? supervisorCommentRaw.toString().trim() : undefined,
       callStatus: normalizeEnumValue(callStatusRaw, ['Called', 'Not Called', 'Busy', 'No Answer', 'Callback', '2x Called']),
-      followupStatus: normalizeEnumValue(followupStatusRaw, ['Prospect', 'Pending', 'Completed', 'Scheduled', 'Cancelled']),
+      // Imports carry no payment slip, so completed rows come in as Pending.
+      followupStatus: normalizeEnumValue(followupStatusRaw, ['Prospect', 'Pending', 'Scheduled', 'Cancelled']),
       schedulePreference: normalizeEnumValue(scheduleRaw, ['Regular', 'Weekend', 'Night', 'Online']),
       packageScope: normalizeEnumValue(packageScopeRaw, ['Local', 'International']),
       pipelineStatus: normalizeEnumValue(pipelineStatusRaw, ['New', 'Pending Assignment', 'Assigned', 'In Progress', 'Closed']),
