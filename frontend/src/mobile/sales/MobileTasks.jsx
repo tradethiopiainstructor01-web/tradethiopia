@@ -7,8 +7,6 @@ import {
   CircularProgress,
   CircularProgressLabel,
   Flex,
-  FormControl,
-  FormLabel,
   HStack,
   Icon,
   IconButton,
@@ -21,11 +19,9 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
-  Select,
   SimpleGrid,
   Spinner,
   Text,
-  Textarea,
   useDisclosure,
   useToast,
   VStack
@@ -34,23 +30,9 @@ import {
   FiArrowLeft,
   FiCalendar,
   FiCheckCircle,
-  FiEdit3,
-  FiPlus,
-  FiSearch,
-  FiTrash2
+  FiSearch
 } from 'react-icons/fi';
-import { createTask, deleteTask, getMyTasks, getTaskStats, updateTask } from '../../services/taskService';
-
-const emptyTaskForm = {
-  title: '',
-  description: '',
-  dueDate: '',
-  priority: 'Medium',
-  status: 'Pending'
-};
-
-const statusOptions = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
-const priorityOptions = ['Low', 'Medium', 'High', 'Urgent'];
+import { getMyTasks, getTaskStats, updateTask } from '../../services/taskService';
 
 const theme = {
   navy: '#001f4d',
@@ -69,15 +51,6 @@ const formatDate = (value) => {
   if (Number.isNaN(date.getTime())) return 'N/A';
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 };
-
-const dateInputValue = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
-};
-
-const todayInputValue = () => new Date().toISOString().slice(0, 10);
 
 const getTaskId = (task) => task?._id || task?.id;
 
@@ -122,14 +95,6 @@ const isDueToday = (task) => {
   const today = new Date();
   return due.toDateString() === today.toDateString();
 };
-
-const normalizeTaskForm = (task = {}) => ({
-  title: task.title || '',
-  description: task.description || '',
-  dueDate: dateInputValue(task.dueDate),
-  priority: task.priority || 'Medium',
-  status: task.status || 'Pending'
-});
 
 const TaskProgressCard = ({ stats }) => {
   const total = Number(stats.totalTasks || 0);
@@ -210,35 +175,20 @@ const MobileTaskCard = ({ task, onOpen, onStatus }) => {
           {overdue && <Badge bg="#FEECEC" color="#CC2C2C" borderRadius="8px" px={2} py={1} textTransform="none" fontSize="10px">Overdue</Badge>}
           {dueToday && !overdue && <Badge bg={theme.goldSoft} color={theme.gold} borderRadius="8px" px={2} py={1} textTransform="none" fontSize="10px">Today</Badge>}
         </HStack>
-        <HStack spacing={2}>
-          <IconButton
-            aria-label="Edit task"
-            icon={<FiEdit3 />}
-            size="sm"
-            minW="32px"
-            h="32px"
-            borderRadius="9px"
-            variant="outline"
-            color={theme.navy}
-            borderColor={theme.border}
-            onClick={() => onOpen(task, true)}
-          />
-        </HStack>
       </Flex>
     </Box>
   );
 };
 
-const MobileTasks = ({ openAddSignal = 0 }) => {
+// Salespeople can only view tasks and change their status, as on desktop (components/sales/TaskDashboard.jsx).
+const MobileTasks = () => {
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState({ totalTasks: 0, completedTasks: 0, pendingTasks: 0, overdueTasks: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('active');
   const [selectedTask, setSelectedTask] = useState(null);
-  const [taskForm, setTaskForm] = useState(emptyTaskForm);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const toast = useToast();
   const taskDisclosure = useDisclosure();
 
@@ -267,12 +217,6 @@ const MobileTasks = ({ openAddSignal = 0 }) => {
     loadTasks();
   }, []);
 
-  useEffect(() => {
-    if (openAddSignal > 0) {
-      openTask();
-    }
-  }, [openAddSignal]);
-
   const filteredTasks = useMemo(() => {
     const query = search.trim().toLowerCase();
     return tasks.filter((task) => {
@@ -291,28 +235,15 @@ const MobileTasks = ({ openAddSignal = 0 }) => {
     });
   }, [tasks, search, filter]);
 
-  const openTask = (task = null, edit = false) => {
+  const openTask = (task) => {
     setSelectedTask(task);
-    setTaskForm(task ? normalizeTaskForm(task) : { ...emptyTaskForm, dueDate: todayInputValue() });
     taskDisclosure.onOpen();
-    if (edit) {
-      setTimeout(() => {
-        const input = document.querySelector('[name="title"]');
-        input?.focus?.();
-      }, 100);
-    }
   };
 
   const closeTask = () => {
-    if (saving || deleting) return;
+    if (updating) return;
     taskDisclosure.onClose();
     setSelectedTask(null);
-    setTaskForm(emptyTaskForm);
-  };
-
-  const handleFormChange = (event) => {
-    const { name, value } = event.target;
-    setTaskForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const updateLocalTask = (updatedTask) => {
@@ -329,11 +260,13 @@ const MobileTasks = ({ openAddSignal = 0 }) => {
   };
 
   const handleStatusChange = async (task, status) => {
+    setUpdating(true);
     try {
       const updated = await updateTask(getTaskId(task), { status });
       updateLocalTask(updated);
+      if (selectedTask && getTaskId(selectedTask) === getTaskId(task)) setSelectedTask(updated);
       await refreshStats();
-      toast({ title: 'Task updated', status: 'success', duration: 2200 });
+      toast({ title: 'Task updated', description: `Task status has been updated to ${status}`, status: 'success', duration: 2200, position: 'top' });
     } catch (error) {
       toast({
         title: 'Could not update task',
@@ -341,59 +274,8 @@ const MobileTasks = ({ openAddSignal = 0 }) => {
         status: 'error',
         duration: 3200
       });
-    }
-  };
-
-  const handleSaveTask = async (event) => {
-    event.preventDefault();
-    const userId = localStorage.getItem('userId');
-    setSaving(true);
-    try {
-      if (selectedTask) {
-        const updated = await updateTask(getTaskId(selectedTask), taskForm);
-        updateLocalTask(updated);
-        toast({ title: 'Task saved', status: 'success', duration: 2200 });
-      } else {
-        if (!userId) throw new Error('Could not determine current user');
-        const created = await createTask({
-          ...taskForm,
-          assignedTo: userId
-        });
-        setTasks((prev) => [created, ...prev]);
-        toast({ title: 'Task created', status: 'success', duration: 2200 });
-      }
-      await refreshStats();
-      closeTask();
-    } catch (error) {
-      toast({
-        title: selectedTask ? 'Could not save task' : 'Could not create task',
-        description: error.response?.data?.message || error.message,
-        status: 'error',
-        duration: 3600
-      });
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteTask = async () => {
-    if (!selectedTask) return;
-    setDeleting(true);
-    try {
-      await deleteTask(getTaskId(selectedTask));
-      setTasks((prev) => prev.filter((task) => getTaskId(task) !== getTaskId(selectedTask)));
-      await refreshStats();
-      toast({ title: 'Task deleted', status: 'success', duration: 2200 });
-      closeTask();
-    } catch (error) {
-      toast({
-        title: 'Could not delete task',
-        description: error.response?.data?.message || error.message,
-        status: 'error',
-        duration: 3200
-      });
-    } finally {
-      setDeleting(false);
+      setUpdating(false);
     }
   };
 
@@ -462,17 +344,6 @@ const MobileTasks = ({ openAddSignal = 0 }) => {
             <Text fontSize="13px" color={theme.ink} fontWeight="900">
               {filteredTasks.length} tasks
             </Text>
-            <Button
-              size="sm"
-              leftIcon={<FiPlus />}
-              borderRadius="10px"
-              bg={theme.gold}
-              color="white"
-              _hover={{ bg: '#C98D00' }}
-              onClick={() => openTask()}
-            >
-              New
-            </Button>
           </Flex>
 
           {filteredTasks.length === 0 ? (
@@ -482,7 +353,7 @@ const MobileTasks = ({ openAddSignal = 0 }) => {
               </Center>
               <Text color={theme.ink} fontSize="16px" fontWeight="900">No tasks here</Text>
               <Text color={theme.muted} fontSize="12px" fontWeight="700" mt={1}>
-                Try another filter or create a new task.
+                Try another filter.
               </Text>
             </Box>
           ) : (
@@ -498,88 +369,57 @@ const MobileTasks = ({ openAddSignal = 0 }) => {
         </VStack>
       )}
 
-      <IconButton
-        aria-label="Create task"
-        icon={<FiPlus />}
-        position="fixed"
-        right={5}
-        bottom="86px"
-        size="lg"
-        borderRadius="full"
-        bg={theme.gold}
-        color="white"
-        boxShadow="0 14px 30px rgba(217, 154, 0, 0.38)"
-        _hover={{ bg: '#C98D00' }}
-        onClick={() => openTask()}
-      />
-
       <Modal isOpen={taskDisclosure.isOpen} onClose={closeTask} size="full" motionPreset="slideInBottom">
         <ModalOverlay bg="rgba(15, 23, 42, 0.42)" />
-        <ModalContent as="form" onSubmit={handleSaveTask} mt="auto" mb={0} mx={0} maxH="90vh" borderTopRadius="24px" borderBottomRadius={0} bg={theme.page} overflow="hidden">
-          <ModalHeader px={5} pt={5} pb={4} bg={theme.navy} color="white">
-            <Flex align="center" justify="space-between" gap={3}>
-              <HStack minW={0} spacing={3}>
-                <IconButton aria-label="Close task" icon={<FiArrowLeft />} variant="ghost" color="white" fontSize="22px" onClick={closeTask} _hover={{ bg: 'whiteAlpha.200' }} />
-                <Box minW={0}>
-                  <Text fontSize="20px" color="white" fontWeight="900">{selectedTask ? 'Task Details' : 'New Task'}</Text>
-                  <Text fontSize="12px" color="rgba(255,255,255,0.72)" fontWeight="700" noOfLines={1}>
-                    {selectedTask ? `Due ${formatDate(selectedTask.dueDate)}` : 'Create a task for your sales work.'}
-                  </Text>
-                </Box>
-              </HStack>
-              {selectedTask && (
-                <IconButton
-                  aria-label="Delete task"
-                  icon={<FiTrash2 />}
-                  variant="ghost"
-                  color="#FFB4B4"
-                  _hover={{ bg: 'whiteAlpha.200' }}
-                  isLoading={deleting}
-                  onClick={handleDeleteTask}
-                />
-              )}
-            </Flex>
+        <ModalContent mt="auto" mb={0} mx={0} maxH="90vh" borderTopRadius="20px" borderBottomRadius={0} bg="white" overflow="hidden">
+          <ModalHeader px={4} pt={4} pb={3} borderBottomWidth="1px" borderBottomColor={theme.border}>
+            <HStack spacing={2}>
+              <IconButton aria-label="Close task" icon={<FiArrowLeft />} variant="ghost" color={theme.ink} fontSize="20px" onClick={closeTask} />
+              <Text fontSize="18px" color={theme.ink} fontWeight="800">Task Details</Text>
+            </HStack>
           </ModalHeader>
 
           <ModalBody px={5} py={4} overflowY="auto">
-            <VStack align="stretch" spacing={4}>
-              <FormControl isRequired>
-                <FormLabel fontSize="12px" color={theme.ink} fontWeight="900">Title</FormLabel>
-                <Input name="title" value={taskForm.title} onChange={handleFormChange} bg="white" h="46px" borderRadius="12px" borderColor={theme.border} color={theme.ink} fontWeight="800" />
-              </FormControl>
-              <FormControl isRequired>
-                <FormLabel fontSize="12px" color={theme.ink} fontWeight="900">Description</FormLabel>
-                <Textarea name="description" value={taskForm.description} onChange={handleFormChange} bg="white" borderRadius="12px" borderColor={theme.border} color={theme.ink} fontWeight="700" rows={5} />
-              </FormControl>
-              <SimpleGrid columns={2} spacing={3}>
-                <FormControl isRequired>
-                  <FormLabel fontSize="12px" color={theme.ink} fontWeight="900">Due date</FormLabel>
-                  <Input name="dueDate" type="date" min={todayInputValue()} value={taskForm.dueDate} onChange={handleFormChange} bg="white" h="44px" borderRadius="12px" borderColor={theme.border} color={theme.ink} fontWeight="800" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel fontSize="12px" color={theme.ink} fontWeight="900">Priority</FormLabel>
-                  <Select name="priority" value={taskForm.priority} onChange={handleFormChange} bg="white" h="44px" borderRadius="12px" borderColor={theme.border} color={theme.ink} fontWeight="800">
-                    {priorityOptions.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
-                  </Select>
-                </FormControl>
-              </SimpleGrid>
-              <FormControl>
-                <FormLabel fontSize="12px" color={theme.ink} fontWeight="900">Status</FormLabel>
-                <Select name="status" value={taskForm.status} onChange={handleFormChange} bg="white" h="44px" borderRadius="12px" borderColor={theme.border} color={theme.ink} fontWeight="800">
-                  {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
-                </Select>
-              </FormControl>
-            </VStack>
+            {selectedTask && (
+              <VStack align="stretch" spacing={4}>
+                <Text fontSize="17px" color={theme.ink} fontWeight="800">{selectedTask.title}</Text>
+                {selectedTask.description && (
+                  <Text fontSize="14px" color={theme.muted} whiteSpace="pre-wrap">{selectedTask.description}</Text>
+                )}
+                <SimpleGrid columns={3} spacing={2}>
+                  {[
+                    ['Due date', formatDate(selectedTask.dueDate)],
+                    ['Priority', selectedTask.priority || 'N/A'],
+                    ['Status', selectedTask.status || 'N/A']
+                  ].map(([label, value]) => (
+                    <Box key={label} p={2.5} borderRadius="10px" borderWidth="1px" borderColor={theme.border}>
+                      <Text fontSize="11px" color={theme.muted}>{label}</Text>
+                      <Text fontSize="13px" color={theme.ink} fontWeight="700" noOfLines={1}>{value}</Text>
+                    </Box>
+                  ))}
+                </SimpleGrid>
+              </VStack>
+            )}
           </ModalBody>
 
-          <ModalFooter px={5} py={4} gap={3} bg="white" borderTopWidth="1px" borderTopColor={theme.border}>
-            <Button flex={1} h="46px" borderRadius="12px" variant="ghost" color={theme.muted} onClick={closeTask} isDisabled={saving}>
-              Cancel
-            </Button>
-            <Button flex={1} h="46px" borderRadius="12px" bg={theme.gold} color="white" _hover={{ bg: '#C98D00' }} type="submit" isLoading={saving}>
-              {selectedTask ? 'Save' : 'Create'}
-            </Button>
-          </ModalFooter>
+          {selectedTask && (
+            <ModalFooter px={5} py={4} gap={3} borderTopWidth="1px" borderTopColor={theme.border}>
+              {isOverdue(selectedTask) && selectedTask.status !== 'Cancelled' && (
+                <Button flex={1} h="44px" variant="outline" colorScheme="red" isDisabled={updating} onClick={() => handleStatusChange(selectedTask, 'Cancelled')}>
+                  Cancel Task
+                </Button>
+              )}
+              {selectedTask.status === 'Completed' ? (
+                <Button flex={1} h="44px" variant="outline" isLoading={updating} onClick={() => handleStatusChange(selectedTask, 'Pending')}>
+                  Reopen Task
+                </Button>
+              ) : (
+                <Button flex={1} h="44px" bg="#0E8C80" color="white" _hover={{ bg: '#0A6F66' }} isLoading={updating} onClick={() => handleStatusChange(selectedTask, 'Completed')}>
+                  Mark Complete
+                </Button>
+              )}
+            </ModalFooter>
+          )}
         </ModalContent>
       </Modal>
     </Box>
