@@ -1671,7 +1671,7 @@ const FollowupCompletedTable = ({
 
                       <FormControl>
                         <FormLabel fontSize="xs" fontWeight="bold">
-                          FS Number
+                          FS Number <Text as="span" fontWeight="normal" color="gray.500">(optional)</Text>
                         </FormLabel>
                         <Input
                           placeholder="e.g. FS-12345678"
