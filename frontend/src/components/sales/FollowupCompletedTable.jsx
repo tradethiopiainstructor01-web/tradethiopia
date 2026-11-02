@@ -84,10 +84,42 @@ import {
   FiTrash2,
   FiEye,
   FiAlertCircle,
-  FiDownload
+  FiDownload,
+  FiMessageSquare,
+  FiSend,
+  FiExternalLink
 } from 'react-icons/fi';
 import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
 import { hasBankSlip, isMissingDocuments, withDocuments } from '../../utils/salesDocuments';
+import { sendCustomerSms } from '../../services/customerService';
+
+const SMS_CATEGORIES = [
+  {
+    key: 'Training',
+    label: 'Training',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for contacting Trade Ethiopia. We offer practical, market-leading training programs to accelerate your career and business. Contact us to learn more!`
+  },
+  {
+    key: 'E-Commerce',
+    label: 'E-Commerce',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for reaching out to Trade Ethiopia E-Commerce. Start, manage, and scale your online business with our expert tools and training. Contact us for details!`
+  },
+  {
+    key: 'Product',
+    label: 'Product',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for your interest in Trade Ethiopia products. We connect you with verified quality products and supply networks. Reply to this message for details!`
+  },
+  {
+    key: 'Ensira',
+    label: 'Ensira',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for contacting Ensira / Trade Ethiopia. Discover verified job matchmaking, recruitment, and agribusiness opportunities with us. Reach out to get started!`
+  },
+  {
+    key: 'consultancy',
+    label: 'consultancy',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for reaching out to Trade Ethiopia Consultancy. Our specialists offer business strategy, market expansion, and trade advisory. Contact us to schedule a session!`
+  }
+];
 
 const formatCurrency = (amount) => {
   const numeric = Number(amount);
@@ -343,6 +375,126 @@ const FollowupCompletedTable = ({
   const [fullImageModal, setFullImageModal] = useState({ isOpen: false, src: '', title: '', subtitle: '' });
   const deleteCancelRef = useRef(null);
 
+  // SMS Modal State
+  const [smsModal, setSmsModal] = useState({
+    isOpen: false,
+    customer: null,
+    phone: '',
+    category: 'Training',
+    body: '',
+    sending: false
+  });
+
+  const handleOpenSmsModal = (customer, categoryKey = 'Training') => {
+    const categoryObj = SMS_CATEGORIES.find(c => c.key === categoryKey) || SMS_CATEGORIES[0];
+    const initialBody = categoryObj.template(customer?.customerName || '');
+    setSmsModal({
+      isOpen: true,
+      customer,
+      phone: customer?.phone || '',
+      category: categoryKey,
+      body: initialBody,
+      sending: false
+    });
+  };
+
+  const handleCloseSmsModal = () => {
+    setSmsModal(prev => ({ ...prev, isOpen: false, sending: false }));
+  };
+
+  const handleSmsCategoryChange = (newCategory) => {
+    const categoryObj = SMS_CATEGORIES.find(c => c.key === newCategory) || SMS_CATEGORIES[0];
+    const newBody = categoryObj.template(smsModal.customer?.customerName || '');
+    setSmsModal(prev => ({
+      ...prev,
+      category: newCategory,
+      body: newBody
+    }));
+  };
+
+  const handleSendSms = async () => {
+    if (!smsModal.customer) return;
+    const customerId = smsModal.customer._id || smsModal.customer.id;
+    if (!smsModal.phone?.trim()) {
+      toast({
+        title: 'Phone number required',
+        description: 'Please provide a valid phone number for the customer.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+    if (!smsModal.body?.trim()) {
+      toast({
+        title: 'Message required',
+        description: 'Please write an SMS message to send.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    setSmsModal(prev => ({ ...prev, sending: true }));
+    try {
+      if (smsModal.phone.trim() !== (smsModal.customer.phone || '').trim()) {
+        await onUpdate(customerId, { phone: smsModal.phone.trim() });
+      }
+
+      const result = await sendCustomerSms(customerId, {
+        body: smsModal.body.trim()
+      });
+
+      const updatedNote = smsModal.customer.note
+        ? `${smsModal.customer.note}\n\nSMS sent to ${smsModal.phone.trim()} (${smsModal.category}): ${smsModal.body.trim()}`
+        : `SMS sent to ${smsModal.phone.trim()} (${smsModal.category}): ${smsModal.body.trim()}`;
+
+      onUpdate(customerId, {
+        note: updatedNote,
+        productInterest: smsModal.category,
+        sms: smsModal.category
+      });
+
+      toast({
+        title: result?.providerConfigured ? 'SMS Sent' : 'SMS Logged',
+        description: result?.providerConfigured 
+          ? `SMS successfully sent to ${smsModal.phone.trim()}` 
+          : `SMS recorded to customer activity for ${smsModal.phone.trim()}`,
+        status: 'success',
+        duration: 4000,
+        isClosable: true
+      });
+
+      setSmsModal(prev => ({ ...prev, isOpen: false, sending: false }));
+    } catch (err) {
+      toast({
+        title: 'Failed to send SMS',
+        description: err.response?.data?.message || err.message || 'Could not send SMS.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+      setSmsModal(prev => ({ ...prev, sending: false }));
+    }
+  };
+
+  const handleOpenNativeSms = () => {
+    if (!smsModal.phone?.trim()) {
+      toast({
+        title: 'Phone number required',
+        description: 'Please enter a phone number first.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+    const cleanPhone = smsModal.phone.replace(/[^\d+]/g, '');
+    const separator = /iPad|iPhone|iPod/.test(navigator.userAgent) ? '&' : '?';
+    window.location.href = `sms:${cleanPhone}${separator}body=${encodeURIComponent(smsModal.body.trim())}`;
+  };
+
   const toast = useToast();
 
   // List rows carry document markers; load the real images before showing or editing them.
@@ -505,6 +657,7 @@ const FollowupCompletedTable = ({
       customerName: customer.customerName || '',
       contactTitle: customer.contactTitle || customer.courseName || '',
       phone: customer.phone || '',
+      sms: customer.sms || '',
       email: customer.email || '',
       callStatus: customer.callStatus || 'Called',
       followupStatus: 'Completed',
@@ -940,6 +1093,7 @@ const FollowupCompletedTable = ({
                 <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Payment Bank</Th>
                 <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Verification Proofs</Th>
                 <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Contact</Th>
+                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">SMS</Th>
                 <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Schedule</Th>
                 <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Date</Th>
                 <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase" textAlign="center">Actions</Th>
@@ -948,7 +1102,7 @@ const FollowupCompletedTable = ({
             <Tbody>
               {paginatedCompleted.length === 0 ? (
                 <Tr>
-                  <Td colSpan={8} py={12} textAlign="center">
+                  <Td colSpan={9} py={12} textAlign="center">
                     <VStack spacing={3}>
                       <Box p={3} borderRadius="full" bg="gray.100" color="gray.400">
                         <FiCheckCircle size={32} />
@@ -1164,6 +1318,56 @@ const FollowupCompletedTable = ({
                             </HStack>
                           )}
                         </VStack>
+                      </Td>
+
+                      <Td py={3} onClick={(e) => e.stopPropagation()}>
+                        <Flex align="center" gap={1}>
+                          <Select
+                            size="xs"
+                            fontSize="xs"
+                            h="26px"
+                            minH="26px"
+                            w="115px"
+                            borderRadius="md"
+                            borderColor="teal.300"
+                            _hover={{ borderColor: 'teal.500' }}
+                            bg="white"
+                            value={customer.sms || ''}
+                            cursor="pointer"
+                            onChange={async (e) => {
+                              const val = e.target.value;
+                              try {
+                                await onUpdate(customer._id || customer.id, { sms: val });
+                              } catch (err) {
+                                console.error('Failed to update SMS category:', err);
+                              }
+                              if (val) {
+                                handleOpenSmsModal(customer, val);
+                              }
+                            }}
+                          >
+                            <option value="">SMS ▾</option>
+                            {SMS_CATEGORIES.map(cat => (
+                              <option key={cat.key} value={cat.key}>
+                                {cat.label}
+                              </option>
+                            ))}
+                          </Select>
+                          {customer.sms && (
+                            <Tooltip label={`Send ${customer.sms} SMS`} hasArrow>
+                              <IconButton
+                                icon={<Icon as={FiSend} />}
+                                size="xs"
+                                h="26px"
+                                minW="26px"
+                                colorScheme="teal"
+                                variant="ghost"
+                                onClick={() => handleOpenSmsModal(customer, customer.sms)}
+                                aria-label="Send SMS"
+                              />
+                            </Tooltip>
+                          )}
+                        </Flex>
                       </Td>
 
                       <Td py={3}>
@@ -1575,7 +1779,7 @@ const FollowupCompletedTable = ({
                   </FormControl>
                 </SimpleGrid>
 
-                <SimpleGrid columns={3} spacing={4} w="100%">
+                <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={4} w="100%">
                   <FormControl>
                     <FormLabel fontSize="sm">Schedule</FormLabel>
                     <Select
@@ -1612,6 +1816,21 @@ const FollowupCompletedTable = ({
                       <option value="Busy">Busy</option>
                       <option value="No Answer">No Answer</option>
                       <option value="Not Called">Not Called</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">SMS</FormLabel>
+                    <Select
+                      value={editCustomer.sms || ''}
+                      onChange={(e) => setEditCustomer((prev) => ({ ...prev, sms: e.target.value }))}
+                    >
+                      <option value="">Select SMS</option>
+                      {SMS_CATEGORIES.map(cat => (
+                        <option key={cat.key} value={cat.key}>
+                          {cat.label}
+                        </option>
+                      ))}
                     </Select>
                   </FormControl>
                 </SimpleGrid>
@@ -1671,7 +1890,7 @@ const FollowupCompletedTable = ({
 
                       <FormControl>
                         <FormLabel fontSize="xs" fontWeight="bold">
-                          FS Number
+                          FS Number <Text as="span" fontWeight="normal" color="gray.500">(optional)</Text>
                         </FormLabel>
                         <Input
                           placeholder="e.g. FS-12345678"
@@ -1874,6 +2093,98 @@ const FollowupCompletedTable = ({
               onClick={() => setFullImageModal({ isOpen: false, src: '', title: '', subtitle: '' })}
             >
               Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Send SMS Modal */}
+      <Modal isOpen={smsModal.isOpen} onClose={handleCloseSmsModal} size="lg" isCentered>
+        <ModalOverlay />
+        <ModalContent borderRadius="xl" overflow="hidden">
+          <ModalHeader bg="teal.600" color="white" py={4}>
+            <Flex align="center" gap={2}>
+              <Icon as={FiMessageSquare} boxSize={5} />
+              <Box>
+                <Text fontSize="md" fontWeight="bold">Send SMS to Customer</Text>
+                <Text fontSize="xs" fontWeight="normal" color="teal.100">
+                  {smsModal.customer?.customerName || 'Customer'}
+                </Text>
+              </Box>
+            </Flex>
+          </ModalHeader>
+          <ModalCloseButton color="white" />
+          <ModalBody py={5} px={6}>
+            <VStack spacing={4} align="stretch">
+              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
+                <FormControl isRequired>
+                  <FormLabel fontSize="xs" fontWeight="bold">Customer Phone</FormLabel>
+                  <Input
+                    size="sm"
+                    borderRadius="md"
+                    value={smsModal.phone}
+                    onChange={(e) => setSmsModal(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="e.g. +251911234567"
+                  />
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel fontSize="xs" fontWeight="bold">SMS Category</FormLabel>
+                  <Select
+                    size="sm"
+                    borderRadius="md"
+                    value={smsModal.category}
+                    onChange={(e) => handleSmsCategoryChange(e.target.value)}
+                  >
+                    {SMS_CATEGORIES.map(cat => (
+                      <option key={cat.key} value={cat.key}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              </SimpleGrid>
+
+              <FormControl isRequired>
+                <Flex justify="space-between" align="center" mb={1}>
+                  <FormLabel fontSize="xs" fontWeight="bold" mb={0}>
+                    Message Body
+                  </FormLabel>
+                  <Text fontSize="2xs" color={smsModal.body.length > 160 ? 'orange.500' : 'gray.500'}>
+                    {smsModal.body.length} characters ({Math.max(1, Math.ceil(smsModal.body.length / 160))} SMS)
+                  </Text>
+                </Flex>
+                <Textarea
+                  size="sm"
+                  rows={4}
+                  borderRadius="md"
+                  value={smsModal.body}
+                  onChange={(e) => setSmsModal(prev => ({ ...prev, body: e.target.value }))}
+                  placeholder="Enter SMS message body..."
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter bg="gray.50" borderTopWidth="1px" borderColor="gray.200" gap={2}>
+            <Button variant="ghost" size="sm" onClick={handleCloseSmsModal}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              colorScheme="teal"
+              size="sm"
+              leftIcon={<Icon as={FiExternalLink} />}
+              onClick={handleOpenNativeSms}
+            >
+              Open in SMS App
+            </Button>
+            <Button
+              colorScheme="teal"
+              size="sm"
+              leftIcon={<Icon as={FiSend} />}
+              isLoading={smsModal.sending}
+              onClick={handleSendSms}
+            >
+              Send SMS
             </Button>
           </ModalFooter>
         </ModalContent>

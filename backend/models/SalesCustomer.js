@@ -38,6 +38,10 @@ const salesCustomerSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  sms: {
+    type: String,
+    default: ''
+  },
   pipelineStatus: {
     type: String,
     enum: WORKFLOW_STATUSES,
