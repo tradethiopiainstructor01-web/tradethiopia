@@ -70,10 +70,14 @@ import {
   FiAlertCircle,
   FiDownload,
   FiFileText,
-  FiAward
+  FiAward,
+  FiMessageSquare,
+  FiSend,
+  FiExternalLink
 } from 'react-icons/fi';
 import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
 import { withDocuments } from '../../utils/salesDocuments';
+import { sendCustomerSms } from '../../services/customerService';
 
 const processImageFile = (file) => {
   return new Promise((resolve, reject) => {
@@ -278,12 +282,41 @@ const ImageUploadCard = ({
 };
 
 const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
-const TABLE_PREF_VERSION = 3;
+const TABLE_PREF_VERSION = 4;
 const VIEW_PREF_KEY = 'salesFollowupCustomerViewMode';
+const SMS_CATEGORIES = [
+  {
+    key: 'Training',
+    label: 'Training',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for contacting Trade Ethiopia. We offer practical, market-leading training programs to accelerate your career and business. Contact us to learn more!`
+  },
+  {
+    key: 'E-Commerce',
+    label: 'E-Commerce',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for reaching out to Trade Ethiopia E-Commerce. Start, manage, and scale your online business with our expert tools and training. Contact us for details!`
+  },
+  {
+    key: 'Product',
+    label: 'Product',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for your interest in Trade Ethiopia products. We connect you with verified quality products and supply networks. Reply to this message for details!`
+  },
+  {
+    key: 'Ensira',
+    label: 'Ensira',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for contacting Ensira / Trade Ethiopia. Discover verified job matchmaking, recruitment, and agribusiness opportunities with us. Reach out to get started!`
+  },
+  {
+    key: 'consultancy',
+    label: 'consultancy',
+    template: (name) => `Hello ${name || 'Customer'}, thank you for reaching out to Trade Ethiopia Consultancy. Our specialists offer business strategy, market expansion, and trade advisory. Contact us to schedule a session!`
+  }
+];
+
 const DEFAULT_COLUMNS = [
   { key: 'customerName', label: 'Customer', fullLabel: 'Customer Name', width: 140, required: true },
   { key: 'contactTitle', label: 'Training', fullLabel: 'Training Title', width: 135 },
   { key: 'phone', label: 'Phone', fullLabel: 'Phone', width: 105 },
+  { key: 'sms', label: 'SMS', fullLabel: 'SMS', width: 125 },
   { key: 'callStatus', label: 'Call', fullLabel: 'Call Status', width: 90 },
   { key: 'followupStatus', label: 'Status', fullLabel: 'Follow-up Status', width: 95 },
   { key: 'schedulePreference', label: 'Schedule', fullLabel: 'Schedule', width: 85 },
@@ -377,6 +410,125 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const [customerToDelete, setCustomerToDelete] = useState(null);
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const deleteCancelRef = useRef(null);
+
+  // SMS Modal State
+  const [smsModal, setSmsModal] = useState({
+    isOpen: false,
+    customer: null,
+    phone: '',
+    category: 'Training',
+    body: '',
+    sending: false
+  });
+
+  const handleOpenSmsModal = (customer, categoryKey = 'Training') => {
+    const categoryObj = SMS_CATEGORIES.find(c => c.key === categoryKey) || SMS_CATEGORIES[0];
+    const initialBody = categoryObj.template(customer?.customerName || '');
+    setSmsModal({
+      isOpen: true,
+      customer,
+      phone: customer?.phone || '',
+      category: categoryKey,
+      body: initialBody,
+      sending: false
+    });
+  };
+
+  const handleCloseSmsModal = () => {
+    setSmsModal(prev => ({ ...prev, isOpen: false, sending: false }));
+  };
+
+  const handleSmsCategoryChange = (newCategory) => {
+    const categoryObj = SMS_CATEGORIES.find(c => c.key === newCategory) || SMS_CATEGORIES[0];
+    const newBody = categoryObj.template(smsModal.customer?.customerName || '');
+    setSmsModal(prev => ({
+      ...prev,
+      category: newCategory,
+      body: newBody
+    }));
+  };
+
+  const handleSendSms = async () => {
+    if (!smsModal.customer) return;
+    const customerId = smsModal.customer._id || smsModal.customer.id;
+    if (!smsModal.phone?.trim()) {
+      toast({
+        title: 'Phone number required',
+        description: 'Please provide a valid phone number for the customer.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+    if (!smsModal.body?.trim()) {
+      toast({
+        title: 'Message required',
+        description: 'Please write an SMS message to send.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+
+    setSmsModal(prev => ({ ...prev, sending: true }));
+    try {
+      if (smsModal.phone.trim() !== (smsModal.customer.phone || '').trim()) {
+        await onUpdate(customerId, { phone: smsModal.phone.trim() });
+      }
+
+      const result = await sendCustomerSms(customerId, {
+        body: smsModal.body.trim()
+      });
+
+      const updatedNote = smsModal.customer.note
+        ? `${smsModal.customer.note}\n\nSMS sent to ${smsModal.phone.trim()} (${smsModal.category}): ${smsModal.body.trim()}`
+        : `SMS sent to ${smsModal.phone.trim()} (${smsModal.category}): ${smsModal.body.trim()}`;
+
+      onUpdate(customerId, {
+        note: updatedNote,
+        productInterest: smsModal.category
+      });
+
+      toast({
+        title: result?.providerConfigured ? 'SMS Sent' : 'SMS Logged',
+        description: result?.providerConfigured 
+          ? `SMS successfully sent to ${smsModal.phone.trim()}` 
+          : `SMS recorded to customer activity for ${smsModal.phone.trim()}`,
+        status: 'success',
+        duration: 4000,
+        isClosable: true
+      });
+
+      setSmsModal(prev => ({ ...prev, isOpen: false, sending: false }));
+    } catch (err) {
+      toast({
+        title: 'Failed to send SMS',
+        description: err.response?.data?.message || err.message || 'Could not send SMS.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+      setSmsModal(prev => ({ ...prev, sending: false }));
+    }
+  };
+
+  const handleOpenNativeSms = () => {
+    if (!smsModal.phone?.trim()) {
+      toast({
+        title: 'Phone number required',
+        description: 'Please enter a phone number first.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true
+      });
+      return;
+    }
+    const cleanPhone = smsModal.phone.replace(/[^\d+]/g, '');
+    const separator = /iPad|iPhone|iPod/.test(navigator.userAgent) ? '&' : '?';
+    window.location.href = `sms:${cleanPhone}${separator}body=${encodeURIComponent(smsModal.body.trim())}`;
+  };
 
   const [columnPrefs, setColumnPrefs] = useState(readColumnPrefs);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_PREF_KEY) || 'list');
@@ -1134,6 +1286,35 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         );
       case 'phone':
         return renderDisplayCell(customer, 'phone', customer.phone);
+      case 'sms':
+        return (
+          <Td key="sms" p={1} onClick={(e) => e.stopPropagation()}>
+            <Select
+              size="xs"
+              fontSize="xs"
+              h="26px"
+              minH="26px"
+              borderRadius="md"
+              borderColor="teal.300"
+              _hover={{ borderColor: 'teal.500' }}
+              bg="white"
+              value=""
+              placeholder="SMS ▾"
+              cursor="pointer"
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleOpenSmsModal(customer, e.target.value);
+                }
+              }}
+            >
+              {SMS_CATEGORIES.map(cat => (
+                <option key={cat.key} value={cat.key}>
+                  {cat.label}
+                </option>
+              ))}
+            </Select>
+          </Td>
+        );
       case 'callStatus':
         return renderDisplayCell(
           customer,
@@ -1249,6 +1430,34 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         );
       case 'phone':
         return customer.phone || 'N/A';
+      case 'sms':
+        return (
+          <Select
+            size="xs"
+            fontSize="xs"
+            h="24px"
+            minH="24px"
+            borderRadius="md"
+            borderColor="teal.300"
+            _hover={{ borderColor: 'teal.500' }}
+            bg="white"
+            value=""
+            placeholder="SMS ▾"
+            cursor="pointer"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              if (e.target.value) {
+                handleOpenSmsModal(customer, e.target.value);
+              }
+            }}
+          >
+            {SMS_CATEGORIES.map(cat => (
+              <option key={cat.key} value={cat.key}>
+                {cat.label}
+              </option>
+            ))}
+          </Select>
+        );
       case 'callStatus':
         return (
           <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} {...compactBadgeProps}>
@@ -2800,6 +3009,98 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               onClick={() => setFullImageModal({ isOpen: false, src: '', title: '', subtitle: '' })}
             >
               Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Send SMS Modal */}
+      <Modal isOpen={smsModal.isOpen} onClose={handleCloseSmsModal} size="lg" isCentered>
+        <ModalOverlay />
+        <ModalContent borderRadius="xl" overflow="hidden">
+          <ModalHeader bg="teal.600" color="white" py={4}>
+            <Flex align="center" gap={2}>
+              <Icon as={FiMessageSquare} boxSize={5} />
+              <Box>
+                <Text fontSize="md" fontWeight="bold">Send SMS to Customer</Text>
+                <Text fontSize="xs" fontWeight="normal" color="teal.100">
+                  {smsModal.customer?.customerName || 'Customer'}
+                </Text>
+              </Box>
+            </Flex>
+          </ModalHeader>
+          <ModalCloseButton color="white" />
+          <ModalBody py={5} px={6}>
+            <VStack spacing={4} align="stretch">
+              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
+                <FormControl isRequired>
+                  <FormLabel fontSize="xs" fontWeight="bold">Customer Phone</FormLabel>
+                  <Input
+                    size="sm"
+                    borderRadius="md"
+                    value={smsModal.phone}
+                    onChange={(e) => setSmsModal(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="e.g. +251911234567"
+                  />
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel fontSize="xs" fontWeight="bold">SMS Category</FormLabel>
+                  <Select
+                    size="sm"
+                    borderRadius="md"
+                    value={smsModal.category}
+                    onChange={(e) => handleSmsCategoryChange(e.target.value)}
+                  >
+                    {SMS_CATEGORIES.map(cat => (
+                      <option key={cat.key} value={cat.key}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              </SimpleGrid>
+
+              <FormControl isRequired>
+                <Flex justify="space-between" align="center" mb={1}>
+                  <FormLabel fontSize="xs" fontWeight="bold" mb={0}>
+                    Message Body
+                  </FormLabel>
+                  <Text fontSize="2xs" color={smsModal.body.length > 160 ? 'orange.500' : 'gray.500'}>
+                    {smsModal.body.length} characters ({Math.max(1, Math.ceil(smsModal.body.length / 160))} SMS)
+                  </Text>
+                </Flex>
+                <Textarea
+                  size="sm"
+                  rows={4}
+                  borderRadius="md"
+                  value={smsModal.body}
+                  onChange={(e) => setSmsModal(prev => ({ ...prev, body: e.target.value }))}
+                  placeholder="Enter SMS message body..."
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter bg="gray.50" borderTopWidth="1px" borderColor="gray.200" gap={2}>
+            <Button variant="ghost" size="sm" onClick={handleCloseSmsModal}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              colorScheme="teal"
+              size="sm"
+              leftIcon={<Icon as={FiExternalLink} />}
+              onClick={handleOpenNativeSms}
+            >
+              Open in SMS App
+            </Button>
+            <Button
+              colorScheme="teal"
+              size="sm"
+              leftIcon={<Icon as={FiSend} />}
+              isLoading={smsModal.sending}
+              onClick={handleSendSms}
+            >
+              Send SMS
             </Button>
           </ModalFooter>
         </ModalContent>
