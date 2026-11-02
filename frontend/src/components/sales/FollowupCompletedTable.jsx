@@ -452,7 +452,8 @@ const FollowupCompletedTable = ({
 
       onUpdate(customerId, {
         note: updatedNote,
-        productInterest: smsModal.category
+        productInterest: smsModal.category,
+        sms: smsModal.category
       });
 
       toast({
@@ -656,6 +657,7 @@ const FollowupCompletedTable = ({
       customerName: customer.customerName || '',
       contactTitle: customer.contactTitle || customer.courseName || '',
       phone: customer.phone || '',
+      sms: customer.sms || '',
       email: customer.email || '',
       callStatus: customer.callStatus || 'Called',
       followupStatus: 'Completed',
@@ -1319,31 +1321,53 @@ const FollowupCompletedTable = ({
                       </Td>
 
                       <Td py={3} onClick={(e) => e.stopPropagation()}>
-                        <Select
-                          size="xs"
-                          fontSize="xs"
-                          h="26px"
-                          minH="26px"
-                          w="120px"
-                          borderRadius="md"
-                          borderColor="teal.300"
-                          _hover={{ borderColor: 'teal.500' }}
-                          bg="white"
-                          value=""
-                          placeholder="SMS ▾"
-                          cursor="pointer"
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              handleOpenSmsModal(customer, e.target.value);
-                            }
-                          }}
-                        >
-                          {SMS_CATEGORIES.map(cat => (
-                            <option key={cat.key} value={cat.key}>
-                              {cat.label}
-                            </option>
-                          ))}
-                        </Select>
+                        <Flex align="center" gap={1}>
+                          <Select
+                            size="xs"
+                            fontSize="xs"
+                            h="26px"
+                            minH="26px"
+                            w="115px"
+                            borderRadius="md"
+                            borderColor="teal.300"
+                            _hover={{ borderColor: 'teal.500' }}
+                            bg="white"
+                            value={customer.sms || ''}
+                            cursor="pointer"
+                            onChange={async (e) => {
+                              const val = e.target.value;
+                              try {
+                                await onUpdate(customer._id || customer.id, { sms: val });
+                              } catch (err) {
+                                console.error('Failed to update SMS category:', err);
+                              }
+                              if (val) {
+                                handleOpenSmsModal(customer, val);
+                              }
+                            }}
+                          >
+                            <option value="">SMS ▾</option>
+                            {SMS_CATEGORIES.map(cat => (
+                              <option key={cat.key} value={cat.key}>
+                                {cat.label}
+                              </option>
+                            ))}
+                          </Select>
+                          {customer.sms && (
+                            <Tooltip label={`Send ${customer.sms} SMS`} hasArrow>
+                              <IconButton
+                                icon={<Icon as={FiSend} />}
+                                size="xs"
+                                h="26px"
+                                minW="26px"
+                                colorScheme="teal"
+                                variant="ghost"
+                                onClick={() => handleOpenSmsModal(customer, customer.sms)}
+                                aria-label="Send SMS"
+                              />
+                            </Tooltip>
+                          )}
+                        </Flex>
                       </Td>
 
                       <Td py={3}>
@@ -1755,7 +1779,7 @@ const FollowupCompletedTable = ({
                   </FormControl>
                 </SimpleGrid>
 
-                <SimpleGrid columns={3} spacing={4} w="100%">
+                <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={4} w="100%">
                   <FormControl>
                     <FormLabel fontSize="sm">Schedule</FormLabel>
                     <Select
@@ -1792,6 +1816,21 @@ const FollowupCompletedTable = ({
                       <option value="Busy">Busy</option>
                       <option value="No Answer">No Answer</option>
                       <option value="Not Called">Not Called</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="sm">SMS</FormLabel>
+                    <Select
+                      value={editCustomer.sms || ''}
+                      onChange={(e) => setEditCustomer((prev) => ({ ...prev, sms: e.target.value }))}
+                    >
+                      <option value="">Select SMS</option>
+                      {SMS_CATEGORIES.map(cat => (
+                        <option key={cat.key} value={cat.key}>
+                          {cat.label}
+                        </option>
+                      ))}
                     </Select>
                   </FormControl>
                 </SimpleGrid>

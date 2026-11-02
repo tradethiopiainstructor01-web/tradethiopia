@@ -282,7 +282,7 @@ const ImageUploadCard = ({
 };
 
 const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
-const TABLE_PREF_VERSION = 4;
+const TABLE_PREF_VERSION = 5;
 const VIEW_PREF_KEY = 'salesFollowupCustomerViewMode';
 const SMS_CATEGORIES = [
   {
@@ -316,7 +316,7 @@ const DEFAULT_COLUMNS = [
   { key: 'customerName', label: 'Customer', fullLabel: 'Customer Name', width: 140, required: true },
   { key: 'contactTitle', label: 'Training', fullLabel: 'Training Title', width: 135 },
   { key: 'phone', label: 'Phone', fullLabel: 'Phone', width: 105 },
-  { key: 'sms', label: 'SMS', fullLabel: 'SMS', width: 125 },
+  { key: 'sms', label: 'SMS', fullLabel: 'SMS', width: 140 },
   { key: 'callStatus', label: 'Call', fullLabel: 'Call Status', width: 90 },
   { key: 'followupStatus', label: 'Status', fullLabel: 'Follow-up Status', width: 95 },
   { key: 'schedulePreference', label: 'Schedule', fullLabel: 'Schedule', width: 85 },
@@ -338,6 +338,7 @@ const createEmptyCustomer = () => ({
   customerName: '',
   contactTitle: '',
   phone: '',
+  sms: '',
   callStatus: 'Not Called',
   followupStatus: 'Pending',
   schedulePreference: 'Regular',
@@ -366,7 +367,7 @@ const readColumnPrefs = () => {
     const savedOrder = Array.isArray(saved.order) ? saved.order.filter(key => knownKeys.includes(key)) : [];
     const order = [...savedOrder, ...knownKeys.filter(key => !savedOrder.includes(key))];
     const hidden = Array.isArray(saved.hidden)
-      ? saved.hidden.filter(key => knownKeys.includes(key) && !DEFAULT_COLUMNS.find(column => column.key === key)?.required)
+      ? saved.hidden.filter(key => knownKeys.includes(key) && key !== 'sms' && !DEFAULT_COLUMNS.find(column => column.key === key)?.required)
       : [];
 
     return {
@@ -488,7 +489,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
       onUpdate(customerId, {
         note: updatedNote,
-        productInterest: smsModal.category
+        productInterest: smsModal.category,
+        sms: smsModal.category
       });
 
       toast({
@@ -569,6 +571,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       customerName: customer.customerName || '',
       contactTitle: customer.contactTitle || customer.courseName || '',
       phone: customer.phone || '',
+      sms: customer.sms || '',
       email: customer.email || '',
       callStatus: customer.callStatus || 'Not Called',
       followupStatus: customer.followupStatus || 'Pending',
@@ -1289,30 +1292,52 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       case 'sms':
         return (
           <Td key="sms" p={1} onClick={(e) => e.stopPropagation()}>
-            <Select
-              size="xs"
-              fontSize="xs"
-              h="26px"
-              minH="26px"
-              borderRadius="md"
-              borderColor="teal.300"
-              _hover={{ borderColor: 'teal.500' }}
-              bg="white"
-              value=""
-              placeholder="SMS ▾"
-              cursor="pointer"
-              onChange={(e) => {
-                if (e.target.value) {
-                  handleOpenSmsModal(customer, e.target.value);
-                }
-              }}
-            >
-              {SMS_CATEGORIES.map(cat => (
-                <option key={cat.key} value={cat.key}>
-                  {cat.label}
-                </option>
-              ))}
-            </Select>
+            <Flex align="center" gap={1}>
+              <Select
+                size="xs"
+                fontSize="xs"
+                h="26px"
+                minH="26px"
+                borderRadius="md"
+                borderColor="teal.300"
+                _hover={{ borderColor: 'teal.500' }}
+                bg="white"
+                value={customer.sms || ''}
+                cursor="pointer"
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  try {
+                    await onUpdate(customer._id || customer.id, { sms: val });
+                  } catch (err) {
+                    console.error('Failed to update SMS category:', err);
+                  }
+                  if (val) {
+                    handleOpenSmsModal(customer, val);
+                  }
+                }}
+              >
+                <option value="">SMS ▾</option>
+                {SMS_CATEGORIES.map(cat => (
+                  <option key={cat.key} value={cat.key}>
+                    {cat.label}
+                  </option>
+                ))}
+              </Select>
+              {customer.sms && (
+                <Tooltip label={`Send ${customer.sms} SMS`} hasArrow>
+                  <IconButton
+                    icon={<Icon as={FiSend} />}
+                    size="xs"
+                    h="26px"
+                    minW="26px"
+                    colorScheme="teal"
+                    variant="ghost"
+                    onClick={() => handleOpenSmsModal(customer, customer.sms)}
+                    aria-label="Send SMS"
+                  />
+                </Tooltip>
+              )}
+            </Flex>
           </Td>
         );
       case 'callStatus':
@@ -1432,31 +1457,52 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         return customer.phone || 'N/A';
       case 'sms':
         return (
-          <Select
-            size="xs"
-            fontSize="xs"
-            h="24px"
-            minH="24px"
-            borderRadius="md"
-            borderColor="teal.300"
-            _hover={{ borderColor: 'teal.500' }}
-            bg="white"
-            value=""
-            placeholder="SMS ▾"
-            cursor="pointer"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              if (e.target.value) {
-                handleOpenSmsModal(customer, e.target.value);
-              }
-            }}
-          >
-            {SMS_CATEGORIES.map(cat => (
-              <option key={cat.key} value={cat.key}>
-                {cat.label}
-              </option>
-            ))}
-          </Select>
+          <Flex align="center" gap={1} onClick={(e) => e.stopPropagation()}>
+            <Select
+              size="xs"
+              fontSize="xs"
+              h="24px"
+              minH="24px"
+              borderRadius="md"
+              borderColor="teal.300"
+              _hover={{ borderColor: 'teal.500' }}
+              bg="white"
+              value={customer.sms || ''}
+              cursor="pointer"
+              onChange={async (e) => {
+                const val = e.target.value;
+                try {
+                  await onUpdate(customer._id || customer.id, { sms: val });
+                } catch (err) {
+                  console.error('Failed to update SMS category:', err);
+                }
+                if (val) {
+                  handleOpenSmsModal(customer, val);
+                }
+              }}
+            >
+              <option value="">SMS ▾</option>
+              {SMS_CATEGORIES.map(cat => (
+                <option key={cat.key} value={cat.key}>
+                  {cat.label}
+                </option>
+              ))}
+            </Select>
+            {customer.sms && (
+              <Tooltip label={`Send ${customer.sms} SMS`} hasArrow>
+                <IconButton
+                  icon={<Icon as={FiSend} />}
+                  size="xs"
+                  h="24px"
+                  minW="24px"
+                  colorScheme="teal"
+                  variant="ghost"
+                  onClick={() => handleOpenSmsModal(customer, customer.sms)}
+                  aria-label="Send SMS"
+                />
+              </Tooltip>
+            )}
+          </Flex>
         );
       case 'callStatus':
         return (
@@ -1842,7 +1888,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               </FormControl>
             </SimpleGrid>
 
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+            <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
               <FormControl>
                 <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
                   Call Status
@@ -1883,6 +1929,28 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   <option value="Scheduled">Scheduled</option>
                   <option value="Cancelled">Cancelled</option>
                   <option value="Imported">Imported</option>
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
+                  SMS
+                </FormLabel>
+                <Select
+                  name="sms"
+                  value={newCustomerData.sms || ''}
+                  onChange={handleNewCustomerChange}
+                  onKeyDown={handleNewCustomerKeyDown}
+                  size="sm"
+                  borderRadius="md"
+                  focusBorderColor="teal.500"
+                >
+                  <option value="">Select SMS</option>
+                  {SMS_CATEGORIES.map(cat => (
+                    <option key={cat.key} value={cat.key}>
+                      {cat.label}
+                    </option>
+                  ))}
                 </Select>
               </FormControl>
 
@@ -2464,6 +2532,23 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                     >
                       <option value="Local">Local</option>
                       <option value="International">International</option>
+                    </Select>
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel fontSize="xs" fontWeight="bold">SMS</FormLabel>
+                    <Select
+                      name="sms"
+                      size="sm"
+                      value={editModalCustomer.sms || ''}
+                      onChange={handleEditModalInputChange}
+                    >
+                      <option value="">Select SMS</option>
+                      {SMS_CATEGORIES.map(cat => (
+                        <option key={cat.key} value={cat.key}>
+                          {cat.label}
+                        </option>
+                      ))}
                     </Select>
                   </FormControl>
 

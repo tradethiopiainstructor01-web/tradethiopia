@@ -759,7 +759,8 @@ const createCustomer = asyncHandler(async (req, res) => {
     paymentScreenshot,
     paymentOption,
     paymentBank,
-    fsNumber
+    fsNumber,
+    sms
   } = req.body;
   const resolvedCallStatus = callStatus || 'Not Called';
   const resolvedFollowupStatus = followupStatus || 'Pending';
@@ -783,6 +784,7 @@ const createCustomer = asyncHandler(async (req, res) => {
     createdBy: req.user._id,
     source: resolvedSource,
     productInterest: productInterest || contactTitle || courseName || '',
+    sms: req.body.sms || '',
     pipelineStatus: resolvedPipelineStatus,
     assignedBy,
     assignedAt,
@@ -861,7 +863,8 @@ const updateCustomer = asyncHandler(async (req, res) => {
     paymentScreenshot,
     paymentOption,
     paymentBank,
-    fsNumber
+    fsNumber,
+    sms
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -913,6 +916,8 @@ const updateCustomer = asyncHandler(async (req, res) => {
     customer.commission = calculateCommission(customer.coursePrice);
   }
   if (packageScope !== undefined) customer.packageScope = packageScope;
+  if (sms !== undefined) customer.sms = sms;
+  if (productInterest !== undefined) customer.productInterest = productInterest;
 
   // Completing a follow-up requires the payment slip.
   if (!wasCompleted && isCompletedStatus(customer.followupStatus) && !(await saleHasPaymentSlip(customer))) {
