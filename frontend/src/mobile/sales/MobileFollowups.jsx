@@ -2453,6 +2453,7 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
                     <Select name="followupStatus" value={trainingForm.followupStatus} onChange={handleTrainingChange} bg="white" h="44px" borderRadius="12px">
                       <option value="Prospect">Prospect</option>
                       <option value="Pending">Pending</option>
+                      <option value="Completed">Completed</option>
                       <option value="Scheduled">Scheduled</option>
                       <option value="Cancelled">Cancelled</option>
                       <option value="Imported">Imported</option>

@@ -985,6 +985,27 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       fsNumber: fsNumber || ''
     };
 
+    if (completionProofData.isNew) {
+      let customerToAdd = {
+        ...completionProofData.customer,
+        followupStatus: 'Completed',
+        ...proof
+      };
+      if (customerToAdd.contactTitle) {
+        const courseDetails = getCourseDetails(customerToAdd.contactTitle);
+        if (courseDetails) {
+          customerToAdd.coursePrice = courseDetails.price;
+          customerToAdd.courseId = courseDetails.id;
+          customerToAdd.commission = calculateCommission(courseDetails.name, courseDetails.price);
+        }
+      }
+      onAdd(customerToAdd);
+      closeNewCustomerRow();
+      setIsCompletionProofOpen(false);
+      setCompletionProofData(null);
+      return;
+    }
+
     handleSave(customer, 'Completed', proof);
     setIsCompletionProofOpen(false);
     setCompletionProofData(null);
@@ -1054,13 +1075,18 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     }
 
     if (newCustomerData.followupStatus === 'Completed') {
-      toast({
-        title: 'Payment Slip Required',
-        description: 'Add the customer first, then mark the follow-up Completed and upload the payment slip.',
-        status: 'warning',
-        duration: 4000,
-        isClosable: true
+      setCompletionProofData({
+        isNew: true,
+        customer: { ...newCustomerData },
+        passportPhoto: newCustomerData.passportPhoto || '',
+        nationalIdFrontImage: newCustomerData.nationalIdFrontImage || '',
+        nationalIdBackImage: newCustomerData.nationalIdBackImage || '',
+        paymentScreenshot: newCustomerData.paymentScreenshot || '',
+        paymentOption: newCustomerData.paymentOption || 'Full Payment',
+        paymentBank: newCustomerData.paymentBank || '',
+        fsNumber: newCustomerData.fsNumber || ''
       });
+      setIsCompletionProofOpen(true);
       return;
     }
 
@@ -1926,6 +1952,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 >
                   <option value="Pending">Pending</option>
                   <option value="Prospect">Prospect</option>
+                  <option value="Completed">Completed</option>
                   <option value="Scheduled">Scheduled</option>
                   <option value="Cancelled">Cancelled</option>
                   <option value="Imported">Imported</option>
