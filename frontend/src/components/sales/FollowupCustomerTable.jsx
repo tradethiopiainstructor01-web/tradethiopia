@@ -612,7 +612,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     });
   };
 
-  const handleSaveEditModal = () => {
+  const handleSaveEditModal = async () => {
     if (!editModalCustomer) return;
     const targetId = editModalCustomer._id || editModalCustomer.id;
     if (!targetId) return;
@@ -652,7 +652,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       }
     }
 
-    onUpdate(targetId, payload);
+    const saved = await onUpdate(targetId, payload);
+    if (!saved) return;
     setUpdatedCustomers(prev => new Set(prev).add(targetId));
     setTimeout(() => {
       setUpdatedCustomers(prev => {
@@ -861,7 +862,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     setEditValue(customer[field] || '');
   };
 
-  const handleSave = (customer, forcedValue = null, completionProof = null) => {
+  const handleSave = async (customer, forcedValue = null, completionProof = null) => {
     if (editingCell) {
       const value = forcedValue !== null ? forcedValue : editValue;
 
@@ -880,7 +881,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           });
           setIsCompletionProofOpen(true);
         });
-        return;
+        return false;
       }
 
       const updated = {
@@ -913,7 +914,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         }
       }
 
-      onUpdate(customer._id, updated);
+      const saved = await onUpdate(customer._id || customer.id, updated);
+      if (!saved) return false;
       // Track updated customer
       setUpdatedCustomers(prev => new Set(prev).add(customer._id));
       // Clear the indicator after 2 seconds
@@ -926,7 +928,9 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       }, 2000);
       setEditingCell(null);
       setEditValue('');
+      return true;
     }
+    return false;
   };
 
   const handleCancel = () => {
@@ -941,7 +945,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     setEditValue('');
   };
 
-  const handleConfirmCompletionProof = () => {
+  const handleConfirmCompletionProof = async () => {
     if (!completionProofData) return;
     const {
       customer,
@@ -999,14 +1003,16 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           customerToAdd.commission = calculateCommission(courseDetails.name, courseDetails.price);
         }
       }
-      onAdd(customerToAdd);
+      const saved = await onAdd(customerToAdd);
+      if (!saved) return;
       closeNewCustomerRow();
       setIsCompletionProofOpen(false);
       setCompletionProofData(null);
       return;
     }
 
-    handleSave(customer, 'Completed', proof);
+    const saved = await handleSave(customer, 'Completed', proof);
+    if (!saved) return;
     setIsCompletionProofOpen(false);
     setCompletionProofData(null);
   };
@@ -1061,7 +1067,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     }
   };
 
-  const handleAddNewCustomer = () => {
+  const handleAddNewCustomer = async () => {
     if (!newCustomerData.customerName || !newCustomerData.customerName.trim()) {
       toast({
         title: 'Customer Name Required',
@@ -1106,7 +1112,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       }
     }
     
-    onAdd(customerToAdd);
+    const saved = await onAdd(customerToAdd);
+    if (!saved) return;
     closeNewCustomerRow();
   };
 

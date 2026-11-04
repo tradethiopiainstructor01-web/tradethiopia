@@ -746,6 +746,7 @@ const createCustomer = asyncHandler(async (req, res) => {
     email,
     note,
     supervisorComment,
+    date,
     courseName,
     courseId,
     coursePrice,
@@ -798,6 +799,7 @@ const createCustomer = asyncHandler(async (req, res) => {
     email,
     note,
     supervisorComment,
+    date,
     passportPhoto: passportPhoto || '',
     nationalIdFrontImage: nationalIdFrontImage || '',
     nationalIdBackImage: nationalIdBackImage || '',
@@ -853,6 +855,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
     email,
     note,
     supervisorComment,
+    date,
     courseName,
     courseId,
     coursePrice,
@@ -864,7 +867,8 @@ const updateCustomer = asyncHandler(async (req, res) => {
     paymentOption,
     paymentBank,
     fsNumber,
-    sms
+    sms,
+    productInterest
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);
@@ -899,6 +903,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
   if (email !== undefined) customer.email = email;
   if (note !== undefined) customer.note = note;
   if (supervisorComment !== undefined) customer.supervisorComment = supervisorComment;
+  if (date !== undefined) customer.date = date;
   if (courseName !== undefined) customer.courseName = courseName;
   if (courseId !== undefined) customer.courseId = courseId;
   if (isDocumentChange(passportPhoto)) customer.passportPhoto = passportPhoto;
