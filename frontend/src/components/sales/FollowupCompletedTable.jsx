@@ -508,7 +508,7 @@ const FollowupCompletedTable = ({
   };
 
   const userRole = localStorage.getItem('userRole') || 'agent';
-  const headerBg = useColorModeValue('teal.700', 'teal.900');
+  const headerBg = useColorModeValue('#edf8f7', 'teal.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const rowHoverBg = useColorModeValue('teal.50', 'whiteAlpha.100');
@@ -856,21 +856,21 @@ const FollowupCompletedTable = ({
   };
 
   return (
-    <Box p={{ base: 2, md: 4 }}>
+    <Box w="100%" minW={0}>
       {/* Metrics Banner */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={4} mb={6}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={4} mb={4}>
         <Card bg={cardBg} borderRadius="xl" borderWidth="1px" borderColor={borderColor} boxShadow="sm">
           <CardBody p={4}>
             <Stat>
               <Flex align="center">
-                <Box p={3} borderRadius="lg" bg="green.100" color="green.600" mr={3}>
+                <Box p={3} borderRadius="lg" bg="teal.50" color="teal.600" mr={3}>
                   <FiCheckCircle size={22} />
                 </Box>
                 <Box>
                   <StatLabel fontSize="xs" fontWeight="semibold" color={subtleText}>
                     Completed Deals
                   </StatLabel>
-                  <StatNumber fontSize="2xl" fontWeight="bold" color="green.600">
+                  <StatNumber fontSize="2xl" fontWeight="bold" color="teal.700">
                     {metrics.totalCount}
                   </StatNumber>
                   <StatHelpText mb={0} fontSize="xs" color={subtleText}>
@@ -886,7 +886,7 @@ const FollowupCompletedTable = ({
           <CardBody p={4}>
             <Stat>
               <Flex align="center">
-                <Box p={3} borderRadius="lg" bg="teal.100" color="teal.600" mr={3}>
+                <Box p={3} borderRadius="lg" bg="teal.50" color="teal.600" mr={3}>
                   <FiTrendingUp size={22} />
                 </Box>
                 <Box>
@@ -909,14 +909,14 @@ const FollowupCompletedTable = ({
           <CardBody p={4}>
             <Stat>
               <Flex align="center">
-                <Box p={3} borderRadius="lg" bg="yellow.100" color="yellow.600" mr={3}>
+                <Box p={3} borderRadius="lg" bg="teal.50" color="teal.600" mr={3}>
                   <FiDollarSign size={22} />
                 </Box>
                 <Box>
                   <StatLabel fontSize="xs" fontWeight="semibold" color={subtleText}>
                     Net Commission Earned
                   </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="yellow.600">
+                  <StatNumber fontSize="xl" fontWeight="bold" color="teal.700">
                     {formatCurrency(metrics.totalCommission)}
                   </StatNumber>
                   <StatHelpText mb={0} fontSize="xs" color={subtleText}>
@@ -932,14 +932,14 @@ const FollowupCompletedTable = ({
           <CardBody p={4}>
             <Stat>
               <Flex align="center">
-                <Box p={3} borderRadius="lg" bg="purple.100" color="purple.600" mr={3}>
+                <Box p={3} borderRadius="lg" bg="teal.50" color="teal.600" mr={3}>
                   <FiAward size={22} />
                 </Box>
                 <Box>
                   <StatLabel fontSize="xs" fontWeight="semibold" color={subtleText}>
                     Average Deal Value
                   </StatLabel>
-                  <StatNumber fontSize="xl" fontWeight="bold" color="purple.600">
+                  <StatNumber fontSize="xl" fontWeight="bold" color="teal.700">
                     {formatCurrency(metrics.averageDeal)}
                   </StatNumber>
                   <StatHelpText mb={0} fontSize="xs" color={subtleText}>
@@ -953,7 +953,7 @@ const FollowupCompletedTable = ({
       </SimpleGrid>
 
       {/* Control Bar: Search, Filters, Sort & Export */}
-      <Card bg={cardBg} borderRadius="xl" borderWidth="1px" borderColor={borderColor} p={4} mb={6} boxShadow="sm">
+      <Card bg={cardBg} borderRadius="xl" borderWidth="1px" borderColor={borderColor} p={3} mb={4} boxShadow="sm">
         <Flex direction={{ base: 'column', md: 'row' }} gap={3} align="center" wrap="wrap">
           <InputGroup width={{ base: '100%', md: '260px' }}>
             <InputLeftElement pointerEvents="none">
@@ -1083,26 +1083,25 @@ const FollowupCompletedTable = ({
       </Card>
 
       {/* Main Completed Deals Table */}
-      <Card bg={cardBg} borderRadius="xl" borderWidth="1px" borderColor={borderColor} boxShadow="md" overflow="hidden">
+      <Card bg={cardBg} borderRadius="xl" borderWidth="1px" borderColor={borderColor} boxShadow="0 8px 24px rgba(15, 23, 42, 0.06)" overflow="hidden">
         <Box overflowX="auto">
           <Table variant="simple" size="sm">
             <Thead bg={headerBg}>
               <Tr>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Customer</Th>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Training / Course</Th>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Payment Bank</Th>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Verification Proofs</Th>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Contact</Th>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">SMS</Th>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Schedule</Th>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase">Date</Th>
-                <Th color="white" py={3.5} fontSize="xs" textTransform="uppercase" textAlign="center">Actions</Th>
+                <Th color="#475569" _dark={{ color: 'gray.300' }} py={3} fontSize="xs" textTransform="uppercase">Customer</Th>
+                <Th color="#475569" _dark={{ color: 'gray.300' }} py={3} fontSize="xs" textTransform="uppercase">Training / Course</Th>
+                <Th color="#475569" _dark={{ color: 'gray.300' }} py={3} fontSize="xs" textTransform="uppercase">Payment Bank</Th>
+                <Th color="#475569" _dark={{ color: 'gray.300' }} py={3} fontSize="xs" textTransform="uppercase">Verification Proofs</Th>
+                <Th color="#475569" _dark={{ color: 'gray.300' }} py={3} fontSize="xs" textTransform="uppercase">Contact</Th>
+                <Th color="#475569" _dark={{ color: 'gray.300' }} py={3} fontSize="xs" textTransform="uppercase">Schedule</Th>
+                <Th color="#475569" _dark={{ color: 'gray.300' }} py={3} fontSize="xs" textTransform="uppercase">Date</Th>
+                <Th color="#475569" _dark={{ color: 'gray.300' }} py={3} fontSize="xs" textTransform="uppercase" textAlign="center">Actions</Th>
               </Tr>
             </Thead>
             <Tbody>
               {paginatedCompleted.length === 0 ? (
                 <Tr>
-                  <Td colSpan={9} py={12} textAlign="center">
+                  <Td colSpan={8} py={12} textAlign="center">
                     <VStack spacing={3}>
                       <Box p={3} borderRadius="full" bg="gray.100" color="gray.400">
                         <FiCheckCircle size={32} />
@@ -1143,7 +1142,7 @@ const FollowupCompletedTable = ({
                             <Text fontWeight="bold" fontSize="sm" color={customerTextColor}>
                               {customer.customerName || 'Unnamed Customer'}
                             </Text>
-                            <Badge colorScheme="green" variant="subtle" fontSize="2xs" borderRadius="full">
+                            <Badge colorScheme="teal" variant="subtle" fontSize="2xs" borderRadius="full">
                               Completed Deal
                             </Badge>
                           </Box>
@@ -1151,7 +1150,7 @@ const FollowupCompletedTable = ({
                       </Td>
 
                       <Td py={3}>
-                        <Tag size="sm" colorScheme="blue" borderRadius="full">
+                        <Tag size="sm" colorScheme="teal" variant="subtle" borderRadius="full">
                           <TagLeftIcon as={FiBookOpen} />
                           <TagLabel fontWeight="medium">
                             {customer.contactTitle || customer.courseName || 'General Training'}
@@ -1171,12 +1170,12 @@ const FollowupCompletedTable = ({
                           )}
                           <HStack spacing={1}>
                             {customer.paymentOption && (
-                              <Badge colorScheme="purple" variant="subtle" fontSize="2xs" borderRadius="md">
+                              <Badge colorScheme="gray" variant="subtle" fontSize="2xs" borderRadius="md">
                                 {customer.paymentOption}
                               </Badge>
                             )}
                             {customer.fsNumber && (
-                              <Badge colorScheme="blue" variant="outline" fontSize="2xs" borderRadius="md">
+                              <Badge colorScheme="teal" variant="outline" fontSize="2xs" borderRadius="md">
                                 FS: {customer.fsNumber}
                               </Badge>
                             )}
@@ -1273,7 +1272,7 @@ const FollowupCompletedTable = ({
 
                           <Tooltip label={hasBankSlip(customer) ? "Payment Slip (Verified - Click to preview)" : "Payment Slip Missing - required"} hasArrow>
                             <Badge
-                              colorScheme={hasBankSlip(customer) ? "purple" : "gray"}
+                              colorScheme={hasBankSlip(customer) ? "teal" : "gray"}
                               variant={hasBankSlip(customer) ? "solid" : "outline"}
                               fontSize="2xs"
                               px={1.5}
@@ -1320,58 +1319,8 @@ const FollowupCompletedTable = ({
                         </VStack>
                       </Td>
 
-                      <Td py={3} onClick={(e) => e.stopPropagation()}>
-                        <Flex align="center" gap={1}>
-                          <Select
-                            size="xs"
-                            fontSize="xs"
-                            h="26px"
-                            minH="26px"
-                            w="115px"
-                            borderRadius="md"
-                            borderColor="teal.300"
-                            _hover={{ borderColor: 'teal.500' }}
-                            bg="white"
-                            value={customer.sms || ''}
-                            cursor="pointer"
-                            onChange={async (e) => {
-                              const val = e.target.value;
-                              try {
-                                await onUpdate(customer._id || customer.id, { sms: val });
-                              } catch (err) {
-                                console.error('Failed to update SMS category:', err);
-                              }
-                              if (val) {
-                                handleOpenSmsModal(customer, val);
-                              }
-                            }}
-                          >
-                            <option value="">SMS ▾</option>
-                            {SMS_CATEGORIES.map(cat => (
-                              <option key={cat.key} value={cat.key}>
-                                {cat.label}
-                              </option>
-                            ))}
-                          </Select>
-                          {customer.sms && (
-                            <Tooltip label={`Send ${customer.sms} SMS`} hasArrow>
-                              <IconButton
-                                icon={<Icon as={FiSend} />}
-                                size="xs"
-                                h="26px"
-                                minW="26px"
-                                colorScheme="teal"
-                                variant="ghost"
-                                onClick={() => handleOpenSmsModal(customer, customer.sms)}
-                                aria-label="Send SMS"
-                              />
-                            </Tooltip>
-                          )}
-                        </Flex>
-                      </Td>
-
                       <Td py={3}>
-                        <Badge variant="outline" colorScheme="purple" fontSize="2xs" px={2} py={0.5} borderRadius="md">
+                        <Badge variant="outline" colorScheme="teal" fontSize="2xs" px={2} py={0.5} borderRadius="md">
                           {customer.schedulePreference || 'Regular'}
                         </Badge>
                       </Td>
@@ -1385,7 +1334,7 @@ const FollowupCompletedTable = ({
                           <Tooltip label="View Details & Documents" hasArrow>
                             <IconButton
                               icon={<InfoIcon />}
-                              colorScheme="blue"
+                              colorScheme="teal"
                               size="xs"
                               variant="ghost"
                               aria-label="View Details"

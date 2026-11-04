@@ -286,8 +286,7 @@ const ImageUploadCard = ({
 };
 
 const TABLE_PREF_KEY = 'salesFollowupCustomerTablePrefs';
-const TABLE_PREF_VERSION = 5;
-const VIEW_PREF_KEY = 'salesFollowupCustomerViewMode';
+const TABLE_PREF_VERSION = 6;
 const SMS_CATEGORIES = [
   {
     key: 'Training',
@@ -337,7 +336,6 @@ const DEFAULT_COLUMNS = [
   { key: 'customerName', label: 'Customer', fullLabel: 'Customer Name', width: 140, required: true },
   { key: 'contactTitle', label: 'Training', fullLabel: 'Training Title', width: 135 },
   { key: 'phone', label: 'Phone', fullLabel: 'Phone', width: 105 },
-  { key: 'sms', label: 'SMS', fullLabel: 'SMS', width: 140 },
   { key: 'callStatus', label: 'Call', fullLabel: 'Call Status', width: 90 },
   { key: 'followupStatus', label: 'Status', fullLabel: 'Follow-up Status', width: 95 },
   { key: 'schedulePreference', label: 'Schedule', fullLabel: 'Schedule', width: 85 },
@@ -388,7 +386,7 @@ const readColumnPrefs = () => {
     const savedOrder = Array.isArray(saved.order) ? saved.order.filter(key => knownKeys.includes(key)) : [];
     const order = [...savedOrder, ...knownKeys.filter(key => !savedOrder.includes(key))];
     const hidden = Array.isArray(saved.hidden)
-      ? saved.hidden.filter(key => knownKeys.includes(key) && key !== 'sms' && !DEFAULT_COLUMNS.find(column => column.key === key)?.required)
+      ? saved.hidden.filter(key => knownKeys.includes(key) && !DEFAULT_COLUMNS.find(column => column.key === key)?.required)
       : [];
 
     return {
@@ -555,7 +553,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   };
 
   const [columnPrefs, setColumnPrefs] = useState(readColumnPrefs);
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_PREF_KEY) || 'list');
   const [draggedColumn, setDraggedColumn] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -565,10 +562,11 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const userToken = localStorage.getItem('userToken');
   const userRole = localStorage.getItem('userRole') || 'agent';
   const headerColor = useColorModeValue('teal.800', 'teal.200');
+  const rowHoverBg = useColorModeValue('gray.50', 'whiteAlpha.100');
 
   // Pagination state for ultra-fast rendering with large customer datasets
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -727,10 +725,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   useEffect(() => {
     localStorage.setItem(TABLE_PREF_KEY, JSON.stringify(columnPrefs));
   }, [columnPrefs]);
-
-  useEffect(() => {
-    localStorage.setItem(VIEW_PREF_KEY, viewMode);
-  }, [viewMode]);
 
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -1256,9 +1250,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     setNewCustomerData(createEmptyCustomer());
     setAddingRow(true);
     setTimeout(() => {
-      addFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       nameInputRef.current?.focus();
-    }, 150);
+    }, 100);
   };
 
   const handleKeyDown = (e, customer) => {
@@ -1503,6 +1496,233 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     </Td>
   );
 
+  const renderNewCustomerColumnCell = (column) => {
+    const { key } = column;
+    const baseCellProps = {
+      p: 1.5,
+      verticalAlign: 'middle',
+    };
+
+    switch (key) {
+      case 'customerName':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Input
+              ref={nameInputRef}
+              name="customerName"
+              value={newCustomerData.customerName || ''}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              placeholder="Name *"
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            />
+          </Td>
+        );
+      case 'contactTitle':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Select
+              name="contactTitle"
+              value={newCustomerData.contactTitle || ''}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            >
+              <option value="">Course</option>
+              {(Array.isArray(courses) ? courses : []).map(course => (
+                <option key={course._id} value={course.name}>
+                  {course.name}
+                </option>
+              ))}
+            </Select>
+          </Td>
+        );
+      case 'phone':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Input
+              name="phone"
+              value={newCustomerData.phone || ''}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              placeholder="Phone"
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            />
+          </Td>
+        );
+      case 'callStatus':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Select
+              name="callStatus"
+              value={newCustomerData.callStatus || 'Not Called'}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            >
+              {CALL_STATUS_OPTIONS.map(st => (
+                <option key={st} value={st}>{st}</option>
+              ))}
+            </Select>
+          </Td>
+        );
+      case 'followupStatus':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Select
+              name="followupStatus"
+              value={newCustomerData.followupStatus || 'Pending'}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            >
+              {FOLLOWUP_STATUS_OPTIONS.map(st => (
+                <option key={st} value={st}>{st}</option>
+              ))}
+            </Select>
+          </Td>
+        );
+      case 'schedulePreference':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Select
+              name="schedulePreference"
+              value={newCustomerData.schedulePreference || 'Regular'}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            >
+              <option value="Regular">Regular</option>
+              <option value="Weekend">Weekend</option>
+              <option value="Night">Night</option>
+              <option value="Online">Online</option>
+            </Select>
+          </Td>
+        );
+      case 'packageScope':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Select
+              name="packageScope"
+              value={newCustomerData.packageScope || 'Local'}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            >
+              <option value="Local">Local</option>
+              <option value="International">International</option>
+            </Select>
+          </Td>
+        );
+      case 'date':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Input
+              name="date"
+              type="date"
+              value={newCustomerData.date ? newCustomerData.date.slice(0, 10) : new Date().toISOString().slice(0, 10)}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            />
+          </Td>
+        );
+      case 'email':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Input
+              name="email"
+              type="email"
+              value={newCustomerData.email || ''}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              placeholder="Email"
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            />
+          </Td>
+        );
+      case 'note':
+        return (
+          <Td key={key} {...baseCellProps}>
+            <Input
+              name="note"
+              value={newCustomerData.note || ''}
+              onChange={handleNewCustomerChange}
+              onKeyDown={handleNewCustomerKeyDown}
+              placeholder="Notes..."
+              size="xs"
+              borderRadius="md"
+              focusBorderColor="teal.500"
+              bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
+            />
+          </Td>
+        );
+      case 'actions':
+        return (
+          <Td key={key} p={1.5} textAlign="center" verticalAlign="middle">
+            <HStack spacing={1} justify="center">
+              <IconButton
+                icon={<CheckIcon boxSize={2.5} />}
+                size="xs"
+                colorScheme="teal"
+                onClick={handleAddNewCustomer}
+                aria-label="Save Customer"
+                title="Save Customer"
+              />
+              <IconButton
+                icon={<CloseIcon boxSize={2} />}
+                size="xs"
+                variant="ghost"
+                colorScheme="gray"
+                onClick={closeNewCustomerRow}
+                aria-label="Cancel"
+                title="Cancel"
+              />
+            </HStack>
+          </Td>
+        );
+      default:
+        return <Td key={key} {...baseCellProps} />;
+    }
+  };
+
   const renderCustomerColumnCell = (customer, column) => {
     const { key } = column;
 
@@ -1534,57 +1754,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         );
       case 'phone':
         return renderDisplayCell(customer, 'phone', customer.phone);
-      case 'sms':
-        return (
-          <Td key="sms" p={1} onClick={(e) => e.stopPropagation()}>
-            <Flex align="center" gap={1}>
-              <Select
-                size="xs"
-                fontSize="xs"
-                h="26px"
-                minH="26px"
-                borderRadius="md"
-                borderColor="teal.300"
-                _hover={{ borderColor: 'teal.500' }}
-                bg="white"
-                value={customer.sms || ''}
-                cursor="pointer"
-                onChange={async (e) => {
-                  const val = e.target.value;
-                  try {
-                    await onUpdate(customer._id || customer.id, { sms: val });
-                  } catch (err) {
-                    console.error('Failed to update SMS category:', err);
-                  }
-                  if (val) {
-                    handleOpenSmsModal(customer, val);
-                  }
-                }}
-              >
-                <option value="">SMS ▾</option>
-                {SMS_CATEGORIES.map(cat => (
-                  <option key={cat.key} value={cat.key}>
-                    {cat.label}
-                  </option>
-                ))}
-              </Select>
-              {customer.sms && (
-                <Tooltip label={`Send ${customer.sms} SMS`} hasArrow>
-                  <IconButton
-                    icon={<Icon as={FiSend} />}
-                    size="xs"
-                    h="26px"
-                    minW="26px"
-                    colorScheme="teal"
-                    variant="ghost"
-                    onClick={() => handleOpenSmsModal(customer, customer.sms)}
-                    aria-label="Send SMS"
-                  />
-                </Tooltip>
-              )}
-            </Flex>
-          </Td>
-        );
       case 'callStatus': {
         const canEdit = canUserEditField('callStatus', userRole);
         return (
@@ -1850,55 +2019,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         );
       case 'phone':
         return customer.phone || 'N/A';
-      case 'sms':
-        return (
-          <Flex align="center" gap={1} onClick={(e) => e.stopPropagation()}>
-            <Select
-              size="xs"
-              fontSize="xs"
-              h="24px"
-              minH="24px"
-              borderRadius="md"
-              borderColor="teal.300"
-              _hover={{ borderColor: 'teal.500' }}
-              bg="white"
-              value={customer.sms || ''}
-              cursor="pointer"
-              onChange={async (e) => {
-                const val = e.target.value;
-                try {
-                  await onUpdate(customer._id || customer.id, { sms: val });
-                } catch (err) {
-                  console.error('Failed to update SMS category:', err);
-                }
-                if (val) {
-                  handleOpenSmsModal(customer, val);
-                }
-              }}
-            >
-              <option value="">SMS ▾</option>
-              {SMS_CATEGORIES.map(cat => (
-                <option key={cat.key} value={cat.key}>
-                  {cat.label}
-                </option>
-              ))}
-            </Select>
-            {customer.sms && (
-              <Tooltip label={`Send ${customer.sms} SMS`} hasArrow>
-                <IconButton
-                  icon={<Icon as={FiSend} />}
-                  size="xs"
-                  h="24px"
-                  minW="24px"
-                  colorScheme="teal"
-                  variant="ghost"
-                  onClick={() => handleOpenSmsModal(customer, customer.sms)}
-                  aria-label="Send SMS"
-                />
-              </Tooltip>
-            )}
-          </Flex>
-        );
       case 'callStatus': {
         const canEdit = canUserEditField('callStatus', userRole);
         return (
@@ -2066,6 +2186,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         borderColor="gray.200"
         borderRadius="md"
         bg="white"
+        _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
         p={3}
         boxShadow="xs"
         transition="border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease"
@@ -2131,11 +2252,14 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               p={2}
               borderRadius="md"
               bg="gray.50"
+              _dark={{ bg: '#202b3b', borderColor: '#334155' }}
+              borderWidth="1px"
+              borderColor="transparent"
             >
-              <Text fontSize="2xs" color="gray.500" textTransform="uppercase" fontWeight="bold" mb={0.5} noOfLines={1}>
+              <Text fontSize="2xs" color="gray.500" _dark={{ color: 'gray.400' }} textTransform="uppercase" fontWeight="bold" mb={0.5} noOfLines={1}>
                 {column.label}
               </Text>
-              <Text fontSize="xs" color="gray.800" noOfLines={column.key === 'note' ? 2 : 1}>
+              <Text fontSize="xs" color="gray.800" _dark={{ color: 'gray.100' }} noOfLines={column.key === 'note' ? 2 : 1}>
                 {renderGridValue(customer, column)}
               </Text>
             </Box>
@@ -2176,13 +2300,9 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         justify="space-between"
         gap={2}
         flexWrap="wrap"
-        bg="white"
-        borderWidth="1px"
-        borderColor="gray.200"
-        borderRadius="xl"
-        px={3}
-        py={2}
-        boxShadow="xs"
+        bg="transparent"
+        px={0}
+        py={1}
       >
         <Button 
           leftIcon={addingRow ? <CloseIcon boxSize={2} /> : <AddIcon boxSize={2.5} />}
@@ -2193,33 +2313,9 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           minW={{ base: '100%', sm: 'auto' }}
           onClick={addingRow ? closeNewCustomerRow : openNewCustomerRow}
         >
-          {addingRow ? 'Close Form' : 'Add New Customer'}
+          {addingRow ? 'Cancel New Row' : 'Add New Customer'}
         </Button>
         <HStack spacing={2} justify={{ base: 'space-between', sm: 'flex-end' }} w={{ base: '100%', sm: 'auto' }}>
-          <HStack spacing={1} borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={0.5} bg="gray.50">
-            <Button
-              size="xs"
-              h="28px"
-              minW="52px"
-              borderRadius="md"
-              colorScheme={viewMode === 'list' ? 'teal' : 'gray'}
-              variant={viewMode === 'list' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('list')}
-            >
-              List
-            </Button>
-            <Button
-              size="xs"
-              h="28px"
-              minW="52px"
-              borderRadius="md"
-              colorScheme={viewMode === 'grid' ? 'teal' : 'gray'}
-              variant={viewMode === 'grid' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('grid')}
-            >
-              Grid
-            </Button>
-          </HStack>
           <Menu closeOnSelect={false}>
             <MenuButton as={Button} leftIcon={<SettingsIcon boxSize={2.5} />} size="sm" variant="outline" borderRadius="lg" minW="100px">
               Columns
@@ -2247,298 +2343,14 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         </HStack>
       </Flex>
 
-      {/* Dedicated Add Customer Follow-up Form Card */}
-      <Collapse in={addingRow} animateOpacity>
-        <Box
-          ref={addFormRef}
-          bg="white"
-          borderWidth="1.5px"
-          borderColor="teal.300"
-          borderRadius="xl"
-          p={{ base: 4, md: 5 }}
-          mb={4}
-          boxShadow="sm"
-        >
-          <Flex justify="space-between" align="center" mb={4} pb={3} borderBottomWidth="1px" borderColor="gray.100">
-            <HStack spacing={3}>
-              <Flex
-                w="34px"
-                h="34px"
-                borderRadius="lg"
-                bg="teal.50"
-                color="teal.600"
-                align="center"
-                justify="center"
-                borderWidth="1px"
-                borderColor="teal.200"
-              >
-                <AddIcon boxSize={3} />
-              </Flex>
-              <Box>
-                <Heading size="xs" color="gray.800" fontWeight="bold">
-                  Add New Customer Follow-up
-                </Heading>
-                <Text fontSize="xs" color="gray.500">
-                  Enter prospect contact details, training preference, and initial status.
-                </Text>
-              </Box>
-            </HStack>
-            <IconButton
-              icon={<CloseIcon boxSize={2} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'gray.700', bg: 'gray.100' }}
-              onClick={closeNewCustomerRow}
-              aria-label="Close form"
-            />
-          </Flex>
-
-          <VStack spacing={4} align="stretch">
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-              <FormControl isRequired>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Customer Name
-                </FormLabel>
-                <Input
-                  ref={nameInputRef}
-                  name="customerName"
-                  value={newCustomerData.customerName || ''}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  placeholder="e.g. Abebe Kebede"
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Phone Number
-                </FormLabel>
-                <Input
-                  name="phone"
-                  value={newCustomerData.phone || ''}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  placeholder="e.g. 0911234567"
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Email Address
-                </FormLabel>
-                <Input
-                  name="email"
-                  type="email"
-                  value={newCustomerData.email || ''}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  placeholder="e.g. customer@example.com"
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                />
-              </FormControl>
-            </SimpleGrid>
-
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Training Course
-                </FormLabel>
-                <Select
-                  name="contactTitle"
-                  value={newCustomerData.contactTitle || ''}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                >
-                  <option value="">Select a course</option>
-                  {(Array.isArray(courses) ? courses : []).map(course => (
-                    <option key={course._id} value={course.name}>
-                      {course.name} - {formatPrice(Number(course.price) || 0)}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Schedule Preference
-                </FormLabel>
-                <Select
-                  name="schedulePreference"
-                  value={newCustomerData.schedulePreference || 'Regular'}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                >
-                  <option value="Regular">Regular</option>
-                  <option value="Weekend">Weekend</option>
-                  <option value="Night">Night</option>
-                  <option value="Online">Online</option>
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Package Scope
-                </FormLabel>
-                <Select
-                  name="packageScope"
-                  value={newCustomerData.packageScope || 'Local'}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                >
-                  <option value="Local">Local</option>
-                  <option value="International">International</option>
-                </Select>
-              </FormControl>
-            </SimpleGrid>
-
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Call Status
-                </FormLabel>
-                <Select
-                  name="callStatus"
-                  value={newCustomerData.callStatus || 'Not Called'}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                >
-                  <option value="Not Called">Not Called</option>
-                  <option value="Called">Called</option>
-                  <option value="Busy">Busy</option>
-                  <option value="No Answer">No Answer</option>
-                  <option value="Callback">Callback</option>
-                  <option value="2x Called">2x Called</option>
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Follow-up Status
-                </FormLabel>
-                <Select
-                  name="followupStatus"
-                  value={newCustomerData.followupStatus || 'Pending'}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Prospect">Prospect</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="Cancelled">Cancelled</option>
-                  <option value="Imported">Imported</option>
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  SMS
-                </FormLabel>
-                <Select
-                  name="sms"
-                  value={newCustomerData.sms || ''}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                >
-                  <option value="">Select SMS</option>
-                  {SMS_CATEGORIES.map(cat => (
-                    <option key={cat.key} value={cat.key}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                  Follow-up Date
-                </FormLabel>
-                <Input
-                  name="date"
-                  type="date"
-                  value={newCustomerData.date ? newCustomerData.date.slice(0, 10) : new Date().toISOString().slice(0, 10)}
-                  onChange={handleNewCustomerChange}
-                  onKeyDown={handleNewCustomerKeyDown}
-                  size="sm"
-                  borderRadius="md"
-                  focusBorderColor="teal.500"
-                />
-              </FormControl>
-            </SimpleGrid>
-
-            <FormControl>
-              <FormLabel fontSize="xs" fontWeight="bold" color="gray.700">
-                Notes & Remarks
-              </FormLabel>
-              <Textarea
-                name="note"
-                value={newCustomerData.note || ''}
-                onChange={handleNewCustomerChange}
-                placeholder="Enter discussion points, client requests, or callback notes..."
-                size="sm"
-                rows={2}
-                borderRadius="md"
-                focusBorderColor="teal.500"
-              />
-            </FormControl>
-
-            <Flex justify="flex-end" gap={3} pt={2} borderTopWidth="1px" borderColor="gray.100">
-              <Button
-                size="sm"
-                variant="ghost"
-                colorScheme="gray"
-                onClick={closeNewCustomerRow}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                colorScheme="teal"
-                leftIcon={<CheckIcon boxSize={2.5} />}
-                onClick={handleAddNewCustomer}
-                fontWeight="semibold"
-              >
-                Save Customer
-              </Button>
-            </Flex>
-          </VStack>
-        </Box>
-      </Collapse>
-      {viewMode === 'list' ? (
       <Box
         overflowX="auto"
-        borderRadius="xl"
+        borderRadius="14px"
         borderWidth="1px"
         borderColor="gray.200"
-        boxShadow="xs"
+        boxShadow="0 8px 24px rgba(15, 23, 42, 0.06)"
         bg="white"
+        _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
       >
       <Table variant="simple" size="sm" w="100%" sx={{ tableLayout: 'fixed' }}>
         <colgroup>
@@ -2547,11 +2359,12 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           ))}
         </colgroup>
         <Thead>
-          <Tr bgGradient="linear(to-r, #0f766e, #115e59)">
+          <Tr bg="#edf8f7" _dark={{ bg: 'whiteAlpha.100' }}>
             {visibleColumns.map(column => (
               <Th
                 key={column.key}
-                color="white"
+                color="#475569"
+                _dark={{ color: 'gray.300' }}
                 fontWeight="700"
                 fontSize="11px"
                 letterSpacing="0.04em"
@@ -2563,8 +2376,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 draggable
                 opacity={draggedColumn === column.key ? 0.75 : 1}
                 cursor={draggedColumn === column.key ? 'grabbing' : 'grab'}
-                bg={dragOverColumn === column.key && draggedColumn !== column.key ? '#134e4a' : undefined}
-                boxShadow={dragOverColumn === column.key && draggedColumn !== column.key ? 'inset 3px 0 0 rgba(255,255,255,0.95)' : 'none'}
+                bg={dragOverColumn === column.key && draggedColumn !== column.key ? '#d9f2ef' : undefined}
+                boxShadow={dragOverColumn === column.key && draggedColumn !== column.key ? 'inset 3px 0 0 #0f766e' : 'none'}
                 transform={draggedColumn === column.key ? 'translateY(-1px)' : 'translateY(0)'}
                 transition="background 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease"
                 onDragStart={(event) => {
@@ -2619,16 +2432,20 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           </Tr>
         </Thead>
         <Tbody>
-
+          {addingRow && (
+            <Tr bg="#f0fdfa" _dark={{ bg: 'teal.900' }} borderBottom="2px solid" borderColor="teal.500">
+              {visibleColumns.map(column => renderNewCustomerColumnCell(column))}
+            </Tr>
+          )}
 
           {paginatedCustomers && paginatedCustomers.map(customer => (
             <Tr 
               key={customer._id} 
-              _hover={{ bg: 'gray.50' }}
+              _hover={{ bg: rowHoverBg }}
               transition="background 0.2s"
               fontSize="sm"
               borderBottom="1px"
-              borderColor="gray.200"
+              borderColor="#edf1f3"
             >
               {visibleColumns.map(column => renderCustomerColumnCell(customer, column))}
             </Tr>
@@ -2636,11 +2453,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         </Tbody>
       </Table>
       </Box>
-      ) : (
-        <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={3}>
-          {paginatedCustomers && paginatedCustomers.map(renderGridCard)}
-        </SimpleGrid>
-      )}
 
       {/* Pagination Controls */}
       {totalItems > 0 && (
@@ -2673,6 +2485,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 w="75px"
                 borderRadius="md"
               >
+                <option value={10}>10</option>
                 <option value={15}>15</option>
                 <option value={25}>25</option>
                 <option value={50}>50</option>

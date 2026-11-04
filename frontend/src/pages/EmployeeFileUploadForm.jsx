@@ -93,7 +93,7 @@ const EmployeeFileUploadForm = ({ embedded = false }) => {
   const bg = useColorModeValue('#f4f7f9', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const navyBrand = '#294f73';
+  const navyBrand = useColorModeValue('#294f73', 'gray.100');
 
   // State
   const [categories, setCategories] = useState([]);
@@ -352,6 +352,7 @@ const EmployeeFileUploadForm = ({ embedded = false }) => {
 
   return (
     <Box
+      className={embedded ? 'sales-document-upload' : undefined}
       minH={embedded ? 'auto' : '100vh'}
       bg={embedded ? 'transparent' : bg}
       py={embedded ? 0 : { base: 6, md: 10 }}
@@ -516,6 +517,7 @@ const EmployeeFileUploadForm = ({ embedded = false }) => {
                     colorScheme="purple"
                     variant="outline"
                     bg="white"
+                    _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
                     leftIcon={<Icon as={FiStar} />}
                     onClick={() => {
                       setSelectedCategory(mandCat._id);
@@ -670,6 +672,7 @@ const EmployeeFileUploadForm = ({ embedded = false }) => {
                   border="2px dashed"
                   borderColor={selectedFile ? 'teal.400' : 'gray.300'}
                   bg={selectedFile ? 'teal.50' : 'gray.50'}
+                  _dark={{ bg: selectedFile ? 'rgba(13,148,136,0.12)' : 'whiteAlpha.50', borderColor: 'gray.600' }}
                   borderRadius="xl"
                   p={4}
                   textAlign="center"
@@ -774,6 +777,7 @@ const EmployeeFileUploadForm = ({ embedded = false }) => {
                 borderRadius="xl"
                 textAlign="center"
                 bg="gray.50"
+                _dark={{ bg: 'whiteAlpha.50', borderColor: 'gray.600' }}
               >
                 <Icon as={FiFileText} boxSize={10} color="gray.400" mb={2} />
                 <Heading size="xs" color="gray.600" mb={1}>

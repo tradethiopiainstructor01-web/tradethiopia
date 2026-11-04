@@ -8,11 +8,14 @@ const {
   updateCalledCall,
   deleteCalledCall,
   getCalledCallStats,
+  bulkCreateCalledCalls,
 } = require('../controllers/calledCallController');
 
 router.route('/')
   .get(protect, getCalledCalls)
   .post(protect, createCalledCall);
+
+router.post('/bulk', protect, bulkCreateCalledCalls);
 
 router.get('/stats', protect, getCalledCallStats);
 

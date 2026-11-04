@@ -372,7 +372,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   const renderTableSection = () => {
     if (isLoading) {
       return (
-        <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" p={6}>
+        <Box bg="white" _dark={{ bg: 'gray.800', borderColor: 'gray.700' }} rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" p={6}>
           <Flex align="center" gap={3}>
             <Spinner size="lg" />
             <Text fontWeight="medium">Loading content tracker data...</Text>
@@ -383,7 +383,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
 
     if (error) {
       return (
-        <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" p={6}>
+        <Box bg="white" _dark={{ bg: 'gray.800', borderColor: 'gray.700' }} rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" p={6}>
           <Alert status="error" borderRadius="md">
             <AlertIcon />
             {error}
@@ -394,7 +394,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
 
     if (!visibleRows.length) {
       return (
-        <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" p={6}>
+        <Box bg="white" _dark={{ bg: 'gray.800', borderColor: 'gray.700' }} rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" p={6}>
           <Text color="gray.500" textAlign="center">
             No tracker entries yet. Click “Add” to create one.
           </Text>
@@ -403,9 +403,9 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
     }
 
     return (
-      <Box bg="white" rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" overflowX="auto">
+      <Box bg="white" _dark={{ bg: 'gray.800', borderColor: 'gray.700' }} rounded="lg" shadow="sm" borderWidth="1px" borderColor="gray.200" overflowX="auto">
         <Table variant="simple" minW={hasPlatformTracking ? "980px" : "860px"}>
-          <Thead bg="gray.50">
+          <Thead bg="gray.50" _dark={{ bg: 'whiteAlpha.100' }}>
             <Tr>
               <Th>Date</Th>
               <Th>Content</Th>
@@ -547,7 +547,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
   };
 
   return (
-    <Box w="100%" minW={0}>
+    <Box className="sales-content-tracker" w="100%" minW={0}>
       <Flex justify="space-between" align={{ base: "stretch", sm: "center" }} mb={4} gap={3} direction={{ base: "column", sm: "row" }}>
         <Heading size="lg">{title}</Heading>
         <Button size="sm" colorScheme="teal" onClick={handleAddEntry} alignSelf={{ base: "stretch", sm: "center" }}>
@@ -609,6 +609,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
           </Box>
           <Box
             bg="white"
+            _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
             borderWidth="1px"
             borderRadius="md"
             borderColor="gray.200"
@@ -627,7 +628,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
             </Text>
             <SimpleGrid columns={{ base: 2, md: 3, lg: 5 }} spacing={3} mt={4}>
               {Object.entries(REQUIRED_COUNTS).map(([type, target]) => (
-                <Box key={type} py={2} px={3} bg="gray.50" borderRadius="md">
+                <Box key={type} py={2} px={3} bg="gray.50" _dark={{ bg: 'whiteAlpha.50' }} borderRadius="md">
                   <Text fontSize="xs" color="gray.500">
                     {type}
                   </Text>
@@ -636,7 +637,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
                   </Text>
                 </Box>
               ))}
-              <Box py={2} px={3} bg="gray.50" borderRadius="md">
+              <Box py={2} px={3} bg="gray.50" _dark={{ bg: 'whiteAlpha.50' }} borderRadius="md">
                 <Text fontSize="xs" color="gray.500">
                   Shares
                 </Text>
@@ -644,7 +645,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
                   {monthlyStats.shares}/{SHARE_TARGET}
                 </Text>
               </Box>
-              <Box py={2} px={3} bg="gray.50" borderRadius="md">
+              <Box py={2} px={3} bg="gray.50" _dark={{ bg: 'whiteAlpha.50' }} borderRadius="md">
                 <Text fontSize="xs" color="gray.500">
                   Approved posts
                 </Text>
@@ -769,7 +770,7 @@ const ContentTrackerPage = ({ title = 'Content Tracker', addButtonLabel = 'Add',
           <ModalCloseButton />
           <ModalBody>
             {viewEntry ? (
-              <Box borderWidth="1px" borderRadius="lg" shadow="md" p={5} bg="white">
+              <Box borderWidth="1px" borderRadius="lg" shadow="md" p={5} bg="white" _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}>
                 <Flex justify="space-between" align="center" mb={3} gap={3}>
                   <Box>
                     <Text fontSize="sm" color="gray.500">

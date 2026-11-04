@@ -138,6 +138,8 @@ const Dashboard = () => {
         label: 'Follow-ups',
         data: [followupMetrics.completed, followupMetrics.pending, followupMetrics.overdue],
         backgroundColor: ['#4CAF50', '#FFC107', '#F44336'],
+        borderColor: ['#388E3C', '#FFA000', '#D32F2F'],
+        borderWidth: 1,
         borderRadius: 5,
       },
     ],
@@ -162,7 +164,7 @@ const Dashboard = () => {
   };
 
   return (
-    <Box p={{ base: 2, md: 6 }} bg={bgColor} minHeight="100vh">
+    <Box className="sales-home-dashboard" p={{ base: 2, md: 6 }} minHeight="100%">
       <Heading 
         as="h1" 
         size={{ base: "lg", md: "xl" }} 
@@ -181,7 +183,7 @@ const Dashboard = () => {
         </Flex>
       )}
           {error && <Text color="orange.600" mb={4}>{error}</Text>}
-          <SimpleGrid columns={{ base: 1, md: 3, lg: 4 }} spacing={3} mb={6}>
+          <SimpleGrid columns={{ base: 1, md: 3, lg: 4 }} spacing={4} mb={6}>
             {[
               {
                 icon: MdPeople,
@@ -223,6 +225,7 @@ const Dashboard = () => {
               <Card
                 key={card.label}
                 boxShadow="md"
+                borderRadius="lg"
                 _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg' }}
                 bg={card.bg}
                 color="white"
@@ -344,31 +347,31 @@ const Dashboard = () => {
               </Text>
               
               <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-                <Box p={4} bg="blue.50" borderRadius="md" border="1px" borderColor="blue.200">
+                <Box p={4} bg="blue.50" _dark={{ bg: 'whiteAlpha.50', borderColor: 'blue.800' }} borderRadius="md" border="1px" borderColor="blue.200">
                   <Flex align="center" mb={2}>
                     <Icon as={FiCheckCircle} color="blue.500" mr={2} />
-                    <Text fontWeight="bold" color="blue.700">Pending Tasks</Text>
+                    <Text fontWeight="bold" color="blue.700" _dark={{ color: 'blue.200' }}>Pending Tasks</Text>
                   </Flex>
-                  <Text fontSize="2xl" fontWeight="bold" color="blue.600">{taskStats.pendingTasks}</Text>
-                  <Text fontSize="sm" color="blue.500">{taskStats.pendingTasks > 0 ? `${Math.min(2, taskStats.pendingTasks)} due soon` : 'No pending tasks'}</Text>
+                  <Text fontSize="2xl" fontWeight="bold" color="blue.600" _dark={{ color: 'blue.300' }}>{taskStats.pendingTasks}</Text>
+                  <Text fontSize="sm" color="blue.500" _dark={{ color: 'gray.300' }}>{taskStats.pendingTasks > 0 ? `${Math.min(2, taskStats.pendingTasks)} due soon` : 'No pending tasks'}</Text>
                 </Box>
                 
-                <Box p={4} bg="green.50" borderRadius="md" border="1px" borderColor="green.200">
+                <Box p={4} bg="green.50" _dark={{ bg: 'whiteAlpha.50', borderColor: 'green.800' }} borderRadius="md" border="1px" borderColor="green.200">
                   <Flex align="center" mb={2}>
                     <Icon as={FiCheck} color="green.500" mr={2} />
-                    <Text fontWeight="bold" color="green.700">Completed Tasks</Text>
+                    <Text fontWeight="bold" color="green.700" _dark={{ color: 'green.200' }}>Completed Tasks</Text>
                   </Flex>
-                  <Text fontSize="2xl" fontWeight="bold" color="green.600">{taskStats.completedTasks}</Text>
-                  <Text fontSize="sm" color="green.500">This week</Text>
+                  <Text fontSize="2xl" fontWeight="bold" color="green.600" _dark={{ color: 'green.300' }}>{taskStats.completedTasks}</Text>
+                  <Text fontSize="sm" color="green.500" _dark={{ color: 'gray.300' }}>This week</Text>
                 </Box>
                 
-                <Box p={4} bg="orange.50" borderRadius="md" border="1px" borderColor="orange.200">
+                <Box p={4} bg="red.50" _dark={{ bg: 'whiteAlpha.50', borderColor: 'red.800' }} borderRadius="md" border="1px" borderColor="red.200">
                   <Flex align="center" mb={2}>
-                    <Icon as={FiClock} color="orange.500" mr={2} />
-                    <Text fontWeight="bold" color="orange.700">Overdue Tasks</Text>
+                    <Icon as={FiClock} color="red.500" mr={2} />
+                    <Text fontWeight="bold" color="red.700" _dark={{ color: 'red.200' }}>Overdue Tasks</Text>
                   </Flex>
-                  <Text fontSize="2xl" fontWeight="bold" color="orange.600">{taskStats.overdueTasks}</Text>
-                  <Text fontSize="sm" color="orange.500">{taskStats.overdueTasks > 0 ? 'Requires immediate attention' : 'No overdue tasks'}</Text>
+                  <Text fontSize="2xl" fontWeight="bold" color="red.600" _dark={{ color: 'red.300' }}>{taskStats.overdueTasks}</Text>
+                  <Text fontSize="sm" color="red.500" _dark={{ color: 'gray.300' }}>{taskStats.overdueTasks > 0 ? 'Requires immediate attention' : 'No overdue tasks'}</Text>
                 </Box>
               </SimpleGrid>
               

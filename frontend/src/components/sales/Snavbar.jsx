@@ -19,7 +19,7 @@ import {
   Spinner,
   Button
 } from '@chakra-ui/react';
-import { FaBell, FaUserCircle, FaMoon, FaSun, FaBars, FaCheck, FaComments, FaEnvelope, FaSignOutAlt } from 'react-icons/fa';
+import { FaBell, FaUserCircle, FaBars, FaCheck, FaComments, FaEnvelope, FaSignOutAlt } from 'react-icons/fa';
 import DocumentReminderToast from './DocumentReminderToast';
 import NotesLauncher from '../notes/NotesLauncher';
 import ChatLauncher from '../chat/ChatLauncher';
@@ -28,8 +28,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../services/notificationService';
 import { rememberReturnPath } from '../../utils/authStorage';
 
-const Snavbar = ({ onToggleSidebar, documentReminder }) => {
-  const { colorMode, toggleColorMode } = useColorMode();
+const Snavbar = ({ onToggleSidebar, documentReminder, isSidebarCollapsed = false }) => {
+  const { colorMode } = useColorMode();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -164,9 +164,7 @@ const Snavbar = ({ onToggleSidebar, documentReminder }) => {
   const employeeRole = currentUser?.jobTitle || currentUser?.displayRole || currentUser?.role || 'Employee';
 
   // Gradient background based on color mode
-  const gradientBg = colorMode === 'light'
-    ? 'linear(to-r, gray.800, blue.800, teal.500)'
-    : 'linear(to-r, gray.800, blue.800, teal.600)';
+  const gradientBg = colorMode === 'light' ? 'white' : 'gray.800';
 
   // Make markTaskNotificationAsRead and markTargetNotificationAsRead available globally
   window.markTaskNotificationAsRead = markTaskNotificationAsRead;
@@ -176,16 +174,18 @@ const Snavbar = ({ onToggleSidebar, documentReminder }) => {
     <Box
       position="fixed"
       top={0}
-      left={0}
+      left={{ base: 0, md: isSidebarCollapsed ? '76px' : '224px' }}
       right={0}
       zIndex={1000}
-      bgGradient={gradientBg}
-      px={4}
-      py={3}
-      shadow="md"
+      bg={gradientBg}
+      px={{ base: 3, md: 6 }}
+      h="68px"
+      borderBottom="1px solid"
+      borderColor={colorMode === 'light' ? '#e8eef0' : 'gray.700'}
+      shadow="0 2px 14px rgba(15, 23, 42, 0.03)"
       transition="background 0.2s ease"
     >
-      <Flex alignItems="center" justifyContent="space-between">
+      <Flex alignItems="center" justifyContent="space-between" h="100%">
         {isMobile && (
           <IconButton
             icon={<FaBars />}
@@ -225,7 +225,7 @@ const Snavbar = ({ onToggleSidebar, documentReminder }) => {
               }
               aria-label="Notifications"
               variant="ghost"
-              color="white"
+              color={colorMode === 'light' ? 'gray.600' : 'white'}
             />
             <MenuList zIndex="popover" minW="min(320px, calc(100vw - 24px))" maxW="calc(100vw - 24px)" w="400px" p={0} overflow="hidden">
               <Box
@@ -291,7 +291,7 @@ const Snavbar = ({ onToggleSidebar, documentReminder }) => {
           <NotesLauncher
             buttonProps={{
               variant: 'ghost',
-              color: 'white',
+              color: colorMode === 'light' ? 'gray.600' : 'white',
               size: 'md',
               'aria-label': 'Notes',
             }}
@@ -303,33 +303,26 @@ const Snavbar = ({ onToggleSidebar, documentReminder }) => {
             preferredView="sales"
             iconButtonProps={{
               variant: 'ghost',
-              color: 'white',
+              color: colorMode === 'light' ? 'gray.600' : 'white',
               size: 'md',
               _hover: { bg: 'whiteAlpha.200' },
             }}
-          />
-          <IconButton
-            icon={colorMode === 'light' ? <FaMoon /> : <FaSun />}
-            aria-label="Toggle Theme"
-            variant="ghost"
-            color="white"
-            onClick={toggleColorMode}
           />
           <Menu>
             <MenuButton
               as={Button}
               variant="ghost"
-              color="white"
+              color={colorMode === 'light' ? 'gray.700' : 'white'}
               h="48px"
               px={{ base: 1, lg: 3 }}
               _hover={{ bg: 'whiteAlpha.200' }}
               _active={{ bg: 'whiteAlpha.300' }}
             >
               <HStack spacing={2}>
-                <Avatar name={employeeName} size="sm" bg="teal.300" icon={<FaUserCircle fontSize="20px" />} />
+                <Avatar name={employeeName} size="sm" bg="teal.600" color="white" icon={<FaUserCircle fontSize="20px" />} />
                 <Box display={{ base: 'none', lg: 'block' }} textAlign="left" maxW="190px">
                   <Text fontSize="sm" fontWeight="700" noOfLines={1}>{employeeName}</Text>
-                  <Text fontSize="xs" color="whiteAlpha.800" noOfLines={1}>{employeeEmail}</Text>
+                  <Text fontSize="xs" color={colorMode === 'light' ? 'gray.500' : 'whiteAlpha.800'} noOfLines={1}>{employeeEmail}</Text>
                 </Box>
               </HStack>
             </MenuButton>

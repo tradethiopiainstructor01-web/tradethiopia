@@ -38,6 +38,7 @@ import {
   Tabs,
   Text,
   Textarea,
+  useColorModeValue,
   useToast,
   VStack,
 } from '@chakra-ui/react';
@@ -211,10 +212,17 @@ const Field = ({ label, helper, required = false, children }) => (
   </FormControl>
 );
 
-const EmployeeRequestsPage = () => {
+const EmployeeRequestsPage = ({ embedded = false }) => {
   const toast = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const surfaceBg = useColorModeValue('white', '#1b2433');
+  const panelBg = useColorModeValue('gray.50', '#202b3b');
+  const controlBg = useColorModeValue('white', '#151e2c');
+  const surfaceBorder = useColorModeValue('gray.200', '#3b4a60');
+  const headingColor = useColorModeValue('gray.800', 'gray.100');
+  const mutedColor = useColorModeValue('gray.500', 'gray.300');
+  const activeGroupBg = useColorModeValue('teal.50', 'whiteAlpha.100');
 
   const currentUser = useUserStore((state) => state.currentUser);
   const role = normalizeRole(currentUser?.role || currentUser?.displayRole);
@@ -614,13 +622,13 @@ const EmployeeRequestsPage = () => {
 
   const renderLeaveForm = () => (
     <Stack spacing={6}>
-      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+      <Box p={5} bg={panelBg} borderRadius="2xl" border="1px solid" borderColor={surfaceBorder}>
         <HStack mb={3} spacing={2}>
           <Icon as={FiCalendar} color="teal.600" />
           <Heading size="sm">Leave Duration & Schedule</Heading>
         </HStack>
         {subcategory === 'annual_leave' && (
-          <Box mb={5} p={4} bg="white" border="1px solid" borderColor="teal.200" borderRadius="xl">
+          <Box mb={5} p={4} bg={surfaceBg} border="1px solid" borderColor="teal.500" borderRadius="xl">
             <Field
               label="Annual Leave Duration Format"
               required
@@ -659,7 +667,7 @@ const EmployeeRequestsPage = () => {
                 <Input
                   type="date"
                   borderRadius="xl"
-                  bg="white"
+                  bg={controlBg}
                   value={form.halfDayDate}
                   onChange={(event) => update('halfDayDate', event.target.value)}
                 />
@@ -690,7 +698,7 @@ const EmployeeRequestsPage = () => {
                 <Input
                   type="date"
                   borderRadius="xl"
-                  bg="white"
+                  bg={controlBg}
                   value={form.startDate}
                   onChange={(event) => handleDate('startDate', event.target.value)}
                 />
@@ -699,21 +707,21 @@ const EmployeeRequestsPage = () => {
                 <Input
                   type="date"
                   borderRadius="xl"
-                  bg="white"
+                  bg={controlBg}
                   min={form.startDate}
                   value={form.endDate}
                   onChange={(event) => handleDate('endDate', event.target.value)}
                 />
               </Field>
               <Field label="Total Calendar Days">
-                <Input value={form.totalDays ? `${form.totalDays} Days` : ''} isReadOnly bg="gray.100" borderRadius="xl" />
+                <Input value={form.totalDays ? `${form.totalDays} Days` : ''} isReadOnly bg="gray.100" _dark={{ bg: '#151e2c', color: 'gray.200', borderColor: '#3b4a60' }} borderRadius="xl" />
               </Field>
             </>
           )}
           <Field label="Contact Phone / Email During Leave" required>
             <Input
               borderRadius="xl"
-              bg="white"
+              bg={controlBg}
               value={form.contactDuringLeave}
               onChange={(event) => update('contactDuringLeave', event.target.value)}
               placeholder="e.g. +251 91 234 5678 or alternate email"
@@ -723,7 +731,7 @@ const EmployeeRequestsPage = () => {
       </Box>
 
       {/* Coverage and Reasons Card */}
-      <Box p={5} bg="gray.50" borderRadius="2xl" border="1px solid" borderColor="gray.200">
+      <Box p={5} bg={panelBg} borderRadius="2xl" border="1px solid" borderColor={surfaceBorder}>
         <HStack mb={4} spacing={2}>
           <Icon as={FiUserCheck} color="teal.600" />
           <Heading size="sm">Work Coverage & Justification</Heading>
@@ -736,7 +744,7 @@ const EmployeeRequestsPage = () => {
           >
             <Select
               borderRadius="xl"
-              bg="white"
+              bg={controlBg}
               value={form.handoverTo}
               onChange={(event) => update('handoverTo', event.target.value)}
               placeholder="Select employee from database"
@@ -753,7 +761,7 @@ const EmployeeRequestsPage = () => {
           <Field label="Reason & Notes for Leave" required>
             <Textarea
               borderRadius="xl"
-              bg="white"
+              bg={controlBg}
               minH="110px"
               value={form.reason}
               onChange={(event) => update('reason', event.target.value)}
@@ -1321,7 +1329,15 @@ const EmployeeRequestsPage = () => {
   const selectedCategory = CATEGORIES.find((g) => g.key === category);
 
   return (
-    <Box maxW="1600px" mx="auto" px={{ base: 4, md: 7 }} py={{ base: 5, md: 8 }}>
+    <Box
+      className={embedded ? 'sales-embedded-requests' : undefined}
+      w="100%"
+      minW={0}
+      maxW={embedded ? 'none' : '1600px'}
+      mx={embedded ? 0 : 'auto'}
+      px={embedded ? 0 : { base: 4, md: 7 }}
+      py={embedded ? 0 : { base: 5, md: 8 }}
+    >
       {/* Header Banner */}
       <Flex
         justify="space-between"
@@ -1412,9 +1428,9 @@ const EmployeeRequestsPage = () => {
               {/* Category selector sidebar */}
               <GridItem
                 minW={0}
-                bg="white"
+                bg={surfaceBg}
                 border="1px solid"
-                borderColor="gray.200"
+                borderColor={surfaceBorder}
                 borderRadius="2xl"
                 p={5}
                 position={{ lg: 'sticky' }}
@@ -1422,10 +1438,10 @@ const EmployeeRequestsPage = () => {
                 shadow="sm"
                 zIndex={1}
               >
-                <Heading size="sm" color="gray.800">
+                <Heading size="sm" color={headingColor}>
                   Select Request Form
                 </Heading>
-                <Text mt={1} mb={5} fontSize="xs" color="gray.500">
+                <Text mt={1} mb={5} fontSize="xs" color={mutedColor}>
                   Choose the category that matches your submission requirement.
                 </Text>
 
@@ -1438,7 +1454,7 @@ const EmployeeRequestsPage = () => {
                         key={group.key}
                         p={3}
                         borderRadius="xl"
-                        bg={isGroupActive ? 'teal.50' : 'gray.50'}
+                        bg={isGroupActive ? activeGroupBg : panelBg}
                         border="1px solid"
                         borderColor={isGroupActive ? 'teal.200' : 'gray.200'}
                         transition="all 0.2s ease"
@@ -1451,13 +1467,13 @@ const EmployeeRequestsPage = () => {
                               align="center"
                               justify="center"
                               borderRadius="lg"
-                              bg="white"
+                              bg={controlBg}
                               color="teal.600"
                               shadow="xs"
                             >
                               <Icon as={iconFor(group.key)} />
                             </Flex>
-                            <Text fontWeight="800" fontSize="xs" color="gray.800">
+                            <Text fontWeight="800" fontSize="xs" color={headingColor}>
                               {group.label}
                             </Text>
                           </HStack>
@@ -1505,9 +1521,9 @@ const EmployeeRequestsPage = () => {
               {/* Form Content */}
               <GridItem
                 minW={0}
-                bg="white"
+                bg={surfaceBg}
                 border="1px solid"
-                borderColor="gray.200"
+                borderColor={surfaceBorder}
                 borderRadius="2xl"
                 p={{ base: 5, md: 8 }}
                 shadow="sm"
@@ -1522,6 +1538,7 @@ const EmployeeRequestsPage = () => {
                     direction={{ base: 'column', sm: 'row' }}
                     justify="space-between"
                     bg="linear-gradient(135deg, #e6fffa 0%, #f0fdf4 100%)"
+                    _dark={{ bg: '#202b3b', borderColor: 'teal.700' }}
                     border="1px solid"
                     borderColor="teal.200"
                     borderRadius="2xl"
@@ -1534,13 +1551,13 @@ const EmployeeRequestsPage = () => {
                         color="white"
                       />
                       <Box>
-                        <Text fontSize="2xs" fontWeight="800" color="teal.700" textTransform="uppercase" letterSpacing="wide">
+                        <Text fontSize="2xs" fontWeight="800" color="teal.700" _dark={{ color: 'teal.300' }} textTransform="uppercase" letterSpacing="wide">
                           STAGE 1 REVIEWER • ASSIGNED LINE MANAGER
                         </Text>
-                        <Heading mt={0.5} size="sm" color="teal.950">
+                        <Heading mt={0.5} size="sm" color="teal.950" _dark={{ color: 'gray.100' }}>
                           {personName(accessContext.submissionManager)}
                         </Heading>
-                        <Text fontSize="xs" color="gray.600">
+                        <Text fontSize="xs" color="gray.600" _dark={{ color: 'gray.300' }}>
                           {accessContext.submissionManager.jobTitle || accessContext.submissionManager.role}
                           {accessContext.submissionManager.email ? ` • ${accessContext.submissionManager.email}` : ''}
                         </Text>
@@ -1550,7 +1567,7 @@ const EmployeeRequestsPage = () => {
                       <Badge colorScheme="teal" borderRadius="md" px={2.5} py={0.5}>
                         Line Approval Route
                       </Badge>
-                      <Text mt={1} fontSize="2xs" color="gray.500" textTransform="capitalize">
+                      <Text mt={1} fontSize="2xs" color="gray.500" _dark={{ color: 'gray.400' }} textTransform="capitalize">
                         Auto-assigned via {accessContext.submissionManager.assignmentSource}
                       </Text>
                     </Box>
@@ -1568,13 +1585,13 @@ const EmployeeRequestsPage = () => {
                     <Badge colorScheme="teal" px={2.5} py={0.5} borderRadius="md">
                       {selectedCategory?.label}
                     </Badge>
-                    <Heading mt={1.5} size="lg" color="gray.800">
+                    <Heading mt={1.5} size="lg" color={headingColor}>
                       {labelFor(subcategory)}
                     </Heading>
                   </Box>
-                  <HStack spacing={2} bg="gray.50" px={3} py={1.5} borderRadius="xl" border="1px solid" borderColor="gray.200">
+                  <HStack spacing={2} bg={panelBg} px={3} py={1.5} borderRadius="xl" border="1px solid" borderColor={surfaceBorder}>
                     <Icon as={FiArrowRight} color="teal.600" />
-                    <Text fontSize="xs" fontWeight="700" color="gray.600">
+                    <Text fontSize="xs" fontWeight="700" color={mutedColor}>
                       1. Submitter → 2. Line Manager → 3. HR Final Sign-off
                     </Text>
                   </HStack>
@@ -1600,7 +1617,7 @@ const EmployeeRequestsPage = () => {
                       accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                       p={1.5}
                       borderRadius="xl"
-                      bg="gray.50"
+                      bg={controlBg}
                       onChange={handleFileAttachment}
                     />
                   </Field>
