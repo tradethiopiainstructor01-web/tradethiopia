@@ -285,6 +285,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
       if (isMissingDocuments(newCustomer)) {
         toast({ title: 'Follow-up completed — submit the payment slip', description: 'Please upload the payment slip for this sale.', status: 'info', duration: 9000, isClosable: true });
       }
+      return true;
     } catch (err) {
       setCustomers((previous) => previous.filter((customer) => customer.id !== temporaryId));
       toast({
@@ -294,6 +295,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
         duration: 3000,
         isClosable: true,
       });
+      return false;
     }
   };
 
@@ -346,7 +348,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
         duration: needsDocuments ? 9000 : 2500,
         isClosable: true,
       });
-      return mappedCustomer;
+      return true;
     } catch (err) {
       // Revert optimistic update on error
       if (previousCustomers) setCustomers(previousCustomers);
@@ -357,7 +359,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
         duration: 3000,
         isClosable: true,
       });
-      return null;
+      return false;
     }
   };
 

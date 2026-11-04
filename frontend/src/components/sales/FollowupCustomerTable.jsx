@@ -653,7 +653,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     });
   };
 
-  const handleSaveEditModal = () => {
+  const handleSaveEditModal = async () => {
     if (!editModalCustomer) return;
     const targetId = editModalCustomer._id || editModalCustomer.id;
     if (!targetId) return;
@@ -693,7 +693,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       }
     }
 
-    onUpdate(targetId, payload);
+    const saved = await onUpdate(targetId, payload);
+    if (!saved) return;
     setUpdatedCustomers(prev => new Set(prev).add(targetId));
     setTimeout(() => {
       setUpdatedCustomers(prev => {
@@ -907,7 +908,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     setEditValue(customer[field] || '');
   };
 
-  const handleSave = (customer, forcedValue = null, completionProof = null) => {
+  const handleSave = async (customer, forcedValue = null, completionProof = null) => {
     if (editingCell) {
       const value = forcedValue !== null ? forcedValue : editValue;
 
@@ -926,7 +927,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           });
           setIsCompletionProofOpen(true);
         });
-        return;
+        return false;
       }
 
       const updated = {
@@ -959,7 +960,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         }
       }
 
-      onUpdate(customer._id || customer.id, updated);
+      const saved = await onUpdate(customer._id || customer.id, updated);
+      if (!saved) return false;
       // Track updated customer
       setUpdatedCustomers(prev => new Set(prev).add(customer._id));
       // Clear the indicator after 2 seconds
@@ -972,7 +974,9 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       }, 2000);
       setEditingCell(null);
       setEditValue('');
+      return true;
     }
+    return false;
   };
 
   const handleCancel = () => {
@@ -1021,6 +1025,43 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       return;
     }
 
+    const proof = {
+      passportPhoto: passportPhoto || '',
+      nationalIdFrontImage: nationalIdFrontImage || '',
+      nationalIdBackImage: nationalIdBackImage || '',
+      paymentScreenshot: paymentScreenshot || '',
+      paymentOption: paymentOption || 'Full Payment',
+      paymentBank: resolvedBank,
+      fsNumber: fsNumber || ''
+    };
+
+    if (completionProofData.isNew) {
+      let customerToAdd = {
+        ...completionProofData.customer,
+        followupStatus: 'Completed',
+        ...proof
+      };
+      if (customerToAdd.contactTitle) {
+        const courseDetails = getCourseDetails(customerToAdd.contactTitle);
+        if (courseDetails) {
+          customerToAdd.coursePrice = courseDetails.price;
+          customerToAdd.courseId = courseDetails.id;
+          customerToAdd.commission = calculateCommission(courseDetails.name, courseDetails.price);
+        }
+      }
+      setIsCompletingSale(true);
+      try {
+        const saved = await onAdd(customerToAdd);
+        if (!saved) return;
+        closeNewCustomerRow();
+        setIsCompletionProofOpen(false);
+        setCompletionProofData(null);
+      } finally {
+        setIsCompletingSale(false);
+      }
+      return;
+    }
+
     const targetId = customer?._id || customer?.id;
     if (!targetId) {
       toast({
@@ -1032,16 +1073,6 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       });
       return;
     }
-
-    const proof = {
-      passportPhoto: passportPhoto || '',
-      nationalIdFrontImage: nationalIdFrontImage || '',
-      nationalIdBackImage: nationalIdBackImage || '',
-      paymentScreenshot: paymentScreenshot || '',
-      paymentOption: paymentOption || 'Full Payment',
-      paymentBank: resolvedBank,
-      fsNumber: fsNumber || ''
-    };
 
     const payload = { ...customer, followupStatus: 'Completed', ...proof };
     const courseDetails = getCourseDetails(payload.contactTitle, payload.courseId);
@@ -1248,7 +1279,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     }
   };
 
-  const handleAddNewCustomer = () => {
+  const handleAddNewCustomer = async () => {
     if (!newCustomerData.customerName || !newCustomerData.customerName.trim()) {
       toast({
         title: 'Customer Name Required',
@@ -1262,13 +1293,18 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     }
 
     if (newCustomerData.followupStatus === 'Completed') {
-      toast({
-        title: 'Payment Slip Required',
-        description: 'Add the customer first, then mark the follow-up Completed and upload the payment slip.',
-        status: 'warning',
-        duration: 4000,
-        isClosable: true
+      setCompletionProofData({
+        isNew: true,
+        customer: { ...newCustomerData },
+        passportPhoto: newCustomerData.passportPhoto || '',
+        nationalIdFrontImage: newCustomerData.nationalIdFrontImage || '',
+        nationalIdBackImage: newCustomerData.nationalIdBackImage || '',
+        paymentScreenshot: newCustomerData.paymentScreenshot || '',
+        paymentOption: newCustomerData.paymentOption || 'Full Payment',
+        paymentBank: newCustomerData.paymentBank || 'Commercial Bank of Ethiopia (CBE)',
+        fsNumber: newCustomerData.fsNumber || ''
       });
+      setIsCompletionProofOpen(true);
       return;
     }
 
@@ -1288,7 +1324,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       }
     }
     
-    onAdd(customerToAdd);
+    const saved = await onAdd(customerToAdd);
+    if (!saved) return;
     closeNewCustomerRow();
   };
 
@@ -2410,6 +2447,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                 >
                   <option value="Pending">Pending</option>
                   <option value="Prospect">Prospect</option>
+                  <option value="Completed">Completed</option>
                   <option value="Scheduled">Scheduled</option>
                   <option value="Cancelled">Cancelled</option>
                   <option value="Imported">Imported</option>
