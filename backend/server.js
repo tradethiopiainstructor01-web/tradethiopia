@@ -65,6 +65,7 @@ const payrollRoutes = require('./routes/payrollRoutes.js'); // Add this line
 const paymentRoutes = require('./routes/paymentRoutes.js');
 const awardRoutes = require('./routes/awardRoutes.js');
 const contentTrackerRoutes = require('./routes/contentTrackerRoutes');
+const calledCallRoutes = require('./routes/calledCallRoutes');
 const candidatePoolRoutes = require('./routes/candidatePoolRoutes.js');
 const hrKpiRoutes = require('./routes/hrKpiRoutes.js');
 const salesDepartmentKpiRoutes = require('./routes/salesDepartmentKpiRoutes.js');
@@ -363,6 +364,7 @@ app.use('/api/social-account-credentials', socialAccountCredentialRoutes);
 app.use('/api/student-registrations', studentRegistrationRoutes);
 app.use('/api/action-items', actionItemRoutes);
 app.use('/api/content-tracker', contentTrackerRoutes);
+app.use('/api/called-calls', calledCallRoutes);
 app.use('/api/candidate-pool', candidatePoolRoutes);
 app.use('/api/hr-kpi', hrKpiRoutes);
 app.use('/api/customer-department-kpi', require('./routes/customerDepartmentKpiRoutes'));

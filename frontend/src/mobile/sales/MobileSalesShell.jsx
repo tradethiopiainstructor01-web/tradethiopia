@@ -13,6 +13,7 @@ import MobileTasks from './MobileTasks';
 const StudentRegistrationPage = lazy(() => import('../../components/customer/StudentRegistrationPage'));
 const OrderFollowup = lazy(() => import('../../components/sales/OrderFollowup.jsx'));
 const ContentTrackerPage = lazy(() => import('../../components/sales/ContentTrackerPage.jsx'));
+const CalledCallPage = lazy(() => import('../../components/sales/CalledCallPage.jsx'));
 const MonthlyReport = lazy(() => import('../../components/sales/MonthlyReport.jsx'));
 const SalesMessagesPage = lazy(() => import('../../pages/SalesMessagesPage'));
 const EmployeeRequestsPage = lazy(() => import('../../pages/EmployeeRequestsPage'));
@@ -20,7 +21,7 @@ const EmployeeFileUploadForm = lazy(() => import('../../pages/EmployeeFileUpload
 const EmployeeWarningsPage = lazy(() => import('../../pages/EmployeeWarningsPage'));
 
 const mobileSections = [
-  'Home', 'Followup', 'Package Sales', 'Orders', 'Tasks', 'Content Tracker', 'Monthly Report',
+  'Home', 'Followup', 'Called Call', 'Package Sales', 'Orders', 'Tasks', 'Content Tracker', 'Monthly Report',
   'Notice Board', 'Requests', 'Upload Documents', 'My Warnings', 'Student Registration', 'More'
 ];
 
@@ -57,6 +58,11 @@ const MobileSalesShell = ({ activeItem, documentReminder }) => {
         return <MobileTasks />;
       case 'Content Tracker':
         return <ContentTrackerPage />;
+      case 'Called Call':
+      case 'called call':
+      case 'Cold Call':
+      case 'cold call':
+        return <CalledCallPage />;
       case 'Monthly Report':
         return <MonthlyReport />;
       case 'Notice Board':

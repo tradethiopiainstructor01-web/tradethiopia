@@ -27,6 +27,7 @@ import {
   FiShoppingCart,
   FiUploadCloud,
   FiUsers,
+  FiPhoneCall,
   FiX
 } from 'react-icons/fi';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -47,6 +48,7 @@ const theme = {
 const sidebarItems = [
   { label: 'Home', value: 'Home', icon: FiHome },
   { label: 'Followup', value: 'Followup', icon: FiUsers },
+  { label: 'Called Call', value: 'Called Call', icon: FiPhoneCall },
   { label: 'Orders', value: 'Orders', icon: FiShoppingCart },
   { label: 'Tasks', value: 'Tasks', icon: FiCheckSquare },
   { label: 'Content Tracker', value: 'Content Tracker', icon: FiCalendar },
