@@ -15,6 +15,7 @@ import EmployeeRequestsPage from '../../pages/EmployeeRequestsPage';
 import EmployeeFileUploadForm from '../../pages/EmployeeFileUploadForm';
 import EmployeeWarningsPage from '../../pages/EmployeeWarningsPage';
 import ContentTrackerPage from './ContentTrackerPage.jsx';
+import CalledCallPage from './CalledCallPage.jsx';
 import useIsMobile from '../../hooks/useIsMobile';
 import MobileSalesShell from '../../mobile/sales/MobileSalesShell';
 import ErrorBoundary from '../ErrorBoundary';
@@ -99,6 +100,11 @@ const Layout = ({ initialActiveItem }) => {
         return <EmployeeWarningsPage mode="employee" />;
       case 'Content Tracker':
         return <ContentTrackerPage />;
+      case 'Called Call':
+      case 'called call':
+      case 'Cold Call':
+      case 'cold call':
+        return <CalledCallPage />;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }
