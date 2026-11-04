@@ -62,7 +62,7 @@ import {
   FiUser,
   FiUsers
 } from 'react-icons/fi';
-import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer, sendCustomerEmail, sendCustomerSms } from '../../services/customerService';
+import { getAllCustomers, getInitialCustomers, createCustomer, updateCustomer, deleteCustomer, sendCustomerEmail, sendCustomerSms } from '../../services/customerService';
 import { fetchExternalCourses } from '../../services/api';
 import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
 import {
@@ -109,7 +109,11 @@ const theme = {
   tealSoft: '#E3F4F1'
 };
 
-const defaultCourses = [
+const sortCoursesAlphabetically = (items) => [...items].sort((a, b) =>
+  String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
+);
+
+const defaultCourses = sortCoursesAlphabetically([
   { _id: 'external-seed-0', name: 'Logistic', price: 9917 },
   { _id: 'external-seed-1', name: 'Stock market', price: 9917 },
   { _id: 'external-seed-2', name: 'digital marketing', price: 9917 },
@@ -117,7 +121,7 @@ const defaultCourses = [
   { _id: 'external-seed-4', name: 'Barista', price: 19899.99 },
   { _id: 'external-seed-5', name: 'Coffee cupping', price: 35000 },
   { _id: 'external-seed-6', name: 'coldcall', price: 0 }
-];
+]);
 
 const emptyTrainingForm = {
   customerName: '',
@@ -266,7 +270,7 @@ const formatTime = (value) => {
 
 const getCourseOptions = (courses = [], currentValue = '') => {
   if (!currentValue || courses.some((course) => course.name === currentValue)) return courses;
-  return [{ _id: `current-${currentValue}`, name: currentValue, price: 0 }, ...courses];
+  return sortCoursesAlphabetically([{ _id: `current-${currentValue}`, name: currentValue, price: 0 }, ...courses]);
 };
 
 const detailTabs = [
@@ -480,8 +484,14 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
   const loadCustomers = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getAllCustomers();
-      setCustomers(Array.isArray(data) ? data : []);
+      const initial = await getInitialCustomers(25);
+      setCustomers(initial.data);
+      setLoading(false);
+      if (initial.total > initial.data.length) {
+        getAllCustomers()
+          .then((data) => setCustomers(Array.isArray(data) ? data : []))
+          .catch((error) => console.error('Background mobile follow-up refresh failed', error));
+      }
     } catch (error) {
       console.error('Failed to load mobile follow-ups', error);
     } finally {
@@ -523,7 +533,7 @@ const MobileFollowups = ({ openAddSignal = 0, initialSection = 'trainings' }) =>
             price: typeof priceRaw === 'number' ? priceRaw : Number(priceRaw) || 0
           };
         }).filter(Boolean);
-        setCourses(normalized.length ? normalized : defaultCourses);
+        setCourses(normalized.length ? sortCoursesAlphabetically(normalized) : defaultCourses);
       } catch (error) {
         console.error('Failed to load mobile training courses', error);
         setCourses(defaultCourses);
