@@ -42,7 +42,8 @@ import {
   Tag,
   TagLabel,
   TagLeftIcon,
-  Collapse
+  Collapse,
+  Portal
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, CloseIcon, InfoIcon, SettingsIcon, DragHandleIcon } from '@chakra-ui/icons';
 import {
@@ -73,7 +74,9 @@ import {
   FiAward,
   FiMessageSquare,
   FiSend,
-  FiExternalLink
+  FiExternalLink,
+  FiChevronDown,
+  FiCheck
 } from 'react-icons/fi';
 import ETHIOPIAN_BANKS from '../../utils/ethiopianBanks';
 import { withDocuments } from '../../utils/salesDocuments';
@@ -257,6 +260,7 @@ const ImageUploadCard = ({
           cursor="pointer"
           _hover={{ borderColor: 'teal.500', bg: 'teal.50' }}
           transition="all 0.2s"
+          onClick={() => fileInputRef.current?.click()}
         >
           <Icon as={FiUploadCloud} boxSize={7} color="gray.400" />
           <Text fontSize="2xs" color="gray.500" textAlign="center">
@@ -310,6 +314,23 @@ const SMS_CATEGORIES = [
     label: 'consultancy',
     template: (name) => `Hello ${name || 'Customer'}, thank you for reaching out to Trade Ethiopia Consultancy. Our specialists offer business strategy, market expansion, and trade advisory. Contact us to schedule a session!`
   }
+];
+
+const FOLLOWUP_STATUS_OPTIONS = [
+  'Pending',
+  'Prospect',
+  'Completed',
+  'Scheduled',
+  'Cancelled'
+];
+
+const CALL_STATUS_OPTIONS = [
+  'Called',
+  'Not Called',
+  'Busy',
+  'No Answer',
+  'Callback',
+  '2x Called'
 ];
 
 const DEFAULT_COLUMNS = [
@@ -399,6 +420,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   const [pendingStatusChange, setPendingStatusChange] = useState(null);
   const [isCompletionProofOpen, setIsCompletionProofOpen] = useState(false);
   const [completionProofData, setCompletionProofData] = useState(null);
+  const [isCompletingSale, setIsCompletingSale] = useState(false);
   const [fullImageModal, setFullImageModal] = useState({ isOpen: false, src: '', title: '', subtitle: '' });
   const [addingRow, setAddingRow] = useState(false);
   const [newCustomerData, setNewCustomerData] = useState(createEmptyCustomer);
@@ -598,6 +620,25 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
   const handleEditModalInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'followupStatus' && value === 'Completed' && editModalCustomer?.followupStatus !== 'Completed') {
+      const completedCustomer = { ...editModalCustomer, followupStatus: 'Completed' };
+      setEditModalCustomer(completedCustomer);
+      setCompletionProofData({
+        isEditModal: true,
+        previousStatus: editModalCustomer.followupStatus || 'Pending',
+        customer: completedCustomer,
+        passportPhoto: completedCustomer.passportPhoto || '',
+        nationalIdFrontImage: completedCustomer.nationalIdFrontImage || '',
+        nationalIdBackImage: completedCustomer.nationalIdBackImage || '',
+        paymentScreenshot: completedCustomer.paymentScreenshot || '',
+        paymentOption: completedCustomer.paymentOption || 'Full Payment',
+        paymentBank: completedCustomer.paymentBank || 'Commercial Bank of Ethiopia (CBE)',
+        fsNumber: completedCustomer.fsNumber || ''
+      });
+      setIsEditModalOpen(false);
+      setIsCompletionProofOpen(true);
+      return;
+    }
     setEditModalCustomer(prev => {
       if (!prev) return prev;
       const next = { ...prev, [name]: value };
@@ -697,14 +738,21 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   };
 
   const canUserEditField = (field, role) => {
-    // Agents/Sales can edit all fields except supervisorComment
-    if (role === 'agent' || role === 'sales') return field !== 'supervisorComment';
-    
-    // Supervisors and admins can edit all fields
-    if (role === 'supervisor' || role === 'admin') return true;
-    
-    // Default: no editing permissions
-    return false;
+    const normalized = (role || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const isLeadership = [
+      'supervisor',
+      'admin',
+      'superadmin',
+      'salesmanager',
+      'manager',
+      'coo',
+      'coo2',
+      'ceo'
+    ].includes(normalized);
+    if (isLeadership) return true;
+
+    // Sales staff and agents can edit all fields except supervisorComment
+    return field !== 'supervisorComment';
   };
 
   // Commission calculation function
@@ -853,9 +901,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
 
   const handleCellClick = (customer, field) => {
     if (customer._saving) return;
-    if (field === 'followupStatus' && (customer.followupStatus || '').toLowerCase() === 'completed') {
-      return;
-    }
+    if (field === 'followupStatus' || field === 'callStatus') return;
     const canEdit = canUserEditField(field, userRole);
     if (!canEdit) return;
     setEditingCell({ id: customer._id, field });
@@ -876,7 +922,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             nationalIdBackImage: full.nationalIdBackImage || '',
             paymentScreenshot: full.paymentScreenshot || '',
             paymentOption: full.paymentOption || 'Full Payment',
-            paymentBank: full.paymentBank || '',
+            paymentBank: full.paymentBank || 'Commercial Bank of Ethiopia (CBE)',
             fsNumber: full.fsNumber || ''
           });
           setIsCompletionProofOpen(true);
@@ -939,10 +985,18 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
   };
 
   const cancelCompletionProof = () => {
+    const reopenEditModal = Boolean(completionProofData?.isEditModal);
+    if (reopenEditModal) {
+      setEditModalCustomer(prev => prev ? {
+        ...prev,
+        followupStatus: completionProofData.previousStatus || 'Pending'
+      } : prev);
+    }
     setIsCompletionProofOpen(false);
     setCompletionProofData(null);
     setEditingCell(null);
     setEditValue('');
+    if (reopenEditModal) setIsEditModalOpen(true);
   };
 
   const handleConfirmCompletionProof = async () => {
@@ -958,16 +1012,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       fsNumber
     } = completionProofData;
 
-    if (!paymentBank || !paymentBank.trim()) {
-      toast({
-        title: 'Payment Bank Required',
-        description: 'Please select a bank for completed followups.',
-        status: 'warning',
-        duration: 3500,
-        isClosable: true
-      });
-      return;
-    }
+    const resolvedBank = (paymentBank && paymentBank.trim()) || customer?.paymentBank || 'Commercial Bank of Ethiopia (CBE)';
+
     if (!paymentScreenshot) {
       toast({
         title: 'Payment Screenshot Required',
@@ -985,7 +1031,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       nationalIdBackImage: nationalIdBackImage || '',
       paymentScreenshot: paymentScreenshot || '',
       paymentOption: paymentOption || 'Full Payment',
-      paymentBank: paymentBank || '',
+      paymentBank: resolvedBank,
       fsNumber: fsNumber || ''
     };
 
@@ -1003,21 +1049,187 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           customerToAdd.commission = calculateCommission(courseDetails.name, courseDetails.price);
         }
       }
-      const saved = await onAdd(customerToAdd);
-      if (!saved) return;
-      closeNewCustomerRow();
-      setIsCompletionProofOpen(false);
-      setCompletionProofData(null);
+      setIsCompletingSale(true);
+      try {
+        const saved = await onAdd(customerToAdd);
+        if (!saved) return;
+        closeNewCustomerRow();
+        setIsCompletionProofOpen(false);
+        setCompletionProofData(null);
+      } finally {
+        setIsCompletingSale(false);
+      }
       return;
     }
 
-    const saved = await handleSave(customer, 'Completed', proof);
-    if (!saved) return;
-    setIsCompletionProofOpen(false);
-    setCompletionProofData(null);
+    const targetId = customer?._id || customer?.id;
+    if (!targetId) {
+      toast({
+        title: 'Error',
+        description: 'Customer ID not found.',
+        status: 'error',
+        duration: 3500,
+        isClosable: true
+      });
+      return;
+    }
+
+    const payload = { ...customer, followupStatus: 'Completed', ...proof };
+    const courseDetails = getCourseDetails(payload.contactTitle, payload.courseId);
+    if (courseDetails) {
+      payload.coursePrice = courseDetails.price;
+      payload.courseId = courseDetails.id;
+      payload.commission = calculateCommission(courseDetails.name, courseDetails.price);
+    }
+
+    setIsCompletingSale(true);
+    try {
+      const saved = await onUpdate(targetId, payload);
+      if (saved === null || saved === false) return;
+
+      setUpdatedCustomers(prev => new Set(prev).add(targetId));
+      setTimeout(() => {
+        setUpdatedCustomers(prev => {
+          const next = new Set(prev);
+          next.delete(targetId);
+          return next;
+        });
+      }, 2000);
+
+      toast({
+        title: 'Sale Completed',
+        description: `${customer.customerName || 'Customer'} marked as Completed with payment slip attached.`,
+        status: 'success',
+        duration: 4000,
+        isClosable: true
+      });
+
+      setEditModalCustomer(null);
+      setIsCompletionProofOpen(false);
+      setCompletionProofData(null);
+      setEditingCell(null);
+      setEditValue('');
+    } catch (err) {
+      console.error('Failed to complete sale:', err);
+      toast({
+        title: 'Completion Failed',
+        description: err.response?.data?.message || err.message || 'Could not complete sale.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+    } finally {
+      setIsCompletingSale(false);
+    }
   };
 
   const handleInputChange = (e) => setEditValue(e.target.value);
+
+  const handleStatusChange = async (customer, newStatus) => {
+    if (!customer) return;
+    const currentStatus = customer.followupStatus || 'Pending';
+    if (currentStatus === newStatus) return;
+
+    if (newStatus === 'Completed') {
+      const full = await loadDocuments(customer);
+      if (!full) return;
+      setCompletionProofData({
+        isEditModal: false,
+        customer: full,
+        previousStatus: currentStatus,
+        passportPhoto: full.passportPhoto || '',
+        nationalIdFrontImage: full.nationalIdFrontImage || '',
+        nationalIdBackImage: full.nationalIdBackImage || '',
+        paymentScreenshot: full.paymentScreenshot || '',
+        paymentOption: full.paymentOption || 'Full Payment',
+        paymentBank: full.paymentBank || 'Commercial Bank of Ethiopia (CBE)',
+        fsNumber: full.fsNumber || ''
+      });
+      setIsCompletionProofOpen(true);
+      return;
+    }
+
+    const targetId = customer._id || customer.id;
+    if (!targetId) return;
+
+    const payload = {
+      ...customer,
+      followupStatus: newStatus
+    };
+
+    if (payload.contactTitle) {
+      const courseDetails = getCourseDetails(payload.contactTitle, payload.courseId);
+      if (courseDetails) {
+        payload.courseId = courseDetails.id;
+        payload.coursePrice = courseDetails.price;
+      }
+    }
+
+    try {
+      await onUpdate(targetId, payload);
+      setUpdatedCustomers(prev => new Set(prev).add(targetId));
+      setTimeout(() => {
+        setUpdatedCustomers(prev => {
+          const next = new Set(prev);
+          next.delete(targetId);
+          return next;
+        });
+      }, 2000);
+      toast({
+        title: 'Status Updated',
+        description: `${customer.customerName || 'Customer'} marked as ${newStatus}`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true
+      });
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      toast({
+        title: 'Update Failed',
+        description: err.response?.data?.message || err.message || 'Could not update status.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+    }
+  };
+
+  const handleCallStatusChange = async (customer, newStatus) => {
+    if (!customer) return;
+    const currentStatus = customer.callStatus || 'Not Called';
+    if (currentStatus === newStatus) return;
+
+    const targetId = customer._id || customer.id;
+    if (!targetId) return;
+
+    try {
+      await onUpdate(targetId, { ...customer, callStatus: newStatus });
+      setUpdatedCustomers(prev => new Set(prev).add(targetId));
+      setTimeout(() => {
+        setUpdatedCustomers(prev => {
+          const next = new Set(prev);
+          next.delete(targetId);
+          return next;
+        });
+      }, 2000);
+      toast({
+        title: 'Call Status Updated',
+        description: `${customer.customerName || 'Customer'} call marked as ${newStatus}`,
+        status: 'success',
+        duration: 2500,
+        isClosable: true
+      });
+    } catch (err) {
+      console.error('Failed to update call status:', err);
+      toast({
+        title: 'Update Failed',
+        description: err.response?.data?.message || err.message || 'Could not update call status.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true
+      });
+    }
+  };
 
   const handleNewCustomerChange = (e) => {
     const { name, value } = e.target;
@@ -1089,7 +1301,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         nationalIdBackImage: newCustomerData.nationalIdBackImage || '',
         paymentScreenshot: newCustomerData.paymentScreenshot || '',
         paymentOption: newCustomerData.paymentOption || 'Full Payment',
-        paymentBank: newCustomerData.paymentBank || '',
+        paymentBank: newCustomerData.paymentBank || 'Commercial Bank of Ethiopia (CBE)',
         fsNumber: newCustomerData.fsNumber || ''
       });
       setIsCompletionProofOpen(true);
@@ -1295,7 +1507,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     const { key } = column;
 
     if (editingCell && editingCell.id === customer._id && editingCell.field === key) {
-      if (key === 'contactTitle' || key === 'callStatus' || key === 'followupStatus' || key === 'schedulePreference' || key === 'packageScope') {
+      if (key === 'contactTitle' || key === 'schedulePreference' || key === 'packageScope') {
         return renderEditableCell(customer, key, customer[key], 'select');
       }
       if (key === 'note') {
@@ -1373,22 +1585,172 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             </Flex>
           </Td>
         );
-      case 'callStatus':
-        return renderDisplayCell(
-          customer,
-          'callStatus',
-          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} {...compactBadgeProps}>
-            {customer.callStatus}
-          </Badge>
+      case 'callStatus': {
+        const canEdit = canUserEditField('callStatus', userRole);
+        return (
+          <Td
+            key="callStatus"
+            {...getCellBaseProps('callStatus')}
+            p={1}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Menu isLazy placement="bottom-start" gutter={4}>
+              <MenuButton
+                as={Box}
+                cursor={canEdit ? 'pointer' : 'default'}
+                w="fit-content"
+                maxW="100%"
+                title={canEdit ? 'Click to change call status' : undefined}
+                role="button"
+                tabIndex={canEdit ? 0 : -1}
+                aria-label={`Change call status, current: ${customer.callStatus || 'Not Called'}`}
+              >
+                <Badge
+                  variant="solid"
+                  colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')}
+                  {...compactBadgeProps}
+                  cursor={canEdit ? 'pointer' : 'default'}
+                  display="inline-flex"
+                  alignItems="center"
+                  gap={1}
+                  transition="all 0.15s ease"
+                  _hover={canEdit ? { transform: 'scale(1.05)', filter: 'brightness(1.08)', boxShadow: 'sm' } : undefined}
+                  _active={canEdit ? { transform: 'scale(0.96)' } : undefined}
+                >
+                  <Text as="span">{customer.callStatus || 'Not Called'}</Text>
+                  {canEdit && <Icon as={FiChevronDown} boxSize="10px" opacity={0.85} />}
+                </Badge>
+              </MenuButton>
+              {canEdit && (
+                <Portal>
+                  <MenuList
+                    zIndex="1600"
+                    minW="140px"
+                    py={1}
+                    px={1}
+                    boxShadow="lg"
+                    borderRadius="md"
+                    borderColor="gray.200"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {CALL_STATUS_OPTIONS.map((status) => {
+                      const isCurrent = (customer.callStatus || 'Not Called').toLowerCase() === status.toLowerCase();
+                      return (
+                        <MenuItem
+                          key={status}
+                          onClick={() => handleCallStatusChange(customer, status)}
+                          bg={isCurrent ? 'teal.50' : 'transparent'}
+                          _hover={{ bg: 'teal.100' }}
+                          borderRadius="sm"
+                          py={1.5}
+                          px={2}
+                        >
+                          <Flex align="center" justify="space-between" w="100%">
+                            <Badge
+                              variant="solid"
+                              colorScheme={getStatusBadgeVariant(status, 'call')}
+                              fontSize="10px"
+                              px={1.5}
+                              py={0.5}
+                              borderRadius="full"
+                            >
+                              {status}
+                            </Badge>
+                            {isCurrent && <Icon as={FiCheck} color="teal.600" boxSize={3.5} ml={2} />}
+                          </Flex>
+                        </MenuItem>
+                      );
+                    })}
+                  </MenuList>
+                </Portal>
+              )}
+            </Menu>
+          </Td>
         );
-      case 'followupStatus':
-        return renderDisplayCell(
-          customer,
-          'followupStatus',
-          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} {...compactBadgeProps}>
-            {customer.followupStatus}
-          </Badge>
+      }
+      case 'followupStatus': {
+        const canEdit = canUserEditField('followupStatus', userRole);
+        return (
+          <Td
+            key="followupStatus"
+            {...getCellBaseProps('followupStatus')}
+            p={1}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Menu isLazy placement="bottom-start" gutter={4}>
+              <MenuButton
+                as={Box}
+                cursor={canEdit ? 'pointer' : 'default'}
+                w="fit-content"
+                maxW="100%"
+                title={canEdit ? 'Click to change status' : undefined}
+                role="button"
+                tabIndex={canEdit ? 0 : -1}
+                aria-label={`Change follow-up status, current: ${customer.followupStatus || 'Pending'}`}
+              >
+                <Badge
+                  variant="solid"
+                  colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')}
+                  {...compactBadgeProps}
+                  cursor={canEdit ? 'pointer' : 'default'}
+                  display="inline-flex"
+                  alignItems="center"
+                  gap={1}
+                  transition="all 0.15s ease"
+                  _hover={canEdit ? { transform: 'scale(1.05)', filter: 'brightness(1.08)', boxShadow: 'sm' } : undefined}
+                  _active={canEdit ? { transform: 'scale(0.96)' } : undefined}
+                >
+                  <Text as="span">{customer.followupStatus || 'Pending'}</Text>
+                  {canEdit && <Icon as={FiChevronDown} boxSize="10px" opacity={0.85} />}
+                </Badge>
+              </MenuButton>
+              {canEdit && (
+                <Portal>
+                  <MenuList
+                    zIndex="1600"
+                    minW="140px"
+                    py={1}
+                    px={1}
+                    boxShadow="lg"
+                    borderRadius="md"
+                    borderColor="gray.200"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {FOLLOWUP_STATUS_OPTIONS.map((status) => {
+                      const isCurrent = (customer.followupStatus || 'Pending').toLowerCase() === status.toLowerCase();
+                      return (
+                        <MenuItem
+                          key={status}
+                          onClick={() => handleStatusChange(customer, status)}
+                          bg={isCurrent ? 'teal.50' : 'transparent'}
+                          _hover={{ bg: 'teal.100' }}
+                          borderRadius="sm"
+                          py={1.5}
+                          px={2}
+                        >
+                          <Flex align="center" justify="space-between" w="100%">
+                            <Badge
+                              variant="solid"
+                              colorScheme={getStatusBadgeVariant(status, 'followup')}
+                              fontSize="10px"
+                              px={1.5}
+                              py={0.5}
+                              borderRadius="full"
+                            >
+                              {status}
+                            </Badge>
+                            {isCurrent && <Icon as={FiCheck} color="teal.600" boxSize={3.5} ml={2} />}
+                          </Flex>
+                        </MenuItem>
+                      );
+                    })}
+                  </MenuList>
+                </Portal>
+              )}
+            </Menu>
+          </Td>
         );
+      }
       case 'schedulePreference':
         return renderDisplayCell(customer, 'schedulePreference', customer.schedulePreference || 'Regular');
       case 'packageScope':
@@ -1537,18 +1899,144 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             )}
           </Flex>
         );
-      case 'callStatus':
+      case 'callStatus': {
+        const canEdit = canUserEditField('callStatus', userRole);
         return (
-          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')} {...compactBadgeProps}>
-            {customer.callStatus || 'N/A'}
-          </Badge>
+          <Menu isLazy placement="bottom-start" gutter={4}>
+            <MenuButton
+              as={Box}
+              cursor={canEdit ? 'pointer' : 'default'}
+              w="fit-content"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Badge
+                variant="solid"
+                colorScheme={getStatusBadgeVariant(customer.callStatus, 'call')}
+                {...compactBadgeProps}
+                cursor={canEdit ? 'pointer' : 'default'}
+                display="inline-flex"
+                alignItems="center"
+                gap={1}
+                _hover={canEdit ? { transform: 'scale(1.04)', filter: 'brightness(1.08)' } : undefined}
+              >
+                <span>{customer.callStatus || 'N/A'}</span>
+                {canEdit && <Icon as={FiChevronDown} boxSize="10px" opacity={0.85} />}
+              </Badge>
+            </MenuButton>
+            {canEdit && (
+              <Portal>
+                <MenuList
+                  zIndex="1600"
+                  minW="140px"
+                  py={1}
+                  px={1}
+                  boxShadow="lg"
+                  borderRadius="md"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {CALL_STATUS_OPTIONS.map((status) => {
+                    const isCurrent = (customer.callStatus || 'Not Called').toLowerCase() === status.toLowerCase();
+                    return (
+                      <MenuItem
+                        key={status}
+                        onClick={() => handleCallStatusChange(customer, status)}
+                        bg={isCurrent ? 'teal.50' : 'transparent'}
+                        _hover={{ bg: 'teal.100' }}
+                        borderRadius="sm"
+                        py={1.5}
+                        px={2}
+                      >
+                        <Flex align="center" justify="space-between" w="100%">
+                          <Badge
+                            variant="solid"
+                            colorScheme={getStatusBadgeVariant(status, 'call')}
+                            fontSize="10px"
+                            px={1.5}
+                            py={0.5}
+                            borderRadius="full"
+                          >
+                            {status}
+                          </Badge>
+                          {isCurrent && <Icon as={FiCheck} color="teal.600" boxSize={3.5} ml={2} />}
+                        </Flex>
+                      </MenuItem>
+                    );
+                  })}
+                </MenuList>
+              </Portal>
+            )}
+          </Menu>
         );
-      case 'followupStatus':
+      }
+      case 'followupStatus': {
+        const canEdit = canUserEditField('followupStatus', userRole);
         return (
-          <Badge variant="solid" colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')} {...compactBadgeProps}>
-            {customer.followupStatus || 'N/A'}
-          </Badge>
+          <Menu isLazy placement="bottom-start" gutter={4}>
+            <MenuButton
+              as={Box}
+              cursor={canEdit ? 'pointer' : 'default'}
+              w="fit-content"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Badge
+                variant="solid"
+                colorScheme={getStatusBadgeVariant(customer.followupStatus, 'followup')}
+                {...compactBadgeProps}
+                cursor={canEdit ? 'pointer' : 'default'}
+                display="inline-flex"
+                alignItems="center"
+                gap={1}
+                _hover={canEdit ? { transform: 'scale(1.04)', filter: 'brightness(1.08)' } : undefined}
+              >
+                <span>{customer.followupStatus || 'N/A'}</span>
+                {canEdit && <Icon as={FiChevronDown} boxSize="10px" opacity={0.85} />}
+              </Badge>
+            </MenuButton>
+            {canEdit && (
+              <Portal>
+                <MenuList
+                  zIndex="1600"
+                  minW="140px"
+                  py={1}
+                  px={1}
+                  boxShadow="lg"
+                  borderRadius="md"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {FOLLOWUP_STATUS_OPTIONS.map((status) => {
+                    const isCurrent = (customer.followupStatus || 'Pending').toLowerCase() === status.toLowerCase();
+                    return (
+                      <MenuItem
+                        key={status}
+                        onClick={() => handleStatusChange(customer, status)}
+                        bg={isCurrent ? 'teal.50' : 'transparent'}
+                        _hover={{ bg: 'teal.100' }}
+                        borderRadius="sm"
+                        py={1.5}
+                        px={2}
+                      >
+                        <Flex align="center" justify="space-between" w="100%">
+                          <Badge
+                            variant="solid"
+                            colorScheme={getStatusBadgeVariant(status, 'followup')}
+                            fontSize="10px"
+                            px={1.5}
+                            py={0.5}
+                            borderRadius="full"
+                          >
+                            {status}
+                          </Badge>
+                          {isCurrent && <Icon as={FiCheck} color="teal.600" boxSize={3.5} ml={2} />}
+                        </Flex>
+                      </MenuItem>
+                    );
+                  })}
+                </MenuList>
+              </Portal>
+            )}
+          </Menu>
         );
+      }
       case 'schedulePreference':
         return customer.schedulePreference || 'Regular';
       case 'packageScope':
@@ -2284,7 +2772,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             <Flex align="center" gap={2}>
               <Icon as={FiCheckCircle} boxSize={5} />
               <Box>
-                <Text fontSize="md" fontWeight="bold">Complete Sale & Verification Proof</Text>
+                <Text fontSize="md" fontWeight="bold">Upload Payment Slip to Complete</Text>
                 <Text fontSize="xs" fontWeight="normal" color="teal.100">
                   The payment slip is required for this completed follow-up.
                 </Text>
@@ -2438,6 +2926,8 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               size="sm"
               leftIcon={<Icon as={FiCheckCircle} />}
               onClick={handleConfirmCompletionProof}
+              isLoading={isCompletingSale}
+              loadingText="Saving..."
             >
               Confirm & Complete Sale
             </Button>
