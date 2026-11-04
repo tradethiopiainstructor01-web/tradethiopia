@@ -90,3 +90,171 @@ code {
     padding: 1px 4px;
   }
 }
+
+/* Desktop Sales workspace dark theme: neutral surfaces, clear text, teal accents. */
+.chakra-ui-dark .sales-desktop-content {
+  background: #111827 !important;
+  color: #e5edf5;
+}
+
+.chakra-ui-dark .sales-desktop-content .chakra-card,
+.chakra-ui-dark .sales-content-tracker table,
+.chakra-ui-dark .sales-embedded-requests .chakra-card,
+.chakra-ui-dark .sales-document-upload .chakra-card,
+.chakra-ui-dark .sales-warnings-page .chakra-card {
+  background: #1b2433 !important;
+  border-color: #334155 !important;
+  color: #e5edf5 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content input,
+.chakra-ui-dark .sales-desktop-content select,
+.chakra-ui-dark .sales-desktop-content textarea {
+  background: #151e2c !important;
+  border-color: #3b4a60 !important;
+  color: #e5edf5 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content input::placeholder,
+.chakra-ui-dark .sales-desktop-content textarea::placeholder {
+  color: #7f8da3 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content option {
+  background: #1b2433;
+  color: #e5edf5;
+}
+
+.chakra-ui-dark .sales-desktop-content table {
+  background: #1b2433 !important;
+  color: #e5edf5 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content thead,
+.chakra-ui-dark .sales-desktop-content thead tr {
+  background: #243244 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content th {
+  color: #cbd5e1 !important;
+  border-color: #3b4a60 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content td {
+  color: #dbe5ef !important;
+  border-color: #334155 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content tbody tr:nth-of-type(even) {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.chakra-ui-dark .sales-desktop-content tbody tr:hover {
+  background: rgba(45, 212, 191, 0.075) !important;
+}
+
+.chakra-ui-dark .sales-desktop-content h1,
+.chakra-ui-dark .sales-desktop-content h2,
+.chakra-ui-dark .sales-desktop-content h3,
+.chakra-ui-dark .sales-desktop-content h4 {
+  color: #f8fafc !important;
+}
+
+.chakra-ui-dark .sales-warnings-page [class*="chakra-stat"],
+.chakra-ui-dark .sales-warnings-page [class*="chakra-container"] > div,
+.chakra-ui-dark .sales-embedded-requests [class*="chakra-card"] {
+  background-color: #1b2433 !important;
+  border-color: #334155 !important;
+}
+
+.chakra-ui-dark .sales-warnings-page [role="tabpanel"] > div,
+.chakra-ui-dark .sales-warnings-page [role="tabpanel"] > div > div,
+.chakra-ui-dark .sales-embedded-requests [role="tabpanel"] > div,
+.chakra-ui-dark .sales-embedded-requests [role="tabpanel"] > div > div {
+  background-color: #1b2433 !important;
+  border-color: #334155 !important;
+}
+
+.chakra-ui-dark .sales-document-upload [class*="chakra-container"] > div,
+.chakra-ui-dark .sales-document-upload [class*="chakra-container"] > div > div {
+  border-color: #334155 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content a {
+  color: #ffffff !important;
+}
+
+/* Dark mode typography: use one high-contrast foreground throughout Sales. */
+.chakra-ui-dark .sales-desktop-content :is(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  span,
+  label,
+  legend,
+  button,
+  th,
+  td,
+  a
+) {
+  color: #ffffff !important;
+}
+
+.chakra-ui-dark .sales-desktop-content :is(input, select, textarea) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+}
+
+.chakra-ui-dark .sales-desktop-content :is(input, textarea)::placeholder {
+  color: #ffffff !important;
+  opacity: 0.72;
+  -webkit-text-fill-color: #ffffff;
+}
+
+.chakra-ui-dark .sales-desktop-content select option {
+  color: #ffffff !important;
+  background: #1b2433 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content :disabled,
+.chakra-ui-dark .sales-desktop-content [aria-disabled="true"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+  opacity: 0.58;
+}
+
+.chakra-ui-dark .sales-desktop-content .called-call-table-heading {
+  background: #202b3b !important;
+  border-color: #334155 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content [role="tab"] {
+  color: #cbd5e1 !important;
+}
+
+.chakra-ui-dark .sales-desktop-content [role="tab"][aria-selected="true"] {
+  background: #0d9488 !important;
+  color: #ffffff !important;
+}
+
+/* Request center uses nested form panels; keep every work surface dark and readable. */
+.chakra-ui-dark .sales-embedded-requests .chakra-grid__item,
+.chakra-ui-dark .sales-embedded-requests form > div,
+.chakra-ui-dark .sales-embedded-requests form > div > div {
+  border-color: #334155 !important;
+}
+
+.chakra-ui-dark .sales-embedded-requests form > div,
+.chakra-ui-dark .sales-embedded-requests form > div > div:not([role="group"]) {
+  background-color: #1b2433 !important;
+}
+
+.chakra-ui-dark .sales-embedded-requests label,
+.chakra-ui-dark .sales-embedded-requests p,
+.chakra-ui-dark .sales-embedded-requests legend {
+  color: #cbd5e1;
+}

@@ -25,3 +25,8 @@ export const fetchCalledCallStats = async (params = {}) => {
   return response.data;
 };
 
+export const bulkCreateCalledCalls = async (data) => {
+  const response = await axiosInstance.post('/called-calls/bulk', data);
+  return response.data;
+};
+

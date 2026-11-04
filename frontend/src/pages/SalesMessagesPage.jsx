@@ -26,10 +26,10 @@ const SalesMessagesPage = () => {
   const [error, setError] = useState(null);
   
   // Sales dashboard specific colors
-  const cardBg = useColorModeValue('white', 'gray.700');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const headerBg = useColorModeValue('teal.50', 'teal.900');
-  const headerColor = useColorModeValue('teal.800', 'teal.100');
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('#e2e8f0', 'gray.700');
+  const headingColor = useColorModeValue('#132238', 'white');
+  const bodyColor = useColorModeValue('#334155', 'gray.200');
 
   const fetchMessages = async () => {
     try {
@@ -83,23 +83,23 @@ const SalesMessagesPage = () => {
   const unreadCount = messages.filter(msg => !msg.read).length;
 
   return (
-    <Box p={6} bg={useColorModeValue('gray.50', 'gray.900')} minH="100vh">
-      <Box mb={8}>
-        <Heading as="h1" size="xl" mb={2} color={headerColor}>
+    <Box w="100%" minW={0}>
+      <Box mb={6}>
+        <Heading as="h1" fontSize={{ md: '26px', xl: '30px' }} lineHeight="1.15" mb={1} color={headingColor} letterSpacing="-0.035em">
           Notice Board
         </Heading>
-        <Text color="gray.500" mb={4}>
+        <Text color="#64748b" _dark={{ color: 'gray.400' }} fontSize="sm" mb={4}>
           View all broadcast messages from management
         </Text>
-        <HStack spacing={4}>
+        <HStack spacing={3}>
           {unreadCount > 0 && (
-            <Badge colorScheme="red" fontSize="md" px={3} py={1} borderRadius="full">
+            <Badge bg="#fff1f2" color="#be123c" _dark={{ bg: 'rgba(190,18,60,0.18)', color: 'red.200' }} fontSize="xs" px={2.5} py={1} borderRadius="full" textTransform="none">
               {unreadCount} unread message{unreadCount !== 1 ? 's' : ''}
             </Badge>
           )}
           {unreadCount > 0 && (
             <Button 
-              size="md" 
+              size="sm"
               onClick={markAllAsRead}
               colorScheme="teal"
               variant="outline"
@@ -135,44 +135,44 @@ const SalesMessagesPage = () => {
           </Box>
         </Alert>
       ) : (
-        <VStack spacing={6} align="stretch">
+        <VStack spacing={3} align="stretch">
           {messages.map((message) => (
             <Card 
               key={message._id} 
               bg={cardBg} 
               borderWidth="1px" 
               borderColor={borderColor} 
-              borderRadius="lg"
-              boxShadow="sm"
+              borderRadius="12px"
+              boxShadow="0 3px 12px rgba(15, 23, 42, 0.04)"
+              borderLeftWidth="3px"
+              borderLeftColor={message.read ? '#cbd5e1' : '#0d9488'}
+              overflow="hidden"
             >
-              <CardHeader pb={2} bg={headerBg}>
-                <Heading as="h3" size="md" color={headerColor}>
-                  Notice
-                </Heading>
-                <Text fontSize="sm" color="gray.500">
-                  {formatDateTime(message.createdAt)}
-                </Text>
-                <HStack spacing={3} mt={2}>
-                  {!message.read && (
-                    <Badge colorScheme="red" borderRadius="full">
-                      Unread
-                    </Badge>
-                  )}
+              <CardHeader px={4} pt={4} pb={3} bg={cardBg}>
+                <HStack justify="space-between" align="start" gap={4}>
+                  <Box minW={0}>
+                    <HStack spacing={2} mb={1}>
+                      <Heading as="h3" fontSize="sm" fontWeight="700" color={headingColor}>Management notice</Heading>
+                      {!message.read && <Badge bg="#e6f7f5" color="#087f70" _dark={{ bg: 'whiteAlpha.100', color: 'teal.200' }} borderRadius="full" fontSize="10px">New</Badge>}
+                    </HStack>
+                    <Text fontSize="xs" color="#94a3b8">{formatDateTime(message.createdAt)}</Text>
+                  </Box>
                   {!message.read && (
                     <Button 
-                      size="sm" 
+                      size="xs"
                       onClick={() => markAsRead(message._id)}
                       colorScheme="teal"
-                      variant="outline"
+                      variant="ghost"
+                      flexShrink={0}
                     >
                       Mark as read
                     </Button>
                   )}
                 </HStack>
               </CardHeader>
-              <Divider />
-              <CardBody>
-                <Text whiteSpace="pre-wrap">{message.text}</Text>
+              <Divider borderColor="#edf1f3" _dark={{ borderColor: 'gray.700' }} />
+              <CardBody px={4} py={3.5}>
+                <Text whiteSpace="pre-wrap" color={bodyColor} fontSize="sm" lineHeight="1.65">{message.text}</Text>
               </CardBody>
             </Card>
           ))}

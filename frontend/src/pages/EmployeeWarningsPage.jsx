@@ -127,13 +127,13 @@ export default function EmployeeWarningsPage({ mode }) {
   };
 
   return (
-    <Box minH="100vh" bg="#f5f8fa" py={{ base: 6, md: 9 }}>
+    <Box className="sales-warnings-page" minH="100vh" bg="#f5f8fa" _dark={{ bg: 'gray.900' }} py={{ base: 6, md: 9 }}>
       <Container maxW="7xl">
         <Flex justify="space-between" align={{ base: 'start', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap={4} mb={7}>
           <Box><Text color="teal.600" fontSize="xs" fontWeight="800" letterSpacing="widest">CONFIDENTIAL EMPLOYEE RECORDS</Text><Heading mt={1} size="xl">{isHr ? 'Warning Management' : 'My Warnings'}</Heading><Text mt={2} color="gray.600">{isHr ? 'Prepare, issue, and follow up employee warnings with a complete record.' : 'Review confidential HR warnings, acknowledge receipt, and submit your response.'}</Text></Box>
           <Button variant="outline" onClick={load}>Refresh</Button>
         </Flex>
-        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={7}>{[['Total records', stats.total], ['Open follow-up', stats.open], ['Awaiting acknowledgement', stats.awaiting], ['Resolved', stats.resolved]].map(([label, value]) => <Stat key={label} bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" p={4}><StatLabel color="gray.500" fontSize="xs">{label}</StatLabel><StatNumber>{value}</StatNumber></Stat>)}</SimpleGrid>
+        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={7}>{[['Total records', stats.total], ['Open follow-up', stats.open], ['Awaiting acknowledgement', stats.awaiting], ['Resolved', stats.resolved]].map(([label, value]) => <Stat key={label} bg="white" _dark={{ bg: 'gray.800', borderColor: 'gray.700' }} border="1px solid" borderColor="gray.200" borderRadius="xl" p={4}><StatLabel color="gray.500" _dark={{ color: 'gray.400' }} fontSize="xs">{label}</StatLabel><StatNumber>{value}</StatNumber></Stat>)}</SimpleGrid>
         {loading ? <Flex justify="center" py={20}><Spinner size="xl" color="teal.500" /></Flex> : isHr ? (
           <Tabs colorScheme="teal" variant="soft-rounded">
             <TabList><Tab>Create warning</Tab><Tab>Warning records</Tab></TabList>

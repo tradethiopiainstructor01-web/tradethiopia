@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from "react";
-import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure, Text, Spinner, Flex } from "@chakra-ui/react";
+import { Box, Drawer, DrawerOverlay, DrawerContent, useDisclosure, useColorMode, Text, Spinner, Flex } from "@chakra-ui/react";
 import SSidebar from "./Ssidebar";
 import SNavbar from "./Snavbar";
 import FollowupPage from "./FollowupPage";
@@ -20,13 +20,20 @@ import useIsMobile from '../../hooks/useIsMobile';
 import MobileSalesShell from '../../mobile/sales/MobileSalesShell';
 import ErrorBoundary from '../ErrorBoundary';
 import useSalesDocumentReminder from '../../hooks/useSalesDocumentReminder';
+import './salesStyles.css';
 
-const DESKTOP_NAV_HEIGHT = '80px';
+const DESKTOP_NAV_HEIGHT = '68px';
+const DESKTOP_SIDEBAR_WIDTH = '224px';
 const StudentRegistrationPage = lazy(() => import('../customer/StudentRegistrationPage.jsx'));
 
 const Layout = ({ initialActiveItem }) => {
   const documentReminder = useSalesDocumentReminder();
   const { isOpen, onOpen, onClose } = useDisclosure(); // For controlling the drawer
+  const { setColorMode } = useColorMode();
+
+  useEffect(() => {
+    setColorMode('light');
+  }, [setColorMode]);
 
   // Load initial state from localStorage or default to 'Home'
   const getInitialActiveItem = () => {
@@ -93,7 +100,7 @@ const Layout = ({ initialActiveItem }) => {
       case 'Notice Board':
         return <SalesMessagesPage />;
       case 'Requests':
-        return <EmployeeRequestsPage />;
+        return <EmployeeRequestsPage embedded />;
       case 'Upload Documents':
         return <EmployeeFileUploadForm embedded />;
       case 'My Warnings':
@@ -115,24 +122,23 @@ const Layout = ({ initialActiveItem }) => {
   }
 
   return (
-    <Box display="flex" flexDirection="column" height="100vh">
+    <Box display="flex" flexDirection="column" minH="100vh" bg="#f8fbfc">
       {/* Navbar */}
-      <Box position="fixed" top={0} left={0} width="100%" zIndex="1000">
-        <SNavbar onToggleSidebar={onOpen} documentReminder={documentReminder} /> {/* Pass `onOpen` to toggle the drawer */}
-      </Box>
+      <SNavbar onToggleSidebar={onOpen} documentReminder={documentReminder} isSidebarCollapsed={isSidebarCollapsed} />
 
       {/* Main Container */}
       <Box display="flex" flex="1" pt={DESKTOP_NAV_HEIGHT}>
         {/* Sidebar for Larger Screens */}
         <Box
+          className="sales-desktop-content"
           position="fixed"
-          top={DESKTOP_NAV_HEIGHT}
+          top={0}
           left={0}
-          width={isSidebarCollapsed ? "70px" : "200px"}
-          height={`calc(100vh - ${DESKTOP_NAV_HEIGHT})`} // Adjust height to account for the navbar
+          width={isSidebarCollapsed ? "76px" : DESKTOP_SIDEBAR_WIDTH}
+          height="100vh"
           transition="width 0.3s"
           display={{ base: "none", md: "block" }} // Hide on mobile
-          zIndex="900" // Ensure it's below the navbar but above other content
+          zIndex="950"
         >
           <SSidebar
             isCollapsed={isSidebarCollapsed}
@@ -159,20 +165,21 @@ const Layout = ({ initialActiveItem }) => {
         <Box
           ml={{
             base: 0, // No margin on mobile
-            md: isSidebarCollapsed ? "70px" : "200px", // Adjust for collapsed or expanded sidebar on larger screens
+            md: isSidebarCollapsed ? "76px" : DESKTOP_SIDEBAR_WIDTH,
           }}
           transition="margin-left 0.3s, width 0.3s"
-          p={{ base: 3, md: 5 }}
-          bg="#f8f9fa"
+          p={{ base: 3, md: 6 }}
+          bg="linear-gradient(135deg, #f8fbfc 0%, #ffffff 55%, #f4fbfa 100%)"
+          _dark={{ bg: 'gray.900' }}
           flex="1"
           minW="0"
           w={{
             base: "100%",
-            md: isSidebarCollapsed ? "calc(100% - 70px)" : "calc(100% - 200px)"
+            md: isSidebarCollapsed ? "calc(100% - 76px)" : `calc(100% - ${DESKTOP_SIDEBAR_WIDTH})`
           }}
           maxW={{
             base: "100%",
-            md: isSidebarCollapsed ? "calc(100% - 70px)" : "calc(100% - 200px)"
+            md: isSidebarCollapsed ? "calc(100% - 76px)" : `calc(100% - ${DESKTOP_SIDEBAR_WIDTH})`
           }}
           overflowX="hidden"
         >

@@ -788,7 +788,13 @@ const FollowupPage = ({ documentsOnly = false }) => {
   }
 
   return (
-    <Box pt={4}>
+    <Box pt={0} w="100%" minW={0}>
+      <Box mb={5}>
+        <Heading as="h1" fontSize={{ md: '26px', xl: '30px' }} lineHeight="1.15" color="#132238" _dark={{ color: 'gray.100' }} letterSpacing="-0.035em">
+          Customer Followup
+        </Heading>
+        <Text mt={1} fontSize="sm" color="#64748b" _dark={{ color: 'gray.400' }}>Manage customer follow-ups, calls, and conversion progress.</Text>
+      </Box>
       {/* <Heading 
         as="h1" 
         size={{ base: "lg", md: "xl" }} 
@@ -809,28 +815,27 @@ const FollowupPage = ({ documentsOnly = false }) => {
         {/* Card 1: Total Customers */}
         <Box 
           bg={cardBg} 
-          borderRadius="xl" 
+          borderRadius="14px"
           borderWidth="1px" 
           borderColor={borderColor}
           p={3.5}
-          boxShadow="xs"
+          boxShadow="0 6px 20px rgba(15, 23, 42, 0.055)"
           transition="all 0.25s ease"
           _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "blue.300" }}
           position="relative"
           overflow="hidden"
         >
-          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="blue.500" />
           <Flex align="center" justify="space-between">
             <Box>
               <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
                 Total Customers
               </Text>
-              <Text fontSize="2xl" fontWeight="800" color="blue.600" lineHeight="1.1" mt={1}>
+              <Text fontSize="2xl" fontWeight="800" color="teal.600" _dark={{ color: 'teal.300' }} lineHeight="1.1" mt={1}>
                 {stats.total}
               </Text>
               <Text fontSize="2xs" color="gray.400" mt={1}>All assigned leads</Text>
             </Box>
-            <Box p={2.5} borderRadius="lg" bg="blue.50" color="blue.500">
+            <Box p={2.5} borderRadius="lg" bg="teal.50" color="teal.600" _dark={{ bg: 'whiteAlpha.100', color: 'teal.300' }}>
               <Icon as={FiUsers} boxSize={5} />
             </Box>
           </Flex>
@@ -839,28 +844,27 @@ const FollowupPage = ({ documentsOnly = false }) => {
         {/* Card 2: Completed Deals */}
         <Box 
           bg={cardBg} 
-          borderRadius="xl" 
+          borderRadius="14px"
           borderWidth="1px" 
           borderColor={borderColor}
           p={3.5}
-          boxShadow="xs"
+          boxShadow="0 6px 20px rgba(15, 23, 42, 0.055)"
           transition="all 0.25s ease"
           _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "green.300" }}
           position="relative"
           overflow="hidden"
         >
-          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="green.500" />
           <Flex align="center" justify="space-between">
             <Box>
               <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
                 Completed Deals
               </Text>
-              <Text fontSize="2xl" fontWeight="800" color="green.600" lineHeight="1.1" mt={1}>
+              <Text fontSize="2xl" fontWeight="800" color="teal.600" _dark={{ color: 'teal.300' }} lineHeight="1.1" mt={1}>
                 {stats.completedDeals}
               </Text>
-              <Text fontSize="2xs" color="green.600" fontWeight="600" mt={1}>Successfully closed</Text>
+              <Text fontSize="2xs" color="teal.600" _dark={{ color: 'gray.300' }} fontWeight="600" mt={1}>Successfully closed</Text>
             </Box>
-            <Box p={2.5} borderRadius="lg" bg="green.50" color="green.500">
+            <Box p={2.5} borderRadius="lg" bg="teal.50" color="teal.600" _dark={{ bg: 'whiteAlpha.100', color: 'teal.300' }}>
               <Icon as={FiCheckCircle} boxSize={5} />
             </Box>
           </Flex>
@@ -869,28 +873,27 @@ const FollowupPage = ({ documentsOnly = false }) => {
         {/* Card 3: Total Commission */}
         <Box 
           bg={cardBg} 
-          borderRadius="xl" 
+          borderRadius="14px"
           borderWidth="1px" 
           borderColor={borderColor}
           p={3.5}
-          boxShadow="xs"
+          boxShadow="0 6px 20px rgba(15, 23, 42, 0.055)"
           transition="all 0.25s ease"
           _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "yellow.400" }}
           position="relative"
           overflow="hidden"
         >
-          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="yellow.500" />
           <Flex align="center" justify="space-between">
             <Box minW={0}>
               <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
                 Total Commission
               </Text>
-              <Text fontSize="lg" fontWeight="800" color="yellow.600" lineHeight="1.2" mt={1} noOfLines={1} title={`ETB ${typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}`}>
+              <Text fontSize="lg" fontWeight="800" color="teal.600" _dark={{ color: 'teal.300' }} lineHeight="1.2" mt={1} noOfLines={1} title={`ETB ${typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}`}>
                 ETB {typeof stats.totalCommission === 'number' ? stats.totalCommission.toFixed(2) : '0.00'}
               </Text>
               <Text fontSize="2xs" color="gray.400" mt={1}>From closed sales</Text>
             </Box>
-            <Box p={2.5} borderRadius="lg" bg="yellow.50" color="yellow.600" flexShrink={0} ml={2}>
+            <Box p={2.5} borderRadius="lg" bg="teal.50" color="teal.600" _dark={{ bg: 'whiteAlpha.100', color: 'teal.300' }} flexShrink={0} ml={2}>
               <Icon as={FiDollarSign} boxSize={5} />
             </Box>
           </Flex>
@@ -899,30 +902,29 @@ const FollowupPage = ({ documentsOnly = false }) => {
         {/* Card 4: Called Customers */}
         <Box 
           bg={cardBg} 
-          borderRadius="xl" 
+          borderRadius="14px"
           borderWidth="1px" 
           borderColor={borderColor}
           p={3.5}
-          boxShadow="xs"
+          boxShadow="0 6px 20px rgba(15, 23, 42, 0.055)"
           transition="all 0.25s ease"
           _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "purple.300" }}
           position="relative"
           overflow="hidden"
         >
-          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="purple.500" />
           <Flex align="center" justify="space-between">
             <Box>
               <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
                 Called Customers
               </Text>
-              <Text fontSize="2xl" fontWeight="800" color="purple.600" lineHeight="1.1" mt={1}>
+              <Text fontSize="2xl" fontWeight="800" color="teal.600" _dark={{ color: 'teal.300' }} lineHeight="1.1" mt={1}>
                 {stats.calledCustomers}
               </Text>
-              <Text fontSize="2xs" color="purple.600" fontWeight="600" mt={1}>
+              <Text fontSize="2xs" color="teal.600" _dark={{ color: 'gray.300' }} fontWeight="600" mt={1}>
                 {stats.total > 0 ? Math.round((stats.calledCustomers / stats.total) * 100) : 0}% contacted
               </Text>
             </Box>
-            <Box p={2.5} borderRadius="lg" bg="purple.50" color="purple.500">
+            <Box p={2.5} borderRadius="lg" bg="teal.50" color="teal.600" _dark={{ bg: 'whiteAlpha.100', color: 'teal.300' }}>
               <Icon as={FiPhone} boxSize={5} />
             </Box>
           </Flex>
@@ -931,17 +933,16 @@ const FollowupPage = ({ documentsOnly = false }) => {
         {/* Card 5: New Prospects */}
         <Box 
           bg={cardBg} 
-          borderRadius="xl" 
+          borderRadius="14px"
           borderWidth="1px" 
           borderColor={borderColor}
           p={3.5}
-          boxShadow="xs"
+          boxShadow="0 6px 20px rgba(15, 23, 42, 0.055)"
           transition="all 0.25s ease"
           _hover={{ transform: "translateY(-3px)", boxShadow: "md", borderColor: "teal.300" }}
           position="relative"
           overflow="hidden"
         >
-          <Box position="absolute" top={0} left={0} w="4px" h="100%" bg="teal.500" />
           <Flex align="center" justify="space-between">
             <Box>
               <Text fontSize="2xs" fontWeight="700" color={secondaryTextColor} textTransform="uppercase" letterSpacing="0.05em">
@@ -963,13 +964,9 @@ const FollowupPage = ({ documentsOnly = false }) => {
 
       {/* Filters and Search Toolbar */}
       <Box 
-        bg={cardBg} 
-        p={3.5} 
-        borderRadius="xl" 
-        borderWidth="1px" 
-        borderColor={borderColor} 
-        boxShadow="xs" 
-        mb={5}
+        bg="transparent"
+        py={1}
+        mb={4}
       >
         <Flex 
           direction={{ base: 'column', lg: 'row' }} 
@@ -987,16 +984,17 @@ const FollowupPage = ({ documentsOnly = false }) => {
             minW="0"
           >
             {/* Search Input */}
-            <InputGroup size="sm" maxW={{ base: '100%', sm: '220px' }}>
+            <InputGroup size="sm" maxW={{ base: '100%', sm: '280px' }}>
               <InputLeftElement pointerEvents="none">
                 <SearchIcon color="gray.400" />
               </InputLeftElement>
               <Input
-                placeholder="Search prospects..."
+                placeholder="Search customers, phone, or notes..."
                 value={filters.search}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
                 borderRadius="lg"
                 bg="white"
+                _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
                 borderColor="gray.200"
                 _focus={{ borderColor: 'teal.500', boxShadow: '0 0 0 1px #319795' }}
               />
@@ -1022,6 +1020,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
               value={filters.callStatus}
               onChange={(e) => handleFilterChange('callStatus', e.target.value)}
               bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
               borderColor="gray.200"
             >
               <option value="Called">Called</option>
@@ -1041,6 +1040,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
               value={filters.followupStatus}
               onChange={(e) => handleFilterChange('followupStatus', e.target.value)}
               bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
               borderColor="gray.200"
             >
               <option value="">All Statuses</option>
@@ -1060,6 +1060,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
               value={scheduleFilter} 
               onChange={(e) => setScheduleFilter(e.target.value)}
               bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
               borderColor="gray.200"
             >
               <option value="">All Schedules</option>
@@ -1078,6 +1079,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
               value={filters.sortBy}
               onChange={(e) => handleFilterChange('sortBy', e.target.value)}
               bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
               borderColor="gray.200"
             >
               <option value="date">Date</option>
@@ -1094,6 +1096,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
               value={dateFilterType} 
               onChange={(e) => setDateFilterType(e.target.value)}
               bg="white"
+              _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
               borderColor="gray.200"
             >
               <option value="All">All Dates</option>
@@ -1225,6 +1228,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
           <TabList 
             mb={4} 
             bg="white" 
+            _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
             p={1.5} 
             borderRadius="xl" 
             borderWidth="1px" 

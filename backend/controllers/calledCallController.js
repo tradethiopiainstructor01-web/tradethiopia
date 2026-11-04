@@ -34,6 +34,7 @@ exports.getCalledCalls = async (req, res) => {
     } = req.query;
 
     const query = {};
+    const andClauses = [];
 
     // Role-based visibility
     if (!hasGlobalAccess(req.user)) {
@@ -45,7 +46,7 @@ exports.getCalledCalls = async (req, res) => {
     // Status / Call Result filter
     const statusVal = callResult || callStatus;
     if (statusVal && statusVal !== 'All') {
-      query.$or = [{ callResult: statusVal }, { callStatus: statusVal }];
+      andClauses.push({ $or: [{ callResult: statusVal }, { callStatus: statusVal }] });
     }
 
     // Priority filter
@@ -81,18 +82,22 @@ exports.getCalledCalls = async (req, res) => {
     // Search filter across text fields
     if (search && search.trim()) {
       const regex = new RegExp(escapeRegex(search.trim()), 'i');
-      query.$or = [
-        { customerName: regex },
-        { clientName: regex },
-        { companyName: regex },
-        { phoneNumber: regex },
-        { email: regex },
-        { city: regex },
-        { productInterest: regex },
-        { notes: regex },
-        { customPurpose: regex },
-      ];
+      andClauses.push({
+        $or: [
+          { customerName: regex },
+          { clientName: regex },
+          { companyName: regex },
+          { phoneNumber: regex },
+          { email: regex },
+          { city: regex },
+          { productInterest: regex },
+          { notes: regex },
+          { customPurpose: regex },
+        ],
+      });
     }
+
+    if (andClauses.length > 0) query.$and = andClauses;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
@@ -187,6 +192,9 @@ exports.getCalledCalls = async (req, res) => {
 
 // Create a new called call entry
 exports.createCalledCall = async (req, res) => {
+  if (Array.isArray(req.body)) {
+    return exports.bulkCreateCalledCalls(req, res);
+  }
   try {
     const {
       customerName,
@@ -449,6 +457,82 @@ exports.getCalledCallStats = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch called call stats',
+      error: error.message,
+    });
+  }
+};
+
+// Bulk import called calls from excel / csv
+exports.bulkCreateCalledCalls = async (req, res) => {
+  try {
+    const rawItems = Array.isArray(req.body) ? req.body : req.body.items || [];
+    if (!rawItems.length) {
+      return res.status(400).json({ success: false, message: 'No records provided for import' });
+    }
+
+    const agentNameParts = [req.user.firstName, req.user.lastName].filter(Boolean);
+    const salesAgentName = agentNameParts.length > 0 ? agentNameParts.join(' ') : (req.user.username || 'Sales Agent');
+
+    const docsToInsert = [];
+    const errors = [];
+
+    for (let i = 0; i < rawItems.length; i++) {
+      const item = rawItems[i];
+      const rawPhone = item.phoneNumber || item.phone || item.mobile || item['Phone Number'] || item.Phone || '';
+      const phoneStr = String(rawPhone).trim();
+
+      if (!phoneStr) {
+        errors.push({ row: i + 1, message: 'Missing phone number' });
+        continue;
+      }
+
+      const name = (item.customerName || item.clientName || item.name || item['Customer Name'] || item.Customer || '').trim() || `Prospect ${phoneStr}`;
+      const callResult = item.callResult || item.callStatus || item['Call Result'] || item.Status || 'Interested';
+      const rawDate = item.callDate || item.date || item['Call Date'] || item.Date;
+      const callDate = rawDate ? new Date(rawDate) : new Date();
+
+      docsToInsert.push({
+        customerName: name,
+        clientName: name,
+        companyName: (item.companyName || item.company || item['Company Name'] || item.Company || '').trim(),
+        phoneNumber: phoneStr,
+        email: (item.email || item.Email || '').trim().toLowerCase(),
+        city: (item.city || item.City || '').trim(),
+        purpose: item.purpose || 'Cold Outreach',
+        customPurpose: (item.customPurpose || '').trim(),
+        productInterest: (item.productInterest || '').trim(),
+        callResult,
+        callStatus: callResult,
+        priority: item.priority || 'Warm',
+        callDate: Number.isNaN(callDate.getTime()) ? new Date() : callDate,
+        notes: (item.notes || item.note || item.Notes || item.Remarks || '').trim(),
+        createdBy: req.user._id,
+        salesAgentName,
+      });
+    }
+
+    if (!docsToInsert.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid records to import. Every record requires a phone number.',
+        errors,
+      });
+    }
+
+    const inserted = await CalledCall.insertMany(docsToInsert, { ordered: false });
+
+    return res.status(201).json({
+      success: true,
+      message: `Successfully imported ${inserted.length} call record(s)`,
+      count: inserted.length,
+      data: inserted,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    console.error('Error in bulkCreateCalledCalls:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to import call records',
       error: error.message,
     });
   }
