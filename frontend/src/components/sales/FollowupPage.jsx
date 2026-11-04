@@ -58,12 +58,16 @@ import FollowupCustomerTable from './FollowupCustomerTable';
 import FollowupCompletedTable from './FollowupCompletedTable';
 import PackageSalesTable from './PackageSalesTable';
 import PackageSalesTab from './PackageSalesTab';
-import { getAllCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
+import { getAllCustomers, getInitialCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
 import { fetchExternalCourses as fetchCoursesApi } from '../../services/api';
 import axios from '../../services/axiosInstance';
 import { isMissingDocuments } from '../../utils/salesDocuments';
 
-const defaultCourses = [
+const sortCoursesAlphabetically = (items) => [...items].sort((a, b) =>
+  String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
+);
+
+const defaultCourses = sortCoursesAlphabetically([
   { _id: 'external-seed-0', name: 'Logistic', price: 9917 },
   { _id: 'external-seed-1', name: 'Stock market', price: 9917 },
   { _id: 'external-seed-2', name: 'digital marketing', price: 9917 },
@@ -71,7 +75,7 @@ const defaultCourses = [
   { _id: 'external-seed-4', name: 'Barista', price: 19899.99 },
   { _id: 'external-seed-5', name: 'Coffee cupping', price: 35000 },
   { _id: 'external-seed-6', name: 'coldcall', price: 0 },
-];
+]);
 
 const FollowupPage = ({ documentsOnly = false }) => {
   const [customers, setCustomers] = useState([]);
@@ -152,7 +156,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
           price
         };
       }).filter(Boolean);
-      setCourses(normalized.length ? normalized : defaultCourses);
+      setCourses(normalized.length ? sortCoursesAlphabetically(normalized) : defaultCourses);
     } catch (err) {
       console.error('Error fetching courses for training dropdown:', err);
       setCourses(defaultCourses);
@@ -187,7 +191,10 @@ const FollowupPage = ({ documentsOnly = false }) => {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const data = await getAllCustomers();
+      // Paint one table page first; refresh the complete client-side data set in
+      // the background so existing filters/export behavior remains unchanged.
+      const initial = await getInitialCustomers(25);
+      const data = initial.data;
       // Map the data to match the expected structure in the table
       const mappedData = data.map(customer => ({
         ...customer,
@@ -206,6 +213,23 @@ const FollowupPage = ({ documentsOnly = false }) => {
         // ignore
       }
       setError(null);
+      setLoading(false);
+
+      if (initial.total > data.length) {
+        getAllCustomers().then((allCustomers) => {
+          const allMapped = allCustomers.map(customer => ({
+            ...customer,
+            contactTitle: customer.contactTitle || customer.courseName || '',
+            _id: customer._id,
+            id: customer._id,
+            date: customer.date || customer.createdAt || new Date().toISOString(),
+            schedulePreference: customer.schedulePreference || customer.schedule || 'Regular'
+          }));
+          setCustomers(allMapped);
+          const prospectCount = allMapped.filter(c => (c.followupStatus || '').toString().toLowerCase() === 'prospect').length;
+          setStats(prev => ({ ...prev, new: prospectCount }));
+        }).catch((err) => console.error('Background customer refresh failed:', err));
+      }
     } catch (err) {
       setError('Failed to fetch customers: ' + err.message);
       console.error('Error fetching customers:', err);
@@ -322,6 +346,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
         duration: needsDocuments ? 9000 : 2500,
         isClosable: true,
       });
+      return mappedCustomer;
     } catch (err) {
       // Revert optimistic update on error
       if (previousCustomers) setCustomers(previousCustomers);
@@ -332,6 +357,7 @@ const FollowupPage = ({ documentsOnly = false }) => {
         duration: 3000,
         isClosable: true,
       });
+      return null;
     }
   };
 

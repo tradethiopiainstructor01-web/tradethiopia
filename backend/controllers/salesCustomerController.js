@@ -534,7 +534,23 @@ const getCustomers = asyncHandler(async (req, res) => {
   let customers;
   let total = 0;
   let cachedSummary;
-  if (fromCache) {
+  // Never make a first-page request wait for the entire collection cache. This
+  // is the browser's startup path: read only the requested indexed page, return
+  // it immediately, and populate the full in-memory cache in the background.
+  const coldPaginatedRequest = fromCache && paginationRequested && !salesListCache.peek();
+  if (coldPaginatedRequest) {
+    [customers, total] = await Promise.all([
+      SalesCustomer.aggregate([
+        { $match: SalesCustomer.find(filter).cast(SalesCustomer) },
+        { $sort: sortOrder },
+        { $skip: skip },
+        { $limit: limit },
+        ...summaryStages(),
+      ]),
+      SalesCustomer.countDocuments(filter),
+    ]);
+    warmSalesCustomerCache();
+  } else if (fromCache) {
     const matched = await readCachedCustomers();
     total = matched.length;
     customers = paginationRequested ? matched.slice(skip, skip + limit) : matched;
@@ -864,7 +880,8 @@ const updateCustomer = asyncHandler(async (req, res) => {
     paymentOption,
     paymentBank,
     fsNumber,
-    sms
+    sms,
+    productInterest
   } = req.body;
 
   const customer = await SalesCustomer.findById(req.params.id);

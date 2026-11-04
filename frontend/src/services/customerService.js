@@ -13,6 +13,18 @@ export const getAllCustomers = async () => {
   }
 };
 
+// Fast startup request. The dashboard can paint the newest rows without waiting
+// for the complete follow-up history to be transferred and parsed.
+export const getInitialCustomers = async (limit = 25) => {
+  const response = await axiosInstance.get('/sales-customers', {
+    params: { fields: 'summary', page: 1, limit }
+  });
+  return {
+    data: Array.isArray(response.data?.data) ? response.data.data : [],
+    total: Number(response.data?.pagination?.total) || 0
+  };
+};
+
 // Create a new customer
 export const createCustomer = async (customer) => {
   try {
