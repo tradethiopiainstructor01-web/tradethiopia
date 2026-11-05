@@ -162,7 +162,7 @@ function LayoutWrapper({ children }) {
     "/addcustomer", "/resource", "/videolist", "/uploadpage", "/my-payroll",
     "/cdashboard", "/waitingforapproval", "/training", "/comingsoonpage", "/customerreport", "/followup-report", "/customerfollowup", "/b2b-dashboard",
     "/coo-dashboard", "/ceo-dashboard", "/coo", "/coo2", "/2-coo", "/coo-2", "/2coo", "/coo-v2", "/coo2-dashboard", "/coo2/dashboard", "/tradextv-dashboard", "/customer-settings", "/customer-user-management", "/customer/student-registration", "/customer/manager-tasks", "/customer-manager-tasks", "/admincustomerreport", "/it", "/salesmanager", "/social-media", "/requests", "/finance-dashboard/payroll", "/finance-dashboard/commission-approval", "/finance-dashboard/forms", "/supervisor", "/supervisor/account", "/finance/requests", "/reception-dashboard",
-    "/tessbin-dashboard", "/tessbin", "/verify", "/verify-student", "/tessbin/verify"
+    "/tessbin-dashboard", "/tessbin", "/verify", "/verify-student", "/tessbin/verify", "/enisra", "/enisra-dashboard"
   ].map((path) => path.toLowerCase());
 
   const normalizedPath = location.pathname.toLowerCase();
@@ -641,13 +641,9 @@ function App() {
       </Route>
 
       {/* ENISRA section */}
-      <Route path="/enisra" element={<DashboardPermitRoute><ENISRALayout /></DashboardPermitRoute>}>
-        <Route index element={<ENISRAEnhancedDashboard />} />
-        <Route path="dashboard" element={<ENISRAEnhancedDashboard />} />
-        <Route path="follow-up" element={<ENISRAFollowUp />} />
-        <Route path="notice-board" element={<ENISRANoticeBoard />} />
-        <Route path="request" element={<ENISRARequestEmbedded />} />
-      </Route>
+      <Route path="/enisra" element={<DashboardPermitRoute><ENISRALayout /></DashboardPermitRoute>} />
+      <Route path="/enisra/*" element={<DashboardPermitRoute><ENISRALayout /></DashboardPermitRoute>} />
+      <Route path="/enisra-dashboard" element={<DashboardPermitRoute><ENISRALayout /></DashboardPermitRoute>} />
       <Route path="/payroll" element={<LayoutWrapper><PayrollPage /></LayoutWrapper>} />
       <Route path="/payroll/*" element={<LayoutWrapper><PayrollPage /></LayoutWrapper>} />
       <Route path="/my-payroll" element={<EmployeePayrollView />} />

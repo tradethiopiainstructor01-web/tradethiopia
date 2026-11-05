@@ -60,7 +60,7 @@ const PackageSaleSchema = new mongoose.Schema({
   },
   market: {
     type: String,
-    enum: ['Local', 'International'],
+    enum: ['Local', 'International', 'Enisra', 'enisra', 'ENSRA'],
     default: 'Local'
   },
   packagePrice: {

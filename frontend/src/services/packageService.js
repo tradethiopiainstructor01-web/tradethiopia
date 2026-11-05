@@ -1,7 +1,10 @@
 import axiosInstance from './axiosInstance';
 
 // Fetch all packages
-export const fetchPackages = () => axiosInstance.get('/packages').then(response => response.data);
+export const fetchPackages = (market) => {
+  const url = market ? `/packages?market=${encodeURIComponent(market)}` : '/packages';
+  return axiosInstance.get(url).then(response => response.data);
+};
 
 // Fetch package by number
 export const fetchPackageByNumber = (packageNumber, market = "Local") =>
@@ -20,7 +23,10 @@ export const deletePackage = (id) => axiosInstance.delete(`/packages/${id}`).the
 export const fetchPackageAnalytics = () => axiosInstance.get('/packages/analytics').then(response => response.data);
 
 // Fetch aggregated package sales records from buyers and sellers
-export const fetchPackageSales = () => axiosInstance.get('/packages/sales').then(response => response.data);
+export const fetchPackageSales = (market) => {
+  const url = market ? `/packages/sales?market=${encodeURIComponent(market)}` : '/packages/sales';
+  return axiosInstance.get(url).then(response => response.data);
+};
 export const fetchSalesCommissions = () => axiosInstance.get('/packages/sales/commissions').then(response => response.data);
 export const fetchPackageSalesFollowups = () => axiosInstance.get('/packages/sales/followups').then(response => response.data);
 export const createPackageSale = (sale) => 

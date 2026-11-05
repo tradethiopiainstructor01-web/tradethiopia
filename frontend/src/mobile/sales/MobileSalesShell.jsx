@@ -21,7 +21,7 @@ const EmployeeFileUploadForm = lazy(() => import('../../pages/EmployeeFileUpload
 const EmployeeWarningsPage = lazy(() => import('../../pages/EmployeeWarningsPage'));
 
 const mobileSections = [
-  'Home', 'Followup', 'Called Call', 'Package Sales', 'Orders', 'Tasks', 'Content Tracker', 'Monthly Report',
+  'Home', 'Followup', 'Cold Call', 'Called Call', 'Package Sales', 'Orders', 'Tasks', 'Content Tracker', 'Monthly Report',
   'Notice Board', 'Requests', 'Upload Documents', 'My Warnings', 'Student Registration', 'More'
 ];
 
