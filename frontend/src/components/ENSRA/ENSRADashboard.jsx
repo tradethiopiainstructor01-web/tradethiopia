@@ -1,11 +1,443 @@
-import React from 'react';
-import { Box, Heading, Text } from '@chakra-ui/react';
+import { useEffect, useState } from 'react';
+import {
+  Box,
+  Flex,
+  Heading,
+  SimpleGrid,
+  Card,
+  CardBody,
+  Text,
+  Spinner,
+  Icon,
+  Badge,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalCloseButton,
+  ModalBody,
+  ModalFooter,
+  Button,
+  useColorModeValue,
+  HStack
+} from '@chakra-ui/react';
+import { Bar } from 'react-chartjs-2';
+import { MdPeople, MdCheckCircle, MdPendingActions, MdError, MdNote } from 'react-icons/md';
+import { FiCheckCircle, FiCheck, FiClock, FiPackage, FiArrowRight } from 'react-icons/fi';
+import axiosInstance from '../../services/axiosInstance';
+import { getTaskStats } from '../../services/taskService';
+import { fetchPackages } from '../../services/packageService';
+import { Chart, registerables } from 'chart.js';
+
+// Register Chart.js components
+Chart.register(...registerables);
+
+const formatNumber = (value) => {
+  const number = Number(value) || 0;
+  return number.toLocaleString(undefined, { maximumFractionDigits: 0 });
+};
+
+const formatCurrency = (value) => {
+  return new globalThis.Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'ETB'
+  }).format(Number(value) || 0);
+};
 
 const ENISRADashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [followupMetrics, setFollowupMetrics] = useState({
+    total: 0,
+    completed: 0,
+    pending: 0,
+    overdue: 0
+  });
+  const [deliveredOrders, setDeliveredOrders] = useState(0);
+  const [totalCommission, setTotalCommission] = useState(0);
+  const [enisraPackagesCount, setEnisraPackagesCount] = useState(8);
+  const [notes, setNotes] = useState([]);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [taskStats, setTaskStats] = useState({
+    totalTasks: 0,
+    completedTasks: 0,
+    pendingTasks: 0,
+    overdueTasks: 0
+  });
+  
+  // Color mode values
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const headerColor = useColorModeValue('teal.600', 'teal.200');
+  const textColor = useColorModeValue('gray.700', 'gray.200');
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchNotes = async () => {
+      try {
+        const response = await axiosInstance.get('/notes', { timeout: 8000 });
+        if (isMounted) setNotes(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('Error fetching notes:', err);
+      }
+    };
+
+    fetchNotes();
+    return () => { isMounted = false; };
+  }, []);
+
+  const openNote = async (noteId) => {
+    try {
+      const response = await axiosInstance.get(`/notes/${noteId}`);
+      setSelectedNote(response.data);
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error('Error fetching note details:', err);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      const requestOptions = { timeout: 8000 };
+      const results = await Promise.allSettled([
+        axiosInstance.get('/followups/stats', requestOptions),
+        getTaskStats(requestOptions),
+        axiosInstance.get('/orders/stats', requestOptions),
+        axiosInstance.get('/sales-customers/stats', requestOptions),
+        fetchPackages('Enisra')
+      ]);
+      if (!isMounted) return;
+
+      const [followupsResult, tasksResult, ordersResult, salesResult, packagesResult] = results;
+      if (followupsResult.status === 'fulfilled') {
+        const followupStats = followupsResult.value.data || {};
+        setFollowupMetrics({
+          total: followupStats.total || 0,
+          completed: followupStats.completed || 0,
+          pending: followupStats.pending || 0,
+          overdue: followupStats.overdue || 0,
+        });
+      }
+      if (tasksResult.status === 'fulfilled') setTaskStats(tasksResult.value || {});
+      if (ordersResult.status === 'fulfilled') setDeliveredOrders(ordersResult.value.data?.deliveredOrders || 0);
+      if (salesResult.status === 'fulfilled') setTotalCommission(salesResult.value.data?.totalCommission || 0);
+      if (packagesResult.status === 'fulfilled') {
+        const pkgs = packagesResult.value || [];
+        setEnisraPackagesCount(pkgs.length || 8);
+      }
+
+      const failedCount = results.filter((result) => result.status === 'rejected').length;
+      if (failedCount) setError(`${failedCount} dashboard section${failedCount > 1 ? 's are' : ' is'} temporarily unavailable.`);
+      setLoading(false);
+    };
+
+    fetchData();
+    return () => { isMounted = false; };
+  }, []);
+
+  const chartData = {
+    labels: ['Completed', 'Pending', 'Overdue'],
+    datasets: [
+      {
+        label: 'Enisra Follow-ups',
+        data: [followupMetrics.completed, followupMetrics.pending, followupMetrics.overdue],
+        backgroundColor: ['#4CAF50', '#FFC107', '#F44336'],
+        borderColor: ['#388E3C', '#FFA000', '#D32F2F'],
+        borderWidth: 1,
+        borderRadius: 5,
+      },
+    ],
+  };
+
+  const options = {
+    maintainAspectRatio: true,
+    responsive: true,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+      },
+      tooltip: {
+        callbacks: {
+          label: function(tooltipItem) {
+            return `${tooltipItem.dataset.label}: ${tooltipItem.raw}`;
+          },
+        },
+      },
+    },
+  };
+
   return (
-    <Box>
-      <Heading>ENISRA Dashboard</Heading>
-      <Text mt={4}>Welcome to the ENSRA dashboard — use the sidebar to navigate to Notice Board or Requests.</Text>
+    <Box className="sales-home-dashboard" p={{ base: 2, md: 6 }} minHeight="100%">
+      <Flex 
+        justify="space-between" 
+        align={{ base: 'flex-start', md: 'center' }} 
+        direction={{ base: 'column', md: 'row' }} 
+        gap={3} 
+        mb={6}
+      >
+        <Box>
+          <Heading 
+            as="h1" 
+            size={{ base: "lg", md: "xl" }} 
+            color={headerColor}
+            fontWeight="bold"
+          >
+            Enisra Dashboard
+          </Heading>
+          <Text fontSize="sm" color="gray.500" mt={1}>
+            Welcome to the Enisra employee workspace. Manage Enisra packages, follow-ups, orders, and commissions.
+          </Text>
+        </Box>
+        <Button
+          leftIcon={<FiPackage />}
+          colorScheme="teal"
+          size="sm"
+          onClick={() => window.dispatchEvent(new CustomEvent('navigateToSection', { detail: { section: 'Followup' } }))}
+        >
+          View Followup & Packages
+        </Button>
+      </Flex>
+
+      {loading && (
+        <Flex align="center" gap={3} mb={4} color={textColor}>
+          <Spinner size="sm" />
+          <Text fontSize="sm">Loading the latest Enisra totals...</Text>
+        </Flex>
+      )}
+      {error && <Text color="orange.600" mb={4}>{error}</Text>}
+
+      {/* Top Metric Cards (same as sales dashboard, with Enisra Packages!) */}
+      <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={4} mb={6}>
+        {[
+          {
+            icon: MdPeople,
+            value: formatNumber(followupMetrics.total),
+            label: 'Total Follow-ups',
+            bg: 'blue.500'
+          },
+          {
+            icon: MdCheckCircle,
+            value: formatNumber(followupMetrics.completed),
+            label: 'Completed Follow-ups',
+            bg: 'green.500'
+          },
+          {
+            icon: MdPendingActions,
+            value: formatNumber(followupMetrics.pending),
+            label: 'Pending Follow-ups',
+            bg: 'yellow.500'
+          },
+          {
+            icon: MdError,
+            value: formatNumber(followupMetrics.overdue),
+            label: 'Overdue Follow-ups',
+            bg: 'red.500'
+          },
+          {
+            icon: FiCheckCircle,
+            value: formatNumber(deliveredOrders),
+            label: 'Delivered Orders',
+            bg: 'teal.500'
+          },
+          {
+            icon: MdNote,
+            value: formatCurrency(totalCommission),
+            label: 'Total Commission',
+            bg: 'purple.500'
+          },
+          {
+            icon: FiPackage,
+            value: formatNumber(enisraPackagesCount),
+            label: 'Enisra Packages',
+            bg: 'cyan.600',
+            onClick: () => window.dispatchEvent(new CustomEvent('navigateToSection', { detail: { section: 'Followup' } }))
+          }
+        ].map((card) => (
+          <Card
+            key={card.label}
+            boxShadow="md"
+            borderRadius="lg"
+            _hover={{ transform: 'translateY(-3px)', boxShadow: 'lg', cursor: card.onClick ? 'pointer' : 'default' }}
+            bg={card.bg}
+            color="white"
+            transition="all 0.2s"
+            onClick={card.onClick}
+          >
+            <CardBody textAlign="center" py={4} px={3}>
+              <Icon as={card.icon} w={6} h={6} mb={2} />
+              <Text fontSize="xl" fontWeight="bold">{card.value}</Text>
+              <Text fontSize="xs">{card.label}</Text>
+            </CardBody>
+          </Card>
+        ))}
+      </SimpleGrid>
+
+      <Flex 
+        direction={{ base: "column", md: "row" }} 
+        mt={6} 
+        gap={6}
+      >
+        {/* Notes Summary Section */}
+        <Card 
+          flex="1" 
+          p={5} 
+          bg={cardBg} 
+          borderRadius="lg" 
+          boxShadow="md"
+          transition="all 0.2s"
+          _hover={{ boxShadow: 'lg' }}
+        >
+          <CardBody>
+            <Text 
+              fontSize="xl" 
+              fontWeight="bold" 
+              mb={4} 
+              color={headerColor}
+            >
+              Notes Summary
+            </Text>
+            
+            <Flex align="center" mb={4}>
+              <Text fontSize="lg" color={textColor} mr={2}>
+                Total Notes:
+              </Text>
+              <Badge colorScheme="teal" fontSize="md" borderRadius="full" px={2}>
+                {notes.length}
+              </Badge>
+            </Flex>
+            
+            <Text fontSize="lg" color={textColor} mb={3}>
+              Latest Notes:
+            </Text>
+            
+            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+              {notes.length > 0 ? (
+                notes.slice(-3).reverse().map(note => (
+                  <Box 
+                    key={note._id} 
+                    borderWidth={1} 
+                    borderColor="gray.200" 
+                    borderRadius="md" 
+                    p={3} 
+                    bg="gray.50" 
+                    _dark={{ bg: 'gray.700', borderColor: 'gray.600' }}
+                    _hover={{ bg: "gray.100", cursor: 'pointer', transition: '0.2s' }} 
+                    onClick={() => openNote(note._id)}
+                  >
+                    <Flex align="center">
+                      <MdNote size={20} color="#0D9488" style={{ marginRight: '8px' }} />
+                      <Text fontSize="md" color="teal.600" fontWeight="semibold">{note.title}</Text>
+                    </Flex>
+                  </Box>
+                ))
+              ) : (
+                <Text fontSize="sm" color="gray.500">No notes available.</Text>
+              )}
+            </SimpleGrid>
+          </CardBody>
+        </Card>
+
+        {/* Bar Chart Section */}
+        <Card 
+          flex="1" 
+          minW="300px" 
+          bg={cardBg} 
+          borderRadius="lg" 
+          boxShadow="md"
+          transition="all 0.2s"
+          _hover={{ boxShadow: 'lg' }}
+          p={5}
+        >
+          <CardBody>
+            <Bar 
+              data={chartData} 
+              options={options} 
+              height={200} 
+            />
+          </CardBody>
+        </Card>
+      </Flex>
+
+      {/* Task Reminders Section */}
+      <Card 
+        mt={6} 
+        p={5} 
+        bg={cardBg} 
+        borderRadius="lg" 
+        boxShadow="md"
+        transition="all 0.2s"
+        _hover={{ boxShadow: 'lg' }}
+      >
+        <CardBody>
+          <Text 
+            fontSize="xl" 
+            fontWeight="bold" 
+            mb={4} 
+            color={headerColor}
+          >
+            Task Reminders
+          </Text>
+          
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+            <Box p={4} bg="blue.50" _dark={{ bg: 'whiteAlpha.50', borderColor: 'blue.800' }} borderRadius="md" border="1px" borderColor="blue.200">
+              <Flex align="center" mb={2}>
+                <Icon as={FiCheckCircle} color="blue.500" mr={2} />
+                <Text fontWeight="bold" color="blue.700" _dark={{ color: 'blue.200' }}>Pending Tasks</Text>
+              </Flex>
+              <Text fontSize="2xl" fontWeight="bold" color="blue.600" _dark={{ color: 'blue.300' }}>{taskStats.pendingTasks}</Text>
+              <Text fontSize="sm" color="blue.500" _dark={{ color: 'gray.300' }}>{taskStats.pendingTasks > 0 ? `${Math.min(2, taskStats.pendingTasks)} due soon` : 'No pending tasks'}</Text>
+            </Box>
+            
+            <Box p={4} bg="green.50" _dark={{ bg: 'whiteAlpha.50', borderColor: 'green.800' }} borderRadius="md" border="1px" borderColor="green.200">
+              <Flex align="center" mb={2}>
+                <Icon as={FiCheck} color="green.500" mr={2} />
+                <Text fontWeight="bold" color="green.700" _dark={{ color: 'green.200' }}>Completed Tasks</Text>
+              </Flex>
+              <Text fontSize="2xl" fontWeight="bold" color="green.600" _dark={{ color: 'green.300' }}>{taskStats.completedTasks}</Text>
+              <Text fontSize="sm" color="green.500" _dark={{ color: 'gray.300' }}>This week</Text>
+            </Box>
+            
+            <Box p={4} bg="red.50" _dark={{ bg: 'whiteAlpha.50', borderColor: 'red.800' }} borderRadius="md" border="1px" borderColor="red.200">
+              <Flex align="center" mb={2}>
+                <Icon as={FiClock} color="red.500" mr={2} />
+                <Text fontWeight="bold" color="red.700" _dark={{ color: 'red.200' }}>Overdue Tasks</Text>
+              </Flex>
+              <Text fontSize="2xl" fontWeight="bold" color="red.600" _dark={{ color: 'red.300' }}>{taskStats.overdueTasks}</Text>
+              <Text fontSize="sm" color="red.500" _dark={{ color: 'gray.300' }}>{taskStats.overdueTasks > 0 ? 'Requires immediate attention' : 'No overdue tasks'}</Text>
+            </Box>
+          </SimpleGrid>
+          
+          <Button 
+            mt={4} 
+            colorScheme="teal" 
+            size="sm" 
+            onClick={() => window.dispatchEvent(new CustomEvent('navigateToSection', { detail: { section: 'Tasks' } }))}
+          >
+            View All Tasks
+          </Button>
+        </CardBody>
+      </Card>
+
+      {/* Modal for Viewing Full Note Content */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>{selectedNote?.title}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text>{selectedNote?.content}</Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="teal" onClick={() => setIsModalOpen(false)}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };

@@ -1,204 +1,213 @@
-import React, { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from "react";
 import {
-  Flex,
   Box,
-  HStack,
-  IconButton,
-  Text,
-  Tooltip,
-  Badge,
-  useColorMode,
-  useColorModeValue,
+  Drawer,
+  DrawerOverlay,
+  DrawerContent,
   useDisclosure,
-} from '@chakra-ui/react';
-import ENISRASidebar from './ENSRASidebar';
-import { Outlet } from 'react-router-dom';
-import { FiBell, FiClipboard, FiMessageSquare, FiMoon, FiSun } from 'react-icons/fi';
-import axiosInstance from '../../services/axiosInstance';
-import { getNotifications } from '../../services/notificationService';
-import NotesDrawer from '../notes/NotesDrawer';
-import ENSRANotificationsDrawer from './ENSRANotificationsDrawer';
-import ChatLauncher from '../chat/ChatLauncher';
+  useColorMode,
+  Text,
+  Spinner,
+  Flex
+} from "@chakra-ui/react";
+import { useLocation } from "react-router-dom";
+import ENSRASidebar from "./ENSRASidebar";
+import ENSRANavbar from "./ENSRANavbar";
+import ENISRADashboard from "./ENSRADashboard";
+import EnisraPackagesPage from "./EnisraPackagesPage";
+import FollowupPage from "../sales/FollowupPage";
+import OrderFollowup from "../sales/OrderFollowup";
+import TaskDashboard from "../sales/TaskDashboard";
+import MonthlyReport from "../sales/MonthlyReport";
+import SalesMessagesPage from "../../pages/SalesMessagesPage";
+import EmployeeRequestsPage from "../../pages/EmployeeRequestsPage";
+import EmployeeFileUploadForm from "../../pages/EmployeeFileUploadForm";
+import EmployeeWarningsPage from "../../pages/EmployeeWarningsPage";
+import ContentTrackerPage from "../sales/ContentTrackerPage";
+import CalledCallPage from "../sales/CalledCallPage";
+import ErrorBoundary from "../ErrorBoundary";
+import '../sales/salesStyles.css';
 
-const ENISRALayout = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const [notesCount, setNotesCount] = useState(0);
-  const notificationDisclosure = useDisclosure();
-  const notesDisclosure = useDisclosure();
-  const { colorMode, toggleColorMode } = useColorMode();
-  const toolbarBg = useColorModeValue('white', 'gray.900');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const iconColor = useColorModeValue('gray.700', 'whiteAlpha.900');
-  const toolbarTextColor = useColorModeValue('gray.800', 'whiteAlpha.900');
-  const unreadNotificationsCount = notifications.filter((note) => !note.read).length;
+const DESKTOP_NAV_HEIGHT = '68px';
+const DESKTOP_SIDEBAR_WIDTH = '224px';
 
-  const refreshNotifications = async () => {
-    setNotificationsLoading(true);
-    try {
-      const data = await getNotifications();
-      setNotifications(data || []);
-    } catch (err) {
-      console.error('Failed to load ENSRA notifications', err);
-    } finally {
-      setNotificationsLoading(false);
-    }
-  };
-
-  const fetchNotesCount = async () => {
-    try {
-      const response = await axiosInstance.get('/notes');
-      setNotesCount(response.data?.length || 0);
-    } catch (err) {
-      console.error('Failed to fetch ENSRA notes count', err);
-    }
-  };
-
-  const handleNotesUpdate = (updatedNotes = []) => {
-    setNotesCount(updatedNotes.length);
-  };
+const ENSRALayout = ({ initialActiveItem }) => {
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { setColorMode } = useColorMode();
+  const location = useLocation();
 
   useEffect(() => {
-    refreshNotifications();
-    fetchNotesCount();
+    setColorMode('light');
+  }, [setColorMode]);
+
+  const determineInitialTab = () => {
+    if (initialActiveItem) return initialActiveItem;
+    const path = (location.pathname || '').toLowerCase();
+    if (path.includes('package')) return 'Enisra Packages';
+    if (path.includes('follow-up') || path.includes('followup')) return 'Followup';
+    if (path.includes('notice')) return 'Notice Board';
+    if (path.includes('request')) return 'Requests';
+    if (path.includes('called-call') || path.includes('cold-call')) return 'Cold Call';
+    if (path.includes('order')) return 'Orders';
+    if (path.includes('task')) return 'Tasks';
+    if (path.includes('tracker')) return 'Content Tracker';
+    if (path.includes('report')) return 'Monthly Report';
+    if (path.includes('warning')) return 'My Warnings';
+    if (path.includes('upload')) return 'Upload Documents';
+
+    const saved = localStorage.getItem('enisraActiveItem');
+    return saved || 'Home';
+  };
+
+  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeItem, setActiveItem] = useState(determineInitialTab);
+
+  useEffect(() => {
+    localStorage.setItem('enisraActiveItem', activeItem);
+  }, [activeItem]);
+
+  useEffect(() => {
+    const handleSectionNavigation = (event) => {
+      const section = event.detail?.section;
+      if (section) setActiveItem(section);
+    };
+    window.addEventListener('navigateToSection', handleSectionNavigation);
+    return () => window.removeEventListener('navigateToSection', handleSectionNavigation);
   }, []);
 
-  useEffect(() => {
-    if (notificationDisclosure.isOpen) {
-      refreshNotifications();
+  const renderContent = () => {
+    switch (activeItem) {
+      case 'Home':
+        return <ENISRADashboard />;
+      case 'Enisra Packages':
+      case 'Packages':
+      case 'Package Sales':
+        return <EnisraPackagesPage />;
+      case 'Followup':
+      case 'Follow-up':
+      case 'ENSRA Follow-Up':
+        return (
+          <FollowupPage
+            isEnisra
+          />
+        );
+      case 'Missing Documents':
+        return (
+          <FollowupPage
+            isEnisra
+            documentsOnly
+          />
+        );
+      case 'Called Call':
+      case 'called call':
+      case 'Cold Call':
+        return <CalledCallPage />;
+      case 'Orders':
+        return <OrderFollowup />;
+      case 'Tasks':
+        return <TaskDashboard />;
+      case 'Content Tracker':
+        return <ContentTrackerPage />;
+      case 'Monthly Report':
+        return <MonthlyReport />;
+      case 'Notice Board':
+        return <SalesMessagesPage />;
+      case 'Requests':
+      case 'Request':
+        return <EmployeeRequestsPage embedded />;
+      case 'Upload Documents':
+        return <EmployeeFileUploadForm embedded />;
+      case 'My Warnings':
+        return <EmployeeWarningsPage mode="employee" />;
+      default:
+        return <ENISRADashboard />;
     }
-  }, [notificationDisclosure.isOpen]);
+  };
 
   return (
-    <Flex direction="column" minH="100vh" w="100%">
-      <Flex
-        align="center"
-        justify="space-between"
-        px={{ base: 4, md: 6 }}
-        py={3}
-        bg={toolbarBg}
-        borderBottomWidth="1px"
-        borderColor={borderColor}
-        boxShadow="sm"
-        zIndex="10"
-      >
-        <Text fontSize="lg" fontWeight="bold" color={toolbarTextColor}>
-          ENSRA Workspace
-        </Text>
-        <HStack spacing={3}>
-          <Tooltip label="Workspace chat">
-            <ChatLauncher
-              icon={<FiMessageSquare />}
-              ariaLabel="Open ENSRA workspace chat"
-              iconButtonProps={{
-                variant: 'ghost',
-                color: iconColor,
-                size: 'md',
-                borderRadius: 'full',
+    <Box display="flex" flexDirection="column" minH="100vh" bg="#f8fbfc">
+      {/* Top Navbar */}
+      <ENSRANavbar
+        onToggleSidebar={onOpen}
+        isSidebarCollapsed={isSidebarCollapsed}
+      />
+
+      {/* Main Container */}
+      <Box display="flex" flex="1" pt={DESKTOP_NAV_HEIGHT}>
+        {/* Desktop Sidebar */}
+        <Box
+          className="sales-desktop-content"
+          position="fixed"
+          top={0}
+          left={0}
+          width={isSidebarCollapsed ? "76px" : DESKTOP_SIDEBAR_WIDTH}
+          height="100vh"
+          transition="width 0.3s"
+          display={{ base: "none", md: "block" }}
+          zIndex="950"
+        >
+          <ENSRASidebar
+            isCollapsed={isSidebarCollapsed}
+            toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
+            activeItem={activeItem}
+            setActiveItem={setActiveItem}
+          />
+        </Box>
+
+        {/* Mobile Drawer */}
+        <Drawer isOpen={isOpen} onClose={onClose} placement="left">
+          <DrawerOverlay />
+          <DrawerContent>
+            <ENSRASidebar
+              isCollapsed={false}
+              toggleCollapse={() => setSidebarCollapsed(!isSidebarCollapsed)}
+              activeItem={activeItem}
+              setActiveItem={(item) => {
+                setActiveItem(item);
+                onClose();
               }}
             />
-          </Tooltip>
+          </DrawerContent>
+        </Drawer>
 
-          <Tooltip label="Notifications">
-            <Box position="relative">
-              <IconButton
-                aria-label="View ENSRA notifications"
-                icon={<FiBell />}
-                variant="ghost"
-                color={iconColor}
-                size="md"
-                borderRadius="full"
-                onClick={notificationDisclosure.onOpen}
-              />
-              {unreadNotificationsCount > 0 && (
-              <Badge
-                position="absolute"
-                top="-1"
-                right="-1"
-                colorScheme="red"
-                borderRadius="full"
-                fontSize="xs"
-                px={2}
-                color="white"
-              >
-                {unreadNotificationsCount}
-              </Badge>
-              )}
-            </Box>
-          </Tooltip>
-
-          <Tooltip label="Notes">
-            <Box position="relative">
-              <IconButton
-                aria-label="Open ENSRA notes"
-                icon={<FiClipboard />}
-                variant="ghost"
-                color={iconColor}
-                size="md"
-                borderRadius="full"
-                onClick={notesDisclosure.onOpen}
-              />
-              {notesCount > 0 && (
-              <Badge
-                position="absolute"
-                top="-1"
-                right="-1"
-                colorScheme="teal"
-                borderRadius="full"
-                fontSize="xs"
-                px={2}
-                color="white"
-              >
-                  {notesCount}
-                </Badge>
-              )}
-            </Box>
-          </Tooltip>
-
-          <Tooltip label={`Switch to ${colorMode === 'light' ? 'dark' : 'light'} mode`}>
-            <IconButton
-              aria-label="Toggle dark mode"
-              icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
-              variant="ghost"
-              color={iconColor}
-              size="md"
-              borderRadius="full"
-              onClick={toggleColorMode}
-            />
-          </Tooltip>
-        </HStack>
-      </Flex>
-
-      <Flex flex="1" align="stretch" minH="0">
+        {/* Main Workspace Body */}
         <Box
-          w={isCollapsed ? '60px' : '220px'}
-          minW={isCollapsed ? '60px' : '220px'}
-          transition="width 0.2s"
-          minH="0"
+          ml={{
+            base: 0,
+            md: isSidebarCollapsed ? "76px" : DESKTOP_SIDEBAR_WIDTH,
+          }}
+          transition="margin-left 0.3s, width 0.3s"
+          p={{ base: 3, md: 6 }}
+          bg="linear-gradient(135deg, #f8fbfc 0%, #ffffff 55%, #f4fbfa 100%)"
+          _dark={{ bg: 'gray.900' }}
+          flex="1"
+          minW="0"
+          w={{
+            base: "100%",
+            md: isSidebarCollapsed ? "calc(100% - 76px)" : `calc(100% - ${DESKTOP_SIDEBAR_WIDTH})`
+          }}
+          maxW={{
+            base: "100%",
+            md: isSidebarCollapsed ? "calc(100% - 76px)" : `calc(100% - ${DESKTOP_SIDEBAR_WIDTH})`
+          }}
+          overflowX="hidden"
         >
-          <ENISRASidebar onToggleCollapse={() => setIsCollapsed(!isCollapsed)} />
+          <ErrorBoundary>
+            <Suspense
+              fallback={
+                <Flex minH="240px" align="center" justify="center" gap={3}>
+                  <Spinner size="sm" color="teal.500" />
+                  <Text>Loading section...</Text>
+                </Flex>
+              }
+            >
+              {renderContent()}
+            </Suspense>
+          </ErrorBoundary>
         </Box>
-
-        <Box flex="1" transition="all 0.2s" p={4} minH="0">
-          <Outlet />
-        </Box>
-      </Flex>
-      <ENSRANotificationsDrawer
-        isOpen={notificationDisclosure.isOpen}
-        onClose={notificationDisclosure.onClose}
-        notifications={notifications}
-        loading={notificationsLoading}
-        onRefresh={refreshNotifications}
-      />
-
-      <NotesDrawer
-        isOpen={notesDisclosure.isOpen}
-        onClose={notesDisclosure.onClose}
-        onNotesUpdate={handleNotesUpdate}
-      />
-    </Flex>
+      </Box>
+    </Box>
   );
 };
 
-export default ENISRALayout;
+export default ENSRALayout;

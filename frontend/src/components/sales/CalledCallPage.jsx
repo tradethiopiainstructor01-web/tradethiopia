@@ -42,6 +42,11 @@ import {
   InputLeftElement,
   Divider,
   Icon,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
 } from '@chakra-ui/react';
 import {
   FaPhoneAlt,
@@ -68,22 +73,22 @@ import {
 import { useUserStore } from '../../store/user';
 
 const CALL_RESULT_OPTIONS = [
+  'Not Interested',
   'Interested',
   'Callback Requested',
   'Deal Closed',
   'Busy',
   'No Answer',
-  'Not Interested',
   'Wrong Number',
 ];
 
 const RESULT_CONFIG = {
+  'Not Interested': { color: 'red', label: 'Not Interested' },
   Interested: { color: 'green', label: 'Interested' },
   'Callback Requested': { color: 'yellow', label: 'Callback Requested' },
   'Deal Closed': { color: 'blue', label: 'Deal Closed' },
   Busy: { color: 'orange', label: 'Busy' },
   'No Answer': { color: 'gray', label: 'No Answer' },
-  'Not Interested': { color: 'red', label: 'Not Interested' },
   'Wrong Number': { color: 'purple', label: 'Wrong Number' },
 };
 
@@ -91,7 +96,7 @@ const INITIAL_FORM = {
   customerName: '',
   phoneNumber: '',
   callDate: new Date().toISOString().slice(0, 10),
-  callResult: 'Interested',
+  callResult: 'Not Interested',
   companyName: '',
   email: '',
   city: '',
@@ -193,8 +198,10 @@ const CalledCallPage = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [parsedRows, setParsedRows] = useState([]);
   const [importStats, setImportStats] = useState({ total: 0, valid: 0, invalid: 0 });
-  const [defaultResult, setDefaultResult] = useState('Interested');
-  const [defaultNote, setDefaultNote] = useState('Imported from Excel');
+  const [defaultResult, setDefaultResult] = useState('Not Interested');
+  const [defaultNote, setDefaultNote] = useState('Cold outreach');
+  const [importTab, setImportTab] = useState(0); // 0 = Paste, 1 = Excel Upload
+  const [pasteText, setPasteText] = useState('');
 
   // Detail View Modal State
   const {
@@ -267,7 +274,7 @@ const CalledCallPage = () => {
       callDate: call.callDate
         ? new Date(call.callDate).toISOString().slice(0, 10)
         : new Date().toISOString().slice(0, 10),
-      callResult: call.callResult || call.callStatus || 'Interested',
+      callResult: call.callResult || call.callStatus || 'Not Interested',
       companyName: call.companyName || '',
       email: call.email || '',
       city: call.city || '',
@@ -276,13 +283,77 @@ const CalledCallPage = () => {
     onOpen();
   };
 
-  const handleOpenImport = () => {
+  const handleOpenImport = (tabIndex = 0) => {
     setImportFile(null);
+    setPasteText('');
     setParsedRows([]);
     setImportStats({ total: 0, valid: 0, invalid: 0 });
-    setDefaultResult('Interested');
-    setDefaultNote('Imported from Excel');
+    setDefaultResult('Not Interested');
+    setDefaultNote('Cold outreach');
+    setImportTab(tabIndex);
     onImportOpen();
+  };
+
+  const processPastedText = (text, initialResult = defaultResult, initialNote = defaultNote) => {
+    setPasteText(text);
+    if (!text || !text.trim()) {
+      setParsedRows([]);
+      setImportStats({ total: 0, valid: 0, invalid: 0 });
+      return;
+    }
+
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const validList = [];
+    let invalidCount = 0;
+
+    lines.forEach((line, index) => {
+      // Split by tab, comma, semicolon, or vertical pipe (standard Excel clipboard delimiters)
+      const parts = line.split(/[\t,;|]+/).map((p) => p.trim()).filter(Boolean);
+
+      let detectedPhone = '';
+      let detectedName = '';
+      let detectedCompany = '';
+
+      if (parts.length === 1) {
+        detectedPhone = normalizePhoneNumber(parts[0]);
+      } else {
+        // Find which column looks like a valid phone number
+        const phoneIdx = parts.findIndex((p) => normalizePhoneNumber(p).length >= 9);
+        if (phoneIdx !== -1) {
+          detectedPhone = normalizePhoneNumber(parts[phoneIdx]);
+          const otherParts = parts.filter((_, idx) => idx !== phoneIdx);
+          if (otherParts.length > 0) detectedName = otherParts[0];
+          if (otherParts.length > 1) detectedCompany = otherParts[1];
+        } else {
+          detectedPhone = normalizePhoneNumber(parts[0]);
+          if (parts[1]) detectedName = parts[1];
+        }
+      }
+
+      if (detectedPhone && detectedPhone.length >= 9) {
+        validList.push({
+          rowNum: index + 1,
+          phoneNumber: detectedPhone,
+          customerName: detectedName || `Prospect ${detectedPhone}`,
+          hasOriginalName: Boolean(detectedName),
+          companyName: detectedCompany || '',
+          email: '',
+          city: '',
+          notes: initialNote || 'Cold outreach',
+          callResult: initialResult || 'Not Interested',
+          callDate: new Date().toISOString().slice(0, 10),
+        });
+      } else {
+        invalidCount++;
+      }
+    });
+
+    setParsedRows(validList);
+    setImportStats({
+      total: lines.length,
+      valid: validList.length,
+      invalid: invalidCount,
+    });
   };
 
   const processFile = async (file) => {
@@ -649,13 +720,25 @@ const CalledCallPage = () => {
 
           <HStack spacing={3} wrap="wrap">
             <Button
-              leftIcon={<FaFileExcel />}
+              leftIcon={<FaCopy />}
               colorScheme="teal"
               variant="solid"
               size="md"
               bg="#0d9488"
               _hover={{ bg: '#0f766e' }}
-              onClick={handleOpenImport}
+              onClick={() => handleOpenImport(0)}
+            >
+              Paste Numbers
+            </Button>
+            <Button
+              leftIcon={<FaFileExcel />}
+              variant="outline"
+              colorScheme="teal"
+              size="md"
+              color="#087f70"
+              borderColor="#0d9488"
+              _hover={{ bg: '#f0fdfa' }}
+              onClick={() => handleOpenImport(1)}
             >
               Import Excel
             </Button>
@@ -1346,21 +1429,21 @@ const CalledCallPage = () => {
         </Modal>
       )}
 
-      {/* Excel Import Modal */}
+      {/* Copy/Paste & Excel Import Modal */}
       <Modal isOpen={isImportOpen} onClose={onImportClose} size="xl" scrollBehavior="inside">
         <ModalOverlay />
         <ModalContent borderRadius="xl">
           <ModalHeader borderBottom="1px solid" borderColor="gray.100" pb={3}>
             <HStack spacing={2.5}>
-              <Box p={2} bg="green.50" color="green.600" borderRadius="md">
-                <FaFileExcel size={20} />
+              <Box p={2} bg="teal.50" color="teal.600" borderRadius="md">
+                <FaCopy size={20} />
               </Box>
               <Box>
                 <Text fontSize="lg" fontWeight="bold">
-                  Import Phone Numbers from Excel / CSV
+                  Import / Paste Cold Call Numbers
                 </Text>
                 <Text fontSize="xs" color="gray.500">
-                  Accepts phone numbers in any format. Accept the numbers now and insert the remaining customer details afterward.
+                  Accepts copy-pasted phone numbers or Excel files. Default call result is set to "Not Interested".
                 </Text>
               </Box>
             </HStack>
@@ -1369,61 +1452,110 @@ const CalledCallPage = () => {
 
           <ModalBody py={4}>
             <VStack spacing={4} align="stretch">
-              {/* File upload box */}
-              <Box
-                borderWidth="2px"
-                borderStyle="dashed"
-                borderColor={importFile ? 'green.400' : 'gray.300'}
-                borderRadius="xl"
-                p={5}
-                textAlign="center"
-                bg={importFile ? 'green.50' : 'gray.50'}
-                _dark={{ bg: 'whiteAlpha.50', borderColor: 'gray.600' }}
-                cursor="pointer"
-                onClick={() => fileInputRef.current?.click()}
-                _hover={{ borderColor: 'teal.500', bg: 'teal.50' }}
-                transition="all 0.2s"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv,.tsv,.txt"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) processFile(file);
-                    e.target.value = '';
-                  }}
-                />
-                <Icon as={FiUploadCloud} boxSize={8} color="teal.500" mb={2} />
-                <Text fontSize="sm" fontWeight="bold" color="gray.700" _dark={{ color: 'gray.200' }}>
-                  {importFile ? importFile.name : 'Click to select or drag & drop an Excel file (.xlsx, .xls, .csv)'}
-                </Text>
-                <Text fontSize="xs" color="gray.500" mt={1}>
-                  Accepts standard (+251..., 09..., 07...), 9-digit, spaces, or international phone numbers across any column.
-                </Text>
-              </Box>
+              {/* Tabs for Paste vs Excel */}
+              <Tabs index={importTab} onChange={(i) => setImportTab(i)} colorScheme="teal" variant="enclosed">
+                <TabList mb={3}>
+                  <Tab fontWeight="bold" fontSize="sm">
+                    <HStack spacing={2}>
+                      <FaCopy />
+                      <Text>Copy & Paste Numbers</Text>
+                    </HStack>
+                  </Tab>
+                  <Tab fontWeight="bold" fontSize="sm">
+                    <HStack spacing={2}>
+                      <FaFileExcel />
+                      <Text>Upload Excel / CSV</Text>
+                    </HStack>
+                  </Tab>
+                </TabList>
 
-              {isParsing && (
-                <Flex align="center" justify="center" py={4} gap={3}>
-                  <Spinner size="md" color="teal.500" />
-                  <Text fontSize="sm" color="gray.600">Reading and validating phone numbers...</Text>
-                </Flex>
-              )}
+                <TabPanels>
+                  {/* TAB 1: Copy-Paste many numbers directly */}
+                  <TabPanel p={0}>
+                    <VStack align="stretch" spacing={2}>
+                      <Text fontSize="xs" color="gray.600" fontWeight="medium">
+                        Paste phone numbers from Excel, text, or WhatsApp (one number per line, or tab/comma separated with Name/Company):
+                      </Text>
+                      <Textarea
+                        rows={7}
+                        value={pasteText}
+                        onChange={(e) => processPastedText(e.target.value)}
+                        placeholder={`Paste numbers here, e.g.:\n0911223344\n0922334455\n0711223344\n+251911334455\n\nOr copied directly from Excel rows:\n0911223344\tAbebe Bikila\tABC Trading`}
+                        fontSize="xs"
+                        fontFamily="mono"
+                        focusBorderColor="teal.500"
+                        borderRadius="md"
+                      />
+                      <HStack justify="space-between" fontSize="2xs" color="gray.500">
+                        <Text>Normalizes Ethiopian formats (09..., 07..., +251..., 9-digit, etc.) automatically.</Text>
+                        {pasteText && (
+                          <Button size="xs" variant="link" colorScheme="red" onClick={() => processPastedText('')}>
+                            Clear
+                          </Button>
+                        )}
+                      </HStack>
+                    </VStack>
+                  </TabPanel>
+
+                  {/* TAB 2: File Upload */}
+                  <TabPanel p={0}>
+                    <Box
+                      borderWidth="2px"
+                      borderStyle="dashed"
+                      borderColor={importFile ? 'green.400' : 'gray.300'}
+                      borderRadius="xl"
+                      p={5}
+                      textAlign="center"
+                      bg={importFile ? 'green.50' : 'gray.50'}
+                      _dark={{ bg: 'whiteAlpha.50', borderColor: 'gray.600' }}
+                      cursor="pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                      _hover={{ borderColor: 'teal.500', bg: 'teal.50' }}
+                      transition="all 0.2s"
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv,.tsv,.txt"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) processFile(file);
+                          e.target.value = '';
+                        }}
+                      />
+                      <Icon as={FiUploadCloud} boxSize={8} color="teal.500" mb={2} />
+                      <Text fontSize="sm" fontWeight="bold" color="gray.700" _dark={{ color: 'gray.200' }}>
+                        {importFile ? importFile.name : 'Click to select or drag & drop an Excel file (.xlsx, .xls, .csv)'}
+                      </Text>
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        Accepts standard (+251..., 09..., 07...), 9-digit, spaces, or international phone numbers across any column.
+                      </Text>
+                    </Box>
+
+                    {isParsing && (
+                      <Flex align="center" justify="center" py={4} gap={3}>
+                        <Spinner size="md" color="teal.500" />
+                        <Text fontSize="sm" color="gray.600">Reading and validating phone numbers...</Text>
+                      </Flex>
+                    )}
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
 
               {/* Stats badges */}
               {importStats.total > 0 && !isParsing && (
                 <SimpleGrid columns={3} spacing={3}>
                   <Box p={3} bg="gray.50" _dark={{ bg: 'whiteAlpha.100' }} borderRadius="md" textAlign="center">
-                    <Text fontSize="xs" color="gray.500">Rows in File</Text>
+                    <Text fontSize="xs" color="gray.500">Lines / Rows</Text>
                     <Text fontSize="lg" fontWeight="bold">{importStats.total}</Text>
                   </Box>
                   <Box p={3} bg="green.50" _dark={{ bg: 'green.900' }} borderRadius="md" textAlign="center">
-                    <Text fontSize="xs" color="green.700" _dark={{ color: 'green.200' }}>Accepted Phones</Text>
+                    <Text fontSize="xs" color="green.700" _dark={{ color: 'green.200' }}>Valid Numbers</Text>
                     <Text fontSize="lg" fontWeight="bold" color="green.600" _dark={{ color: 'green.300' }}>{importStats.valid}</Text>
                   </Box>
                   <Box p={3} bg="orange.50" _dark={{ bg: 'orange.900' }} borderRadius="md" textAlign="center">
-                    <Text fontSize="xs" color="orange.700" _dark={{ color: 'orange.200' }}>Skipped (No Phone)</Text>
+                    <Text fontSize="xs" color="orange.700" _dark={{ color: 'orange.200' }}>Skipped (Invalid)</Text>
                     <Text fontSize="lg" fontWeight="bold" color="orange.600" _dark={{ color: 'orange.300' }}>{importStats.invalid}</Text>
                   </Box>
                 </SimpleGrid>
@@ -1460,7 +1592,7 @@ const CalledCallPage = () => {
                         setParsedRows(prev => prev.map(r => ({ ...r, notes: val })));
                       }}
                       borderRadius="md"
-                      placeholder="e.g. Imported from Excel"
+                      placeholder="e.g. Cold outreach"
                     />
                   </FormControl>
                 </SimpleGrid>
@@ -1470,7 +1602,7 @@ const CalledCallPage = () => {
               {parsedRows.length > 0 && (
                 <Box>
                   <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>
-                    Preview (showing first {Math.min(5, parsedRows.length)} of {parsedRows.length} accepted rows):
+                    Preview (showing first {Math.min(10, parsedRows.length)} of {parsedRows.length} accepted numbers):
                   </Text>
                   <Box overflowX="auto" maxH="200px" overflowY="auto" borderWidth="1px" borderColor="gray.200" borderRadius="md">
                     <Table size="xs" variant="simple">
@@ -1480,24 +1612,28 @@ const CalledCallPage = () => {
                           <Th>Phone Number</Th>
                           <Th>Customer Name</Th>
                           <Th>Company</Th>
-                          <Th>Status</Th>
+                          <Th>Default Result</Th>
                         </Tr>
                       </Thead>
                       <Tbody>
                         {parsedRows.slice(0, 10).map((r, i) => (
-                          <Tr key={r.id}>
+                          <Tr key={r.id || `row-${i}`}>
                             <Td>{i + 1}</Td>
                             <Td fontWeight="semibold" color="teal.600">{r.phoneNumber}</Td>
                             <Td>{r.customerName}</Td>
                             <Td>{r.companyName || '-'}</Td>
-                            <Td><Badge colorScheme="green" fontSize="9px">{r.callResult}</Badge></Td>
+                            <Td>
+                              <Badge colorScheme={RESULT_CONFIG[r.callResult]?.color || 'red'} fontSize="9px">
+                                {r.callResult}
+                              </Badge>
+                            </Td>
                           </Tr>
                         ))}
                       </Tbody>
                     </Table>
                   </Box>
                   <Text fontSize="2xs" color="gray.500" mt={1}>
-                    Remaining fields can be inserted/edited for each record anytime directly in the table.
+                    Remaining details (name, company, email, notes) can be edited anytime directly in the table.
                   </Text>
                 </Box>
               )}
@@ -1517,7 +1653,7 @@ const CalledCallPage = () => {
               loadingText="Importing..."
               onClick={handleConfirmImport}
             >
-              Accept & Insert {parsedRows.length} Calls
+              Accept & Insert {parsedRows.length} Numbers ({defaultResult})
             </Button>
           </ModalFooter>
         </ModalContent>

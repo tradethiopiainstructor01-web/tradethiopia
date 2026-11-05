@@ -2,9 +2,6 @@ const mongoose = require('mongoose');
 const dns = require('dns');
 const Package = require('../models/Package');
 
-// Use public DNS resolvers so MongoDB SRV lookups succeed on local networks
-try { dns.setServers(['8.8.8.8', '1.1.1.1', '9.9.9.9']); } catch (_) {}
-
 let isConnected = false;
 
 mongoose.connection.on('disconnected', () => {
@@ -22,11 +19,10 @@ mongoose.connection.on('error', (err) => {
 });
 
 const connectionOptions = {
-  serverSelectionTimeoutMS: 15000,
+  serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
-  family: 4,
   maxPoolSize: 10,
-  autoIndex: true,
+  autoIndex: false,
 };
 
 const dropLegacyPackageIndex = async () => {
@@ -58,22 +54,12 @@ const ensurePackageIndexSetup = async () => {
 const connect = async (uri, options = connectionOptions) => {
   const connection = await mongoose.connect(uri, options);
   isConnected = true;
-  await ensurePackageIndexSetup();
+  ensurePackageIndexSetup().catch(() => {});
   return connection;
 };
 
-const SRV_DNS_ERROR_CODES = new Set(['ECONNREFUSED', 'ETIMEOUT', 'ENOTFOUND', 'EAI_AGAIN']);
-const isSrvDnsFailure = (error) =>
-  SRV_DNS_ERROR_CODES.has(error?.code) &&
-  String(error?.message || '').includes('querySrv');
-
-const buildAtlasSeedListUri = (srvUri) => {
-  const seedList = process.env.MONGO_ATLAS_SEED_LIST?.trim();
-  const replicaSet = process.env.MONGO_ATLAS_REPLICA_SET?.trim();
-
-  if (!srvUri.startsWith('mongodb+srv://') || !seedList || !replicaSet) {
-    return null;
-  }
+const buildDirectAtlasUri = (srvUri) => {
+  if (!srvUri || !srvUri.startsWith('mongodb+srv://')) return null;
 
   const uriWithoutScheme = srvUri.slice('mongodb+srv://'.length);
   const credentialsEnd = uriWithoutScheme.lastIndexOf('@');
@@ -82,21 +68,27 @@ const buildAtlasSeedListUri = (srvUri) => {
   const credentials = uriWithoutScheme.slice(0, credentialsEnd);
   const hostAndPath = uriWithoutScheme.slice(credentialsEnd + 1);
   const pathStart = hostAndPath.indexOf('/');
-  const pathAndQuery = pathStart >= 0 ? hostAndPath.slice(pathStart) : '/';
+  const pathAndQuery = pathStart >= 0 ? hostAndPath.slice(pathStart) : '/tradethiopia';
   const separator = pathAndQuery.includes('?') ? '&' : '?';
 
-  return `mongodb://${credentials}@${seedList}${pathAndQuery}${separator}` +
-    `tls=true&authSource=admin&replicaSet=${encodeURIComponent(replicaSet)}`;
+  const seedList = process.env.MONGO_ATLAS_SEED_LIST?.trim() || (
+    hostAndPath.includes('cluster0.epkpn.mongodb.net')
+      ? 'cluster0-shard-00-00.epkpn.mongodb.net:27017,cluster0-shard-00-01.epkpn.mongodb.net:27017,cluster0-shard-00-02.epkpn.mongodb.net:27017'
+      : null
+  );
+
+  const replicaSet = process.env.MONGO_ATLAS_REPLICA_SET?.trim() || (
+    hostAndPath.includes('cluster0.epkpn.mongodb.net')
+      ? 'atlas-34uzw3-shard-0'
+      : null
+  );
+
+  if (!seedList) return null;
+
+  return `mongodb://${credentials}@${seedList}${pathAndQuery}${separator}tls=true&authSource=admin${replicaSet ? `&replicaSet=${encodeURIComponent(replicaSet)}` : ''}`;
 };
 
 const connectDB = async () => {
-  console.log('Attempting to connect to database...');
-  console.log('Environment:', {
-    vercel: Boolean(process.env.VERCEL),
-    nodeEnv: process.env.NODE_ENV || 'development',
-    hasMongoUri: Boolean(process.env.MONGO_URI)
-  });
-
   if (isConnected && mongoose.connection.readyState === 1) {
     console.log('Using existing database connection');
     return mongoose.connection;
@@ -107,33 +99,35 @@ const connectDB = async () => {
     throw new Error('MONGO_URI is not defined in environment variables');
   }
 
+  console.log('Connecting to MongoDB...');
+
+  // Attempt 1: Standard connection (SRV)
   try {
-    console.log('Connecting to MongoDB...');
     const connection = await connect(mongoUri);
     console.log(`MongoDB connected: ${connection.connection.host}`);
     return connection;
   } catch (error) {
-    console.error(`Database failed to connect: ${error.message}`);
+    console.warn(`Standard SRV connection failed (${error.message}). Trying direct replica-set seed list...`);
 
-    const atlasSeedListUri = isSrvDnsFailure(error)
-      ? buildAtlasSeedListUri(mongoUri)
-      : null;
-
-    if (!atlasSeedListUri) {
-      throw error;
-    }
-
-    console.warn('SRV DNS lookup failed; retrying the same Atlas cluster with its configured seed list...');
-
+    // Try switching DNS servers in case local DNS fails SRV lookups
     try {
-      await mongoose.disconnect();
-      const connection = await connect(atlasSeedListUri);
-      console.log(`MongoDB Atlas connected through seed list: ${connection.connection.host}`);
-      return connection;
-    } catch (seedListError) {
-      console.error(`MongoDB Atlas seed-list connection failed: ${seedListError.message}`);
-      throw seedListError;
+      dns.setServers(['8.8.8.8', '1.1.1.1', '9.9.9.9']);
+    } catch (_) {}
+
+    // Attempt 2: Direct replica-set seed list
+    const directUri = buildDirectAtlasUri(mongoUri);
+    if (directUri) {
+      try {
+        await mongoose.disconnect();
+        const connection = await connect(directUri);
+        console.log(`MongoDB Atlas connected through direct seed list: ${connection.connection.host}`);
+        return connection;
+      } catch (directError) {
+        console.error(`Direct seed list connection also failed: ${directError.message}`);
+      }
     }
+
+    throw error;
   }
 };
 

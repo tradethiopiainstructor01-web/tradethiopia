@@ -29,7 +29,7 @@ import { getNotifications } from '../../services/notificationService';
 const sidebarItems = [
   { label: 'Home', icon: FaHome },
   { label: 'Followup', icon: FaMoneyBillWave },
-  { label: 'Called Call', icon: FaPhoneAlt },
+  { label: 'Cold Call', icon: FaPhoneAlt },
   { label: 'Orders', icon: FaShoppingCart },
   { label: 'Tasks', icon: FiCheckCircle },
   { label: 'Content Tracker', icon: FaRegCalendarAlt },

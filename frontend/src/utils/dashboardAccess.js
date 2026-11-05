@@ -99,6 +99,7 @@ export const getRoleDashboardPath = (role = '') => {
     case 'supervisor':
       return '/supervisor';
     case 'enisra':
+    case 'ensra':
       return '/enisra/dashboard';
     case 'instructor':
       return '/instructor';

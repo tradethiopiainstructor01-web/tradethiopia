@@ -354,6 +354,7 @@ const FollowupCompletedTable = ({
   customers = [],
   documentsOnly = false,
   courses = [],
+  isEnisra = false,
   onUpdate,
   onDelete
 }) => {
@@ -524,9 +525,27 @@ const FollowupCompletedTable = ({
       course = courses.find((c) => c._id === courseId);
     }
     if (!course && courseName) {
-      course = courses.find((c) => c.name?.toLowerCase() === courseName.toLowerCase());
+      course = courses.find((c) => c.name === courseName || c.shortName === courseName);
+      if (!course) {
+        const clean = courseName.toLowerCase().trim();
+        const cleanBase = clean.split('(')[0].trim();
+        course = courses.find((c) => {
+          const cName = (c.name || '').toLowerCase().trim();
+          const sName = (c.shortName || '').toLowerCase().trim();
+          const cBase = cName.split('(')[0].trim();
+          const sBase = sName.split('(')[0].trim();
+          return (
+            cName === clean ||
+            sName === clean ||
+            cBase === cleanBase ||
+            sBase === cleanBase ||
+            (cleanBase && (cBase.startsWith(cleanBase) || cleanBase.startsWith(cBase))) ||
+            (c.packageNumber && (clean.includes(`package ${c.packageNumber}`) || clean.includes(`package${c.packageNumber}`)))
+          );
+        });
+      }
     }
-    return course ? { id: course._id, name: course.name, price: Number(course.price) || 0 } : null;
+    return course ? { id: course._id, name: course.name, shortName: course.shortName || course.name, price: Number(course.price) || 0 } : null;
   };
 
   const getDealPrice = (customer) => {
@@ -1153,7 +1172,12 @@ const FollowupCompletedTable = ({
                         <Tag size="sm" colorScheme="teal" variant="subtle" borderRadius="full">
                           <TagLeftIcon as={FiBookOpen} />
                           <TagLabel fontWeight="medium">
-                            {customer.contactTitle || customer.courseName || 'General Training'}
+                            {(() => {
+                              const title = customer.contactTitle || customer.courseName || 'General Training';
+                              if (title.includes('ETB')) return title;
+                              const details = getCourseDetails(title, customer.courseId);
+                              return details && details.price > 0 ? `${title} (ETB ${Number(details.price).toLocaleString()})` : title;
+                            })()}
                           </TagLabel>
                         </Tag>
                       </Td>
@@ -1465,7 +1489,12 @@ const FollowupCompletedTable = ({
                   <Box p={3} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
                     <Text fontSize="xs" color={subtleText} fontWeight="medium">Training Title</Text>
                     <Text fontWeight="bold" fontSize="sm" mt={1}>
-                      {drawerCustomer.contactTitle || drawerCustomer.courseName || 'N/A'}
+                      {(() => {
+                        const title = drawerCustomer.contactTitle || drawerCustomer.courseName || 'N/A';
+                        if (title.includes('ETB')) return title;
+                        const details = getCourseDetails(title, drawerCustomer.courseId);
+                        return details && details.price > 0 ? `${title} (ETB ${Number(details.price).toLocaleString()})` : title;
+                      })()}
                     </Text>
                   </Box>
                   <Box p={3} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
@@ -1696,15 +1725,15 @@ const FollowupCompletedTable = ({
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel fontSize="sm">Training Course</FormLabel>
+                  <FormLabel fontSize="sm">{isEnisra ? 'Package / Training Course' : 'Training Course'}</FormLabel>
                   <Select
-                    value={editCustomer.contactTitle}
+                    value={getCourseDetails(editCustomer.contactTitle, editCustomer.courseId)?.name || editCustomer.contactTitle}
                     onChange={(e) => setEditCustomer((prev) => ({ ...prev, contactTitle: e.target.value }))}
                   >
-                    <option value="">Select a course</option>
+                    <option value="">{isEnisra ? 'Select a package / course' : 'Select a course'}</option>
                     {(Array.isArray(courses) ? courses : []).map((course) => (
                       <option key={course._id} value={course.name}>
-                        {course.name} - {formatCurrency(course.price)}
+                        {course.name} {course.name.includes('ETB') ? '' : `- ${formatCurrency(course.price)}`}
                       </option>
                     ))}
                   </Select>

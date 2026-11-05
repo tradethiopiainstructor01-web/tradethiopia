@@ -71,12 +71,12 @@ const calledCallSchema = new mongoose.Schema(
     callResult: {
       type: String,
       trim: true,
-      default: 'Interested',
+      default: 'Not Interested',
     },
     callStatus: {
       type: String,
       trim: true,
-      default: 'Interested',
+      default: 'Not Interested',
     },
     followUpDate: {
       type: Date,

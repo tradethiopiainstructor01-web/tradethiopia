@@ -400,7 +400,7 @@ const readColumnPrefs = () => {
   }
 };
 
-const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }) => {
+const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd, isEnisra = false }) => {
   const toast = useToast();
 
   // List rows carry document markers; load the real images before showing or editing them.
@@ -771,7 +771,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     };
   };
 
-  // Find course by name and get its price
+  // Find course or package by name and get its price
   const getCourseDetails = (courseName, courseId) => {
     if (!Array.isArray(courses)) return null;
     let course = null;
@@ -779,9 +779,27 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
       course = courses.find(c => c._id === courseId);
     }
     if (!course && courseName) {
-      course = courses.find(c => c.name === courseName);
+      course = courses.find(c => c.name === courseName || c.shortName === courseName);
+      if (!course) {
+        const clean = courseName.toLowerCase().trim();
+        const cleanBase = clean.split('(')[0].trim();
+        course = courses.find(c => {
+          const cName = (c.name || '').toLowerCase().trim();
+          const sName = (c.shortName || '').toLowerCase().trim();
+          const cBase = cName.split('(')[0].trim();
+          const sBase = sName.split('(')[0].trim();
+          return (
+            cName === clean ||
+            sName === clean ||
+            cBase === cleanBase ||
+            sBase === cleanBase ||
+            (cleanBase && (cBase.startsWith(cleanBase) || cleanBase.startsWith(cBase))) ||
+            (c.packageNumber && (clean.includes(`package ${c.packageNumber}`) || clean.includes(`package${c.packageNumber}`)))
+          );
+        });
+      }
     }
-    return course ? { id: course._id, name: course.name, price: Number(course.price) || 0 } : null;
+    return course ? { id: course._id, name: course.name, shortName: course.shortName || course.name, price: Number(course.price) || 0 } : null;
   };
 
   const getCustomerCoursePrice = (customer) => {
@@ -817,11 +835,21 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     px: 1
   };
 
-  const columns = DEFAULT_COLUMNS.map(column => ({
-    ...column,
-    width: columnPrefs.widths[column.key] || column.width,
-    isVisible: !columnPrefs.hidden.includes(column.key)
-  }));
+  const columns = DEFAULT_COLUMNS.map(column => {
+    let label = column.label;
+    let fullLabel = column.fullLabel;
+    if (isEnisra && column.key === 'contactTitle') {
+      label = 'Package / Course';
+      fullLabel = 'Package / Training Course';
+    }
+    return {
+      ...column,
+      label,
+      fullLabel,
+      width: columnPrefs.widths[column.key] || (isEnisra && column.key === 'contactTitle' ? 190 : column.width),
+      isVisible: !columnPrefs.hidden.includes(column.key)
+    };
+  });
   const visibleColumns = columnPrefs.order
     .map(key => columns.find(column => column.key === key))
     .filter(column => column && column.isVisible);
@@ -1343,13 +1371,13 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
         <Td key={field} p={1}>
           {field === 'contactTitle' ? (
             <Select
-              value={editValue}
+              value={getCourseDetails(editValue)?.name || editValue}
               onChange={handleInputChange}
               onBlur={handleBlur}
               autoFocus
               {...compactSelectProps}
             >
-              <option value="">Select Course</option>
+              <option value="">{isEnisra ? 'Select Package / Course' : 'Select Course'}</option>
               {(Array.isArray(courses) ? courses : []).map(course => (
                 <option key={course._id} value={course.name}>
                   {course.name}
@@ -1527,7 +1555,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
           <Td key={key} {...baseCellProps}>
             <Select
               name="contactTitle"
-              value={newCustomerData.contactTitle || ''}
+              value={getCourseDetails(newCustomerData.contactTitle)?.name || newCustomerData.contactTitle || ''}
               onChange={handleNewCustomerChange}
               onKeyDown={handleNewCustomerKeyDown}
               size="xs"
@@ -1536,7 +1564,7 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
               bg="white"
               _dark={{ bg: 'gray.800', borderColor: 'gray.600' }}
             >
-              <option value="">Course</option>
+              <option value="">{isEnisra ? 'Package / Course' : 'Select Course'}</option>
               {(Array.isArray(courses) ? courses : []).map(course => (
                 <option key={course._id} value={course.name}>
                   {course.name}
@@ -1739,7 +1767,15 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     switch (key) {
       case 'customerName':
         return renderDisplayCell(customer, 'customerName', customer.customerName);
-      case 'contactTitle':
+      case 'contactTitle': {
+        const cDetails = getCourseDetails(customer.contactTitle, customer.courseId);
+        const hasEtb = customer.contactTitle && customer.contactTitle.includes('ETB');
+        const displayLabel = customer.contactTitle
+          ? (!hasEtb && cDetails && cDetails.price > 0
+              ? `${customer.contactTitle} (ETB ${Number(cDetails.price).toLocaleString()})`
+              : (cDetails?.name || customer.contactTitle))
+          : (isEnisra ? 'Select package/course' : 'Select course');
+
         return renderDisplayCell(
           customer,
           'contactTitle',
@@ -1749,9 +1785,10 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             placement="top"
             openDelay={250}
           >
-            <Text as="span">{customer.contactTitle || 'Select course'}</Text>
+            <Text as="span">{displayLabel}</Text>
           </Tooltip>
         );
+      }
       case 'phone':
         return renderDisplayCell(customer, 'phone', customer.phone);
       case 'callStatus': {
@@ -2006,7 +2043,15 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
     switch (column.key) {
       case 'customerName':
         return customer.customerName || 'N/A';
-      case 'contactTitle':
+      case 'contactTitle': {
+        const cDetails = getCourseDetails(customer.contactTitle, customer.courseId);
+        const hasEtb = customer.contactTitle && customer.contactTitle.includes('ETB');
+        const displayLabel = customer.contactTitle
+          ? (!hasEtb && cDetails && cDetails.price > 0
+              ? `${customer.contactTitle} (ETB ${Number(cDetails.price).toLocaleString()})`
+              : (cDetails?.name || customer.contactTitle))
+          : (isEnisra ? 'Select package/course' : 'Select course');
+
         return (
           <Tooltip
             label={`${customer.contactTitle || 'No course selected'} - ${formatPrice(getCustomerCoursePrice(customer))}`}
@@ -2014,9 +2059,10 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
             placement="top"
             openDelay={250}
           >
-            <Text as="span" noOfLines={1}>{customer.contactTitle || 'Select course'}</Text>
+            <Text as="span" noOfLines={1}>{displayLabel}</Text>
           </Tooltip>
         );
+      }
       case 'phone':
         return customer.phone || 'N/A';
       case 'callStatus': {
@@ -2772,17 +2818,19 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                   </FormControl>
 
                   <FormControl>
-                    <FormLabel fontSize="xs" fontWeight="bold">Training Title</FormLabel>
+                    <FormLabel fontSize="xs" fontWeight="bold">
+                      {isEnisra ? 'Enisra Package / Training Course' : 'Training Title'}
+                    </FormLabel>
                     <Select
                       name="contactTitle"
                       size="sm"
-                      value={editModalCustomer.contactTitle || ''}
+                      value={getCourseDetails(editModalCustomer.contactTitle, editModalCustomer.courseId)?.name || editModalCustomer.contactTitle || ''}
                       onChange={handleEditModalInputChange}
                     >
-                      <option value="">Select a course</option>
+                      <option value="">{isEnisra ? 'Select a package / course' : 'Select a course'}</option>
                       {(Array.isArray(courses) ? courses : []).map(course => (
                         <option key={course._id} value={course.name}>
-                          {course.name} - {formatPrice(Number(course.price) || 0)}
+                          {course.name}
                         </option>
                       ))}
                     </Select>
@@ -3097,7 +3145,14 @@ const FollowupCustomerTable = ({ customers, courses, onDelete, onUpdate, onAdd }
                     </Box>
                     <Box>
                       <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Training Title</Text>
-                      <Text fontSize="md">{drawerCustomer.contactTitle || 'N/A'}</Text>
+                      <Text fontSize="md">
+                        {(() => {
+                          const title = drawerCustomer.contactTitle || 'N/A';
+                          if (title.includes('ETB')) return title;
+                          const details = getCourseDetails(title, drawerCustomer.courseId);
+                          return details && details.price > 0 ? `${title} (ETB ${Number(details.price).toLocaleString()})` : title;
+                        })()}
+                      </Text>
                     </Box>
                     <Box>
                       <Text fontSize="sm" fontWeight="bold" color="gray.600" mb={1}>Course Price</Text>

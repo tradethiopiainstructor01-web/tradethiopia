@@ -1,107 +1,207 @@
 import React, { useState, useEffect } from 'react';
-import { VStack, Box, Button, Tooltip, Badge, Text, Flex, useColorModeValue, Icon } from '@chakra-ui/react';
-import { FiHome, FiFileText, FiList, FiUsers } from 'react-icons/fi';
-import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  Box,
+  Flex,
+  Text,
+  VStack,
+  HStack,
+  Divider,
+  Tooltip,
+  useColorModeValue,
+  Badge,
+  Image,
+} from '@chakra-ui/react';
+import {
+  FaHome,
+  FaChartLine,
+  FaMoneyBillWave,
+  FaShoppingCart,
+  FaClipboardList,
+  FaRegCalendarAlt,
+  FaExclamationTriangle,
+  FaPhoneAlt,
+  FaBoxOpen,
+} from 'react-icons/fa';
+import { FiCheckCircle, FiMessageSquare, FiUploadCloud } from 'react-icons/fi';
 import { getNotifications } from '../../services/notificationService';
 
-const NavButton = ({ icon, label, active, onClick, unreadCount = 0 }) => (
-  <Tooltip label={label} placement="right" hasArrow>
-    <Button
-      leftIcon={<Icon as={icon} />}
-      justifyContent="flex-start"
-      variant={active ? 'solid' : 'ghost'}
-      colorScheme={active ? 'teal' : 'gray'}
-      onClick={onClick}
-      w="full"
-      borderRadius="lg"
-      fontWeight="normal"
-      position="relative"
-    >
-      <Text>{label}</Text>
-      {unreadCount > 0 && label === 'Notice Board' && (
-        <Badge ml={2} colorScheme="red" borderRadius="full">{unreadCount}</Badge>
-      )}
-    </Button>
-  </Tooltip>
-);
+const sidebarItems = [
+  { label: 'Home', icon: FaHome },
+  { label: 'Followup', icon: FaMoneyBillWave },
+  { label: 'Cold Call', icon: FaPhoneAlt },
+  { label: 'Orders', icon: FaShoppingCart },
+  { label: 'Tasks', icon: FiCheckCircle },
+  { label: 'Content Tracker', icon: FaRegCalendarAlt },
+  { label: 'Monthly Report', icon: FaChartLine },
+  { label: 'Notice Board', icon: FiMessageSquare },
+  { label: 'Requests', icon: FaClipboardList },
+  { label: 'Upload Documents', icon: FiUploadCloud },
+  { label: 'My Warnings', icon: FaExclamationTriangle },
+];
 
-const ENISRASidebar = ({ onToggleCollapse }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
+const ENSRASidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) => {
+  const sidebarBg = useColorModeValue('#ffffff', 'gray.900');
+  const textColor = useColorModeValue('#1e293b', 'gray.100');
+  const borderColor = useColorModeValue('#e2e8f0', 'whiteAlpha.200');
+  
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const activeFromPath = () => {
-    const path = location.pathname.toLowerCase();
-    if (path.includes('notice')) return 'notice';
-    if (path.includes('request')) return 'request';
-    if (path.includes('follow-up')) return 'follow-up';
-    return 'dashboard';
+  const fetchUnreadCount = async () => {
+    try {
+      const data = await getNotifications();
+      const broadcastMessages = data.filter(msg => msg.type === 'general' || msg.type === 'broadcast');
+      const unread = broadcastMessages.filter(msg => !msg.read).length;
+      setUnreadCount(unread);
+    } catch (err) {
+      console.error('Error fetching notification count:', err);
+    }
   };
-  const [active, setActive] = useState(activeFromPath());
 
   useEffect(() => {
-    setActive(activeFromPath());
-    const fetch = async () => {
-      try {
-        const data = await getNotifications();
-        const broadcast = data.filter(n => n.type === 'general' || n.type === 'broadcast');
-        const unread = broadcast.filter(n => !n.read).length;
-        setUnreadCount(unread);
-      } catch (err) {
-        // ignore
-      }
-    };
-
-    fetch();
-    const id = setInterval(fetch, 30000);
-    return () => clearInterval(id);
-  }, [location.pathname]);
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <Box height="100%" px={3} py={4} bg={useColorModeValue('gray.50', 'gray.800')} borderRightWidth="1px">
-      <Box mb={4}>
-        <Text fontWeight="bold" fontSize="lg">ENISRA</Text>
-      </Box>
+    <Flex
+      direction="column"
+      h="100%"
+      bg={sidebarBg}
+      color={textColor}
+      borderRight="1px solid"
+      borderColor={borderColor}
+      boxShadow="4px 0 20px rgba(15, 118, 110, 0.04)"
+    >
+      <HStack
+        justifyContent="space-between"
+        alignItems="center"
+        minH={isCollapsed ? '68px' : '104px'}
+        mb={3}
+        px={isCollapsed ? 2 : 4}
+        position="relative"
+      >
+        {!isCollapsed && (
+          <VStack spacing={1} flex="1" justify="center">
+            <Image
+              src="/company-logos/enisra.png"
+              fallbackSrc="/enisra.jpg"
+              alt="Enisra"
+              boxSize="52px"
+              objectFit="contain"
+              borderRadius="full"
+            />
+            <Text
+              fontSize="sm"
+              fontWeight="800"
+              color="#0d9488"
+              _dark={{ color: 'teal.200' }}
+              letterSpacing="-0.02em"
+            >
+              Enisra
+            </Text>
+          </VStack>
+        )}
+        {isCollapsed && (
+          <Image
+            src="/company-logos/enisra.png"
+            fallbackSrc="/enisra.jpg"
+            alt="Enisra"
+            boxSize="38px"
+            objectFit="contain"
+            borderRadius="full"
+            mx="auto"
+          />
+        )}
+      </HStack>
 
-      <VStack spacing={3} align="stretch">
-        <NavButton
-          icon={FiHome}
-          label="Dashboard"
-          active={active === 'dashboard'}
-          onClick={() => { setActive('dashboard'); navigate('/enisra/dashboard'); }}
-        />
+      <Divider mb={3} borderColor={borderColor} />
 
-        <NavButton
-          icon={FiUsers}
-          label="ENSRA Follow-Up"
-          active={active === 'follow-up'}
-          onClick={() => {
-            setActive('follow-up');
-            navigate('/enisra/follow-up');
-          }}
-        />
-
-        <NavButton
-          icon={FiFileText}
-          label="Notice Board"
-          active={active === 'notice'}
-          unreadCount={unreadCount}
-          onClick={() => { setActive('notice'); navigate('/enisra/notice-board'); }}
-        />
-
-        <NavButton
-          icon={FiList}
-          label="Request"
-          active={active === 'request'}
-          onClick={() => { setActive('request'); navigate('/enisra/request'); }}
-        />
+      <VStack align="stretch" spacing={1.5} px={3} overflowY="auto" flex="1">
+        {sidebarItems.map((item) => (
+          <SidebarItem
+            key={item.label}
+            icon={item.icon}
+            label={item.label}
+            isCollapsed={isCollapsed}
+            isActive={activeItem === item.label}
+            onClick={() => {
+              setActiveItem(item.label);
+              if (item.label === 'Notice Board') {
+                fetchUnreadCount();
+              }
+            }}
+            unreadCount={item.label === 'Notice Board' ? unreadCount : 0}
+          />
+        ))}
       </VStack>
-
-      <Flex mt="auto" pt={4}>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>Logout</Button>
-      </Flex>
-    </Box>
+    </Flex>
   );
 };
 
-export default ENISRASidebar;
+const SidebarItem = ({ icon, label, isCollapsed, isActive, onClick, unreadCount }) => {
+  const inactiveColor = useColorModeValue('#475569', '#cbd5e1');
+  const inactiveHoverBg = useColorModeValue('#f0fdfa', 'whiteAlpha.100');
+  const inactiveHoverColor = useColorModeValue('teal.600', 'teal.300');
+
+  const button = (
+    <HStack
+      as="button"
+      type="button"
+      spacing={isCollapsed ? 0 : 4}
+      p={3}
+      w="100%"
+      bg={isActive ? 'linear-gradient(135deg, #0a8f7c, #08a28b)' : 'transparent'}
+      color={isActive ? 'white' : inactiveColor}
+      _hover={{
+        bg: isActive ? 'linear-gradient(135deg, #087c6c, #07927d)' : inactiveHoverBg,
+        color: isActive ? 'white' : inactiveHoverColor,
+        transform: 'translateX(2px)'
+      }}
+      borderRadius="12px"
+      justifyContent={isCollapsed ? 'center' : 'flex-start'}
+      transition="all 0.25s ease"
+      onClick={onClick}
+      boxShadow={isActive ? '0 4px 14px rgba(13, 148, 136, 0.22)' : 'none'}
+      position="relative"
+    >
+      <Box as={icon} fontSize="19px" />
+      {!isCollapsed && (
+        <>
+          <Text fontSize="sm" fontWeight={isActive ? '600' : '500'}>{label}</Text>
+          {unreadCount > 0 && (
+            <Badge
+              bg={isActive ? '#ffe4e6' : '#ef4444'}
+              color={isActive ? '#9f1239' : 'white'}
+              borderRadius="full"
+              position="absolute"
+              top="8px"
+              right="8px"
+              fontSize="10px"
+              minW="20px"
+              h="20px"
+              px={1}
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+            >
+              {unreadCount}
+            </Badge>
+          )}
+        </>
+      )}
+    </HStack>
+  );
+
+  if (!isCollapsed) {
+    return button;
+  }
+
+  return (
+    <Tooltip label={label} placement="right" hasArrow>
+      {button}
+    </Tooltip>
+  );
+};
+
+export default ENSRASidebar;

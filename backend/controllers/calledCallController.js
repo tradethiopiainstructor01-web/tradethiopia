@@ -229,7 +229,7 @@ exports.createCalledCall = async (req, res) => {
     const agentNameParts = [req.user.firstName, req.user.lastName].filter(Boolean);
     const salesAgentName = agentNameParts.length > 0 ? agentNameParts.join(' ') : (req.user.username || 'Sales Agent');
 
-    const resolvedResult = callResult || callStatus || 'Interested';
+    const resolvedResult = callResult || callStatus || 'Not Interested';
     const resolvedFollowUp = followUpDate || nextActionDate || null;
     const resolvedAmount = typeof salesAmount === 'number' ? salesAmount : (parseFloat(salesAmount) || 0);
 
@@ -487,7 +487,7 @@ exports.bulkCreateCalledCalls = async (req, res) => {
       }
 
       const name = (item.customerName || item.clientName || item.name || item['Customer Name'] || item.Customer || '').trim() || `Prospect ${phoneStr}`;
-      const callResult = item.callResult || item.callStatus || item['Call Result'] || item.Status || 'Interested';
+      const callResult = item.callResult || item.callStatus || item['Call Result'] || item.Status || 'Not Interested';
       const rawDate = item.callDate || item.date || item['Call Date'] || item.Date;
       const callDate = rawDate ? new Date(rawDate) : new Date();
 

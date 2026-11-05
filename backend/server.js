@@ -399,70 +399,87 @@ if (require.main === module) {
     const PORT = Number(process.env.PORT) || 5000;
     const HOST = process.env.HOST || '0.0.0.0'; // Bind to all interfaces by default
     
-    // Connect to database and start server
-    connectDB()
-      .then(() => {
-        const server = app.listen(PORT, HOST, () => {
-          console.log(`Server running on http://${HOST}:${PORT}`);
-        });
-        
-        // Initialize Socket.IO with the HTTP server
-        const io = app.get('io');
-        io.attach(server, {
-          cors: {
-            origin: '*',
-    methods: ['GET', 'POST', 'PATCH'],
-            credentials: true
-          }
-        });
+    // Start HTTP server immediately so nodemon does not crash in a loop
+    const server = app.listen(PORT, HOST, () => {
+      console.log(`Server running on http://${HOST}:${PORT}`);
+    });
+    
+    // Initialize Socket.IO with the HTTP server
+    const io = app.get('io');
+    io.attach(server, {
+      cors: {
+        origin: '*',
+        methods: ['GET', 'POST', 'PATCH'],
+        credentials: true
+      }
+    });
 
-        // Load large lists into memory so the first dashboard load is fast
-        require('./controllers/studentRegistrationController').warmStudentListCache();
-        require('./controllers/trainingFollowupController').warmTrainingFollowupCache();
-        require('./controllers/salesCustomerController').warmSalesCustomerCache();
-        require('./controllers/tessbinController').warmTessbinCache();
-        require('./controllers/user.controller').warmUserCaches();
-        // One-time: rebuild sales activity from before the activity log existed.
-        require('./utils/salesActivityHistory').backfillSalesActivityHistory();
+    let dbWarmupDone = false;
+    const initializeDbFeatures = async () => {
+      if (dbWarmupDone) return;
+      dbWarmupDone = true;
 
-        // Sync approaching and overdue company document licenses for HR
+      // Load large lists into memory so the first dashboard load is fast
+      try { require('./controllers/studentRegistrationController').warmStudentListCache(); } catch (_) {}
+      try { require('./controllers/trainingFollowupController').warmTrainingFollowupCache(); } catch (_) {}
+      try { require('./controllers/salesCustomerController').warmSalesCustomerCache(); } catch (_) {}
+      try { require('./controllers/tessbinController').warmTessbinCache(); } catch (_) {}
+      try { require('./controllers/user.controller').warmUserCaches(); } catch (_) {}
+      try { require('./utils/salesActivityHistory').backfillSalesActivityHistory(); } catch (_) {}
+
+      // Sync approaching and overdue company document licenses for HR
+      syncAllApproachingLicenses(app).catch((err) =>
+        console.error('Initial license reminder sync error:', err)
+      );
+      // Recurring check every 1 hour (3600000 ms)
+      setInterval(() => {
         syncAllApproachingLicenses(app).catch((err) =>
-          console.error('Initial license reminder sync error:', err)
+          console.error('Periodic license reminder sync error:', err)
         );
-        // Recurring check every 1 hour (3600000 ms)
-        setInterval(() => {
-          syncAllApproachingLicenses(app).catch((err) =>
-            console.error('Periodic license reminder sync error:', err)
-          );
-        }, 3600000);
-        
-        // Handle EADDRINUSE error gracefully
-        server.on('error', (e) => {
-          if (e.code === 'EADDRINUSE') {
-            const fallbackPort = PORT + 1;
-            console.log(`Port ${PORT} is busy, trying ${fallbackPort}`);
-            setTimeout(() => {
-              server.close();
-              const fallbackServer = app.listen(fallbackPort, HOST, () => {
-                console.log(`Server running on http://${HOST}:${fallbackPort}`);
-              });
-              fallbackServer.on('error', (fallbackError) => {
-                console.error(`Failed to start fallback server on ${fallbackPort}:`, fallbackError);
-              });
-            }, 1000);
-          }
-        });
-        
-        // Graceful shutdown
-        process.on('SIGINT', async () => {
-          console.log('Shutting down gracefully...');
-          await disconnectDB();
-          process.exit(0);
-        });
-      })
-      .catch((error) => {
-        console.error('Failed to connect to database:', error);
-        process.exit(1);
-      });
+      }, 3600000);
+    };
+
+    // Connect to database in the background with auto-retry on network/IP issues
+    const initDatabaseConnection = async (attempt = 1) => {
+      try {
+        await connectDB();
+        console.log('✅ Database connected successfully!');
+        await initializeDbFeatures();
+      } catch (error) {
+        console.error(`⚠️ MongoDB Connection Error (attempt ${attempt}): ${error.message}`);
+        console.error('📌 DIAGNOSIS & FIX:');
+        console.error('   1. MongoDB Atlas IP Access List: Your current IP may not be allowed in Atlas.');
+        console.error('      👉 Go to: https://cloud.mongodb.com -> Network Access -> Add IP Address -> Add Current IP or 0.0.0.0/0');
+        console.error('   2. Network/Internet: Ensure your internet connection is active.');
+        console.log('🔄 Server will automatically retry connecting to MongoDB in 10 seconds...\n');
+        setTimeout(() => initDatabaseConnection(attempt + 1), 10000);
+      }
+    };
+
+    initDatabaseConnection();
+
+    // Handle EADDRINUSE error gracefully
+    server.on('error', (e) => {
+      if (e.code === 'EADDRINUSE') {
+        const fallbackPort = PORT + 1;
+        console.log(`Port ${PORT} is busy, trying ${fallbackPort}`);
+        setTimeout(() => {
+          server.close();
+          const fallbackServer = app.listen(fallbackPort, HOST, () => {
+            console.log(`Server running on http://${HOST}:${fallbackPort}`);
+          });
+          fallbackServer.on('error', (fallbackError) => {
+            console.error(`Failed to start fallback server on ${fallbackPort}:`, fallbackError);
+          });
+        }, 1000);
+      }
+    });
+    
+    // Graceful shutdown
+    process.on('SIGINT', async () => {
+      console.log('Shutting down gracefully...');
+      await disconnectDB();
+      process.exit(0);
+    });
 }
 

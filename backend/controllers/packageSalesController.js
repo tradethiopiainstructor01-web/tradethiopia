@@ -100,14 +100,26 @@ const buildPackageSaleRows = (sales = [], agentLookup = {}) => sales.map((sale) 
   };
 });
 
-const loadPackageRows = async () => {
+const normalizeMarket = (market = '') => {
+  const norm = (market || 'Local').toString().trim().toLowerCase();
+  if (norm === 'international') return 'International';
+  if (norm === 'enisra' || norm === 'ensra') return 'Enisra';
+  return 'Local';
+};
+
+const loadPackageRows = async (marketFilter) => {
   try {
+    const saleFilter = {};
+    if (marketFilter) {
+      saleFilter.market = normalizeMarket(marketFilter);
+    }
+
     const [buyers, sellers, packageSales] = await Promise.all([
-      Buyer.find()
+      marketFilter === 'Enisra' ? [] : Buyer.find()
         .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId'),
-      Seller.find()
+      marketFilter === 'Enisra' ? [] : Seller.find()
         .select('companyName contactPerson email phoneNumber packages packageType createdAt country industry agentId'),
-      PackageSale.find()
+      PackageSale.find(saleFilter)
         .select('customerName contactPerson email phoneNumber packageName packageType market packagePrice packageValue commissionRate totalCommission firstCommissionAmount secondCommissionAmount firstCommissionApproved secondCommissionApproved commissionApproved firstCommissionPaid secondCommissionPaid firstCommissionPaidAt secondCommissionPaidAt payrollMonth dealHistory purchaseDate expiryDate status callStatus agentId agentName customerType notes createdAt')
     ]);
 
@@ -145,9 +157,10 @@ const loadPackageRows = async () => {
   }
 };
 
-const getPackageSales = async (_req, res) => {
+const getPackageSales = async (req, res) => {
   try {
-    const rows = await loadPackageRows();
+    const market = req.query?.market ? normalizeMarket(req.query.market) : null;
+    const rows = await loadPackageRows(market);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -185,7 +198,7 @@ const createPackageSale = async (req, res) => {
 
     // Resolve true price from Package catalog if not directly provided
     let price = Number(inputPrice) || 0;
-    const marketValue = (market || 'Local').toString().toLowerCase() === 'international' ? 'International' : 'Local';
+    const marketValue = normalizeMarket(market);
     const pkgNum = parseInt(packageType, 10);
     if (!price && !Number.isNaN(pkgNum)) {
       const catalogPkg = await Package.findOne({ market: marketValue, packageNumber: pkgNum });

@@ -52,7 +52,9 @@ import {
   FiCalendar,
   FiX,
   FiLayers,
-  FiAlertTriangle
+  FiAlertTriangle,
+  FiPackage,
+  FiRefreshCw
 } from 'react-icons/fi';
 import FollowupCustomerTable from './FollowupCustomerTable';
 import FollowupCompletedTable from './FollowupCompletedTable';
@@ -60,14 +62,16 @@ import PackageSalesTable from './PackageSalesTable';
 import PackageSalesTab from './PackageSalesTab';
 import { getAllCustomers, getInitialCustomers, createCustomer, updateCustomer, deleteCustomer } from '../../services/customerService';
 import { fetchExternalCourses as fetchCoursesApi } from '../../services/api';
+import { fetchPackages } from '../../services/packageService';
+import { DEFAULT_ENISRA_PACKAGES } from '../../constants/enisraPackages';
 import axios from '../../services/axiosInstance';
 import { isMissingDocuments } from '../../utils/salesDocuments';
 
 const sortCoursesAlphabetically = (items) => [...items].sort((a, b) =>
-  String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
+  String(a?.shortName || a?.name || '').localeCompare(String(b?.shortName || b?.name || ''), undefined, { sensitivity: 'base' })
 );
 
-const defaultCourses = sortCoursesAlphabetically([
+const defaultCoursesRaw = [
   { _id: 'external-seed-0', name: 'Logistic', price: 9917 },
   { _id: 'external-seed-1', name: 'Stock market', price: 9917 },
   { _id: 'external-seed-2', name: 'digital marketing', price: 9917 },
@@ -75,9 +79,17 @@ const defaultCourses = sortCoursesAlphabetically([
   { _id: 'external-seed-4', name: 'Barista', price: 19899.99 },
   { _id: 'external-seed-5', name: 'Coffee cupping', price: 35000 },
   { _id: 'external-seed-6', name: 'coldcall', price: 0 },
-]);
+];
 
-const FollowupPage = ({ documentsOnly = false }) => {
+const defaultCourses = defaultCoursesRaw.map(c => ({
+  _id: c._id,
+  name: c.price > 0 ? `${c.name} (ETB ${Number(c.price).toLocaleString()})` : c.name,
+  shortName: c.name,
+  price: c.price,
+  isTrainingCourse: true
+}));
+
+const FollowupPage = ({ documentsOnly = false, packageComponent = null, packageTabLabel = 'Package Sales', isEnisra = false }) => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -135,6 +147,10 @@ const FollowupPage = ({ documentsOnly = false }) => {
   }, []);
 
   useEffect(() => {
+    loadCourses();
+  }, [isEnisra]);
+
+  useEffect(() => {
     const total = computeTotalCommission(customers);
     setStats(prev => ({ ...prev, totalCommission: total }));
   }, [customers]);
@@ -144,21 +160,64 @@ const FollowupPage = ({ documentsOnly = false }) => {
 
   const loadCourses = async () => {
     try {
-      const data = await fetchCoursesApi();
-      const normalized = (Array.isArray(data) ? data : []).map(course => {
-        const name = course?.name || course?.title || course?.courseName;
-        if (!name) return null;
-        const priceRaw = course?.price ?? course?.amount ?? course?.cost ?? 0;
-        const price = typeof priceRaw === 'number' ? priceRaw : Number(priceRaw) || 0;
-        return {
-          _id: course?._id || course?.id || name.toLowerCase().replace(/\s+/g, '-'),
-          name,
-          price
-        };
-      }).filter(Boolean);
-      setCourses(normalized.length ? sortCoursesAlphabetically(normalized) : defaultCourses);
+      // 1. Fetch training courses from sales external courses API
+      let trainingCourses = [];
+      try {
+        const rawData = await fetchCoursesApi();
+        if (Array.isArray(rawData) && rawData.length > 0) {
+          trainingCourses = rawData.map(c => {
+            const rawName = c?.name || c?.title || c?.courseName;
+            if (!rawName) return null;
+            const priceRaw = c?.price ?? c?.amount ?? c?.cost ?? 0;
+            const price = typeof priceRaw === 'number' ? priceRaw : Number(priceRaw) || 0;
+            return {
+              _id: c?._id || c?.id || rawName.toLowerCase().replace(/\s+/g, '-'),
+              name: price > 0 ? `${rawName} (ETB ${Number(price).toLocaleString()})` : rawName,
+              shortName: rawName,
+              price,
+              isTrainingCourse: true
+            };
+          }).filter(Boolean);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch external courses, using fallback:', err.message);
+      }
+      if (!trainingCourses.length) {
+        trainingCourses = defaultCourses;
+      } else {
+        trainingCourses = sortCoursesAlphabetically(trainingCourses);
+      }
+
+      // 2. If Enisra dashboard: combine Enisra Packages + Sales Training Courses!
+      if (isEnisra) {
+        let pkgs = [];
+        try {
+          const pkgData = await fetchPackages('Enisra');
+          pkgs = Array.isArray(pkgData) && pkgData.length > 0 ? pkgData : DEFAULT_ENISRA_PACKAGES;
+        } catch {
+          pkgs = DEFAULT_ENISRA_PACKAGES;
+        }
+
+        const normalizedPkgs = pkgs.map(p => ({
+          _id: p._id || `enisra-pkg-${p.packageNumber}`,
+          name: `Enisra Package ${p.packageNumber} (ETB ${Number(p.price || 0).toLocaleString()})`,
+          shortName: `Enisra Package ${p.packageNumber}`,
+          packageNumber: p.packageNumber,
+          price: Number(p.price) || 0,
+          services: p.services || [],
+          description: p.description || '',
+          isEnisraPackage: true
+        })).sort((a, b) => a.packageNumber - b.packageNumber);
+
+        // Put Enisra Packages FIRST, followed by the Training Courses
+        setCourses([...normalizedPkgs, ...trainingCourses]);
+        return;
+      }
+
+      // If standard sales dashboard: show training courses with visible prices
+      setCourses(trainingCourses);
     } catch (err) {
-      console.error('Error fetching courses for training dropdown:', err);
+      console.error('Error in loadCourses:', err);
       setCourses(defaultCourses);
     }
   };
@@ -1287,23 +1346,25 @@ const FollowupPage = ({ documentsOnly = false }) => {
                 )}
               </HStack>
             </Tab>
-            <Tab 
-              borderRadius="lg" 
-              px={4} 
-              py={2} 
-              fontSize="sm" 
-              fontWeight="600" 
-              color="gray.600"
-              _selected={{ bg: 'teal.500', color: 'white', shadow: 'sm' }}
-              _hover={{ bg: 'gray.100', _selected: { bg: 'teal.500' } }}
-              transition="all 0.2s"
-              whiteSpace="nowrap"
-            >
-              <HStack spacing={2}>
-                <Icon as={FiLayers} boxSize={3.5} />
-                <Text>Package Sales</Text>
-              </HStack>
-            </Tab>
+            {!isEnisra && (
+              <Tab 
+                borderRadius="lg" 
+                px={4} 
+                py={2} 
+                fontSize="sm" 
+                fontWeight="600" 
+                color="gray.600"
+                _selected={{ bg: 'teal.500', color: 'white', shadow: 'sm' }}
+                _hover={{ bg: 'gray.100', _selected: { bg: 'teal.500' } }}
+                transition="all 0.2s"
+                whiteSpace="nowrap"
+              >
+                <HStack spacing={2}>
+                  <Icon as={FiLayers} boxSize={3.5} />
+                  <Text>{packageTabLabel}</Text>
+                </HStack>
+              </Tab>
+            )}
             <Tab 
               borderRadius="lg" 
               px={4} 
@@ -1342,18 +1403,46 @@ const FollowupPage = ({ documentsOnly = false }) => {
                 <Flex justify="center" align="center" minH="300px" bg="white" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
                   <Spinner size="xl" color="teal.500" thickness="4px" />
                 </Flex>
-              ) : error ? (
-                <Box bg="red.50" p={4} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
-                  <Text color="red.600" fontWeight="medium">{error}</Text>
-                </Box>
               ) : (
-                <FollowupCustomerTable
-                  customers={sortedCustomers}
-                  courses={courses}
-                  onDelete={handleDelete}
-                  onUpdate={handleUpdate}
-                  onAdd={handleAdd}
-                />
+                <>
+                  {error && (
+                    <Box bg="red.50" _dark={{ bg: 'red.900' }} p={3.5} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
+                      <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
+                        <HStack spacing={2.5}>
+                          <Icon as={FiAlertTriangle} color="red.500" boxSize={5} />
+                          <Box>
+                            <Text color="red.700" _dark={{ color: 'red.200' }} fontWeight="bold" fontSize="sm">
+                              Server Connection Notice
+                            </Text>
+                            <Text color="red.600" _dark={{ color: 'red.300' }} fontSize="xs">
+                              {error}
+                            </Text>
+                          </Box>
+                        </HStack>
+                        <Button
+                          size="xs"
+                          colorScheme="red"
+                          variant="solid"
+                          leftIcon={<FiRefreshCw />}
+                          onClick={() => {
+                            fetchCustomers();
+                            loadCourses();
+                          }}
+                        >
+                          Retry Connection
+                        </Button>
+                      </Flex>
+                    </Box>
+                  )}
+                  <FollowupCustomerTable
+                    customers={sortedCustomers}
+                    courses={courses}
+                    isEnisra={isEnisra}
+                    onDelete={handleDelete}
+                    onUpdate={handleUpdate}
+                    onAdd={handleAdd}
+                  />
+                </>
               )}
             </TabPanel>
             <TabPanel p={0}>
@@ -1361,40 +1450,88 @@ const FollowupPage = ({ documentsOnly = false }) => {
                 <Flex justify="center" align="center" minH="300px" bg="white" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
                   <Spinner size="xl" color="teal.500" thickness="4px" />
                 </Flex>
-              ) : error ? (
-                <Box bg="red.50" p={4} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
-                  <Text color="red.600" fontWeight="medium">{error}</Text>
-                </Box>
               ) : (
-                <FollowupCompletedTable
-                  documentsOnly={documentsOnly}
-                  customers={customers}
-                  courses={courses}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                />
+                <>
+                  {error && (
+                    <Box bg="red.50" _dark={{ bg: 'red.900' }} p={3.5} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
+                      <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
+                        <HStack spacing={2.5}>
+                          <Icon as={FiAlertTriangle} color="red.500" boxSize={5} />
+                          <Text color="red.600" _dark={{ color: 'red.300' }} fontSize="xs">
+                            {error}
+                          </Text>
+                        </HStack>
+                        <Button
+                          size="xs"
+                          colorScheme="red"
+                          variant="solid"
+                          leftIcon={<FiRefreshCw />}
+                          onClick={() => {
+                            fetchCustomers();
+                            loadCourses();
+                          }}
+                        >
+                          Retry
+                        </Button>
+                      </Flex>
+                    </Box>
+                  )}
+                  <FollowupCompletedTable
+                    documentsOnly={documentsOnly}
+                    customers={customers}
+                    courses={courses}
+                    isEnisra={isEnisra}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                  />
+                </>
               )}
             </TabPanel>
-            <TabPanel p={0}>
-              <PackageSalesTab />
-            </TabPanel>
+            {!isEnisra && (
+              <TabPanel p={0}>
+                {packageComponent || <PackageSalesTab />}
+              </TabPanel>
+            )}
             <TabPanel p={0}>
               {loading ? (
                 <Flex justify="center" align="center" minH="300px" bg="white" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
                   <Spinner size="xl" color="teal.500" thickness="4px" />
                 </Flex>
-              ) : error ? (
-                <Box bg="red.50" p={4} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
-                  <Text color="red.600" fontWeight="medium">{error}</Text>
-                </Box>
               ) : (
-                <FollowupCompletedTable
-                  documentsOnly
-                  customers={customers}
-                  courses={courses}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                />
+                <>
+                  {error && (
+                    <Box bg="red.50" _dark={{ bg: 'red.900' }} p={3.5} borderRadius="xl" borderWidth="1px" borderColor="red.200" mb={4}>
+                      <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
+                        <HStack spacing={2.5}>
+                          <Icon as={FiAlertTriangle} color="red.500" boxSize={5} />
+                          <Text color="red.600" _dark={{ color: 'red.300' }} fontSize="xs">
+                            {error}
+                          </Text>
+                        </HStack>
+                        <Button
+                          size="xs"
+                          colorScheme="red"
+                          variant="solid"
+                          leftIcon={<FiRefreshCw />}
+                          onClick={() => {
+                            fetchCustomers();
+                            loadCourses();
+                          }}
+                        >
+                          Retry
+                        </Button>
+                      </Flex>
+                    </Box>
+                  )}
+                  <FollowupCompletedTable
+                    documentsOnly
+                    customers={customers}
+                    courses={courses}
+                    isEnisra={isEnisra}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                  />
+                </>
               )}
             </TabPanel>
           </TabPanels>
