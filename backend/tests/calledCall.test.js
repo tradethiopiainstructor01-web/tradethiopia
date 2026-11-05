@@ -19,7 +19,8 @@ assert.ifError(validErr);
 assert.strictEqual(validCall.clientName, 'Abebe Kebede');
 assert.strictEqual(validCall.phoneNumber, '+251911223344');
 assert.strictEqual(validCall.purpose, 'Cold Outreach');
-assert.strictEqual(validCall.callStatus, 'Interested');
+assert.strictEqual(validCall.callResult, 'Not Interested');
+assert.strictEqual(validCall.callStatus, 'Not Interested');
 assert.strictEqual(validCall.priority, 'Warm');
 assert.ok(validCall.callDate instanceof Date);
 
