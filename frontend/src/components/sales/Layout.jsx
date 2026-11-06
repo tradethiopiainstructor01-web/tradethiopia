@@ -16,6 +16,7 @@ import EmployeeFileUploadForm from '../../pages/EmployeeFileUploadForm';
 import EmployeeWarningsPage from '../../pages/EmployeeWarningsPage';
 import ContentTrackerPage from './ContentTrackerPage.jsx';
 import CalledCallPage from './CalledCallPage.jsx';
+import BulkSmsPage from './BulkSmsPage.jsx';
 import useIsMobile from '../../hooks/useIsMobile';
 import MobileSalesShell from '../../mobile/sales/MobileSalesShell';
 import ErrorBoundary from '../ErrorBoundary';
@@ -112,6 +113,8 @@ const Layout = ({ initialActiveItem }) => {
       case 'Cold Call':
       case 'cold call':
         return <CalledCallPage />;
+      case 'Bulk SMS':
+        return <BulkSmsPage />;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }

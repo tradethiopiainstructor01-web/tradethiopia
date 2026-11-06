@@ -9,6 +9,7 @@ const {
   deleteCalledCall,
   getCalledCallStats,
   bulkCreateCalledCalls,
+  sendBulkSms,
 } = require('../controllers/calledCallController');
 
 router.route('/')
@@ -16,6 +17,7 @@ router.route('/')
   .post(protect, createCalledCall);
 
 router.post('/bulk', protect, bulkCreateCalledCalls);
+router.post('/bulk-sms', protect, sendBulkSms);
 
 router.get('/stats', protect, getCalledCallStats);
 

@@ -537,3 +537,81 @@ exports.bulkCreateCalledCalls = async (req, res) => {
     });
   }
 };
+
+// @desc    Send a bulk SMS to a list of phone numbers (phone numbers only)
+// @route   POST /api/called-calls/bulk-sms
+// @access  Private
+exports.sendBulkSms = async (req, res) => {
+  try {
+    const { phoneNumbers, message } = req.body || {};
+    const body = typeof message === 'string' ? message.trim() : '';
+
+    if (!body) {
+      return res.status(400).json({ success: false, message: 'SMS message is required' });
+    }
+
+    if (!Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one phone number is required' });
+    }
+
+    const phones = [...new Set(
+      phoneNumbers
+        .map((p) => String(p || '').trim())
+        .filter((p) => /^\+?\d{7,15}$/.test(p))
+    )];
+
+    if (phones.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid phone numbers provided' });
+    }
+
+    if (phones.length > 1000) {
+      return res.status(400).json({ success: false, message: 'A maximum of 1000 phone numbers can be sent at once' });
+    }
+
+    const providerConfigured = Boolean(process.env.SMS_API_URL);
+    const results = [];
+
+    for (const to of phones) {
+      if (!providerConfigured) {
+        results.push({ to, status: 'logged' });
+        continue;
+      }
+      try {
+        const smsResponse = await fetch(process.env.SMS_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(process.env.SMS_API_TOKEN ? { Authorization: `Bearer ${process.env.SMS_API_TOKEN}` } : {}),
+          },
+          body: JSON.stringify({
+            to,
+            from: process.env.SMS_FROM || 'TradeEthiopia',
+            message: body,
+          }),
+        });
+        const payload = await smsResponse.json().catch(() => ({}));
+        if (!smsResponse.ok) {
+          results.push({ to, status: 'failed', error: payload.message || `Provider error (${smsResponse.status})` });
+        } else {
+          results.push({ to, status: payload.status || 'sent', messageId: payload.messageId || payload.id || null });
+        }
+      } catch (err) {
+        results.push({ to, status: 'failed', error: err.message });
+      }
+    }
+
+    const failed = results.filter((r) => r.status === 'failed').length;
+
+    return res.json({
+      success: true,
+      providerConfigured,
+      total: phones.length,
+      sent: phones.length - failed,
+      failed,
+      results,
+    });
+  } catch (error) {
+    console.error('Error in sendBulkSms:', error);
+    return res.status(500).json({ success: false, message: 'Failed to send bulk SMS', error: error.message });
+  }
+};

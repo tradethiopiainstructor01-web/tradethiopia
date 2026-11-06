@@ -25,6 +25,7 @@ import EmployeeFileUploadForm from "../../pages/EmployeeFileUploadForm";
 import EmployeeWarningsPage from "../../pages/EmployeeWarningsPage";
 import ContentTrackerPage from "../sales/ContentTrackerPage";
 import CalledCallPage from "../sales/CalledCallPage";
+import BulkSmsPage from "../sales/BulkSmsPage";
 import ErrorBoundary from "../ErrorBoundary";
 import '../sales/salesStyles.css';
 
@@ -47,6 +48,7 @@ const ENSRALayout = ({ initialActiveItem }) => {
     if (path.includes('follow-up') || path.includes('followup')) return 'Followup';
     if (path.includes('notice')) return 'Notice Board';
     if (path.includes('request')) return 'Requests';
+    if (path.includes('bulk-sms')) return 'Bulk SMS';
     if (path.includes('called-call') || path.includes('cold-call')) return 'Cold Call';
     if (path.includes('order')) return 'Orders';
     if (path.includes('task')) return 'Tasks';
@@ -102,6 +104,8 @@ const ENSRALayout = ({ initialActiveItem }) => {
       case 'called call':
       case 'Cold Call':
         return <CalledCallPage />;
+      case 'Bulk SMS':
+        return <BulkSmsPage />;
       case 'Orders':
         return <OrderFollowup />;
       case 'Tasks':
