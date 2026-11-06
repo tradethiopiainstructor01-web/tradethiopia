@@ -30,3 +30,8 @@ export const bulkCreateCalledCalls = async (data) => {
   return response.data;
 };
 
+
+export const sendBulkSms = async (data) => {
+  const response = await axiosInstance.post('/called-calls/bulk-sms', data);
+  return response.data;
+};

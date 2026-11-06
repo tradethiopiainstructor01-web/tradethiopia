@@ -22,6 +22,7 @@ import {
   FaIdCard,
   FaExclamationTriangle,
   FaPhoneAlt,
+  FaSms,
 } from 'react-icons/fa';
 import { FiCheckCircle, FiMessageSquare, FiUploadCloud } from 'react-icons/fi';
 import { getNotifications } from '../../services/notificationService';
@@ -30,6 +31,7 @@ const sidebarItems = [
   { label: 'Home', icon: FaHome },
   { label: 'Followup', icon: FaMoneyBillWave },
   { label: 'Cold Call', icon: FaPhoneAlt },
+  { label: 'Bulk SMS', icon: FaSms },
   { label: 'Orders', icon: FaShoppingCart },
   { label: 'Tasks', icon: FiCheckCircle },
   { label: 'Content Tracker', icon: FaRegCalendarAlt },

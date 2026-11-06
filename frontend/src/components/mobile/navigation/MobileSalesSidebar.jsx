@@ -28,7 +28,8 @@ import {
   FiUploadCloud,
   FiUsers,
   FiPhoneCall,
-  FiX
+  FiX,
+  FiMessageCircle,
 } from 'react-icons/fi';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useUserStore } from '../../../store/user';
@@ -49,6 +50,7 @@ const sidebarItems = [
   { label: 'Home', value: 'Home', icon: FiHome },
   { label: 'Followup', value: 'Followup', icon: FiUsers },
   { label: 'Cold Call', value: 'Cold Call', icon: FiPhoneCall },
+  { label: 'Bulk SMS', value: 'Bulk SMS', icon: FiMessageCircle },
   { label: 'Orders', value: 'Orders', icon: FiShoppingCart },
   { label: 'Tasks', value: 'Tasks', icon: FiCheckSquare },
   { label: 'Content Tracker', value: 'Content Tracker', icon: FiCalendar },
