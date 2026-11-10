@@ -35,3 +35,23 @@ export const sendBulkSms = async (data) => {
   const response = await axiosInstance.post('/called-calls/bulk-sms', data);
   return response.data;
 };
+
+export const fetchBulkSmsRecipients = async () => {
+  const response = await axiosInstance.get('/called-calls/bulk-sms/recipients');
+  return response.data;
+};
+
+export const saveBulkSmsRecipients = async (phoneNumbers, source = 'manual') => {
+  const response = await axiosInstance.post('/called-calls/bulk-sms/recipients', { phoneNumbers, source });
+  return response.data;
+};
+
+export const deleteBulkSmsRecipient = async (id) => {
+  const response = await axiosInstance.delete(`/called-calls/bulk-sms/recipients/${id}`);
+  return response.data;
+};
+
+export const clearBulkSmsRecipients = async () => {
+  const response = await axiosInstance.delete('/called-calls/bulk-sms/recipients');
+  return response.data;
+};

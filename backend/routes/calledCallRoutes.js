@@ -10,6 +10,10 @@ const {
   getCalledCallStats,
   bulkCreateCalledCalls,
   sendBulkSms,
+  getBulkSmsRecipients,
+  saveBulkSmsRecipients,
+  deleteBulkSmsRecipient,
+  clearBulkSmsRecipients,
 } = require('../controllers/calledCallController');
 
 router.route('/')
@@ -18,6 +22,11 @@ router.route('/')
 
 router.post('/bulk', protect, bulkCreateCalledCalls);
 router.post('/bulk-sms', protect, sendBulkSms);
+router.route('/bulk-sms/recipients')
+  .get(protect, getBulkSmsRecipients)
+  .post(protect, saveBulkSmsRecipients)
+  .delete(protect, clearBulkSmsRecipients);
+router.delete('/bulk-sms/recipients/:id', protect, deleteBulkSmsRecipient);
 
 router.get('/stats', protect, getCalledCallStats);
 
