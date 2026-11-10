@@ -1,4 +1,5 @@
 const CalledCall = require('../models/CalledCall');
+const BulkSmsRecipient = require('../models/BulkSmsRecipient');
 
 const PRIVILEGED_ROLES = new Set([
   'admin',
@@ -613,5 +614,86 @@ exports.sendBulkSms = async (req, res) => {
   } catch (error) {
     console.error('Error in sendBulkSms:', error);
     return res.status(500).json({ success: false, message: 'Failed to send bulk SMS', error: error.message });
+  }
+};
+
+// @desc    Get the current user's saved Bulk SMS recipients
+// @route   GET /api/called-calls/bulk-sms/recipients
+// @access  Private
+exports.getBulkSmsRecipients = async (req, res) => {
+  try {
+    const recipients = await BulkSmsRecipient.find({ createdBy: req.user._id })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    return res.json({ success: true, count: recipients.length, data: recipients });
+  } catch (error) {
+    console.error('Error in getBulkSmsRecipients:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load saved Bulk SMS recipients' });
+  }
+};
+
+// @desc    Save imported, pasted, or manually entered Bulk SMS recipients
+// @route   POST /api/called-calls/bulk-sms/recipients
+// @access  Private
+exports.saveBulkSmsRecipients = async (req, res) => {
+  try {
+    const { phoneNumbers, source = 'manual' } = req.body || {};
+    if (!Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one phone number is required' });
+    }
+
+    const phones = [...new Set(phoneNumbers.map((value) => String(value || '').trim()).filter((value) => /^\+?\d{7,15}$/.test(value)))];
+    if (!phones.length) {
+      return res.status(400).json({ success: false, message: 'No valid phone numbers provided' });
+    }
+    if (phones.length > 1000) {
+      return res.status(400).json({ success: false, message: 'A maximum of 1000 phone numbers can be saved at once' });
+    }
+
+    await BulkSmsRecipient.bulkWrite(
+      phones.map((phoneNumber) => ({
+        updateOne: {
+          filter: { createdBy: req.user._id, phoneNumber },
+          update: {
+            $set: { source: String(source || 'manual').slice(0, 200) },
+            $setOnInsert: { createdBy: req.user._id, phoneNumber },
+          },
+          upsert: true,
+        },
+      })),
+      { ordered: false }
+    );
+
+    const recipients = await BulkSmsRecipient.find({ createdBy: req.user._id, phoneNumber: { $in: phones } }).lean();
+    return res.status(201).json({ success: true, count: recipients.length, data: recipients });
+  } catch (error) {
+    console.error('Error in saveBulkSmsRecipients:', error);
+    return res.status(500).json({ success: false, message: 'Failed to save Bulk SMS recipients', error: error.message });
+  }
+};
+
+// @desc    Delete one saved Bulk SMS recipient
+// @route   DELETE /api/called-calls/bulk-sms/recipients/:id
+// @access  Private
+exports.deleteBulkSmsRecipient = async (req, res) => {
+  try {
+    const deleted = await BulkSmsRecipient.findOneAndDelete({ _id: req.params.id, createdBy: req.user._id });
+    if (!deleted) return res.status(404).json({ success: false, message: 'Bulk SMS recipient not found' });
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to delete Bulk SMS recipient' });
+  }
+};
+
+// @desc    Clear the current user's saved Bulk SMS recipients
+// @route   DELETE /api/called-calls/bulk-sms/recipients
+// @access  Private
+exports.clearBulkSmsRecipients = async (req, res) => {
+  try {
+    const result = await BulkSmsRecipient.deleteMany({ createdBy: req.user._id });
+    return res.json({ success: true, count: result.deletedCount });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to clear Bulk SMS recipients' });
   }
 };

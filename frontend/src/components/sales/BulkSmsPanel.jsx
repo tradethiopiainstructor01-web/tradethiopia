@@ -31,6 +31,12 @@ import {
 import { FaPlus, FaTrash, FaFileExcel, FaSms, FaPaste } from 'react-icons/fa';
 import { FiDownloadCloud } from 'react-icons/fi';
 import { normalizePhoneNumber } from '../../utils/normalizePhoneNumber';
+import {
+  clearBulkSmsRecipients,
+  deleteBulkSmsRecipient,
+  fetchBulkSmsRecipients,
+  saveBulkSmsRecipients,
+} from '../../services/calledCallService';
 
 const MAX_RECIPIENTS = 1000;
 const INITIAL_BLANK_ROWS = 8;
@@ -46,7 +52,14 @@ const STATUS_COLORS = {
 };
 
 let rowSeq = 0;
-const newRow = (phone = '', status = 'pending') => ({ id: `r${++rowSeq}`, phone, status, error: '' });
+const newRow = (phone = '', status = 'pending', dbId = null) => ({
+  id: `r${++rowSeq}`,
+  dbId,
+  phone,
+  originalPhone: dbId ? phone : '',
+  status,
+  error: '',
+});
 
 // A valid phone: normalizes to at least 9 digits.
 const toValidPhone = (raw) => {
@@ -74,9 +87,31 @@ const BulkSmsPanel = ({ calls = [] }) => {
   const pasteModal = useDisclosure();
   const [rows, setRows] = useState(() => blankRows(INITIAL_BLANK_ROWS));
   const [importing, setImporting] = useState(false);
+  const [loadingSaved, setLoadingSaved] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
   const filledCount = rows.filter((r) => r.phone).length;
+
+  useEffect(() => {
+    let active = true;
+    fetchBulkSmsRecipients()
+      .then((res) => {
+        if (!active || !res?.success) return;
+        const saved = (res.data || []).map((item) => newRow(item.phoneNumber, 'pending', item._id));
+        setRows(saved.length ? [...saved, ...blankRows(Math.max(1, INITIAL_BLANK_ROWS - saved.length))] : blankRows(INITIAL_BLANK_ROWS));
+      })
+      .catch((error) => {
+        if (active) toast({
+          title: 'Could not load saved recipients',
+          description: error.response?.data?.message || 'Please refresh and try again.',
+          status: 'error',
+          duration: 3500,
+        });
+      })
+      .finally(() => active && setLoadingSaved(false));
+    return () => { active = false; };
+  }, [toast]);
 
   // Spreadsheet-style: always keep one empty row at the bottom to type into.
   useEffect(() => {
@@ -91,7 +126,8 @@ const BulkSmsPanel = ({ calls = [] }) => {
 
   // Add many phone numbers at once, skipping duplicates. Optionally replaces the row `atId`
   // (used when a multi-number paste lands inside a single row input).
-  const addPhones = (phones, source, atId) => {
+  const addPhones = async (phones, source, atId) => {
+    const replacedRow = atId ? rows.find((row) => row.id === atId) : null;
     const base = rows.filter((r) => r.phone && r.id !== atId);
     const existing = new Set(base.map((r) => r.phone).filter(Boolean));
     const fresh = [];
@@ -111,17 +147,48 @@ const BulkSmsPanel = ({ calls = [] }) => {
       next = [...base];
       next.splice(idx, 0, ...fresh);
     }
-    setRows(next);
+    if (!fresh.length) {
+      toast({
+        title: 'No new numbers added',
+        description: skipped ? `${skipped} skipped (duplicate or over ${MAX_RECIPIENTS} limit)` : source,
+        status: 'info',
+        duration: 2500,
+        isClosable: true,
+      });
+      return;
+    }
 
-    toast({
-      title: fresh.length ? `${fresh.length} number(s) added` : 'No new numbers added',
-      description: [source, skipped ? `${skipped} skipped (duplicate or over ${MAX_RECIPIENTS} limit)` : '']
-        .filter(Boolean)
-        .join(' · '),
-      status: fresh.length ? 'success' : 'info',
-      duration: 2500,
-      isClosable: true,
-    });
+    setSaving(true);
+    try {
+      const saved = await saveBulkSmsRecipients(fresh.map((row) => row.phone), source);
+      const idsByPhone = new Map((saved.data || []).map((item) => [item.phoneNumber, item._id]));
+      next = next.map((row) => idsByPhone.has(row.phone)
+        ? { ...row, dbId: idsByPhone.get(row.phone), originalPhone: row.phone }
+        : row);
+      if (replacedRow?.dbId && !fresh.some((row) => row.phone === replacedRow.originalPhone)) {
+        await deleteBulkSmsRecipient(replacedRow.dbId);
+      }
+      setRows(next);
+
+      toast({
+        title: `${fresh.length} number(s) added and saved`,
+        description: [source, skipped ? `${skipped} skipped (duplicate or over ${MAX_RECIPIENTS} limit)` : '']
+          .filter(Boolean)
+          .join(' · '),
+        status: 'success',
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: 'Numbers were not saved',
+        description: error.response?.data?.message || 'Database save failed. Please try again.',
+        status: 'error',
+        duration: 3500,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   /* ---------- Insert in table ---------- */
@@ -140,24 +207,50 @@ const BulkSmsPanel = ({ calls = [] }) => {
   };
 
   // Normalize + validate a row when the user leaves it.
-  const handleRowCommit = (id) => {
-    setRows((prev) => {
-      const row = prev.find((r) => r.id === id);
-      if (!row || isDone(row)) return prev;
-      if (!row.phone.trim()) {
-        return prev.map((r) => (r.id === id ? { ...r, phone: '', status: 'pending', error: '' } : r));
+  const handleRowCommit = async (id) => {
+    const row = rows.find((item) => item.id === id);
+    if (!row || isDone(row)) return;
+    if (!row.phone.trim()) {
+      if (row.dbId) {
+        try {
+          await deleteBulkSmsRecipient(row.dbId);
+        } catch (error) {
+          toast({ title: 'Could not remove saved phone number', description: error.response?.data?.message, status: 'error', duration: 3000 });
+          return;
+        }
       }
-      const valid = toValidPhone(row.phone);
-      if (!valid) {
-        return prev.map((r) => (r.id === id ? { ...r, status: 'invalid', error: 'Not a valid phone number' } : r));
+      setRows((prev) => prev.map((item) => item.id === id
+        ? { ...item, phone: '', originalPhone: '', dbId: null, status: 'pending', error: '' }
+        : item));
+      return;
+    }
+    const valid = toValidPhone(row.phone);
+    if (!valid) {
+      setRows((prev) => prev.map((item) => item.id === id ? { ...item, status: 'invalid', error: 'Not a valid phone number' } : item));
+      return;
+    }
+    const dup = rows.some((item) => item.id !== id && item.phone === valid);
+    if (dup) {
+      setRows((prev) => prev.map((item) => item.id === id ? { ...item, phone: valid, status: 'duplicate', error: 'Already in the table' } : item));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await saveBulkSmsRecipients([valid], 'manual');
+      const saved = result.data?.[0];
+      if (row.dbId && row.originalPhone && row.originalPhone !== valid && row.dbId !== saved?._id) {
+        await deleteBulkSmsRecipient(row.dbId);
       }
-      const dup = prev.some((r) => r.id !== id && r.phone === valid);
-      return prev.map((r) =>
-        r.id === id
-          ? { ...r, phone: valid, status: dup ? 'duplicate' : 'pending', error: dup ? 'Already in the table' : '' }
-          : r
-      );
-    });
+      setRows((prev) => prev.map((item) => item.id === id
+        ? { ...item, phone: valid, originalPhone: valid, dbId: saved?._id || item.dbId, status: 'pending', error: '' }
+        : item));
+    } catch (error) {
+      setRows((prev) => prev.map((item) => item.id === id ? { ...item, status: 'failed', error: 'Could not save to database' } : item));
+      toast({ title: 'Could not save phone number', description: error.response?.data?.message, status: 'error', duration: 3000 });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleRowKeyDown = (e, id) => {
@@ -243,7 +336,31 @@ const BulkSmsPanel = ({ calls = [] }) => {
     addPhones(phones, 'From Call Sales Table');
   };
 
-  const handleRemove = (id) => setRows((prev) => prev.filter((r) => r.id !== id));
+  const handleRemove = async (id) => {
+    const row = rows.find((item) => item.id === id);
+    if (row?.dbId) {
+      try {
+        await deleteBulkSmsRecipient(row.dbId);
+      } catch (error) {
+        toast({ title: 'Could not delete saved recipient', description: error.response?.data?.message, status: 'error', duration: 3000 });
+        return;
+      }
+    }
+    setRows((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleClear = async () => {
+    try {
+      setSaving(true);
+      await clearBulkSmsRecipients();
+      setRows(blankRows(INITIAL_BLANK_ROWS));
+      toast({ title: 'Bulk SMS recipients cleared', status: 'success', duration: 2000 });
+    } catch (error) {
+      toast({ title: 'Could not clear saved recipients', description: error.response?.data?.message, status: 'error', duration: 3000 });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   /* ---------- Summary ---------- */
   const invalidCount = rows.filter((r) => r.status === 'invalid' || r.status === 'duplicate').length;
@@ -270,8 +387,9 @@ const BulkSmsPanel = ({ calls = [] }) => {
                 Bulk SMS Recipients
               </Text>
               <Text fontSize="xs" color="gray.500">
-                Phone numbers only · {filledCount} number(s)
+                Phone numbers only · {filledCount} saved number(s)
                 {invalidCount > 0 && <Text as="span" color="orange.500"> · {invalidCount} need fixing</Text>}
+                {(loadingSaved || saving) && <Text as="span" color="teal.500"> · {loadingSaved ? 'loading saved numbers…' : 'saving…'}</Text>}
               </Text>
             </Box>
             <HStack spacing={2} flexWrap="wrap">
@@ -302,7 +420,7 @@ const BulkSmsPanel = ({ calls = [] }) => {
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
               {filledCount > 0 && (
-                <Button size="sm" variant="ghost" colorScheme="red" onClick={() => setRows(blankRows(INITIAL_BLANK_ROWS))}>
+                <Button size="sm" variant="ghost" colorScheme="red" onClick={handleClear} isLoading={saving}>
                   Clear
                 </Button>
               )}
