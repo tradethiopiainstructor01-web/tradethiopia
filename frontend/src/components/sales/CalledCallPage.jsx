@@ -47,6 +47,12 @@ import {
   TabPanels,
   Tab,
   TabPanel,
+  AlertDialog,
+  AlertDialogOverlay,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogBody,
+  AlertDialogFooter,
 } from '@chakra-ui/react';
 import {
   FaPhoneAlt,
@@ -68,6 +74,7 @@ import {
   createCalledCall,
   updateCalledCall,
   deleteCalledCall,
+  deleteAllCalledCalls,
   bulkCreateCalledCalls,
 } from '../../services/calledCallService';
 import { useUserStore } from '../../store/user';
@@ -131,6 +138,9 @@ const CalledCallPage = () => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const deleteAllCancelRef = useRef(null);
+  const deleteAllDialog = useDisclosure();
 
   // Filters
   const [search, setSearch] = useState('');
@@ -584,6 +594,32 @@ const CalledCallPage = () => {
     }
   };
 
+  const handleDeleteAll = async () => {
+    try {
+      setDeletingAll(true);
+      const response = await deleteAllCalledCalls();
+      deleteAllDialog.onClose();
+      toast({
+        title: 'Cold Call Records Deleted',
+        description: `${response.count || 0} record(s) were permanently deleted.`,
+        status: 'success',
+        duration: 3500,
+        isClosable: true,
+      });
+      await loadData();
+    } catch (error) {
+      toast({
+        title: 'Delete All Failed',
+        description: error.response?.data?.message || 'Could not delete Cold Call records.',
+        status: 'error',
+        duration: 3500,
+        isClosable: true,
+      });
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   const handleCopyPhone = (phone) => {
     navigator.clipboard.writeText(phone);
     toast({
@@ -911,6 +947,16 @@ const CalledCallPage = () => {
               </HStack>
             </Box>
             <HStack spacing={2}>
+              <Button
+                size="sm"
+                leftIcon={<FaTrash />}
+                colorScheme="red"
+                variant="outline"
+                onClick={deleteAllDialog.onOpen}
+                isDisabled={!stats.totalCalls || loading || deletingAll}
+              >
+                Delete All
+              </Button>
               <Button
                 size="sm"
                 leftIcon={<FaFileExcel />}
@@ -1384,6 +1430,32 @@ const CalledCallPage = () => {
           </ModalContent>
         </Modal>
       )}
+
+      <AlertDialog
+        isOpen={deleteAllDialog.isOpen}
+        leastDestructiveRef={deleteAllCancelRef}
+        onClose={deleteAllDialog.onClose}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent borderRadius="xl">
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete all Cold Call records?
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              This will permanently delete all {stats.totalCalls} Cold Call record(s) you can access. This action cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={deleteAllCancelRef} onClick={deleteAllDialog.onClose} isDisabled={deletingAll}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleDeleteAll} ml={3} isLoading={deletingAll} loadingText="Deleting">
+                Delete All
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
 
       {/* Copy/Paste & Excel Import Modal */}
       <Modal isOpen={isImportOpen} onClose={onImportClose} size="xl" scrollBehavior="inside">

@@ -20,6 +20,11 @@ export const deleteCalledCall = async (id) => {
   return response.data;
 };
 
+export const deleteAllCalledCalls = async () => {
+  const response = await axiosInstance.delete('/called-calls/bulk');
+  return response.data;
+};
+
 export const fetchCalledCallStats = async (params = {}) => {
   const response = await axiosInstance.get('/called-calls/stats', { params });
   return response.data;

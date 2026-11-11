@@ -400,6 +400,27 @@ exports.deleteCalledCall = async (req, res) => {
   }
 };
 
+// Delete all called-call records visible to the current user.
+exports.deleteAllCalledCalls = async (req, res) => {
+  try {
+    const query = hasGlobalAccess(req.user) ? {} : { createdBy: req.user._id };
+    const result = await CalledCall.deleteMany(query);
+
+    return res.status(200).json({
+      success: true,
+      message: `Deleted ${result.deletedCount} called call record(s)`,
+      count: result.deletedCount,
+    });
+  } catch (error) {
+    console.error('Error deleting all called calls:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete called call records',
+      error: error.message,
+    });
+  }
+};
+
 // Quick stats summary
 exports.getCalledCallStats = async (req, res) => {
   try {
