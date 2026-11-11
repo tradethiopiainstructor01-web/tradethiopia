@@ -7,6 +7,7 @@ const {
   getCalledCallById,
   updateCalledCall,
   deleteCalledCall,
+  deleteAllCalledCalls,
   getCalledCallStats,
   bulkCreateCalledCalls,
   sendBulkSms,
@@ -21,6 +22,7 @@ router.route('/')
   .post(protect, createCalledCall);
 
 router.post('/bulk', protect, bulkCreateCalledCalls);
+router.delete('/bulk', protect, deleteAllCalledCalls);
 router.post('/bulk-sms', protect, sendBulkSms);
 router.route('/bulk-sms/recipients')
   .get(protect, getBulkSmsRecipients)
