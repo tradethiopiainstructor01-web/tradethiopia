@@ -25,6 +25,12 @@ import {
   ModalFooter,
   ModalCloseButton,
   Spinner,
+  AlertDialog,
+  AlertDialogOverlay,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogBody,
+  AlertDialogFooter,
   useDisclosure,
   useToast,
 } from '@chakra-ui/react';
@@ -84,7 +90,9 @@ const BulkSmsPanel = ({ calls = [] }) => {
   const toast = useToast();
   const fileInputRef = useRef(null);
   const inputRefs = useRef({});
+  const deleteAllCancelRef = useRef(null);
   const pasteModal = useDisclosure();
+  const deleteAllDialog = useDisclosure();
   const [rows, setRows] = useState(() => blankRows(INITIAL_BLANK_ROWS));
   const [importing, setImporting] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(true);
@@ -354,6 +362,7 @@ const BulkSmsPanel = ({ calls = [] }) => {
       setSaving(true);
       await clearBulkSmsRecipients();
       setRows(blankRows(INITIAL_BLANK_ROWS));
+      deleteAllDialog.onClose();
       toast({ title: 'Bulk SMS recipients cleared', status: 'success', duration: 2000 });
     } catch (error) {
       toast({ title: 'Could not clear saved recipients', description: error.response?.data?.message, status: 'error', duration: 3000 });
@@ -419,11 +428,16 @@ const BulkSmsPanel = ({ calls = [] }) => {
                 style={{ display: 'none' }}
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
-              {filledCount > 0 && (
-                <Button size="sm" variant="ghost" colorScheme="red" onClick={handleClear} isLoading={saving}>
-                  Clear
-                </Button>
-              )}
+              <Button
+                size="sm"
+                variant="outline"
+                colorScheme="red"
+                leftIcon={<FaTrash />}
+                onClick={deleteAllDialog.onOpen}
+                isDisabled={!filledCount || loadingSaved || saving}
+              >
+                Delete All
+              </Button>
             </HStack>
           </Flex>
         </Box>
@@ -535,6 +549,32 @@ const BulkSmsPanel = ({ calls = [] }) => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      <AlertDialog
+        isOpen={deleteAllDialog.isOpen}
+        leastDestructiveRef={deleteAllCancelRef}
+        onClose={deleteAllDialog.onClose}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent borderRadius="xl">
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete all recipients?
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              This will permanently delete all {filledCount} saved Bulk SMS recipient(s) from the database.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={deleteAllCancelRef} onClick={deleteAllDialog.onClose} isDisabled={saving}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleClear} ml={3} isLoading={saving} loadingText="Deleting">
+                Delete All
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };
