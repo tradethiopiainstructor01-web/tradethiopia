@@ -79,6 +79,7 @@ import {
 } from '../../services/calledCallService';
 import { useUserStore } from '../../store/user';
 import { normalizePhoneNumber } from '../../utils/normalizePhoneNumber';
+import PageNumberButtons from '../customer/tabs/PageNumberButtons';
 
 const CALL_RESULT_OPTIONS = [
   'Not Interested',
@@ -166,6 +167,12 @@ const CalledCallPage = () => {
 
   // Filters
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [pageSize, setPageSize] = useState(50);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
+  const requestIdRef = useRef(0);
   const [resultFilter, setResultFilter] = useState('All');
   const [detailsFilter, setDetailsFilter] = useState('all'); // 'all', 'needs_details', 'complete'
 
@@ -208,21 +215,27 @@ const CalledCallPage = () => {
     return () => window.removeEventListener('called-call:open-import', handleOpenImportEvent);
   }, []);
 
-  const loadData = async (searchValue = search, resultValue = resultFilter) => {
+  const loadData = async ({ page = pagination.page } = {}) => {
+    const requestId = ++requestIdRef.current;
     try {
       setLoading(true);
-      const params = {};
-      if (searchValue.trim()) params.search = searchValue.trim();
-      if (resultValue !== 'All') params.callResult = resultValue;
+      const params = { page, limit: pageSize, details: detailsFilter };
+      if (appliedSearch) params.search = appliedSearch;
+      if (resultFilter !== 'All') params.callResult = resultFilter;
+      if (dateFrom) params.dateFrom = new Date(`${dateFrom}T00:00:00`).toISOString();
+      if (dateTo) params.dateTo = new Date(`${dateTo}T23:59:59.999`).toISOString();
 
       const response = await fetchCalledCalls(params);
+      if (requestId !== requestIdRef.current) return;
       if (response?.success) {
         setCalls(sortCallsNewestFirst(response.data || []));
+        setPagination(response.pagination);
         if (response.stats) {
           setStats(response.stats);
         }
       }
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Failed to load called calls:', error);
       toast({
         title: 'Error loading calls',
@@ -232,17 +245,19 @@ const CalledCallPage = () => {
         isClosable: true,
       });
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, [resultFilter]);
+    loadData({ page: 1 });
+    return () => { requestIdRef.current += 1; };
+  }, [resultFilter, detailsFilter, appliedSearch, dateFrom, dateTo, pageSize]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    loadData();
+    if (search.trim() === appliedSearch) loadData({ page: 1 });
+    else setAppliedSearch(search.trim());
   };
 
   const handleOpenAdd = () => {
@@ -551,6 +566,7 @@ const CalledCallPage = () => {
       setSaving(true);
       const payload = {
         ...formData,
+        callDate: formData.callDate ? new Date(formData.callDate).toISOString() : undefined,
         clientName: formData.customerName.trim(),
         callStatus: formData.callResult,
       };
@@ -668,7 +684,7 @@ const CalledCallPage = () => {
       'No.',
       'Customer Name',
       'Phone Number',
-      'Call Date',
+      'Call Date & Time',
       'Call Result',
       'Company',
       'Notes',
@@ -676,7 +692,7 @@ const CalledCallPage = () => {
     ];
 
     const rows = calls.map((c, idx) => [
-      idx + 1,
+      (pagination.page - 1) * pagination.limit + idx + 1,
       `"${c.customerName || c.clientName || ''}"`,
       `"${c.phoneNumber || ''}"`,
       `"${c.callDate ? new Date(c.callDate).toLocaleString() : ''}"`,
@@ -765,8 +781,9 @@ const CalledCallPage = () => {
               borderColor="#0d9488"
               _hover={{ bg: '#f0fdfa' }}
               onClick={handleExportCSV}
+              isDisabled={loading || calls.length === 0}
             >
-              Export
+              Export Page
             </Button>
             <Button
               leftIcon={<FiRefreshCw />}
@@ -911,21 +928,40 @@ const CalledCallPage = () => {
                 ))}
               </Select>
 
-              {(search || resultFilter !== 'All') && (
+              {(search || appliedSearch || resultFilter !== 'All' || dateFrom || dateTo || detailsFilter !== 'all') && (
                 <Button
                   size="sm"
                   variant="ghost"
                   colorScheme="red"
                   onClick={() => {
                     setSearch('');
+                    setAppliedSearch('');
                     setResultFilter('All');
-                    loadData('', 'All');
+                    setDateFrom('');
+                    setDateTo('');
+                    setDetailsFilter('all');
                   }}
                 >
                   Clear
                 </Button>
               )}
             </HStack>
+          </Flex>
+          <Flex mt={3} gap={3} flexWrap="wrap">
+            <FormControl maxW="220px">
+              <FormLabel htmlFor="cold-call-date-from" fontSize="sm">From date</FormLabel>
+              <Input id="cold-call-date-from" type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} />
+            </FormControl>
+            <FormControl maxW="220px">
+              <FormLabel htmlFor="cold-call-date-to" fontSize="sm">To date</FormLabel>
+              <Input id="cold-call-date-to" type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} />
+            </FormControl>
+            <FormControl maxW="160px">
+              <FormLabel htmlFor="cold-call-page-size" fontSize="sm">Records per page</FormLabel>
+              <Select id="cold-call-page-size" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+                {[25, 50, 100, 200].map((size) => <option key={size} value={size}>{size}</option>)}
+              </Select>
+            </FormControl>
           </Flex>
         </CardBody>
       </Card>
@@ -946,7 +982,7 @@ const CalledCallPage = () => {
                   borderRadius="full"
                   onClick={() => setDetailsFilter('all')}
                 >
-                  All ({calls.length})
+                  All
                 </Button>
                 <Button
                   size="xs"
@@ -955,7 +991,7 @@ const CalledCallPage = () => {
                   borderRadius="full"
                   onClick={() => setDetailsFilter('needs_details')}
                 >
-                  Needs Details ({calls.filter(c => (c.customerName || '').startsWith('Prospect ') || !c.companyName).length})
+                  Needs Details
                 </Button>
                 <Button
                   size="xs"
@@ -964,7 +1000,7 @@ const CalledCallPage = () => {
                   borderRadius="full"
                   onClick={() => setDetailsFilter('complete')}
                 >
-                  Complete ({calls.filter(c => !(c.customerName || '').startsWith('Prospect ') && Boolean(c.companyName)).length})
+                  Complete
                 </Button>
               </HStack>
             </Box>
@@ -1013,10 +1049,10 @@ const CalledCallPage = () => {
               <FaPhoneVolume size={36} />
             </Box>
             <Heading size="md" color="gray.700" _dark={{ color: 'gray.100' }} mb={2}>
-              No Calls Logged Yet
+              No matching calls
             </Heading>
             <Text color="gray.500" _dark={{ color: 'gray.300' }} maxW="420px" mb={5} fontSize="sm">
-              Use the table or import your spreadsheet to insert sales calls data.
+              Adjust your filters or add a new call record.
             </Text>
             <HStack spacing={3}>
               <Button leftIcon={<FaFileExcel />} colorScheme="teal" variant="outline" onClick={handleOpenImport}>
@@ -1045,14 +1081,7 @@ const CalledCallPage = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {calls
-                  .filter((call) => {
-                    const isNeeds = (call.customerName || '').startsWith('Prospect ') || !call.companyName;
-                    if (detailsFilter === 'needs_details') return isNeeds;
-                    if (detailsFilter === 'complete') return !isNeeds;
-                    return true;
-                  })
-                  .map((call, index) => {
+                {calls.map((call, index) => {
                   const currentResult = call.callResult || call.callStatus || 'Interested';
                   const resultConf = RESULT_CONFIG[currentResult] || {
                     color: 'gray',
@@ -1068,7 +1097,7 @@ const CalledCallPage = () => {
                     >
                       {/* No. */}
                       <Td fontWeight="bold" color="gray.600" textAlign="center">
-                        {index + 1}
+                        {(pagination.page - 1) * pagination.limit + index + 1}
                       </Td>
 
                       {/* Customer Name */}
@@ -1207,6 +1236,19 @@ const CalledCallPage = () => {
             </Table>
           </Box>
         )}
+        <Flex p={4} gap={3} align="center" justify="space-between" flexWrap="wrap">
+          <Text fontSize="sm" aria-live="polite">
+            {loading ? 'Loading records…' : `Showing ${pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0}–${Math.min(pagination.page * pagination.limit, pagination.total)} of ${pagination.total} records`}
+          </Text>
+          <HStack spacing={2} flexWrap="wrap" aria-label="Cold Call pagination">
+            <Button size="xs" isDisabled={loading || pagination.page === 1} onClick={() => loadData({ page: 1 })}>First</Button>
+            <Button size="xs" isDisabled={loading || pagination.page === 1} onClick={() => loadData({ page: pagination.page - 1 })}>Previous</Button>
+            <PageNumberButtons page={pagination.page} totalPages={pagination.totalPages} onChange={(page) => loadData({ page })} isDisabled={loading} />
+            <Button size="xs" isDisabled={loading || pagination.page >= pagination.totalPages} onClick={() => loadData({ page: pagination.page + 1 })}>Next</Button>
+            <Button size="xs" isDisabled={loading || pagination.page >= pagination.totalPages} onClick={() => loadData({ page: pagination.totalPages })}>Last</Button>
+            <Text fontSize="xs">Page {pagination.page} of {pagination.totalPages}</Text>
+          </HStack>
+        </Flex>
       </Card>
 
       {/* Insert / Edit Modal Dialog */}
