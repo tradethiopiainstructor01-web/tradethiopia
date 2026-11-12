@@ -26,6 +26,7 @@ import './salesStyles.css';
 const DESKTOP_NAV_HEIGHT = '68px';
 const DESKTOP_SIDEBAR_WIDTH = '224px';
 const StudentRegistrationPage = lazy(() => import('../customer/StudentRegistrationPage.jsx'));
+const EcommerceOutreachPage = lazy(() => import('./EcommerceOutreachPage.jsx'));
 
 const Layout = ({ initialActiveItem }) => {
   const documentReminder = useSalesDocumentReminder();
@@ -115,6 +116,8 @@ const Layout = ({ initialActiveItem }) => {
         return <CalledCallPage />;
       case 'Bulk SMS':
         return <BulkSmsPage />;
+      case 'eCommerce cold call and bulk sms':
+        return <EcommerceOutreachPage />;
       default:
         return <Box p={6}><Text fontSize="xl">Select an option from the Sidebar.</Text></Box>;
     }
