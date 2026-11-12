@@ -108,7 +108,9 @@ exports.getCalledCalls = async (req, res) => {
     const [records, totalCount] = await Promise.all([
       CalledCall.find(query)
         .populate('createdBy', 'firstName lastName username email role')
-        .sort({ callDate: -1, createdAt: -1 })
+        // Keep the table deterministic after inserts and deletions. ObjectId is
+        // the final tie-breaker for bulk rows that share the same date/time.
+        .sort({ callDate: -1, createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limitNum)
         .lean(),

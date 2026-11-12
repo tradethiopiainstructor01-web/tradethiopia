@@ -103,7 +103,7 @@ const RESULT_CONFIG = {
 const INITIAL_FORM = {
   customerName: '',
   phoneNumber: '',
-  callDate: new Date().toISOString().slice(0, 10),
+  callDate: '',
   callResult: 'Not Interested',
   companyName: '',
   email: '',
@@ -113,14 +113,36 @@ const INITIAL_FORM = {
 
 export { normalizePhoneNumber };
 
-const formatDate = (dateStr) => {
+const toLocalDateTimeInputValue = (date = new Date()) => {
+  const parsedDate = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(parsedDate.getTime())) return '';
+
+  const timezoneOffset = parsedDate.getTimezoneOffset() * 60_000;
+  return new Date(parsedDate.getTime() - timezoneOffset).toISOString().slice(0, 16);
+};
+
+const sortCallsNewestFirst = (records = []) => [...records].sort((a, b) => {
+  const aDate = new Date(a.callDate || a.createdAt || 0).getTime();
+  const bDate = new Date(b.callDate || b.createdAt || 0).getTime();
+  const dateDifference = (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate);
+  if (dateDifference !== 0) return dateDifference;
+
+  const createdDifference = new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+  if (createdDifference !== 0) return createdDifference;
+
+  return String(b._id || '').localeCompare(String(a._id || ''));
+});
+
+const formatDateTime = (dateStr) => {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 };
 
@@ -195,7 +217,7 @@ const CalledCallPage = () => {
 
       const response = await fetchCalledCalls(params);
       if (response?.success) {
-        setCalls(response.data || []);
+        setCalls(sortCallsNewestFirst(response.data || []));
         if (response.stats) {
           setStats(response.stats);
         }
@@ -227,7 +249,7 @@ const CalledCallPage = () => {
     setEditingId(null);
     setFormData({
       ...INITIAL_FORM,
-      callDate: new Date().toISOString().slice(0, 10),
+      callDate: toLocalDateTimeInputValue(),
     });
     onOpen();
   };
@@ -238,8 +260,8 @@ const CalledCallPage = () => {
       customerName: call.customerName || call.clientName || '',
       phoneNumber: call.phoneNumber || '',
       callDate: call.callDate
-        ? new Date(call.callDate).toISOString().slice(0, 10)
-        : new Date().toISOString().slice(0, 10),
+        ? toLocalDateTimeInputValue(call.callDate)
+        : toLocalDateTimeInputValue(),
       callResult: call.callResult || call.callStatus || 'Not Interested',
       companyName: call.companyName || '',
       email: call.email || '',
@@ -657,7 +679,7 @@ const CalledCallPage = () => {
       idx + 1,
       `"${c.customerName || c.clientName || ''}"`,
       `"${c.phoneNumber || ''}"`,
-      `"${c.callDate ? new Date(c.callDate).toLocaleDateString() : ''}"`,
+      `"${c.callDate ? new Date(c.callDate).toLocaleString() : ''}"`,
       `"${c.callResult || c.callStatus || ''}"`,
       `"${c.companyName || ''}"`,
       `"${(c.notes || '').replace(/"/g, '""')}"`,
@@ -1015,7 +1037,7 @@ const CalledCallPage = () => {
                   </Th>
                   <Th color="#475569" _dark={{ color: 'gray.300' }}>Customer Name</Th>
                   <Th color="#475569" _dark={{ color: 'gray.300' }}>Phone Number</Th>
-                  <Th color="#475569" _dark={{ color: 'gray.300' }}>Call Date</Th>
+                  <Th color="#475569" _dark={{ color: 'gray.300' }}>Call Date &amp; Time</Th>
                   <Th color="#475569" _dark={{ color: 'gray.300' }}>Call Result</Th>
                   <Th color="#475569" _dark={{ color: 'gray.300' }} textAlign="center" width="160px">
                     Actions
@@ -1107,7 +1129,7 @@ const CalledCallPage = () => {
 
                       {/* Call Date */}
                       <Td fontSize="sm" color="gray.700" whiteSpace="nowrap">
-                        {formatDate(call.callDate)}
+                        {formatDateTime(call.callDate)}
                       </Td>
 
                       {/* Call Result */}
@@ -1246,7 +1268,7 @@ const CalledCallPage = () => {
                   </FormLabel>
                   <Input
                     size="sm"
-                    type="date"
+                    type="datetime-local"
                     value={formData.callDate}
                     onChange={(e) => setFormData({ ...formData, callDate: e.target.value })}
                     borderRadius="md"
@@ -1367,7 +1389,7 @@ const CalledCallPage = () => {
                     <Text fontSize="xs" color="gray.500" fontWeight="bold">
                       CALL DATE
                     </Text>
-                    <Text fontWeight="medium">{formatDate(selectedCall.callDate)}</Text>
+                    <Text fontWeight="medium">{formatDateTime(selectedCall.callDate)}</Text>
                   </Box>
 
                   <Box>

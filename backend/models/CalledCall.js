@@ -165,5 +165,6 @@ calledCallSchema.index({ customerName: 'text', clientName: 'text', companyName: 
 calledCallSchema.index({ callResult: 1 });
 calledCallSchema.index({ callStatus: 1 });
 calledCallSchema.index({ callDate: -1 });
+calledCallSchema.index({ callDate: -1, createdAt: -1, _id: -1 });
 
 module.exports = mongoose.model('CalledCall', calledCallSchema);
