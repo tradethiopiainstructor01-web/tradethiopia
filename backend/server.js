@@ -365,6 +365,7 @@ app.use('/api/student-registrations', studentRegistrationRoutes);
 app.use('/api/action-items', actionItemRoutes);
 app.use('/api/content-tracker', contentTrackerRoutes);
 app.use('/api/called-calls', calledCallRoutes);
+app.use('/api/ecommerce-tables', require('./routes/ecommerceTableRoutes'));
 app.use('/api/candidate-pool', candidatePoolRoutes);
 app.use('/api/hr-kpi', hrKpiRoutes);
 app.use('/api/customer-department-kpi', require('./routes/customerDepartmentKpiRoutes'));

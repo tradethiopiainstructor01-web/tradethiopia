@@ -32,6 +32,7 @@ const sidebarItems = [
   { label: 'Followup', icon: FaMoneyBillWave },
   { label: 'Cold Call', icon: FaPhoneAlt },
   { label: 'Bulk SMS', icon: FaSms },
+  { label: 'eCommerce cold call and bulk sms', icon: FaShoppingCart },
   { label: 'Orders', icon: FaShoppingCart },
   { label: 'Tasks', icon: FiCheckCircle },
   { label: 'Content Tracker', icon: FaRegCalendarAlt },
@@ -84,7 +85,7 @@ const SSidebar = ({ isCollapsed, toggleCollapse, activeItem, setActiveItem }) =>
         {isCollapsed && <Image src="/brand/trade-ethiopia-logo.png" alt="Tradethiopia" boxSize="38px" objectFit="contain" mx="auto" />}
       </HStack>
       <Divider mb={3} borderColor={borderColor} />
-      <VStack align="stretch" spacing={1.5} px={3}>
+      <VStack align="stretch" spacing={1.5} px={3} overflowY="auto" pb={4}>
         {sidebarItems.map((item) => (
           <SidebarItem
             key={item.label}
@@ -131,10 +132,10 @@ const SidebarItem = ({ icon, label, isCollapsed, isActive, onClick, unreadCount 
       boxShadow={isActive ? '0 4px 14px rgba(13, 148, 136, 0.22)' : 'none'}
       position="relative"
     >
-      <Box as={icon} fontSize="19px" />
+      <Box as={icon} fontSize="19px" flexShrink={0} />
       {!isCollapsed && (
         <>
-          <Text fontSize="sm" fontWeight={isActive ? '600' : '500'}>{label}</Text>
+          <Text fontSize="sm" textAlign="left" fontWeight={isActive ? '600' : '500'}>{label}</Text>
           {unreadCount > 0 && (
             <Badge
               bg={isActive ? '#ffe4e6' : '#ef4444'}

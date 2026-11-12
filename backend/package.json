@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node tests/finance_erp_core.test.js && node --test tests/payrollHelpers.test.js tests/payrollAttendance.test.js tests/employeePersonalInfoValidation.test.js && node tests/responseCache.test.js && node tests/salesActivity.test.js && node tests/calledCall.test.js",
     "test:finance": "node tests/finance_erp_core.test.js",
+    "test:ecommerce": "node --test tests/ecommerceTable.test.js tests/ecommerceTableController.test.js",
     "test:finance:e2e": "node tests/finance_erp_flow.e2e.js",
     "start": "node server.js",
     "seed:coo": "node scripts/seedCOO.js",

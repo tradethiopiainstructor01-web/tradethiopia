@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // ES workers allow code-splitting (the eCommerce workbook worker loads xlsx).
+  worker: { format: 'es' },
   resolve: {
     alias: {
       // Ensure that we're correctly aliasing react-tsparticles

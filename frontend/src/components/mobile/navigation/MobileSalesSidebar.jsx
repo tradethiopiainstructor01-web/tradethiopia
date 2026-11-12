@@ -51,6 +51,7 @@ const sidebarItems = [
   { label: 'Followup', value: 'Followup', icon: FiUsers },
   { label: 'Cold Call', value: 'Cold Call', icon: FiPhoneCall },
   { label: 'Bulk SMS', value: 'Bulk SMS', icon: FiMessageCircle },
+  { label: 'eCommerce cold call and bulk sms', value: 'eCommerce cold call and bulk sms', icon: FiShoppingCart },
   { label: 'Orders', value: 'Orders', icon: FiShoppingCart },
   { label: 'Tasks', value: 'Tasks', icon: FiCheckSquare },
   { label: 'Content Tracker', value: 'Content Tracker', icon: FiCalendar },
@@ -96,7 +97,7 @@ const SidebarItem = ({ item, isActive, onClick, danger = false, badge = 0 }) => 
         >
           <Icon as={item.icon} boxSize={5} strokeWidth={isActive ? 2.7 : 2.2} />
         </Center>
-        <Text fontSize="13px" fontWeight="900" noOfLines={1}>
+        <Text fontSize="13px" fontWeight="900" noOfLines={2}>
           {item.label}
         </Text>
       </HStack>
@@ -169,7 +170,7 @@ const MobileSalesSidebar = ({ isOpen, onClose, activeItem, onNavigate }) => {
         borderRightRadius="0"
         boxShadow="22px 0 40px rgba(0,0,0,0.28)"
       >
-        <Box minH="100vh" px={4} pt="calc(20px + env(safe-area-inset-top))" pb="calc(18px + env(safe-area-inset-bottom))" position="relative" overflow="hidden">
+        <Box h="100dvh" overflowY="auto" px={4} pt="calc(20px + env(safe-area-inset-top))" pb="calc(18px + env(safe-area-inset-bottom))" position="relative">
           <Box position="absolute" inset={0} opacity={0.11} bg="radial-gradient(circle at 28% 18%, white 1px, transparent 1.5px)" backgroundSize="34px 34px" />
           <VStack align="stretch" spacing={5} position="relative" zIndex={1}>
             <Flex align="flex-start" justify="space-between" gap={3}>
