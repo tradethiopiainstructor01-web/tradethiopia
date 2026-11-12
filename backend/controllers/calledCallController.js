@@ -29,6 +29,7 @@ exports.getCalledCalls = async (req, res) => {
       purpose,
       dateFrom,
       dateTo,
+      details,
       agentId,
       page = 1,
       limit = 50,
@@ -60,19 +61,26 @@ exports.getCalledCalls = async (req, res) => {
       query.purpose = purpose;
     }
 
+    const needsDetails = { $or: [
+      { customerName: /^Prospect / },
+      { companyName: { $in: ['', null] } },
+    ] };
+    if (details === 'needs_details') andClauses.push(needsDetails);
+    if (details === 'complete') andClauses.push({ $nor: [needsDetails] });
+
     // Date range filters
     const dateQuery = {};
     if (dateFrom) {
       const from = new Date(dateFrom);
       if (!Number.isNaN(from.getTime())) {
-        from.setHours(0, 0, 0, 0);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) from.setHours(0, 0, 0, 0);
         dateQuery.$gte = from;
       }
     }
     if (dateTo) {
       const to = new Date(dateTo);
       if (!Number.isNaN(to.getTime())) {
-        to.setHours(23, 59, 59, 999);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) to.setHours(23, 59, 59, 999);
         dateQuery.$lte = to;
       }
     }
@@ -100,22 +108,22 @@ exports.getCalledCalls = async (req, res) => {
 
     if (andClauses.length > 0) query.$and = andClauses;
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
+    const totalCount = await CalledCall.countDocuments(query);
+    const totalPages = Math.max(1, Math.ceil(totalCount / limitNum));
+    // Deleting the last row on a page returns the preceding valid page.
+    const pageNum = Math.min(totalPages, Math.max(1, parseInt(page, 10) || 1));
     const skip = (pageNum - 1) * limitNum;
 
     // Fetch records and count
-    const [records, totalCount] = await Promise.all([
-      CalledCall.find(query)
+    const records = await CalledCall.find(query)
         .populate('createdBy', 'firstName lastName username email role')
         // Keep the table deterministic after inserts and deletions. ObjectId is
         // the final tie-breaker for bulk rows that share the same date/time.
         .sort({ callDate: -1, createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limitNum)
-        .lean(),
-      CalledCall.countDocuments(query),
-    ]);
+        .lean();
 
     // Build stats for currently accessible scope
     const baseStatsQuery = hasGlobalAccess(req.user) && !agentId ? {} : { createdBy: agentId || req.user._id };
