@@ -115,6 +115,7 @@ const TessbinAdminDashboard = lazy(() => import("./pages/TessbinAdminDashboard")
 const ChatPage = lazy(() => import("./pages/ChatPage.jsx"));
 const PayrollPage = lazy(() => import("./components/Payroll/PayrollPage"));
 const AllSalesPage = lazy(() => import("./components/salesmanager/AllSalesPage"));
+const EcommerceSalesDataPage = lazy(() => import("./components/salesmanager/EcommerceSalesDataPage"));
 const SalesActivityLogPage = lazy(() => import("./components/salesmanager/SalesActivityLogPage"));
 const SalesRemovalsPage = lazy(() => import("./components/salesmanager/SalesRemovalsPage"));
 const PerformancePage = lazy(() => import("./components/salesmanager/PerformancePage"));
@@ -672,6 +673,7 @@ function App() {
         <Route path="employee-requests" element={<EmployeeRequestsPage />} />
         <Route path="course" element={<CourseManagerPage />} />
         <Route path="all-sales" element={<AllSalesPage />} />
+        <Route path="ecommerce-data" element={<EcommerceSalesDataPage />} />
         <Route path="activity-log" element={<SalesActivityLogPage />} />
         <Route path="removed" element={<SalesRemovalsPage />} />
         <Route path="performance" element={<PerformancePage />} />
