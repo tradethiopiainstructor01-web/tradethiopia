@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   channel: { type: String, enum: ['cold-call', 'bulk-sms'], required: true },
+  folder: { type: mongoose.Schema.Types.ObjectId, ref: 'EcommerceFolder', default: null },
   key: { type: String, required: true },
   name: { type: String, required: true },
   columns: [String],

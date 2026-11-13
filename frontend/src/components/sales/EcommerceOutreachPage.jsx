@@ -6,7 +6,7 @@ import {
   Table, TabList, TabPanel, TabPanels, Tabs, Tbody, Td, Text, Textarea, Th,
   Thead, Tr, VStack, useDisclosure, useToast,
 } from '@chakra-ui/react';
-import { FiDownload, FiEdit2, FiMoreVertical, FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
+import { FiArrowLeft, FiDownload, FiEdit2, FiFolder, FiMoreVertical, FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
 import {
   REFERENCE_CATEGORIES, REFERENCE_COLUMNS, parsePastedTable, prepareTable, readWorkbook,
   checkWorkbookFile, prepareWorkbookSheets, importPreparedTables, MAX_IMPORT_FILE_MB,
@@ -14,6 +14,7 @@ import {
 } from '../../utils/ecommerceImport';
 import {
   deleteAllEcommerceTables, deleteEcommerceTable, removeEcommerceDuplicates, getAllEcommerceRows, getEcommerceTable, importEcommerceRows, listEcommerceTables, updateEcommerceRow, setEcommerceColumnArchived,
+  listEcommerceFolders, createEcommerceFolder,
 } from '../../services/ecommerceTableService';
 import { normalizePhoneNumber } from '../../utils/normalizePhoneNumber';
 import { sendBulkSms } from '../../services/calledCallService';
@@ -168,7 +169,94 @@ function SmsComposer({ channel, table, order }) {
   );
 }
 
-function OutreachTable({ channel }) {
+function OutreachFolders({ channel }) {
+  const [folders, setFolders] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [folder, setFolder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const [search, setSearch] = useState('');
+  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const createModal = useDisclosure();
+  const nameRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setError('');
+    Promise.all([listEcommerceFolders(channel), listEcommerceTables(channel)])
+      .then(([savedFolders, savedTables]) => {
+        if (!active) return;
+        setFolders(savedFolders); setTables(savedTables);
+      }).catch((e) => active && setError(errorMessage(e)))
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [channel, refresh]);
+
+  const create = async (event) => {
+    event.preventDefault();
+    if (!name.trim() || creating) return;
+    setCreating(true); setCreateError('');
+    try {
+      const saved = await createEcommerceFolder(channel, name.trim());
+      setFolders((previous) => [...previous, saved]);
+      setFolder(saved); createModal.onClose();
+    } catch (e) { setCreateError(errorMessage(e)); }
+    finally { setCreating(false); }
+  };
+  const allFolders = tables.some((t) => !t.folder)
+    ? [{ _id: 'legacy', name: 'Existing imports' }, ...folders] : folders;
+  const visibleFolders = allFolders.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()));
+
+  if (folder) return <OutreachTable key={folder._id} channel={channel} folder={folder} onBack={() => {
+    setFolder(null); setRefresh((n) => n + 1);
+  }} />;
+
+  return <Box>
+    <Flex gap={3} justify="space-between" align="center" flexWrap="wrap" mb={5}>
+      <Box><Heading size="md">Your folders</Heading><Text color="gray.600" mt={1}>Create a folder, import Excel files, then open and filter your tables.</Text></Box>
+      <Button colorScheme="teal" leftIcon={<FiPlus />} onClick={() => { setName(''); setCreateError(''); createModal.onOpen(); }}>Create folder</Button>
+    </Flex>
+    {loading ? <HStack py={12} justify="center"><Spinner /><Text>Loading folders…</Text></HStack>
+      : error ? <Alert status="error"><AlertIcon /><Box flex={1}>{error}</Box><Button onClick={() => setRefresh((n) => n + 1)}>Retry</Button></Alert>
+        : allFolders.length === 0 ? <Box bg="white" border="1px dashed" borderColor="gray.300" borderRadius="xl" p={10} textAlign="center">
+          <Flex justify="center" color="teal.500" mb={3}><FiFolder size={36} /></Flex>
+          <Heading size="sm">Start with a folder</Heading><Text color="gray.600" mt={2}>Keep each campaign, customer group, or batch of files in its own folder.</Text>
+          <Button mt={5} colorScheme="teal" leftIcon={<FiPlus />} onClick={() => { setName(''); setCreateError(''); createModal.onOpen(); }}>Create your first folder</Button>
+        </Box> : <>
+          <Input mb={4} maxW="400px" bg="white" aria-label="Search folders" placeholder="Search folders…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={4}>
+            {visibleFolders.map((item) => {
+              const count = tables.filter((t) => item._id === 'legacy' ? !t.folder : t.folder === item._id).length;
+              return <Box as="button" type="button" key={item._id} onClick={() => setFolder(item)} textAlign="left" bg="white" p={5}
+                border="1px solid" borderColor="gray.200" borderRadius="xl" _hover={{ borderColor: 'teal.400', bg: 'teal.50' }} _focusVisible={{ boxShadow: 'outline' }}>
+                <Flex justify="space-between" align="center" mb={4}><Box color="teal.500"><FiFolder size={28} /></Box><Badge colorScheme="teal">{count} {count === 1 ? 'table' : 'tables'}</Badge></Flex>
+                <Text fontWeight="semibold" overflowWrap="anywhere">{item.name}</Text>
+                <Text fontSize="sm" color="gray.600" mt={1}>{count ? 'Open folder to view tables' : 'Open folder to import Excel files'}</Text>
+              </Box>;
+            })}
+          </SimpleGrid>
+          {!visibleFolders.length && <Text py={8} color="gray.600">No folders match your search.</Text>}
+        </>}
+    <Modal isOpen={createModal.isOpen} onClose={creating ? () => {} : createModal.onClose} initialFocusRef={nameRef}>
+      <ModalOverlay /><ModalContent mx={3} as="form" onSubmit={create}>
+        <ModalHeader>Create folder</ModalHeader><ModalCloseButton isDisabled={creating} />
+        <ModalBody>
+          <Text color="gray.600" mb={4}>Give this group of imported tables a name.</Text>
+          <FormControl isRequired><FormLabel htmlFor={`${channel}-folder-name`}>Folder name</FormLabel>
+            <Input ref={nameRef} id={`${channel}-folder-name`} maxLength={120} value={name} isDisabled={creating} onChange={(e) => setName(e.target.value)} placeholder="e.g. November leads" />
+          </FormControl>
+          {createError && <Alert status="error" mt={4}><AlertIcon />{createError}</Alert>}
+        </ModalBody>
+        <ModalFooter gap={3}><Button onClick={createModal.onClose} isDisabled={creating}>Cancel</Button><Button type="submit" colorScheme="teal" isLoading={creating} isDisabled={!name.trim()}>Create and open</Button></ModalFooter>
+      </ModalContent>
+    </Modal>
+  </Box>;
+}
+
+function OutreachTable({ channel, folder, onBack }) {
   const toast = useToast();
   const uploadRef = useRef(null);
   const importModal = useDisclosure();
@@ -209,11 +297,11 @@ function OutreachTable({ channel }) {
   useEffect(() => {
     let active = true;
     setCatalogLoading(true); setCatalogError('');
-    listEcommerceTables(channel).then((data) => {
+    listEcommerceTables(channel, folder._id).then((data) => {
       if (!active) return;
       setTables(data);
       if (selected.startsWith('reference:')) {
-        const match = data.find((t) => t.name === REFERENCE_CATEGORIES[Number(selected.split(':')[1])]);
+        const match = data.find((t) => t.name === REFERENCE_CATEGORIES[Number(selected.split(':')[1])]) || data[0];
         if (match) setSelected(match._id);
       }
     }).catch((e) => active && setCatalogError(errorMessage(e)))
@@ -221,7 +309,7 @@ function OutreachTable({ channel }) {
     return () => { active = false; };
     // Reload the catalog only on an explicit refresh; table selection loads separately.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel, refresh]);
+  }, [channel, folder._id, refresh]);
 
   useEffect(() => {
     const timer = setTimeout(() => { setQuery(search.trim()); setPage(1); }, 350);
@@ -307,25 +395,36 @@ function OutreachTable({ channel }) {
     setImportError(`${errorMessage(error)}${progress?.tables.length ? ` ${progress.added} rows were saved before the interruption. Upload again to continue; saved rows will not be repeated.` : ''}`);
   };
   const upload = async (event) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
     setSaving(true); setImportError(''); setLastImport('');
     setImportProgress({ activeSheet: 'Reading and removing duplicate rows…', processed: 0, total: 0 });
     const started = Date.now();
+    const completed = { tables: [], added: 0, duplicates: 0 };
     try {
-      const prepared = await prepareWorkbookFile(file, { targetName: table.name, fallbackColumns: table.columns, fileName: file.name });
-      const result = await importPreparedTables(prepared, (batch) => importEcommerceRows(channel, batch), setImportProgress);
-      showImportedTables(result);
-      setLastImport(`${result.added.toLocaleString()} rows imported into ${result.tables.map((t) => t.name).join(', ')} · ${result.duplicates.toLocaleString()} duplicate rows skipped · ${Math.max(1, Math.round((Date.now() - started) / 1000))}s.`);
-    } catch (error) { importFailed(error); }
+      for (const file of files) {
+        setImportProgress({ activeSheet: `Reading ${file.name}…`, processed: 0, total: 0 });
+        const prepared = await prepareWorkbookFile(file, { targetName: table.name, fallbackColumns: table.columns, fileName: file.name });
+        const result = await importPreparedTables(prepared, (batch) => importEcommerceRows(channel, { ...batch, folderId: folder._id }),
+          (progress) => setImportProgress({ ...progress, activeSheet: `${file.name} · ${progress.activeSheet}` }));
+        completed.tables = [...completed.tables.filter((t) => !result.tables.some((saved) => saved._id === t._id)), ...result.tables];
+        completed.added += result.added; completed.duplicates += result.duplicates;
+      }
+      showImportedTables(completed);
+      setLastImport(`${files.length} ${files.length === 1 ? 'file' : 'files'} processed · ${completed.added.toLocaleString()} rows imported into ${folder.name} · ${completed.duplicates.toLocaleString()} duplicate rows skipped · ${Math.max(1, Math.round((Date.now() - started) / 1000))}s.`);
+    } catch (error) {
+      const partial = error.importProgress;
+      error.importProgress = { ...completed, added: completed.added + (partial?.added || 0), tables: [...completed.tables, ...(partial?.tables || [])].filter((t, i, all) => all.findLastIndex((item) => item._id === t._id) === i) };
+      importFailed(error);
+    }
     finally { setSaving(false); setImportProgress(null); }
   };
   const saveImport = async () => {
     if (!preview.data) return;
     setSaving(true); setImportError(''); setLastImport('');
     try {
-      const result = await importPreparedTables([{ ...preview.data, name: tableName }], (batch) => importEcommerceRows(channel, batch), setImportProgress);
+      const result = await importPreparedTables([{ ...preview.data, name: tableName }], (batch) => importEcommerceRows(channel, { ...batch, folderId: folder._id }), setImportProgress);
       showImportedTables(result);
       setLastImport(`${result.added} rows added · ${result.duplicates} identical rows skipped. Saved to ${tableName}.`);
       importModal.onClose();
@@ -342,7 +441,7 @@ function OutreachTable({ channel }) {
         const saved = await updateEcommerceRow(channel, table._id, editingRow, editValues);
         setTable((current) => ({ ...current, rows: current.rows.map((row) => (row.id === saved.id ? saved : row)) }));
       } else {
-        const response = await importEcommerceRows(channel, { name: table.name, columns: table.columns, widths: table.widths, rows: [editValues] });
+        const response = await importEcommerceRows(channel, { folderId: folder._id, name: table.name, columns: table.columns, widths: table.widths, rows: [editValues] });
         rememberSummary(response.data);
         toast({ title: response.added ? 'Row saved' : 'Identical row already exists; nothing added', status: response.added ? 'success' : 'info', duration: 3000 });
       }
@@ -366,12 +465,12 @@ function OutreachTable({ channel }) {
   const removeAll = async () => {
     setDeleting(true);
     try {
-      await deleteAllEcommerceTables(channel);
+      await deleteAllEcommerceTables(channel, folder._id);
       setTables([]);
       selectTable('reference:0');
       setLastImport(''); setImportError('');
       deleteAllModal.onClose();
-      toast({ title: `All ${channel === 'cold-call' ? 'Cold Call' : 'Bulk SMS'} tables deleted`, status: 'success', duration: 3000 });
+      toast({ title: `All tables in ${folder.name} deleted`, status: 'success', duration: 3000 });
     } catch (error) { toast({ title: 'Nothing was deleted', description: errorMessage(error), status: 'error', duration: 6000 }); }
     finally { setDeleting(false); }
   };
@@ -401,6 +500,10 @@ function OutreachTable({ channel }) {
 
   return (
     <Box>
+      <HStack mb={4} flexWrap="wrap">
+        <Button variant="ghost" leftIcon={<FiArrowLeft />} onClick={onBack} isDisabled={saving || deleting || deduping}>All folders</Button>
+        <Text color="gray.400">/</Text><Box color="teal.500"><FiFolder /></Box><Heading size="sm" overflowWrap="anywhere">{folder.name}</Heading>
+      </HStack>
       <Flex gap={3} mb={5} flexWrap="wrap" align="end" justify="space-between">
         <FormControl maxW={{ base: '100%', md: '360px' }}><FormLabel htmlFor={`${channel}-table`}>Worksheet / table</FormLabel>
           <Select id={`${channel}-table`} value={selected} isDisabled={saving || loading} onChange={(e) => { selectTable(e.target.value); setLastImport(''); }}>
@@ -409,8 +512,8 @@ function OutreachTable({ channel }) {
           </Select>
         </FormControl>
         <HStack flexWrap="wrap">
-          <Input ref={uploadRef} type="file" display="none" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.tsv,.ods" onChange={upload} aria-label={`Upload ${channel} spreadsheet`} />
-          <Button colorScheme="teal" leftIcon={<FiUpload />} onClick={() => uploadRef.current?.click()} isDisabled={firstLoad || catalogLoading || !!loadError} isLoading={saving}>Upload file</Button>
+          <Input ref={uploadRef} type="file" multiple display="none" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.tsv,.ods" onChange={upload} aria-label={`Upload ${channel} spreadsheet`} />
+          <Button colorScheme="teal" leftIcon={<FiUpload />} onClick={() => uploadRef.current?.click()} isDisabled={loading || deleting || deduping || !!loadError} isLoading={saving}>Import Excel files</Button>
           <Button onClick={startPaste} isDisabled={saving || loading || !!loadError}>Paste table</Button>
           <Button leftIcon={<FiPlus />} onClick={() => openEditor()} isDisabled={saving || loading || !!loadError}>Add row</Button>
           <Button leftIcon={<FiDownload />} onClick={download} isDisabled={loading || !!loadError}>Export</Button>
@@ -418,12 +521,14 @@ function OutreachTable({ channel }) {
           {tables.length > 0 && <Button leftIcon={<FiTrash2 />} colorScheme="red" onClick={() => { setConfirmText(''); deleteAllModal.onOpen(); }} isDisabled={saving || loading || !!loadError}>Delete all</Button>}
         </HStack>
       </Flex>
-      <Text fontSize="sm" color="gray.600" mb={4}>Upload an Excel, CSV, TSV, or ODS file to add its rows to the selected table. Files with the standard columns (or similar names like Phone, Email, Company) go into this table; Note is left empty for you to write. Files with other columns are saved as their own table named after the file: the standard columns first, then the file&apos;s other columns. Rows already saved, and repeated rows in the file, are skipped. Files up to {MAX_IMPORT_FILE_MB} MB, with up to 100 columns.</Text>
+      <Text fontSize="sm" color="gray.600" mb={4}>Import one or more Excel, CSV, TSV, or ODS files into this folder. Matching columns go into the selected table; files with extra columns get their own table. Duplicate contacts are skipped automatically. After import, choose a table and search any column to filter its rows. Each file can be up to {MAX_IMPORT_FILE_MB} MB, with up to 100 columns.</Text>
       {importProgress && <Box mb={4} role="status"><Text fontSize="sm" mb={2}>{importProgress.activeSheet} · {importProgress.processed.toLocaleString()} / {importProgress.total.toLocaleString()} rows processed</Text><Progress colorScheme="teal" isIndeterminate={!importProgress.total} value={importProgress.total ? importProgress.processed / importProgress.total * 100 : 0} borderRadius="md" /></Box>}
       {importError && <Alert status="error" mb={4}><AlertIcon />{importError}</Alert>}
       {lastImport && <Alert status="success" mb={4} role="status"><AlertIcon />{lastImport}</Alert>}
       {table.cleaning && table._id === selected && <Alert status="info" mb={4} role="status"><AlertIcon /><Spinner size="sm" mr={2} />Removing duplicate contacts from this table. It refreshes automatically when finished.</Alert>}
-      {loadError ? <Alert status="error"><AlertIcon /><Box flex={1}>{loadError}</Box><Button onClick={() => setRefresh((n) => n + 1)}>Retry</Button></Alert> : catalogLoading || firstLoad ? <HStack py={12} justify="center"><Spinner /><Text>Loading saved table…</Text></HStack> : <>
+      {loadError ? <Alert status="error"><AlertIcon /><Box flex={1}>{loadError}</Box><Button onClick={() => setRefresh((n) => n + 1)}>Retry</Button></Alert> : catalogLoading || firstLoad ? <HStack py={12} justify="center"><Spinner /><Text>Loading saved table…</Text></HStack> : !tables.length ? <Box p={10} bg="white" border="1px dashed" borderColor="gray.300" borderRadius="xl" textAlign="center">
+        <Heading size="sm">This folder is ready for your files</Heading><Text color="gray.600" mt={2}>Import Excel files to organize contacts and see your cleaned tables here.</Text>
+      </Box> : <>
         <Flex gap={3} align="center" mb={3} flexWrap="wrap">
           <Input maxW="400px" aria-label="Search table" placeholder="Search any column…" value={search} onChange={(e) => setSearch(e.target.value)} />
           <Badge colorScheme="teal">{(table.rowCount ?? 0).toLocaleString()} saved rows</Badge><Badge>{order.length} columns</Badge>
@@ -497,9 +602,9 @@ function OutreachTable({ channel }) {
         </ModalContent>
       </Modal>
       <Modal isOpen={deleteAllModal.isOpen} onClose={deleting ? () => {} : deleteAllModal.onClose}>
-        <ModalOverlay /><ModalContent mx={3}><ModalHeader>Delete all {channel === 'cold-call' ? 'Cold Call' : 'Bulk SMS'} data?</ModalHeader><ModalCloseButton isDisabled={deleting} />
+        <ModalOverlay /><ModalContent mx={3}><ModalHeader>Delete all tables in “{folder.name}”?</ModalHeader><ModalCloseButton isDisabled={deleting} />
           <ModalBody><VStack align="stretch" spacing={4}>
-            <Alert status="error" borderRadius="md"><AlertIcon /><Box>Warning: this permanently deletes all {tables.length} tables in this tab, with every saved row and note. It cannot be undone.</Box></Alert>
+            <Alert status="error" borderRadius="md"><AlertIcon /><Box>Warning: this permanently deletes all {tables.length} tables in this folder, with every saved row and note. It cannot be undone.</Box></Alert>
             <FormControl><FormLabel htmlFor={`${channel}-confirm-delete`}>Type DELETE to confirm</FormLabel>
               <Input id={`${channel}-confirm-delete`} value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" /></FormControl>
           </VStack></ModalBody>
@@ -523,11 +628,11 @@ export default function EcommerceOutreachPage() {
     <Box w="100%" minW={0}>
       <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="xl" border="1px solid" borderColor="gray.200" mb={5}>
         <Heading size={{ base: 'md', md: 'lg' }} color="gray.800">eCommerce cold call and bulk sms</Heading>
-        <Text mt={2} color="gray.600">Manage outreach in spreadsheet tables. Upload, paste, and save your contacts without repeating identical rows.</Text>
+        <Text mt={2} color="gray.600">Create a folder → import Excel files → view and filter your tables. Keep each group of contacts organized in one place.</Text>
       </Box>
       <Tabs colorScheme="teal" isLazy lazyBehavior="keepMounted">
         <TabList><Tab fontWeight="semibold">Cold Call</Tab><Tab fontWeight="semibold">Bulk SMS</Tab></TabList>
-        <TabPanels><TabPanel px={0} py={5}><OutreachTable channel="cold-call" /></TabPanel><TabPanel px={0} py={5}><OutreachTable channel="bulk-sms" /></TabPanel></TabPanels>
+        <TabPanels><TabPanel px={0} py={5}><OutreachFolders channel="cold-call" /></TabPanel><TabPanel px={0} py={5}><OutreachFolders channel="bulk-sms" /></TabPanel></TabPanels>
       </Tabs>
     </Box>
   );

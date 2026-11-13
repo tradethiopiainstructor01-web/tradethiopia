@@ -3,6 +3,8 @@ const { protect } = require('../middleware/auth');
 const controller = require('../controllers/ecommerceTableController');
 
 router.use(protect);
+router.get('/:channel/folders', controller.listFolders);
+router.post('/:channel/folders', controller.createFolder);
 router.get('/:channel', controller.list);
 router.post('/:channel/import', controller.importRows);
 router.get('/:channel/:id', controller.get);
