@@ -1,4 +1,5 @@
 const Table = require('../models/EcommerceTable');
+const Folder = require('../models/EcommerceFolder');
 const Row = require('../models/EcommerceTableRow');
 const { validateImport, mergeRows, normalize, rowFingerprint, keyColumns, contactKeys, fail } = require('../utils/ecommerceTable');
 
@@ -16,6 +17,36 @@ const handle = (fn) => async (req, res) => {
 const PAGE_SIZE = 50;
 const ROW_ORDER = { createdAt: 1, position: 1, _id: 1 };
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Null includes pre-folder tables without rewriting their data or duplicate keys.
+async function folderScope(req, folderId) {
+  const ownerScope = scope(req);
+  if (folderId === 'legacy') return { ...ownerScope, folder: null };
+  if (typeof folderId !== 'string' || !/^[a-f\d]{24}$/i.test(folderId)) fail('Folder not found.', 404);
+  const folder = await Folder.findOne({ ...ownerScope, _id: folderId }).lean();
+  if (!folder) fail('Folder not found.', 404);
+  return { ...ownerScope, folder: folder._id };
+}
+
+exports.listFolders = handle(async (req, res) => {
+  const folders = await Folder.find(scope(req)).sort({ createdAt: 1 }).lean();
+  res.json({ success: true, data: folders });
+});
+
+exports.createFolder = handle(async (req, res) => {
+  const ownerScope = scope(req);
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
+  if (!name || name.length > 120) fail('Enter a folder name between 1 and 120 characters.');
+  await Folder.init();
+  let folder;
+  try {
+    folder = await Folder.create({ ...ownerScope, name, nameKey: normalize(name) });
+  } catch (error) {
+    if (error.code === 11000) fail('A folder with this name already exists in this tab.', 409);
+    throw error;
+  }
+  res.status(201).json({ success: true, data: folder });
+});
 
 // Removes rows that repeat another row's `field` value in the same table, keeping the earliest
 // (file order). Rows saved while the unique indexes were missing can repeat, which blocks the build.
@@ -223,7 +254,8 @@ async function ownedTable(req) {
 }
 
 exports.list = handle(async (req, res) => {
-  const tables = await Table.find(scope(req)).select('-rows').sort({ createdAt: 1 }).lean();
+  const filter = req.query?.folderId === undefined ? scope(req) : await folderScope(req, req.query.folderId);
+  const tables = await Table.find(filter).select('-rows').sort({ createdAt: 1 }).lean();
   res.json({ success: true, data: tables });
 });
 
@@ -249,7 +281,11 @@ exports.removeDuplicates = handle(async (req, res) => {
 
 exports.importRows = handle(async (req, res) => {
   const imported = validateImport(req.body);
-  const filter = { ...scope(req), key: imported.key };
+  const ownerScope = req.body.folderId === undefined ? scope(req) : await folderScope(req, req.body.folderId);
+  // Preserve the existing unique index and legacy keys; identical tables in different
+  // folders get separate identities, including during concurrent batch imports.
+  const key = ownerScope.folder ? `${ownerScope.folder}:${imported.key}` : imported.key;
+  const filter = { ...ownerScope, key };
   await Table.init();
   let table = await Table.findOne(filter).lean();
   if (!table) {
@@ -333,9 +369,10 @@ exports.remove = handle(async (req, res) => {
   res.json({ success: true });
 });
 
-// Removes every table and row in this tab for the signed-in user.
+// The folder UI always supplies folderId so bulk deletion stays inside that folder.
 exports.removeAll = handle(async (req, res) => {
-  const ids = (await Table.find(scope(req)).select('_id').lean()).map((t) => t._id);
+  const filter = req.query?.folderId === undefined ? scope(req) : await folderScope(req, req.query.folderId);
+  const ids = (await Table.find(filter).select('_id').lean()).map((t) => t._id);
   if (ids.length) {
     await Row.deleteMany({ table: { $in: ids } });
     await Table.deleteMany({ _id: { $in: ids } });

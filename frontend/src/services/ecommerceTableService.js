@@ -1,7 +1,9 @@
 import axiosInstance from './axiosInstance';
 
 const base = (channel) => `/ecommerce-tables/${channel}`;
-export const listEcommerceTables = async (channel) => (await axiosInstance.get(base(channel))).data.data;
+export const listEcommerceFolders = async (channel) => (await axiosInstance.get(`${base(channel)}/folders`)).data.data;
+export const createEcommerceFolder = async (channel, name) => (await axiosInstance.post(`${base(channel)}/folders`, { name })).data.data;
+export const listEcommerceTables = async (channel, folderId) => (await axiosInstance.get(base(channel), { params: { folderId } })).data.data;
 // Returns one page of rows: { rows, rowCount, matchCount, page, pageSize }.
 export const getEcommerceTable = async (channel, id, params = {}) => (
   await axiosInstance.get(`${base(channel)}/${id}`, { params })
@@ -12,7 +14,7 @@ export const updateEcommerceRow = async (channel, tableId, row, values) => (
   await axiosInstance.put(`${base(channel)}/${tableId}/rows/${row.id}`, { values, expectedFingerprint: row.fingerprint })
 ).data.data;
 export const deleteEcommerceTable = async (channel, id) => (await axiosInstance.delete(`${base(channel)}/${id}`)).data;
-export const deleteAllEcommerceTables = async (channel) => (await axiosInstance.delete(base(channel))).data;
+export const deleteAllEcommerceTables = async (channel, folderId) => (await axiosInstance.delete(base(channel), { params: { folderId } })).data;
 
 // Keeps the first row of each contact (phone, email, or name) and deletes the repeats. Returns { removed, data }.
 export const removeEcommerceDuplicates = async (channel, tableId) => (

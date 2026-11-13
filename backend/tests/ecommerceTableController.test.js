@@ -3,10 +3,11 @@ const assert = require('node:assert/strict');
 
 // Exercise controller scoping and revision retries without connecting to production MongoDB.
 const tables = new Map();
+const folders = new Map();
 const rows = [];
 let sequence = 0;
 const copy = (value) => value ? structuredClone(value) : value;
-const matches = (doc, filter) => Object.entries(filter).every(([key, value]) => doc[key] === value);
+const matches = (doc, filter) => Object.entries(filter).every(([key, value]) => value === null ? doc[key] == null : doc[key] === value);
 const query = (result) => {
   let skip = 0;
   let limit = Infinity;
@@ -116,7 +117,18 @@ const RowMock = {
     return current;
   }),
 };
-const mocked = [['../models/EcommerceTable', TableMock], ['../models/EcommerceTableRow', RowMock]].map(([path, mock]) => {
+const FolderMock = {
+  init: async () => {},
+  find: (filter) => query(() => [...folders.values()].filter((doc) => matches(doc, filter))),
+  findOne: (filter) => query(() => [...folders.values()].find((doc) => matches(doc, filter))),
+  create: async (doc) => {
+    if ([...folders.values()].some((folder) => matches(folder, { owner: doc.owner, channel: doc.channel, nameKey: doc.nameKey }))) throw duplicate();
+    const saved = { ...copy(doc), _id: String(++sequence).padStart(24, '0') };
+    folders.set(saved._id, saved);
+    return copy(saved);
+  },
+};
+const mocked = [['../models/EcommerceTable', TableMock], ['../models/EcommerceTableRow', RowMock], ['../models/EcommerceFolder', FolderMock]].map(([path, mock]) => {
   const resolved = require.resolve(path);
   require(resolved);
   const original = require.cache[resolved].exports;
@@ -135,6 +147,21 @@ async function call(method, { owner = 'agent-a', channel = 'cold-call', id, rowI
   return result;
 }
 const payload = (rows) => ({ name: 'Leads', columns: ['Company', 'Phone'], rows });
+
+test('folders persist empty, validate names, and are scoped to user and outreach tab', async () => {
+  const owner = 'folder-owner';
+  for (const name of ['', '   ', 'a'.repeat(121), 123]) {
+    assert.equal((await call('createFolder', { owner, body: { name } })).status, 400);
+  }
+  const created = await call('createFolder', { owner, body: { name: '  November   Leads  ' } });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.data.name, 'November Leads');
+  assert.equal((await call('createFolder', { owner, body: { name: 'november leads' } })).status, 409);
+  assert.deepEqual((await call('listFolders', { owner })).body.data.map((f) => f._id), [created.body.data._id]);
+  assert.equal((await call('listFolders', { owner: 'someone-else' })).body.data.length, 0);
+  assert.equal((await call('listFolders', { owner, channel: 'bulk-sms' })).body.data.length, 0);
+  assert.deepEqual((await call('list', { owner, query: { folderId: created.body.data._id } })).body.data, []);
+});
 
 // Must run first: indexes are built once per process.
 test('rows repeated while unique indexes were missing are removed before the indexes are built', async () => {
@@ -328,4 +355,63 @@ test('"Show duplicates" lists copies together and "Remove duplicates" keeps one 
   assert.deepEqual(rows.filter((r) => r.table === id).map((r) => r.id), ['d0', 'd1', 'd4']);
   assert.equal((await call('get', { owner: 'dupes', id, query: { duplicates: '1' } })).body.data.matchCount, 0);
   assert.equal((await call('removeDuplicates', { owner: 'dupes', id })).body.removed, 0);
+});
+
+test('matching imports stay separate across folders and retries deduplicate within their folder', async () => {
+  const owner = 'folder-importer';
+  const first = (await call('createFolder', { owner, body: { name: 'First campaign' } })).body.data;
+  const second = (await call('createFolder', { owner, body: { name: 'Second campaign' } })).body.data;
+  const body = payload([['Shared contact', '0911234567']]);
+  const a = await call('importRows', { owner, body: { ...body, folderId: first._id } });
+  const b = await call('importRows', { owner, body: { ...body, folderId: second._id } });
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200);
+  assert.notEqual(a.body.data._id, b.body.data._id);
+  assert.equal(a.body.added, 1);
+  assert.equal(b.body.added, 1);
+  assert.equal(a.body.data.folder, first._id);
+  const retry = await call('importRows', { owner, body: { ...body, folderId: first._id } });
+  assert.equal(retry.body.added, 0);
+  assert.equal(retry.body.duplicates, 1);
+  for (const [folder, table] of [[first, a], [second, b]]) {
+    const listing = await call('list', { owner, query: { folderId: folder._id } });
+    assert.deepEqual(listing.body.data.map((t) => t._id), [table.body.data._id]);
+  }
+  const deletion = await call('removeAll', { owner, query: { folderId: first._id } });
+  assert.equal(deletion.body.deletedTables, 1);
+  assert.equal((await call('get', { owner, id: b.body.data._id })).body.data.rowCount, 1);
+  assert.equal(rows.filter((r) => r.table === a.body.data._id).length, 0);
+  assert.equal((await call('listFolders', { owner })).body.data.length, 2);
+});
+
+test('foreign, wrong-tab and invalid folders cannot be listed, imported into or emptied', async () => {
+  const owner = 'private-folder';
+  const folder = (await call('createFolder', { owner, body: { name: 'Private' } })).body.data;
+  for (const args of [
+    { owner: 'stranger', folderId: folder._id },
+    { owner, channel: 'bulk-sms', folderId: folder._id },
+    { owner, folderId: 'not-an-id' },
+    { owner, folderId: 'e'.repeat(24) },
+    { owner, folderId: { $ne: null } },
+  ]) {
+    const { folderId, ...scope } = args;
+    assert.equal((await call('list', { ...scope, query: { folderId } })).status, 404);
+    assert.equal((await call('importRows', { ...scope, body: { ...payload([]), folderId } })).status, 404);
+    assert.equal((await call('removeAll', { ...scope, query: { folderId } })).status, 404);
+  }
+});
+
+test('existing imports remain accessible and legacy deletion preserves new folder tables', async () => {
+  const owner = 'existing-imports';
+  const body = payload([['Existing contact', '0911234567']]);
+  const legacy = await call('importRows', { owner, body });
+  const folder = (await call('createFolder', { owner, body: { name: 'New files' } })).body.data;
+  const added = await call('importRows', { owner, body: { ...body, folderId: folder._id } });
+  const listing = await call('list', { owner, query: { folderId: 'legacy' } });
+  assert.deepEqual(listing.body.data.map((t) => t._id), [legacy.body.data._id]);
+  const retry = await call('importRows', { owner, body: { ...body, folderId: 'legacy' } });
+  assert.equal(retry.body.data._id, legacy.body.data._id);
+  assert.equal(retry.body.duplicates, 1);
+  assert.equal((await call('removeAll', { owner, query: { folderId: 'legacy' } })).body.deletedTables, 1);
+  assert.equal((await call('get', { owner, id: added.body.data._id })).body.data.rowCount, 1);
 });
