@@ -24,3 +24,14 @@ export const removeEcommerceDuplicates = async (channel, tableId) => (
 export const setEcommerceColumnArchived = async (channel, tableId, columnIndex, archived, revision) => (
   await axiosInstance.patch(`${base(channel)}/${tableId}/columns/${columnIndex}`, { archived, revision })
 ).data.data;
+
+const managerBase = (channel) => `/ecommerce-tables/manager/${channel}`;
+export const listManagerEcommerceTables = async (channel) => (
+  await axiosInstance.get(managerBase(channel))
+).data.data;
+export const getManagerEcommerceTable = async (channel, id, params = {}) => (
+  await axiosInstance.get(`${managerBase(channel)}/${id}`, { params })
+).data.data;
+export const getAllManagerEcommerceRows = async (channel, id) => (
+  await getManagerEcommerceTable(channel, id, { all: 1 })
+).rows;

@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import {
   Box,
   Flex,
@@ -15,7 +14,6 @@ import {
   MenuList,
   MenuItem,
   Button,
-  HStack,
   IconButton
 } from '@chakra-ui/react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -41,7 +39,8 @@ import {
   FiAlertTriangle,
   FiAward,
   FiActivity,
-  FiArchive
+  FiArchive,
+  FiShoppingCart
 } from 'react-icons/fi';
 
 const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
@@ -69,6 +68,7 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
     { name: 'Dashboard', icon: FiHome, path: '/salesmanager' },
     { name: 'Course', icon: FiBookOpen, path: '/salesmanager/course' },
     { name: 'All Sales', icon: FiDollarSign, path: '/salesmanager/all-sales' },
+    { name: 'Cold Call & Bulk SMS', icon: FiShoppingCart, path: '/salesmanager/ecommerce-data' },
     { name: 'Activity Log', icon: FiActivity, path: '/salesmanager/activity-log' },
     { name: 'Removed & Deleted', icon: FiArchive, path: '/salesmanager/removed' },
     { name: 'Performance', icon: FiTrendingUp, path: '/salesmanager/performance' },
@@ -172,7 +172,6 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
             activeBg={activeBg}
             activeColor={activeColor}
             hoverBg={hoverBg}
-            textColor={textColor}
           >
             {link.name}
           </NavItem>
@@ -260,8 +259,7 @@ const NavItem = ({
   isCollapsed, 
   activeBg, 
   activeColor, 
-  hoverBg, 
-  textColor,
+  hoverBg,
   ...rest 
 }) => {
   return (

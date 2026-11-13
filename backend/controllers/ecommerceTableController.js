@@ -48,6 +48,17 @@ exports.createFolder = handle(async (req, res) => {
   res.status(201).json({ success: true, data: folder });
 });
 
+const managerRoles = new Set(['salesmanager', 'admin']);
+const requireManager = (req) => {
+  const role = String(req.user?.role || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (!managerRoles.has(role)) fail('Only a Sales Manager or Admin can view all eCommerce sales data.', 403);
+};
+
+const validChannel = (req) => {
+  if (!['cold-call', 'bulk-sms'].includes(req.params.channel)) fail('Unknown eCommerce tab.');
+  return req.params.channel;
+};
+
 // Removes rows that repeat another row's `field` value in the same table, keeping the earliest
 // (file order). Rows saved while the unique indexes were missing can repeat, which blocks the build.
 async function removeRepeated(field) {
@@ -252,6 +263,43 @@ async function ownedTable(req) {
   cleanInBackground(table);
   return table;
 }
+
+async function managerTable(req) {
+  requireManager(req);
+  if (!/^[a-f\d]{24}$/i.test(req.params.id)) fail('Table not found.', 404);
+  const table = await Table.findOne({ channel: validChannel(req), _id: req.params.id })
+    .populate('owner', 'fullName username email role')
+    .lean();
+  if (!table) fail('Table not found.', 404);
+  await migrateEmbeddedRows(table);
+  cleanInBackground(table);
+  return table;
+}
+
+// Sales Manager oversight is intentionally read-only. It exposes every sales user's saved
+// eCommerce worksheet while all create, edit and delete routes remain owner-scoped.
+exports.managerList = handle(async (req, res) => {
+  requireManager(req);
+  const tables = await Table.find({ channel: validChannel(req) })
+    .select('-rows')
+    .populate('owner', 'fullName username email role')
+    .sort({ updatedAt: -1, createdAt: -1 })
+    .lean();
+  const data = await Promise.all(tables.map(async (table) => ({
+    ...table,
+    rowCount: await Row.countDocuments({ table: table._id }),
+  })));
+  res.json({ success: true, data });
+});
+
+exports.managerGet = handle(async (req, res) => {
+  const { page, search, all } = req.query || {};
+  res.json({ success: true, data: await tableData(await managerTable(req), {
+    page,
+    search,
+    all: all === '1',
+  }) });
+});
 
 exports.list = handle(async (req, res) => {
   const filter = req.query?.folderId === undefined ? scope(req) : await folderScope(req, req.query.folderId);

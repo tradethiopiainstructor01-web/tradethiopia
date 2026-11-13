@@ -12,7 +12,7 @@ const query = (result) => {
   let skip = 0;
   let limit = Infinity;
   const chain = {
-    select: () => chain, sort: () => chain,
+    select: () => chain, populate: () => chain, sort: () => chain,
     cursor: () => {
       const value = copy(result());
       return (async function* iterate() { yield* value; }());
@@ -138,9 +138,9 @@ const mocked = [['../models/EcommerceTable', TableMock], ['../models/EcommerceTa
 const controller = require('../controllers/ecommerceTableController');
 for (const [resolved, original] of mocked) require.cache[resolved].exports = original;
 
-async function call(method, { owner = 'agent-a', channel = 'cold-call', id, rowId, columnIndex, body = {}, query = {} } = {}) {
+async function call(method, { owner = 'agent-a', role = 'sales', channel = 'cold-call', id, rowId, columnIndex, body = {}, query = {} } = {}) {
   const result = { status: 200 };
-  await controller[method]({ user: { _id: owner }, params: { channel, id, rowId, columnIndex }, body, query }, {
+  await controller[method]({ user: { _id: owner, role }, params: { channel, id, rowId, columnIndex }, body, query }, {
     status(code) { result.status = code; return this; },
     json(value) { result.body = value; return this; },
   });
@@ -193,6 +193,23 @@ test('tables and edits are isolated by signed-in user and tab', async () => {
   assert.equal((await call('get', { owner: 'private-agent', channel: 'bulk-sms', id: table._id })).status, 404);
   assert.equal((await call('updateRow', { owner: 'other-agent', id: table._id, rowId: table.rows[0].id, body: { values: ['Altered', '0711234567'], revision: 0 } })).status, 404);
   assert.equal((await call('importRows', { channel: 'invalid', body: payload([]) })).status, 400);
+});
+
+test('sales managers can read every agent eCommerce table while sales users cannot', async () => {
+  const first = await call('importRows', { owner: 'manager-visible-a', body: { ...payload([['Alpha', '0911000001']]), name: 'Manager A' } });
+  const second = await call('importRows', { owner: 'manager-visible-b', body: { ...payload([['Beta', '0911000002']]), name: 'Manager B' } });
+  assert.equal((await call('managerList', { role: 'sales' })).status, 403);
+  assert.equal((await call('managerGet', { role: 'sales', id: first.body.data._id })).status, 403);
+
+  const catalog = await call('managerList', { owner: 'manager', role: 'salesmanager' });
+  assert.equal(catalog.status, 200);
+  assert.ok(catalog.body.data.some((table) => table._id === first.body.data._id && table.rowCount === 1));
+  assert.ok(catalog.body.data.some((table) => table._id === second.body.data._id && table.rowCount === 1));
+
+  const detail = await call('managerGet', { owner: 'manager', role: 'salesmanager', id: second.body.data._id });
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.data.rows[0].values[0], 'Beta');
+  assert.equal((await call('managerGet', { owner: 'manager', role: 'salesmanager', channel: 'bulk-sms', id: second.body.data._id })).status, 404);
 });
 
 test('editing rejects duplicate rows and stale revisions', async () => {
