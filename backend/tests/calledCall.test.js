@@ -1,5 +1,6 @@
 const assert = require('assert');
 const CalledCall = require('../models/CalledCall');
+const BulkSmsRecipient = require('../models/BulkSmsRecipient');
 
 // Test 1: Validation failure when required fields are missing
 const invalidCall = new CalledCall({});
@@ -49,6 +50,16 @@ assert.strictEqual(customCall.salesAmount, 5000);
 assert.strictEqual(customCall.customerName, 'Sara Haile');
 assert.strictEqual(customCall.priority, 'Hot');
 assert.strictEqual(customCall.callDuration, '4 mins');
+
+// Test 4: Bulk SMS rows support a persisted, trimmed note.
+const smsRecipient = new BulkSmsRecipient({
+  phoneNumber: '+251911223344',
+  note: '  Follow up after the campaign  ',
+  createdBy: '507f1f77bcf86cd799439011',
+});
+const smsRecipientError = smsRecipient.validateSync();
+assert.ifError(smsRecipientError);
+assert.strictEqual(smsRecipient.note, 'Follow up after the campaign');
 
 console.log('calledCall: all checks passed');
 

@@ -42,6 +42,7 @@ import {
   deleteBulkSmsRecipient,
   fetchBulkSmsRecipients,
   saveBulkSmsRecipients,
+  updateBulkSmsRecipientNote,
 } from '../../services/calledCallService';
 
 const MAX_RECIPIENTS = 1000;
@@ -58,13 +59,14 @@ const STATUS_COLORS = {
 };
 
 let rowSeq = 0;
-const newRow = (phone = '', status = 'pending', dbId = null) => ({
+const newRow = (phone = '', status = 'pending', dbId = null, note = '') => ({
   id: `r${++rowSeq}`,
   dbId,
   phone,
   originalPhone: dbId ? phone : '',
   status,
   error: '',
+  note,
 });
 
 // A valid phone: normalizes to at least 9 digits.
@@ -90,6 +92,7 @@ const BulkSmsPanel = ({ calls = [] }) => {
   const toast = useToast();
   const fileInputRef = useRef(null);
   const inputRefs = useRef({});
+  const noteBeforeEditRef = useRef({});
   const deleteAllCancelRef = useRef(null);
   const pasteModal = useDisclosure();
   const deleteAllDialog = useDisclosure();
@@ -97,6 +100,7 @@ const BulkSmsPanel = ({ calls = [] }) => {
   const [importing, setImporting] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingNoteIds, setSavingNoteIds] = useState(() => new Set());
   const [pasteText, setPasteText] = useState('');
 
   const filledCount = rows.filter((r) => r.phone).length;
@@ -106,7 +110,7 @@ const BulkSmsPanel = ({ calls = [] }) => {
     fetchBulkSmsRecipients()
       .then((res) => {
         if (!active || !res?.success) return;
-        const saved = (res.data || []).map((item) => newRow(item.phoneNumber, 'pending', item._id));
+        const saved = (res.data || []).map((item) => newRow(item.phoneNumber, 'pending', item._id, item.note || ''));
         setRows(saved.length ? [...saved, ...blankRows(Math.max(1, INITIAL_BLANK_ROWS - saved.length))] : blankRows(INITIAL_BLANK_ROWS));
       })
       .catch((error) => {
@@ -214,6 +218,48 @@ const BulkSmsPanel = ({ calls = [] }) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, phone: sanitizeInput(value), status: 'pending', error: '' } : r)));
   };
 
+  const handleNoteChange = (id, note) => {
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, note } : row)));
+  };
+
+  const handleNoteCommit = async (id) => {
+    const row = rows.find((item) => item.id === id);
+    if (!row) return;
+
+    const previousNote = noteBeforeEditRef.current[id] ?? '';
+    delete noteBeforeEditRef.current[id];
+    if (row.note.trim() === previousNote.trim()) return;
+
+    if (!row.dbId) {
+      if (row.phone.trim()) await handleRowCommit(id);
+      return;
+    }
+
+    setSavingNoteIds((current) => new Set(current).add(id));
+    try {
+      const response = await updateBulkSmsRecipientNote(row.dbId, row.note);
+      setRows((current) => current.map((item) => (
+        item.id === id ? { ...item, note: response?.data?.note ?? row.note.trim() } : item
+      )));
+    } catch (error) {
+      setRows((current) => current.map((item) => (
+        item.id === id ? { ...item, note: previousNote } : item
+      )));
+      toast({
+        title: 'Note not saved',
+        description: error.response?.data?.message || 'Could not update this note.',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setSavingNoteIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
   // Normalize + validate a row when the user leaves it.
   const handleRowCommit = async (id) => {
     const row = rows.find((item) => item.id === id);
@@ -245,7 +291,7 @@ const BulkSmsPanel = ({ calls = [] }) => {
 
     setSaving(true);
     try {
-      const result = await saveBulkSmsRecipients([valid], 'manual');
+      const result = await saveBulkSmsRecipients([valid], 'manual', { [valid]: row.note || '' });
       const saved = result.data?.[0];
       if (row.dbId && row.originalPhone && row.originalPhone !== valid && row.dbId !== saved?._id) {
         await deleteBulkSmsRecipient(row.dbId);
@@ -454,6 +500,7 @@ const BulkSmsPanel = ({ calls = [] }) => {
                 <Tr>
                   <Th w="50px">#</Th>
                   <Th>Phone Number</Th>
+                  <Th minW="240px">Note</Th>
                   <Th w="120px">Status</Th>
                   <Th w="50px" />
                 </Tr>
@@ -481,6 +528,27 @@ const BulkSmsPanel = ({ calls = [] }) => {
                           color="teal.600"
                           _dark={{ color: 'teal.300' }}
                         />
+                      </Td>
+                      <Td py={1} minW="240px">
+                        <Textarea
+                          size="xs"
+                          rows={1}
+                          value={r.note || ''}
+                          placeholder="Click to add a note"
+                          maxLength={2000}
+                          resize="vertical"
+                          minH="32px"
+                          onFocus={() => { noteBeforeEditRef.current[r.id] = r.note || ''; }}
+                          onChange={(event) => handleNoteChange(r.id, event.target.value)}
+                          onBlur={() => handleNoteCommit(r.id)}
+                          onKeyDown={(event) => {
+                            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') event.currentTarget.blur();
+                          }}
+                          aria-label={`Note for ${r.phone || `row ${idx + 1}`}`}
+                        />
+                        {savingNoteIds.has(r.id) && (
+                          <Text mt={0.5} fontSize="10px" color="teal.600">Saving…</Text>
+                        )}
                       </Td>
                       <Td>
                         <Tooltip label={r.error} isDisabled={!r.error}>

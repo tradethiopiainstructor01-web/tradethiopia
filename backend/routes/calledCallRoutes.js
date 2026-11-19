@@ -13,6 +13,7 @@ const {
   sendBulkSms,
   getBulkSmsRecipients,
   saveBulkSmsRecipients,
+  updateBulkSmsRecipientNote,
   deleteBulkSmsRecipient,
   clearBulkSmsRecipients,
 } = require('../controllers/calledCallController');
@@ -28,6 +29,7 @@ router.route('/bulk-sms/recipients')
   .get(protect, getBulkSmsRecipients)
   .post(protect, saveBulkSmsRecipients)
   .delete(protect, clearBulkSmsRecipients);
+router.patch('/bulk-sms/recipients/:id', protect, updateBulkSmsRecipientNote);
 router.delete('/bulk-sms/recipients/:id', protect, deleteBulkSmsRecipient);
 
 router.get('/stats', protect, getCalledCallStats);
