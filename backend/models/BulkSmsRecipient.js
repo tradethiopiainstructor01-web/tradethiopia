@@ -12,6 +12,12 @@ const bulkSmsRecipientSchema = new mongoose.Schema(
       trim: true,
       default: 'manual',
     },
+    note: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+      default: '',
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

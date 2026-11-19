@@ -669,7 +669,7 @@ exports.getBulkSmsRecipients = async (req, res) => {
 // @access  Private
 exports.saveBulkSmsRecipients = async (req, res) => {
   try {
-    const { phoneNumbers, source = 'manual' } = req.body || {};
+    const { phoneNumbers, source = 'manual', notesByPhone = {} } = req.body || {};
     if (!Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
       return res.status(400).json({ success: false, message: 'At least one phone number is required' });
     }
@@ -683,16 +683,23 @@ exports.saveBulkSmsRecipients = async (req, res) => {
     }
 
     await BulkSmsRecipient.bulkWrite(
-      phones.map((phoneNumber) => ({
-        updateOne: {
-          filter: { createdBy: req.user._id, phoneNumber },
-          update: {
-            $set: { source: String(source || 'manual').slice(0, 200) },
-            $setOnInsert: { createdBy: req.user._id, phoneNumber },
+      phones.map((phoneNumber) => {
+        const fieldsToSet = { source: String(source || 'manual').slice(0, 200) };
+        if (Object.prototype.hasOwnProperty.call(notesByPhone, phoneNumber)) {
+          fieldsToSet.note = String(notesByPhone[phoneNumber] || '').trim().slice(0, 2000);
+        }
+
+        return {
+          updateOne: {
+            filter: { createdBy: req.user._id, phoneNumber },
+            update: {
+              $set: fieldsToSet,
+              $setOnInsert: { createdBy: req.user._id, phoneNumber },
+            },
+            upsert: true,
           },
-          upsert: true,
-        },
-      })),
+        };
+      }),
       { ordered: false }
     );
 
@@ -701,6 +708,29 @@ exports.saveBulkSmsRecipients = async (req, res) => {
   } catch (error) {
     console.error('Error in saveBulkSmsRecipients:', error);
     return res.status(500).json({ success: false, message: 'Failed to save Bulk SMS recipients', error: error.message });
+  }
+};
+
+// @desc    Update the note for one saved Bulk SMS recipient
+// @route   PATCH /api/called-calls/bulk-sms/recipients/:id
+// @access  Private
+exports.updateBulkSmsRecipientNote = async (req, res) => {
+  try {
+    const note = String(req.body?.note || '').trim().slice(0, 2000);
+    const recipient = await BulkSmsRecipient.findOneAndUpdate(
+      { _id: req.params.id, createdBy: req.user._id },
+      { $set: { note } },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!recipient) {
+      return res.status(404).json({ success: false, message: 'Bulk SMS recipient not found' });
+    }
+
+    return res.json({ success: true, data: recipient });
+  } catch (error) {
+    console.error('Error in updateBulkSmsRecipientNote:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update Bulk SMS note' });
   }
 };
 

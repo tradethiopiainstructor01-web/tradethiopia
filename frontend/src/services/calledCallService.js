@@ -46,8 +46,13 @@ export const fetchBulkSmsRecipients = async () => {
   return response.data;
 };
 
-export const saveBulkSmsRecipients = async (phoneNumbers, source = 'manual') => {
-  const response = await axiosInstance.post('/called-calls/bulk-sms/recipients', { phoneNumbers, source });
+export const saveBulkSmsRecipients = async (phoneNumbers, source = 'manual', notesByPhone = {}) => {
+  const response = await axiosInstance.post('/called-calls/bulk-sms/recipients', { phoneNumbers, source, notesByPhone });
+  return response.data;
+};
+
+export const updateBulkSmsRecipientNote = async (id, note) => {
+  const response = await axiosInstance.patch(`/called-calls/bulk-sms/recipients/${id}`, { note });
   return response.data;
 };
 

@@ -161,6 +161,8 @@ const CalledCallPage = () => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingNoteIds, setSavingNoteIds] = useState(() => new Set());
+  const noteBeforeEditRef = useRef({});
   const [deletingAll, setDeletingAll] = useState(false);
   const deleteAllCancelRef = useRef(null);
   const deleteAllDialog = useDisclosure();
@@ -669,6 +671,43 @@ const CalledCallPage = () => {
     });
   };
 
+  const handleInlineNoteChange = (id, notes) => {
+    setCalls((current) => current.map((call) => (call._id === id ? { ...call, notes } : call)));
+  };
+
+  const handleInlineNoteSave = async (call) => {
+    const previousNotes = noteBeforeEditRef.current[call._id] ?? '';
+    const notes = String(call.notes || '').slice(0, 2000);
+    delete noteBeforeEditRef.current[call._id];
+    if (notes.trim() === previousNotes.trim()) return;
+
+    setSavingNoteIds((current) => new Set(current).add(call._id));
+    try {
+      const response = await updateCalledCall(call._id, { notes });
+      const savedNotes = response?.data?.notes ?? notes.trim();
+      setCalls((current) => current.map((item) => (
+        item._id === call._id ? { ...item, notes: savedNotes } : item
+      )));
+    } catch (error) {
+      setCalls((current) => current.map((item) => (
+        item._id === call._id ? { ...item, notes: previousNotes } : item
+      )));
+      toast({
+        title: 'Note not saved',
+        description: error.response?.data?.message || 'Could not update this note.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setSavingNoteIds((current) => {
+        const next = new Set(current);
+        next.delete(call._id);
+        return next;
+      });
+    }
+  };
+
   const handleExportCSV = () => {
     if (!calls || calls.length === 0) {
       toast({
@@ -1075,6 +1114,7 @@ const CalledCallPage = () => {
                   <Th color="#475569" _dark={{ color: 'gray.300' }}>Phone Number</Th>
                   <Th color="#475569" _dark={{ color: 'gray.300' }}>Call Date &amp; Time</Th>
                   <Th color="#475569" _dark={{ color: 'gray.300' }}>Call Result</Th>
+                  <Th color="#475569" _dark={{ color: 'gray.300' }} minW="240px">Note</Th>
                   <Th color="#475569" _dark={{ color: 'gray.300' }} textAlign="center" width="160px">
                     Actions
                   </Th>
@@ -1174,6 +1214,29 @@ const CalledCallPage = () => {
                         >
                           {resultConf.label}
                         </Badge>
+                      </Td>
+
+                      {/* Inline Note */}
+                      <Td py={1.5} minW="240px">
+                        <Textarea
+                          value={call.notes || ''}
+                          onFocus={() => { noteBeforeEditRef.current[call._id] = call.notes || ''; }}
+                          onChange={(event) => handleInlineNoteChange(call._id, event.target.value)}
+                          onBlur={() => handleInlineNoteSave(call)}
+                          onKeyDown={(event) => {
+                            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') event.currentTarget.blur();
+                          }}
+                          placeholder="Click to add a note"
+                          size="xs"
+                          rows={1}
+                          maxLength={2000}
+                          resize="vertical"
+                          minH="32px"
+                          aria-label={`Note for ${call.customerName || call.clientName || call.phoneNumber}`}
+                        />
+                        {savingNoteIds.has(call._id) && (
+                          <Text mt={0.5} fontSize="10px" color="teal.600">Saving…</Text>
+                        )}
                       </Td>
 
                       {/* Actions */}
