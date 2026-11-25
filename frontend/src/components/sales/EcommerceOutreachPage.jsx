@@ -9,7 +9,7 @@ import {
 import { FiArrowLeft, FiDownload, FiEdit2, FiFolder, FiMoreVertical, FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
 import {
   REFERENCE_CATEGORIES, REFERENCE_COLUMNS, parsePastedTable, prepareTable, readWorkbook,
-  checkWorkbookFile, prepareWorkbookSheets, importPreparedTables, MAX_IMPORT_FILE_MB,
+  checkWorkbookFile, readWorkbookBytes, prepareWorkbookSheets, importPreparedTables, MAX_IMPORT_FILE_MB, WORKBOOK_ACCEPT,
   REFERENCE_WIDTHS, isReferenceFormat, mapTableToReference, displayOrder, tableColumnWidth,
 } from '../../utils/ecommerceImport';
 import {
@@ -28,19 +28,28 @@ const emptyTable = (name) => ({
 async function prepareWorkbookFile(file, options) {
   checkWorkbookFile(file);
   const onMainThread = async () => prepareWorkbookSheets(await readWorkbook(file), options);
+  const bytes = await readWorkbookBytes(file);
   let worker;
   try {
     worker = new Worker(new URL('../../utils/ecommerceWorkbook.worker.js', import.meta.url), { type: 'module' });
   } catch { return onMainThread(); }
   try {
-    const bytes = await file.arrayBuffer();
     return await new Promise((resolve, reject) => {
-      worker.onmessage = ({ data }) => (data.error ? reject(new Error(data.error)) : resolve(data.prepared));
-      worker.onerror = (event) => { event.preventDefault?.(); reject(Object.assign(new Error('worker failed'), { workerFailed: true })); };
-      worker.postMessage({ bytes, options }, [bytes]);
+      const failWorker = () => {
+        clearTimeout(timer);
+        reject(Object.assign(new Error('worker failed'), { workerFailed: true }));
+      };
+      const timer = setTimeout(failWorker, 30000);
+      worker.onmessage = ({ data }) => {
+        clearTimeout(timer);
+        if (data.error) reject(new Error(data.error)); else resolve(data.prepared);
+      };
+      worker.onerror = (event) => { event.preventDefault?.(); failWorker(); };
+      worker.onmessageerror = failWorker;
+      try { worker.postMessage({ bytes, options }, [bytes]); } catch { failWorker(); }
     });
   } catch (error) {
-    if (error.workerFailed) return onMainThread();
+    if (error.workerFailed) { worker.terminate(); return onMainThread(); }
     throw error;
   } finally { worker.terminate(); }
 }
@@ -71,23 +80,34 @@ function ColumnHeader({ label, onArchive, disabled }) {
 }
 
 // Fixed column sizes keep preview and saved tables consistent across source workbooks.
-function DataTable({ columns, rows, onEdit = undefined, onArchive = undefined, columnsDisabled = false, order = displayOrder(columns) }) {
-  const width = 64 + (onEdit ? 80 : 0) + order.reduce((total, i) => total + tableColumnWidth(columns[i]), 0);
+function DataTable({ columns, rows, onEdit = undefined, onArchive = undefined, columnsDisabled = false, order = displayOrder(columns), editor = undefined }) {
+  const width = 64 + (onEdit ? 104 : 0) + order.reduce((total, i) => total + tableColumnWidth(columns[i]), 0);
   return (
     <Box overflowX="auto" maxH="60vh" border="1px solid" borderColor="gray.200" borderRadius="lg">
       <Table size="sm" variant="simple" w={`${width}px`} sx={{ tableLayout: 'fixed', 'th, td': { borderRight: '1px solid', borderColor: 'gray.200' } }}>
-        <colgroup><col style={{ width: 64 }} />{order.map((i) => <col key={i} style={{ width: tableColumnWidth(columns[i]) }} />)}{onEdit && <col style={{ width: 80 }} />}</colgroup>
+        <colgroup>{onEdit && <col style={{ width: 104 }} />}<col style={{ width: 64 }} />{order.map((i) => <col key={i} style={{ width: tableColumnWidth(columns[i]) }} />)}</colgroup>
         <Thead position="sticky" top={0} zIndex={1} bg="teal.50">
-          <Tr><Th w="50px">#</Th>{order.map((i) => (
+          <Tr>{onEdit && <Th position="sticky" left={0} zIndex={2} bg="teal.50">Edit row</Th>}<Th w="50px">#</Th>{order.map((i) => (
             <ColumnHeader key={i} label={columns[i]} onArchive={onArchive ? () => onArchive(i) : undefined} disabled={columnsDisabled || order.length <= 1} />
-          ))}{onEdit && <Th>Edit</Th>}</Tr>
+          ))}</Tr>
         </Thead>
         <Tbody>
           {rows.map((row, index) => (
             <Tr key={row.id || index} bg={index % 2 ? 'gray.50' : 'white'} _hover={{ bg: 'teal.50' }}>
+              {onEdit && <Td position="sticky" left={0} zIndex={1} bg="inherit" verticalAlign="top" py={3} px={3}>
+                {editor?.rowId === row.id ? <VStack spacing={2} align="stretch">
+                  <Button size="sm" colorScheme="teal" isLoading={editor.saving} isDisabled={!editor.values.some((value) => value.trim())} onClick={editor.onSave}>Save</Button>
+                  <Button size="sm" variant="outline" isDisabled={editor.saving} onClick={editor.onCancel}>Cancel</Button>
+                </VStack> : <Button size="sm" colorScheme="teal" variant="outline" leftIcon={<FiEdit2 />} aria-label={`Edit row ${row.number || index + 1}`} isDisabled={columnsDisabled} onClick={() => onEdit(row)}>Edit</Button>}
+              </Td>}
               <Td color="gray.500">{row.number || index + 1}</Td>
-              {order.map((i) => <Td key={i} py={3} verticalAlign="top" whiteSpace="pre-wrap" overflowWrap="anywhere">{(Array.isArray(row) ? row : row.values)[i]}</Td>)}
-              {onEdit && <Td><Button size="xs" aria-label={`Edit row ${row.number || index + 1}`} isDisabled={columnsDisabled} onClick={() => onEdit(row)}><FiEdit2 /></Button></Td>}
+              {order.map((i) => <Td key={i} py={3} verticalAlign="top" whiteSpace="pre-wrap" overflowWrap="anywhere">
+                {editor && editor.rowId === row.id ? <Textarea
+                  aria-label={`${columns[i]}, row ${row.number || index + 1}`} value={editor.values[i] || ''}
+                  rows={3} maxLength={10000} size="sm" bg="white" isDisabled={editor.saving}
+                  onChange={(event) => editor.onChange(i, event.target.value)}
+                /> : (Array.isArray(row) ? row : row.values)[i]}
+              </Td>)}
             </Tr>
           ))}
           {!rows.length && <Tr><Td colSpan={order.length + (onEdit ? 2 : 1)} py={10} textAlign="center" color="gray.500">No rows yet. Upload a file, paste a table, or add a row.</Td></Tr>}
@@ -291,6 +311,8 @@ function OutreachTable({ channel, folder, onBack }) {
   const [tableName, setTableName] = useState('');
   const [editingRow, setEditingRow] = useState(null);
   const [editValues, setEditValues] = useState([]);
+  const [editError, setEditError] = useState('');
+  const busy = saving || !!editingRow;
   const columnSaving = useRef(false);
   const [lastImport, setLastImport] = useState('');
 
@@ -312,9 +334,10 @@ function OutreachTable({ channel, folder, onBack }) {
   }, [channel, folder._id, refresh]);
 
   useEffect(() => {
+    if (editingRow || search.trim() === query) return undefined;
     const timer = setTimeout(() => { setQuery(search.trim()); setPage(1); }, 350);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, query, editingRow]);
 
   // Only the visible page is fetched, so large tables open quickly.
   useEffect(() => {
@@ -334,10 +357,10 @@ function OutreachTable({ channel, folder, onBack }) {
 
   // While the server removes duplicate contacts from an older table, reload every few seconds.
   useEffect(() => {
-    if (!table.cleaning || table._id !== selected) return undefined;
+    if (!table.cleaning || table._id !== selected || editingRow) return undefined;
     const timer = setTimeout(() => setPoll((n) => n + 1), 5000);
     return () => clearTimeout(timer);
-  }, [table, selected]);
+  }, [table, selected, editingRow]);
 
   const selectTable = (id) => {
     setSelected(id); setPage(1); setSearch(''); setQuery(''); setDuplicatesOnly(false);
@@ -415,7 +438,7 @@ function OutreachTable({ channel, folder, onBack }) {
       setLastImport(`${files.length} ${files.length === 1 ? 'file' : 'files'} processed · ${completed.added.toLocaleString()} rows imported into ${folder.name} · ${completed.duplicates.toLocaleString()} duplicate rows skipped · ${Math.max(1, Math.round((Date.now() - started) / 1000))}s.`);
     } catch (error) {
       const partial = error.importProgress;
-      error.importProgress = { ...completed, added: completed.added + (partial?.added || 0), tables: [...completed.tables, ...(partial?.tables || [])].filter((t, i, all) => all.findLastIndex((item) => item._id === t._id) === i) };
+      error.importProgress = { ...completed, added: completed.added + (partial?.added || 0), tables: [...new Map([...completed.tables, ...(partial?.tables || [])].map((item) => [item._id, item])).values()] };
       importFailed(error);
     }
     finally { setSaving(false); setImportProgress(null); }
@@ -432,21 +455,28 @@ function OutreachTable({ channel, folder, onBack }) {
     finally { setSaving(false); setImportProgress(null); }
   };
   const openEditor = (row = null) => {
-    setEditingRow(row); setEditValues(row ? [...row.values] : table.columns.map(() => '')); editModal.onOpen();
+    setEditError('');
+    setEditingRow(row); setEditValues(row ? [...row.values] : table.columns.map(() => ''));
+    if (!row) editModal.onOpen();
   };
   const saveRow = async () => {
-    setSaving(true);
+    if (saving || !editValues.some((value) => value.trim())) return;
+    setSaving(true); setEditError('');
     try {
       if (editingRow) {
         const saved = await updateEcommerceRow(channel, table._id, editingRow, editValues);
-        setTable((current) => ({ ...current, rows: current.rows.map((row) => (row.id === saved.id ? saved : row)) }));
+        setTable((current) => ({ ...current, revision: (current.revision || 0) + 1, rows: current.rows.map((row) => (row.id === saved.id ? saved : row)) }));
+        // Reapply search/pagination and reload SMS recipients after a phone number changes.
+        setPoll((n) => n + 1);
+        toast({ title: 'Row updated', status: 'success', duration: 3000 });
       } else {
         const response = await importEcommerceRows(channel, { folderId: folder._id, name: table.name, columns: table.columns, widths: table.widths, rows: [editValues] });
         rememberSummary(response.data);
         toast({ title: response.added ? 'Row saved' : 'Identical row already exists; nothing added', status: response.added ? 'success' : 'info', duration: 3000 });
       }
       editModal.onClose();
-    } catch (error) { toast({ title: 'Row was not saved', description: errorMessage(error), status: 'error', duration: 6000 }); }
+      setEditingRow(null);
+    } catch (error) { setEditError(errorMessage(error)); }
     finally { setSaving(false); }
   };
   const removeTable = async () => {
@@ -501,24 +531,28 @@ function OutreachTable({ channel, folder, onBack }) {
   return (
     <Box>
       <HStack mb={4} flexWrap="wrap">
-        <Button variant="ghost" leftIcon={<FiArrowLeft />} onClick={onBack} isDisabled={saving || deleting || deduping}>All folders</Button>
+        <Button variant="ghost" leftIcon={<FiArrowLeft />} onClick={onBack} isDisabled={busy || deleting || deduping}>All folders</Button>
         <Text color="gray.400">/</Text><Box color="teal.500"><FiFolder /></Box><Heading size="sm" overflowWrap="anywhere">{folder.name}</Heading>
       </HStack>
       <Flex gap={3} mb={5} flexWrap="wrap" align="end" justify="space-between">
         <FormControl maxW={{ base: '100%', md: '360px' }}><FormLabel htmlFor={`${channel}-table`}>Worksheet / table</FormLabel>
-          <Select id={`${channel}-table`} value={selected} isDisabled={saving || loading} onChange={(e) => { selectTable(e.target.value); setLastImport(''); }}>
+          <Select id={`${channel}-table`} value={selected} isDisabled={busy || loading} onChange={(e) => { selectTable(e.target.value); setLastImport(''); }}>
             {REFERENCE_CATEGORIES.map((name, i) => !tables.some((t) => t.name === name) && <option key={name} value={`reference:${i}`}>{name}</option>)}
             {tables.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
           </Select>
         </FormControl>
         <HStack flexWrap="wrap">
-          <Input ref={uploadRef} type="file" multiple display="none" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.tsv,.ods" onChange={upload} aria-label={`Upload ${channel} spreadsheet`} />
-          <Button colorScheme="teal" leftIcon={<FiUpload />} onClick={() => uploadRef.current?.click()} isDisabled={loading || deleting || deduping || !!loadError} isLoading={saving}>Import Excel files</Button>
-          <Button onClick={startPaste} isDisabled={saving || loading || !!loadError}>Paste table</Button>
-          <Button leftIcon={<FiPlus />} onClick={() => openEditor()} isDisabled={saving || loading || !!loadError}>Add row</Button>
+          <Input ref={uploadRef} id={`${channel}-workbook-upload`} type="file" multiple position="absolute" w="1px" h="1px" p={0} border={0} opacity={0} tabIndex={-1}
+            accept={WORKBOOK_ACCEPT} onChange={upload} isDisabled={busy || loading || deleting || deduping || !!loadError} aria-label={`Upload ${channel} spreadsheet`} />
+          <Button as="label" role="button" htmlFor={`${channel}-workbook-upload`} tabIndex={busy || loading || deleting || deduping || !!loadError ? -1 : 0}
+            colorScheme="teal" leftIcon={<FiUpload />} cursor="pointer"
+            onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); uploadRef.current?.click(); } }}
+            isDisabled={busy || loading || deleting || deduping || !!loadError} isLoading={saving}>Import Excel files</Button>
+          <Button onClick={startPaste} isDisabled={busy || loading || !!loadError}>Paste table</Button>
+          <Button leftIcon={<FiPlus />} onClick={() => openEditor()} isDisabled={busy || loading || !!loadError}>Add row</Button>
           <Button leftIcon={<FiDownload />} onClick={download} isDisabled={loading || !!loadError}>Export</Button>
-          {table._id && <Button leftIcon={<FiTrash2 />} colorScheme="red" variant="outline" onClick={deleteModal.onOpen} isDisabled={saving || loading || !!loadError}>Delete table</Button>}
-          {tables.length > 0 && <Button leftIcon={<FiTrash2 />} colorScheme="red" onClick={() => { setConfirmText(''); deleteAllModal.onOpen(); }} isDisabled={saving || loading || !!loadError}>Delete all</Button>}
+          {table._id && <Button leftIcon={<FiTrash2 />} colorScheme="red" variant="outline" onClick={deleteModal.onOpen} isDisabled={busy || loading || !!loadError}>Delete table</Button>}
+          {tables.length > 0 && <Button leftIcon={<FiTrash2 />} colorScheme="red" onClick={() => { setConfirmText(''); deleteAllModal.onOpen(); }} isDisabled={busy || loading || !!loadError}>Delete all</Button>}
         </HStack>
       </Flex>
       <Text fontSize="sm" color="gray.600" mb={4}>Import one or more Excel, CSV, TSV, or ODS files into this folder. Matching columns go into the selected table; files with extra columns get their own table. Duplicate contacts are skipped automatically. After import, choose a table and search any column to filter its rows. Each file can be up to {MAX_IMPORT_FILE_MB} MB, with up to 100 columns.</Text>
@@ -530,36 +564,42 @@ function OutreachTable({ channel, folder, onBack }) {
         <Heading size="sm">This folder is ready for your files</Heading><Text color="gray.600" mt={2}>Import Excel files to organize contacts and see your cleaned tables here.</Text>
       </Box> : <>
         <Flex gap={3} align="center" mb={3} flexWrap="wrap">
-          <Input maxW="400px" aria-label="Search table" placeholder="Search any column…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input isDisabled={busy} maxW="400px" aria-label="Search table" placeholder="Search any column…" value={search} onChange={(e) => setSearch(e.target.value)} />
           <Badge colorScheme="teal">{(table.rowCount ?? 0).toLocaleString()} saved rows</Badge><Badge>{order.length} columns</Badge>
           {table._id && <Button size="sm" variant={duplicatesOnly ? 'solid' : 'outline'} colorScheme="orange" aria-pressed={duplicatesOnly}
-            isDisabled={saving || deduping} onClick={() => { setDuplicatesOnly((on) => !on); setPage(1); }}>
+            isDisabled={busy || deduping} onClick={() => { setDuplicatesOnly((on) => !on); setPage(1); }}>
             {duplicatesOnly ? 'Show all rows' : 'Show duplicates'}
           </Button>}
-          {table._id && <Button size="sm" colorScheme="orange" isDisabled={saving || loading || deduping} onClick={dedupeModal.onOpen}>Remove duplicates</Button>}
+          {table._id && <Button size="sm" colorScheme="orange" isDisabled={busy || loading || deduping} onClick={dedupeModal.onOpen}>Remove duplicates</Button>}
           {duplicatesOnly && table.duplicatesOnly && <Badge colorScheme="orange">{(table.duplicateCount ?? 0).toLocaleString()} duplicate rows · copies of the same contact are listed together</Badge>}
           {tableLoading && <Spinner size="sm" aria-label="Loading rows" />}
-          <Button size="sm" variant="ghost" isDisabled={saving || loading} onClick={() => setRefresh((n) => n + 1)}>Refresh</Button>
+          <Button size="sm" variant="ghost" isDisabled={busy || loading} onClick={() => setRefresh((n) => n + 1)}>Refresh</Button>
         </Flex>
         {table._id && <HStack mb={3} flexWrap="wrap">
-          <Text fontSize="sm" color="gray.600">Right-click a column heading or use its menu to delete it from view. You can restore it later.</Text>
+          <Text fontSize="sm" color="gray.600">Use Edit beside a row, change its cells directly in the table, then Save or Cancel. Right-click a column heading or use its menu to delete it from view. You can restore it later.</Text>
           {!!table.archivedColumns?.length && <Menu isLazy>
-            <MenuButton as={Button} size="sm" variant="outline" isDisabled={saving || loading}>Restore columns ({table.archivedColumns.length})</MenuButton>
+            <MenuButton as={Button} size="sm" variant="outline" isDisabled={busy || loading}>Restore columns ({table.archivedColumns.length})</MenuButton>
             <MenuList>{table.archivedColumns.map((i) => <MenuItem key={i} onClick={() => changeColumn(i, false)}>{table.columns[i]}</MenuItem>)}</MenuList>
           </Menu>}
         </HStack>}
-        {duplicatesOnly && table.duplicatesOnly && !matchCount ? <Text py={8}>No duplicates in this table. Each contact appears once.</Text> : query && !matchCount ? <Text py={8}>No rows match your search.</Text> : <DataTable columns={table.columns} rows={visibleRows} order={order} onEdit={table._id ? openEditor : undefined} onArchive={table._id ? (i) => changeColumn(i, true) : undefined} columnsDisabled={saving || loading} />}
+        {editingRow && editError && <Alert status="error" mb={3}><AlertIcon />{editError}</Alert>}
+        {duplicatesOnly && table.duplicatesOnly && !matchCount ? <Text py={8}>No duplicates in this table. Each contact appears once.</Text> : query && !matchCount ? <Text py={8}>No rows match your search.</Text> : <DataTable columns={table.columns} rows={visibleRows} order={order} onEdit={table._id ? openEditor : undefined} onArchive={table._id ? (i) => changeColumn(i, true) : undefined} columnsDisabled={busy || loading || deleting || deduping}
+          editor={editingRow ? {
+            rowId: editingRow.id, values: editValues, saving, onSave: saveRow,
+            onCancel: () => { setEditingRow(null); setEditError(''); },
+            onChange: (index, value) => setEditValues((values) => values.map((cell, i) => i === index ? value : cell)),
+          } : undefined} />}
         <Flex justify="space-between" gap={3} align="center" mt={3} flexWrap="wrap">
           <Text fontSize="sm" color="gray.600">{matchCount.toLocaleString()} matching rows · Page {currentPage.toLocaleString()} of {totalPages.toLocaleString()}</Text>
           <HStack as="nav" aria-label={`${channel} table pagination`} spacing={1} flexWrap="wrap">
-            <Button size="sm" isDisabled={saving || tableLoading || currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
+            <Button size="sm" isDisabled={busy || tableLoading || currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
             {pageNumbers.map((number, index) => <Fragment key={number}>
               {index > 0 && number - pageNumbers[index - 1] > 1 && <Text as="span" px={1} aria-hidden="true">…</Text>}
               <Button size="sm" minW={8} aria-label={`Page ${number}`} aria-current={number === currentPage ? 'page' : undefined}
                 colorScheme={number === currentPage ? 'teal' : 'gray'} variant={number === currentPage ? 'solid' : 'outline'}
-                isDisabled={saving || tableLoading || number === currentPage} onClick={() => setPage(number)}>{number}</Button>
+                isDisabled={busy || tableLoading || number === currentPage} onClick={() => setPage(number)}>{number}</Button>
             </Fragment>)}
-            <Button size="sm" isDisabled={saving || tableLoading || currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>Next</Button>
+            <Button size="sm" isDisabled={busy || tableLoading || currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>Next</Button>
           </HStack>
         </Flex>
         {channel === 'bulk-sms' && <SmsComposer channel={channel} table={table} order={order} />}
@@ -612,10 +652,13 @@ function OutreachTable({ channel, folder, onBack }) {
         </ModalContent>
       </Modal>
       <Modal isOpen={editModal.isOpen} onClose={saving ? () => {} : editModal.onClose} size="3xl" scrollBehavior="inside">
-        <ModalOverlay /><ModalContent mx={3}><ModalHeader>{editingRow ? 'Edit row' : 'Add row'}</ModalHeader><ModalCloseButton isDisabled={saving} />
-          <ModalBody><SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>{order.map((i) => (
-            <FormControl key={i}><FormLabel htmlFor={`${channel}-cell-${i}`}>{table.columns[i]}</FormLabel><Textarea id={`${channel}-cell-${i}`} rows={2} value={editValues[i] || ''} onChange={(e) => setEditValues((values) => values.map((v, index) => index === i ? e.target.value : v))} /></FormControl>
-          ))}</SimpleGrid></ModalBody>
+        <ModalOverlay /><ModalContent mx={3}><ModalHeader>Add row</ModalHeader><ModalCloseButton isDisabled={saving} />
+          <ModalBody>
+            {editError && <Alert status="error" mb={4}><AlertIcon />{editError}</Alert>}
+            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>{order.map((i) => (
+              <FormControl key={i}><FormLabel htmlFor={`${channel}-cell-${i}`}>{table.columns[i]}</FormLabel><Textarea id={`${channel}-cell-${i}`} rows={2} maxLength={10000} isDisabled={saving} value={editValues[i] || ''} onChange={(e) => setEditValues((values) => values.map((v, index) => index === i ? e.target.value : v))} /></FormControl>
+            ))}</SimpleGrid>
+          </ModalBody>
           <ModalFooter gap={3}><Button onClick={editModal.onClose} isDisabled={saving}>Cancel</Button><Button colorScheme="teal" isLoading={saving} isDisabled={!editValues.some((v) => v.trim())} onClick={saveRow}>Save row</Button></ModalFooter>
         </ModalContent>
       </Modal>

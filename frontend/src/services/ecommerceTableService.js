@@ -26,6 +26,9 @@ export const setEcommerceColumnArchived = async (channel, tableId, columnIndex, 
 ).data.data;
 
 const managerBase = (channel) => `/ecommerce-tables/manager/${channel}`;
+export const listManagerEcommerceFolders = async (channel) => (
+  await axiosInstance.get(`${managerBase(channel)}/folders`)
+).data.data;
 export const listManagerEcommerceTables = async (channel) => (
   await axiosInstance.get(managerBase(channel))
 ).data.data;

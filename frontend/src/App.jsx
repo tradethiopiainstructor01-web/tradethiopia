@@ -116,6 +116,7 @@ const ChatPage = lazy(() => import("./pages/ChatPage.jsx"));
 const PayrollPage = lazy(() => import("./components/Payroll/PayrollPage"));
 const AllSalesPage = lazy(() => import("./components/salesmanager/AllSalesPage"));
 const EcommerceSalesDataPage = lazy(() => import("./components/salesmanager/EcommerceSalesDataPage"));
+const EcommerceImportsPage = lazy(() => import("./components/salesmanager/EcommerceImportsPage"));
 const SalesActivityLogPage = lazy(() => import("./components/salesmanager/SalesActivityLogPage"));
 const SalesRemovalsPage = lazy(() => import("./components/salesmanager/SalesRemovalsPage"));
 const PerformancePage = lazy(() => import("./components/salesmanager/PerformancePage"));
@@ -674,6 +675,7 @@ function App() {
         <Route path="course" element={<CourseManagerPage />} />
         <Route path="all-sales" element={<AllSalesPage />} />
         <Route path="ecommerce-data" element={<EcommerceSalesDataPage />} />
+        <Route path="ecommerce-imports" element={<EcommerceImportsPage />} />
         <Route path="activity-log" element={<SalesActivityLogPage />} />
         <Route path="removed" element={<SalesRemovalsPage />} />
         <Route path="performance" element={<PerformancePage />} />
