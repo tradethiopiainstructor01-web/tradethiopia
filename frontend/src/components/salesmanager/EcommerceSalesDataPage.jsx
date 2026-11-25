@@ -37,11 +37,11 @@ function SummaryCard({ label, value, detail }) {
   );
 }
 
-function ManagerChannelTable({ channel }) {
+export function ManagerChannelTable({ channel, tableIds, initialTableId = '' }) {
   const toast = useToast();
   const [tables, setTables] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('all');
-  const [selectedTable, setSelectedTable] = useState('');
+  const [selectedTable, setSelectedTable] = useState(initialTableId);
   const [table, setTable] = useState(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
@@ -59,13 +59,14 @@ function ManagerChannelTable({ channel }) {
     listManagerEcommerceTables(channel)
       .then((data) => {
         if (!active) return;
-        const ordered = [...data].sort((a, b) => ownerName(a).localeCompare(ownerName(b)) || a.name.localeCompare(b.name));
+        const ordered = data.filter((item) => !tableIds || tableIds.includes(item._id))
+          .sort((a, b) => ownerName(a).localeCompare(ownerName(b)) || a.name.localeCompare(b.name));
         setTables(ordered);
       })
       .catch((loadError) => active && setError(errorMessage(loadError)))
       .finally(() => active && setCatalogLoading(false));
     return () => { active = false; };
-  }, [channel, refresh]);
+  }, [channel, refresh, tableIds]);
 
   const agents = useMemo(() => {
     const unique = new Map();
@@ -78,13 +79,14 @@ function ManagerChannelTable({ channel }) {
   ), [selectedAgent, tables]);
 
   useEffect(() => {
+    if (catalogLoading) return;
     if (!visibleTables.some((item) => item._id === selectedTable)) {
       setSelectedTable(visibleTables[0]?._id || '');
       setPage(1);
       setSearch('');
       setQuery('');
     }
-  }, [visibleTables, selectedTable]);
+  }, [visibleTables, selectedTable, catalogLoading]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -98,6 +100,7 @@ function ManagerChannelTable({ channel }) {
     let active = true;
     if (!selectedTable) {
       setTable(null);
+      setTableLoading(false);
       return () => { active = false; };
     }
     setTableLoading(true);
@@ -148,7 +151,7 @@ function ManagerChannelTable({ channel }) {
       <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
         <SummaryCard label="Saved rows" value={totalRows.toLocaleString()} detail={`Across ${channel === 'cold-call' ? 'Cold Call' : 'Bulk SMS'} worksheets`} />
         <SummaryCard label="Sales users" value={agents.length.toLocaleString()} detail="Users with inserted eCommerce data" />
-        <SummaryCard label="Worksheets" value={tables.length.toLocaleString()} detail="All saved tables in this channel" />
+        <SummaryCard label="Worksheets" value={tables.length.toLocaleString()} detail={tableIds ? 'Saved tables in this folder' : 'All saved tables in this channel'} />
       </SimpleGrid>
 
       <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" p={{ base: 4, md: 5 }}>
@@ -179,7 +182,7 @@ function ManagerChannelTable({ channel }) {
         <Alert status="info" borderRadius="lg"><AlertIcon />No {channel === 'cold-call' ? 'Cold Call' : 'Bulk SMS'} eCommerce data has been inserted by the sales team yet.</Alert>
       )}
 
-      {!error && table && (
+      {!error && table && table._id === selectedTable && (
         <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" overflow="hidden">
           <Flex p={{ base: 4, md: 5 }} gap={4} align={{ base: 'stretch', md: 'center' }} justify="space-between" direction={{ base: 'column', md: 'row' }} borderBottom="1px solid" borderColor="gray.200">
             <Box>

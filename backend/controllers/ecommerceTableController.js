@@ -278,6 +278,15 @@ async function managerTable(req) {
 
 // Sales Manager oversight is intentionally read-only. It exposes every sales user's saved
 // eCommerce worksheet while all create, edit and delete routes remain owner-scoped.
+exports.managerFolders = handle(async (req, res) => {
+  requireManager(req);
+  const folders = await Folder.find({ channel: validChannel(req) })
+    .populate('owner', 'fullName username email role')
+    .sort({ name: 1, createdAt: 1 })
+    .lean();
+  res.json({ success: true, data: folders });
+});
+
 exports.managerList = handle(async (req, res) => {
   requireManager(req);
   const tables = await Table.find({ channel: validChannel(req) })

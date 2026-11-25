@@ -3,6 +3,30 @@ import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import { parsePastedTable, prepareTable, readWorkbook, REFERENCE_COLUMNS } from './ecommerceImport.js';
 
+test('file reading falls back to FileReader on older mobile browsers and reports read failures', async () => {
+  const { readWorkbookBytes } = await import('./ecommerceImport.js');
+  const originalReader = globalThis.FileReader;
+  const bytes = new Uint8Array([1, 2, 3]).buffer;
+  globalThis.FileReader = class {
+    readAsArrayBuffer(file) {
+      queueMicrotask(() => {
+        if (file.fail) this.onerror();
+        else if (file.abort) this.onabort();
+        else { this.result = bytes; this.onload(); }
+      });
+    }
+  };
+  try {
+    assert.equal(await readWorkbookBytes({}), bytes);
+    assert.equal(await readWorkbookBytes({ arrayBuffer: async () => { throw new Error('unsupported'); } }), bytes);
+    await assert.rejects(readWorkbookBytes({ fail: true }), /Download it to your device/);
+    await assert.rejects(readWorkbookBytes({ abort: true }), /cancelled/);
+  } finally {
+    if (originalReader === undefined) delete globalThis.FileReader;
+    else globalThis.FileReader = originalReader;
+  }
+});
+
 test('pasted Excel cells preserve leading zeros, multiline notes, blank cells and quotes', () => {
   const rows = parsePastedTable('Company\tPhone\tNote\r\nExample\t0911234567\t"Call tomorrow\nAsked for ""pricing"""\r\nOther\t\t');
   assert.deepEqual(rows[1], ['Example', '0911234567', 'Call tomorrow\nAsked for "pricing"']);

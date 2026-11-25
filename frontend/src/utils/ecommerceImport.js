@@ -352,9 +352,33 @@ export function checkWorkbookFile(file) {
   if (file.size > MAX_IMPORT_FILE_MB * 1024 * 1024) throw new Error(`Choose a file of ${MAX_IMPORT_FILE_MB} MB or less.`);
 }
 
+// Include MIME types for Android/iOS document pickers as well as desktop extensions.
+export const WORKBOOK_ACCEPT = [
+  '.xlsx', '.xls', '.xlsm', '.xlsb', '.csv', '.tsv', '.ods',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel', 'application/vnd.ms-excel.sheet.macroEnabled.12',
+  'application/vnd.ms-excel.sheet.binary.macroEnabled.12',
+  'text/csv', 'text/tab-separated-values', 'application/vnd.oasis.opendocument.spreadsheet',
+].join(',');
+
+export async function readWorkbookBytes(file) {
+  if (typeof file.arrayBuffer === 'function') {
+    try { return await file.arrayBuffer(); } catch { /* Retry with the older browser file API. */ }
+  }
+  const message = 'Unable to read this file. Download it to your device, then select it again.';
+  if (typeof FileReader === 'undefined') throw new Error(message);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error(message));
+    reader.onabort = () => reject(new Error('File reading was cancelled. Select the file again to retry.'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 export async function readWorkbook(file) {
   checkWorkbookFile(file);
-  return parseWorkbook(await import('xlsx'), await file.arrayBuffer());
+  return parseWorkbook(await import('xlsx'), await readWorkbookBytes(file));
 }
 
 // Dense mode stores cells as row arrays, which parses and iterates large sheets faster.

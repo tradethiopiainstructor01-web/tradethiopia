@@ -40,7 +40,8 @@ import {
   FiAward,
   FiActivity,
   FiArchive,
-  FiShoppingCart
+  FiShoppingCart,
+  FiFolder
 } from 'react-icons/fi';
 
 const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
@@ -69,6 +70,7 @@ const SalesManagerSidebar = ({ isCollapsed = false, onToggleSidebar }) => {
     { name: 'Course', icon: FiBookOpen, path: '/salesmanager/course' },
     { name: 'All Sales', icon: FiDollarSign, path: '/salesmanager/all-sales' },
     { name: 'Cold Call & Bulk SMS', icon: FiShoppingCart, path: '/salesmanager/ecommerce-data' },
+    { name: 'eCommerce Imports', icon: FiFolder, path: '/salesmanager/ecommerce-imports' },
     { name: 'Activity Log', icon: FiActivity, path: '/salesmanager/activity-log' },
     { name: 'Removed & Deleted', icon: FiArchive, path: '/salesmanager/removed' },
     { name: 'Performance', icon: FiTrendingUp, path: '/salesmanager/performance' },

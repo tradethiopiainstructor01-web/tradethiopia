@@ -4,6 +4,7 @@ const controller = require('../controllers/ecommerceTableController');
 
 router.use(protect);
 router.get('/manager/:channel', controller.managerList);
+router.get('/manager/:channel/folders', controller.managerFolders);
 router.get('/manager/:channel/:id', controller.managerGet);
 router.get('/:channel/folders', controller.listFolders);
 router.post('/:channel/folders', controller.createFolder);

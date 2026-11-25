@@ -222,6 +222,23 @@ test('editing rejects duplicate rows and stale revisions', async () => {
   assert.equal((await call('updateRow', { ...args, body: { expectedFingerprint: fingerprint, values: ['Stale', '0911234567'] } })).status, 409);
 });
 
+test('manager folders include every owner and empty folders, with channel and role checks', async () => {
+  const first = await call('createFolder', { owner: 'folder-agent-a', body: { name: 'Shared folder name' } });
+  const second = await call('createFolder', { owner: 'folder-agent-b', body: { name: 'Shared folder name' } });
+  const sms = await call('createFolder', { owner: 'folder-agent-a', channel: 'bulk-sms', body: { name: 'SMS imports' } });
+  assert.equal((await call('managerFolders', { role: 'sales' })).status, 403);
+  assert.equal((await call('managerFolders', { role: 'salesmanager', channel: 'invalid' })).status, 400);
+  const cold = await call('managerFolders', { role: 'salesmanager' });
+  assert.equal(cold.status, 200);
+  assert.ok(cold.body.data.some((folder) => folder._id === first.body.data._id));
+  assert.ok(cold.body.data.some((folder) => folder._id === second.body.data._id));
+  assert.ok(!cold.body.data.some((folder) => folder._id === sms.body.data._id));
+  const bulk = await call('managerFolders', { role: 'admin', channel: 'bulk-sms' });
+  assert.equal(bulk.status, 200);
+  assert.ok(bulk.body.data.some((folder) => folder._id === sms.body.data._id));
+  assert.ok(!bulk.body.data.some((folder) => folder._id === first.body.data._id));
+});
+
 test('parallel batches keep file order, skip duplicates, and pages/search work', async () => {
   const all = Array.from({ length: 120 }, (_, i) => [`Company ${i}`, `09${String(i).padStart(8, '0')}`]);
   const importStartedAt = Date.now();
